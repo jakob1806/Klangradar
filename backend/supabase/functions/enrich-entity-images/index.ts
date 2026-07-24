@@ -13,19 +13,25 @@
 // Redakteurin das Bild im Media-Review (/media) bestätigt (siehe
 // admin/src/app/(dashboard)/media/actions.ts).
 //
-// Events: eine frisch gesuchte "Titelbild"-Aufnahme für ein einzelnes,
-// noch gar nicht stattgefundenes Konzert gibt es naturgemäß nicht — dafür
-// wird stattdessen das (bereits redaktionell geprüfte) Venue-Foto
-// übernommen, sofern vorhanden. Das ist keine neue externe Quelle, sondern
-// eine Referenz auf ein Bild, dessen Lizenz schon geklärt ist, deshalb ohne
-// zusätzlichen Review-Schritt direkt in events.image_urls geschrieben.
+// Events: die Quellseite des Konzerts selbst (website_url, ersatzweise
+// ticket_url) hat so gut wie immer ein eigenes, treffendes Bild (og:image/
+// twitter:image, siehe _shared/ogImage.ts) — das wird zuerst versucht.
+// Erst wenn die Quellseite kein Bild hergibt, wird ersatzweise das (bereits
+// redaktionell geprüfte) Venue-Foto übernommen. Beides ohne zusätzlichen
+// Review-Schritt direkt in events.image_urls geschrieben: og:image ist ein
+// direkter Verweis auf die eigene Werbeseite des Konzerts, das Venue-Foto
+// eine Referenz auf ein Bild, dessen Lizenz schon geklärt ist — anders als
+// die Wikimedia-Funde für Venues/Personen/Ensembles/Festivals unten ist
+// keins davon eine neue, ungeprüfte externe Quelle.
 //
 // Aufruf: POST { limit?: number } — verarbeitet bis zu `limit` (Default 8)
-// Entitäten PRO KATEGORIE (venues/persons/ensembles/festivals) und beliebig
-// viele Events (reine DB-Kopie, kein externer API-Call, kein Limit nötig).
+// Entitäten pro Kategorie (venues/persons/ensembles/festivals) und bis zu
+// `limit` Events (jedes braucht einen echten externen Fetch für das
+// og:image, ebenfalls begrenzt statt "beliebig viele").
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { searchCommonsImage } from "../_shared/wikimediaCommons.ts";
+import { extractOgImage } from "../_shared/ogImage.ts";
 import { logSystemAction } from "../_shared/systemLog.ts";
 
 const DEFAULT_LIMIT = 8;
@@ -72,7 +78,7 @@ Deno.serve(async (req) => {
   for (const kind of ENTITY_KINDS) {
     perKind[kind.table] = await enrichEntityKind(supabase, kind, limit);
   }
-  const eventResult = await enrichEventCovers(supabase);
+  const eventResult = await enrichEventCovers(supabase, limit);
 
   const totalQueued = Object.values(perKind).reduce((sum, r) => sum + r.queued, 0);
   if (totalQueued > 0 || eventResult.updated > 0) {
@@ -147,18 +153,31 @@ async function enrichEntityKind(
   return { found: list.length, queued, errors: errors.slice(0, 10) };
 }
 
-/** Übernimmt das Venue-Foto als Event-Titelbild für bevorstehende Events
- * ohne eigenes Bild — dieselbe Kriterien (aktiv, bevorstehend) wie die
- * Datenqualitäts-Review-Seite im Admin-Dashboard. */
+const EVENT_BATCH_SIZE = 15;
+const EVENT_CONCURRENCY = 4;
+
+/** Titelbild für bevorstehende Events ohne eigenes Bild — dieselben
+ * Kriterien (aktiv, bevorstehend) wie die Datenqualitäts-Review-Seite im
+ * Admin-Dashboard. Priorität: das Bild der Event-Quellseite selbst
+ * (og:image/twitter:image über website_url bzw. ersatzweise ticket_url —
+ * die Quelle hat praktisch immer ein zum Konzert passendes Bild, siehe
+ * _shared/ogImage.ts) — das Venue-Foto ist bewusst nur der allerletzte
+ * Rückfall, wenn die Quellseite selbst kein Bild hergibt (kein
+ * website_url/ticket_url, robots.txt-Sperre, oder kein og:image-Tag).
+ * Begrenzte Stapelgröße + Nebenläufigkeit wie bei resolve-entity-
+ * candidates: pro Event ist ein echter externer Fetch nötig, unbegrenzt
+ * hätte das 150s-Idle-Timeout der Edge Function gerissen. */
 async function enrichEventCovers(
   // deno-lint-ignore no-explicit-any
   supabase: any,
+  limit = EVENT_BATCH_SIZE,
 ): Promise<{ found: number; updated: number; errors: string[] }> {
   const { data: events, error } = await supabase
     .from("events")
-    .select("id, image_urls, venues(photo_url)")
+    .select("id, image_urls, website_url, ticket_url, venues(photo_url)")
     .in("status", ["scheduled", "sold_out", "postponed"])
-    .gte("start_datetime", new Date().toISOString());
+    .gte("start_datetime", new Date().toISOString())
+    .order("start_datetime", { ascending: true });
 
   if (error) {
     return { found: 0, updated: 0, errors: [`events: Laden fehlgeschlagen — ${error.message}`] };
@@ -167,24 +186,42 @@ async function enrichEventCovers(
   const missingImages = (events ?? []).filter(
     (e: { image_urls: string[] | null }) => !e.image_urls || e.image_urls.length === 0,
   );
+  const batch = missingImages.slice(0, limit);
 
   let updated = 0;
   const errors: string[] = [];
-  for (const event of missingImages) {
-    const venue = Array.isArray(event.venues) ? event.venues[0] : event.venues;
-    const venuePhoto = venue?.photo_url;
-    if (!venuePhoto) continue;
 
-    const { error: updateError } = await supabase
-      .from("events")
-      .update({ image_urls: [venuePhoto], updated_at: new Date().toISOString() })
-      .eq("id", event.id);
-    if (updateError) {
-      errors.push(`event ${event.id}: ${updateError.message}`);
-      continue;
+  let nextIndex = 0;
+  async function worker() {
+    while (nextIndex < batch.length) {
+      const event = batch[nextIndex++];
+      try {
+        const venue = Array.isArray(event.venues) ? event.venues[0] : event.venues;
+        let coverImage: string | null = null;
+        for (const pageUrl of [event.website_url, event.ticket_url]) {
+          if (!pageUrl) continue;
+          coverImage = await extractOgImage(pageUrl);
+          if (coverImage) break;
+        }
+        coverImage ??= venue?.photo_url ?? null;
+        if (!coverImage) continue;
+
+        const { error: updateError } = await supabase
+          .from("events")
+          .update({ image_urls: [coverImage], updated_at: new Date().toISOString() })
+          .eq("id", event.id);
+        if (updateError) {
+          errors.push(`event ${event.id}: ${updateError.message}`);
+          continue;
+        }
+        updated++;
+      } catch (err) {
+        errors.push(`event ${event.id}: ${err instanceof Error ? err.message : String(err)}`);
+      }
     }
-    updated++;
   }
+  const workerCount = Math.min(EVENT_CONCURRENCY, batch.length);
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
 
   return { found: missingImages.length, updated, errors: errors.slice(0, 10) };
 }

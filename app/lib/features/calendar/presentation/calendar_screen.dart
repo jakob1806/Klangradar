@@ -151,6 +151,14 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                 onPageChanged: (focused) =>
                     setState(() => _focusedDay = focused),
                 daysOfWeekHeight: 20,
+                // table_calendar zeichnet für eventLoader-Tage sonst ZUSÄTZLICH
+                // seine eigenen Standard-Marker (kleine Punkte in der
+                // Paket-Standardfarbe) UNTER dem von _DayCell schon
+                // gezeichneten Punkt-Indikator — zwei optisch unterschiedliche
+                // Punkt-Systeme auf demselben Tag, verwirrend statt doppelt
+                // informativ. markersMaxCount: 0 unterdrückt nur die
+                // Paket-eigenen Marker, _DayCell's eigener Indikator bleibt.
+                calendarStyle: const CalendarStyle(markersMaxCount: 0),
                 headerStyle: HeaderStyle(
                   formatButtonVisible: false,
                   titleCentered: true,
