@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -28,7 +29,7 @@ final _eventProvider = FutureProvider.family<Map<String, dynamic>?, String>((
         ticket_url, price_min, price_max, price_currency, is_free,
         website_url, accessibility, status, image_urls,
         attribution_notice, attribution_license_url, last_verified_at,
-        venues(id, slug, name, address_street, address_zip, address_city),
+        venues(id, slug, name, address_street, address_zip, address_city, photo_url, description_de),
         organizers(name),
         event_genres(genres(id, slug, label_de)),
         event_works(position, after_intermission, works(title, catalog_number, composer:persons(full_name))),
@@ -341,7 +342,16 @@ class EventDetailScreen extends ConsumerWidget {
                             ),
                           ),
                         ],
-                        if (event['description_de'] != null) ...[
+                        // description_de kommt bei vielen Quellen als reine
+                        // Komma-Aufzählung der Werke/Komponisten (die
+                        // Quell-Website selbst schreibt sie so, keine
+                        // KI-Erfindung) — sobald ein geparstes Programm
+                        // existiert, würde die Ansicht dieselbe Information
+                        // zweimal zeigen (einmal als Fließtext, einmal als
+                        // "Programm"-Liste direkt darunter). Nur ohne
+                        // Programm zeigen.
+                        if (event['description_de'] != null &&
+                            works.isEmpty) ...[
                           const SizedBox(height: AppSpacing.lg),
                           Text(
                             event['description_de'],
@@ -426,6 +436,18 @@ class EventDetailScreen extends ConsumerWidget {
                       ],
                     ),
                   ),
+                  if (venue != null)
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.screenPaddingMobile,
+                        AppSpacing.xl,
+                        AppSpacing.screenPaddingMobile,
+                        0,
+                      ),
+                      sliver: SliverToBoxAdapter(
+                        child: _VenueSection(venue: venue, colors: colors),
+                      ),
+                    ),
                   if (similarEvents.isNotEmpty)
                     SliverPadding(
                       padding: const EdgeInsets.only(top: AppSpacing.xl),
@@ -472,10 +494,117 @@ class EventDetailScreen extends ConsumerWidget {
       '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
 }
 
+/// Kurzinfo zum Veranstaltungsort (Foto, Name, Adresse, ggf. Kurzbeschreibung)
+/// — auf Nutzerwunsch vor "Ähnliche Veranstaltungen" platziert, damit die
+/// Location nicht nur als Adresszeile oben auf der Seite auftaucht.
+class _VenueSection extends StatelessWidget {
+  const _VenueSection({required this.venue, required this.colors});
+
+  final Map<String, dynamic> venue;
+  final AppColorsExtension colors;
+
+  @override
+  Widget build(BuildContext context) {
+    final photoUrl = venue['photo_url'] as String?;
+    final description = venue['description_de'] as String?;
+    final cardRadius = BorderRadius.circular(AppRadius.cardImage);
+    final address =
+        '${venue['address_street']}, ${venue['address_zip']} ${venue['address_city']}';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Veranstaltungsort',
+          style: Theme.of(context).textTheme.headlineSmall,
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Semantics(
+          button: true,
+          label: '${venue['name']}, $address',
+          onTap: () => context.push('/venue/${venue['slug']}'),
+          child: GestureDetector(
+            onTap: () => context.push('/venue/${venue['slug']}'),
+            child: ExcludeSemantics(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ClipRRect(
+                    borderRadius: cardRadius,
+                    child: SizedBox(
+                      width: 72,
+                      height: 72,
+                      child: photoUrl != null
+                          ? CachedNetworkImage(
+                              imageUrl: photoUrl,
+                              fit: BoxFit.cover,
+                              errorWidget: (context, url, error) =>
+                                  GenreArtwork(
+                                    genre: EventGenre.kirchenmusik,
+                                    borderRadius: cardRadius,
+                                  ),
+                              placeholder: (context, url) => GenreArtwork(
+                                genre: EventGenre.kirchenmusik,
+                                borderRadius: cardRadius,
+                              ),
+                            )
+                          : GenreArtwork(
+                              genre: EventGenre.kirchenmusik,
+                              borderRadius: cardRadius,
+                            ),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          venue['name'] ?? '',
+                          style: TextStyle(
+                            color: colors.textPrimary,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          address,
+                          style: TextStyle(
+                            color: colors.textSecondary,
+                            fontSize: 12.5,
+                          ),
+                        ),
+                        if (description != null) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            description,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: colors.textSecondary,
+                              fontSize: 12.5,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// Pflicht-Urheberrechtsvermerk für Quellen mit expliziter Lizenzauflage
 /// (z.B. BayernCloud Tourismus: "der entsprechende Urheberrechtsvermerk der
 /// Datensätze muss mit angegeben werden") — null für alle anderen Quellen,
 /// zeigt sich also nur bei Events aus einer solchen Quelle.
+
 class _AttributionNotice extends StatelessWidget {
   const _AttributionNotice({
     required this.notice,
