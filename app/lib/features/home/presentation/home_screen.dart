@@ -107,6 +107,14 @@ class HomeScreen extends ConsumerWidget {
                 SliverPadding(
                   padding: const EdgeInsets.only(top: AppSpacing.xl),
                   sliver: SliverList.list(
+                    // Modul-Reihenfolge nach docs/08-home-feed-
+                    // recommendation-algorithm.md, Abschnitt 3: zeitliche
+                    // Dringlichkeit zuerst, dann das personalisierte Kern-
+                    // Modul, direkt gefolgt vom bewusst NICHT nach
+                    // Geschmack gefilterten Entdecken-Modul (Abschnitt 4.3
+                    // — sonst verstärkt der Feed nur das schon Bekannte),
+                    // dann weitere Dringlichkeit/Nische, Popularität als
+                    // Fallback/Füller ganz am Ende.
                     children: [
                       if (data.heute.isNotEmpty) ...[
                         EventSection(
@@ -115,17 +123,17 @@ class HomeScreen extends ConsumerWidget {
                         ),
                         const SizedBox(height: AppSpacing.sectionGap),
                       ],
-                      if (data.beliebt.isNotEmpty) ...[
-                        EventSection(
-                          title: 'Beliebte Veranstaltungen',
-                          events: data.beliebt,
-                        ),
-                        const SizedBox(height: AppSpacing.sectionGap),
-                      ],
                       if (data.empfehlungen.isNotEmpty) ...[
                         EventSection(
                           title: 'Empfehlungen für dich',
                           events: data.empfehlungen,
+                        ),
+                        const SizedBox(height: AppSpacing.sectionGap),
+                      ],
+                      if (data.entdecken.isNotEmpty) ...[
+                        EventSection(
+                          title: 'Entdecken',
+                          events: data.entdecken,
                         ),
                         const SizedBox(height: AppSpacing.sectionGap),
                       ],
@@ -143,17 +151,17 @@ class HomeScreen extends ConsumerWidget {
                         ),
                         const SizedBox(height: AppSpacing.sectionGap),
                       ],
-                      if (data.neu.isNotEmpty)
+                      if (data.beliebt.isNotEmpty)
                         EventSection(
-                          title: 'Neue Veranstaltungen',
-                          events: data.neu,
+                          title: 'Beliebt gerade in München',
+                          events: data.beliebt,
                         ),
                       if (data.heute.isEmpty &&
-                          data.beliebt.isEmpty &&
                           data.empfehlungen.isEmpty &&
+                          data.entdecken.isEmpty &&
                           data.ausverkauft.isEmpty &&
                           data.kostenlos.isEmpty &&
-                          data.neu.isEmpty)
+                          data.beliebt.isEmpty)
                         Padding(
                           padding: const EdgeInsets.symmetric(
                             horizontal: AppSpacing.screenPaddingMobile,
