@@ -19,12 +19,25 @@
 //      Review nötig: es ist die eigene, von der Entität selbst gepflegte
 //      Seite, kein Fremdbild), plus ein images-Audit-Eintrag für
 //      Quellen-/Attributionsnachweis (license_status='confirmed_licensed').
+//   2b) NUR Personen/Ensembles: Bild von der Seite einer KONKRETEN
+//      bevorstehenden Veranstaltung, bei der diese Person/dieses Ensemble
+//      laut event_participants mitwirkt (siehe _shared/imageNearName.ts) —
+//      auf Nutzerfeedback nachgerüstet, nachdem sich Prio 3 (blinde
+//      Namenssuche) für Personen als zu ungenau herausgestellt hat (z. B.
+//      Namensgleichheiten wie "Lazarova" trafen ein komplett anderes
+//      Wikimedia-Motiv). Landet in der Review-Queue, NICHT automatisch
+//      freigegeben — anders als die eigene Website ist das die Seite
+//      eines Dritten (Veranstalter/Ticketanbieter) ohne bekannte Lizenz.
 //   3) Fallback: Wikimedia Commons (wie vorher) — LANDET WEITERHIN in der
 //      manuellen Review-Queue (needs_review=true), auf ausdrücklichen
 //      Nutzerwunsch NICHT automatisch freigegeben (Lizenz-/
 //      Namensnennungsrisiko bei einem Bild ohne direkten Bezug zur
 //      Entität selbst) — jetzt zusätzlich mit Erreichbarkeitsprüfung, damit
-//      keine kaputte URL überhaupt erst in die Review-Queue kommt.
+//      keine kaputte URL überhaupt erst in die Review-Queue kommt. Für
+//      Personen komplett DEAKTIVIERT (siehe 2b-Kommentar) — die reine
+//      Namensvolltextsuche produzierte dort zu viele falsche Treffer;
+//      Venues/Ensembles/Festivals behalten sie als letzten Rückfall, da
+//      Gebäude-/Ensemble-Namen deutlich seltener kollidieren.
 //
 // Ein Datensatz gilt erst dann als "ohne verlässliches Bild trotz
 // Recherche", wenn WEDER photo_url/image_urls gesetzt ist NOCH ein
@@ -34,6 +47,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { searchCommonsImage } from "../_shared/wikimediaCommons.ts";
 import { extractOgImage } from "../_shared/ogImage.ts";
+import { extractImageNearName } from "../_shared/imageNearName.ts";
 import { checkImageUrl } from "../_shared/imageValidation.ts";
 import { logSystemAction } from "../_shared/systemLog.ts";
 
@@ -47,14 +61,57 @@ interface EntityKind {
   /** Zusätzlicher Suchkontext für die Wikimedia-Fallback-Suche (Priorität
    * 3), um Namensgleichheiten mit anderen Städten/Personen zu vermeiden. */
   queryContext?: string;
+  /** Spalte in event_participants, die auf diese Entität verweist — nur
+   * für Personen/Ensembles gesetzt (Priorität 2b, siehe Datei-Kommentar). */
+  participantColumn?: "person_id" | "ensemble_id";
+  /** Wikimedia-Blindsuche nach Namen (Priorität 3) komplett deaktivieren —
+   * für Personen auf Nutzerfeedback hin (zu viele Namenskollisionen). */
+  disableWikimediaFallback?: boolean;
 }
 
 const ENTITY_KINDS: EntityKind[] = [
   { table: "venues", originType: "venue", nameColumn: "name", queryContext: "München" },
-  { table: "persons", originType: "person", nameColumn: "full_name" },
-  { table: "ensembles", originType: "ensemble", nameColumn: "name" },
+  {
+    table: "persons",
+    originType: "person",
+    nameColumn: "full_name",
+    participantColumn: "person_id",
+    disableWikimediaFallback: true,
+  },
+  { table: "ensembles", originType: "ensemble", nameColumn: "name", participantColumn: "ensemble_id" },
   { table: "festivals", originType: "festival", nameColumn: "name", queryContext: "München" },
 ];
+
+/** Nächste bevorstehende Veranstaltung, bei der diese Person/dieses
+ * Ensemble laut event_participants mitwirkt — für Priorität 2b. Liefert
+ * deren website_url/ticket_url (in dieser Reihenfolge versucht), oder
+ * null wenn keine bevorstehende Veranstaltung mit brauchbarer URL
+ * existiert. */
+async function findUpcomingEventPageUrl(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  participantColumn: "person_id" | "ensemble_id",
+  entityId: string,
+): Promise<string | null> {
+  const { data } = await supabase
+    .from("event_participants")
+    .select("events!inner(website_url, ticket_url, start_datetime, status)")
+    .eq(participantColumn, entityId)
+    .in("events.status", ["scheduled", "sold_out", "postponed"])
+    .gte("events.start_datetime", new Date().toISOString())
+    .limit(20);
+
+  const rows = (data ?? []) as Array<
+    { events: { website_url: string | null; ticket_url: string | null; start_datetime: string } }
+  >;
+  if (rows.length === 0) return null;
+  rows.sort((a, b) => a.events.start_datetime.localeCompare(b.events.start_datetime));
+  for (const row of rows) {
+    const url = row.events.website_url ?? row.events.ticket_url;
+    if (url) return url;
+  }
+  return null;
+}
 
 Deno.serve(async (req) => {
   let body: { limit?: unknown };
@@ -197,6 +254,19 @@ async function isUrlUsedElsewhere(
       .contains("image_urls", [url]);
     if (count && count > 0) return true;
   }
+  // Auch gegen bereits (für eine ANDERE Entität) in die Review-Queue
+  // gestellte, noch nicht abgelehnte Kandidaten prüfen — sonst kann
+  // dieselbe generische Grafik (z. B. ein "Tickets kaufen"-Icon, das
+  // fälschlich als Bild mehrerer verschiedener Mitwirkender erkannt
+  // wurde) mehrfach parallel zur Prüfung vorgelegt werden, bevor eine
+  // Redakteurin den ersten Fall überhaupt gesehen hat.
+  const { count: queuedCount } = await supabase
+    .from("images")
+    .select("id", { count: "exact", head: true })
+    .eq("source_url", url)
+    .neq("license_status", "rejected")
+    .neq("origin_id", excludeId);
+  if (queuedCount && queuedCount > 0) return true;
   return false;
 }
 
@@ -261,9 +331,9 @@ async function enrichEntityKind(
         }
       }
 
-      // Priorität 3: Wikimedia-Fallback — weiterhin review-pflichtig.
       // Schon eine images-Zeile (egal welchen Status außer 'rejected') für
-      // diese Entität? Dann läuft schon eine Prüfung/Entscheidung.
+      // diese Entität? Dann läuft schon eine Prüfung/Entscheidung — weder
+      // 2b noch 3 sollen einen zweiten Kandidaten obendrauf stellen.
       const { data: existing } = await supabase
         .from("images")
         .select("id")
@@ -272,6 +342,40 @@ async function enrichEntityKind(
         .neq("license_status", "rejected")
         .maybeSingle();
       if (existing) continue;
+
+      // Priorität 2b: Bild von der Seite einer konkreten bevorstehenden
+      // Veranstaltung, bei der diese Person/dieses Ensemble mitwirkt —
+      // präziser als eine blinde Namenssuche, aber Seite eines Dritten
+      // ohne bekannte Lizenz, daher immer review-pflichtig.
+      if (kind.participantColumn) {
+        const eventPageUrl = await findUpcomingEventPageUrl(supabase, kind.participantColumn, id);
+        if (eventPageUrl) {
+          const nearImage = await extractImageNearName(eventPageUrl, name);
+          if (nearImage) {
+            const { reachable } = await checkImageUrl(nearImage);
+            if (reachable && !(await isUrlUsedElsewhere(supabase, nearImage, kind.table, id))) {
+              const { error: insertError } = await supabase.from("images").insert({
+                source_url: nearImage,
+                origin_type: kind.originType,
+                origin_id: id,
+                license_notes:
+                  `Automatisch von der Programmseite einer bevorstehenden Veranstaltung mit ${name} ` +
+                  `entnommen (${eventPageUrl}) — Seite eines Dritten, Lizenz vor Freigabe individuell prüfen.`,
+              });
+              if (insertError) {
+                errors.push(`${kind.table} "${name}": Insert fehlgeschlagen — ${insertError.message}`);
+              } else {
+                queuedForReview++;
+              }
+              continue;
+            }
+          }
+        }
+      }
+
+      // Priorität 3: Wikimedia-Fallback — weiterhin review-pflichtig, und
+      // für Personen komplett deaktiviert (siehe Datei-Kommentar).
+      if (kind.disableWikimediaFallback) continue;
 
       const query = kind.queryContext ? `${name} ${kind.queryContext}` : name;
       const candidate = await searchCommonsImage(query);
