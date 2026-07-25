@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ConfirmButton } from "@/components/confirm-button";
 import { createClient } from "@/lib/supabase/server";
 import { confirmImageFree, confirmImageLicensed, rejectImage } from "./actions";
@@ -44,13 +45,24 @@ export default async function MediaPage() {
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Bilder — Lizenz-Review</h1>
           <p className="mt-1 max-w-xl text-sm text-neutral-500">
-            Automatisch importierte/gefundene Bilder gelten nie automatisch als frei nutzbar — jedes Bild
-            braucht eine redaktionelle Freigabe. Eine Freigabe (&bdquo;Frei nutzbar&rdquo;/&bdquo;Lizenziert&rdquo;) übernimmt
-            das Bild direkt in das Foto-Feld der jeweiligen Venue/Person/Ensemble/Festival bzw. als
-            Event-Titelbild.
+            Ein automatischer Lauf (alle 15 Minuten, siehe <code>cron.job</code> &bdquo;image-enrichment&rdquo;)
+            sucht laufend Bilder für neue und bestehende Einträge: Events, sowie Venues/Personen/Ensembles/
+            Festivals über ihre eigene offizielle Website werden direkt übernommen (kein Fremdbild, daher
+            ohne Review). Nur der Wikimedia-Fallback landet hier zur redaktionellen Freigabe — jedes dieser
+            Bilder braucht eine Entscheidung (&bdquo;Frei nutzbar&rdquo;/&bdquo;Lizenziert&rdquo;), bevor es live geht.
+            Bestehende Bilder werden dabei laufend auf Erreichbarkeit geprüft und bei einem Defekt
+            automatisch zurückgesetzt (dann erneut für die Suche vorgemerkt).
           </p>
         </div>
-        <EnrichImagesButton />
+        <div className="flex items-center gap-3">
+          <Link
+            href="/media/gaps"
+            className="rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-100"
+          >
+            Bildlücken-Bericht
+          </Link>
+          <EnrichImagesButton />
+        </div>
       </div>
 
       {error && <p className="mt-6 text-sm text-amber-700">Konnte Bilder nicht laden: {error.message}</p>}
