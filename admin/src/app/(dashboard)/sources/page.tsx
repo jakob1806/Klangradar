@@ -42,8 +42,11 @@ export default async function SourcesPage() {
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Datenquellen & Import</h1>
           <p className="mt-1 max-w-xl text-sm text-neutral-500">
-            Schema.org-, iCal- und RSS-Quellen verwalten. Automatischer Import-Lauf folgt in Phase 2 (Ingestion-Pipeline) —
-            hier lassen sich Quellen bereits jetzt dokumentieren und pflegen.
+            Schema.org-, iCal-, RSS- und Scraping-Quellen verwalten. Ein täglicher Cron-Job (2:00 Uhr UTC / 4:00 Uhr
+            Sommerzeit, siehe <code>cron.job</code> in Supabase) ruft automatisch alle aktiven Quellen ab —
+            &bdquo;Letzter Lauf&rdquo; unten zeigt das Ergebnis. Eine neu angelegte Quelle wird beim nächsten planmäßigen
+            Lauf mit erfasst; ein sofortiger Einzellauf lässt sich über &bdquo;Jetzt ausführen&rdquo; auf der jeweiligen
+            Quellen-Seite auslösen.
           </p>
         </div>
         <div className="flex gap-3">
