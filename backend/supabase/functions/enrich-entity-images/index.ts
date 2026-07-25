@@ -13,16 +13,19 @@
 // Redakteurin das Bild im Media-Review (/media) bestätigt (siehe
 // admin/src/app/(dashboard)/media/actions.ts).
 //
-// Events: die Quellseite des Konzerts selbst (website_url, ersatzweise
-// ticket_url) hat so gut wie immer ein eigenes, treffendes Bild (og:image/
-// twitter:image, siehe _shared/ogImage.ts) — das wird zuerst versucht.
-// Erst wenn die Quellseite kein Bild hergibt, wird ersatzweise das (bereits
-// redaktionell geprüfte) Venue-Foto übernommen. Beides ohne zusätzlichen
-// Review-Schritt direkt in events.image_urls geschrieben: og:image ist ein
-// direkter Verweis auf die eigene Werbeseite des Konzerts, das Venue-Foto
-// eine Referenz auf ein Bild, dessen Lizenz schon geklärt ist — anders als
-// die Wikimedia-Funde für Venues/Personen/Ensembles/Festivals unten ist
-// keins davon eine neue, ungeprüfte externe Quelle.
+// Events: NUR das eigene Bild der Konzert-Quellseite (og:image/
+// twitter:image über website_url, ersatzweise ticket_url — siehe
+// _shared/ogImage.ts). Bewusst KEIN Rückfall auf das Venue-Foto mehr (auf
+// expliziten Nutzerwunsch: "nicht bloß ein generisches Foto der Venue" —
+// ein geteiltes Gebäudefoto für zig verschiedene Konzerte am selben Ort
+// suggeriert ein eigenes Bild, wo keins existiert). Findet sich kein
+// og:image, bleibt image_urls leer und die App zeigt den genre-spezifischen
+// GenreArtwork-Platzhalter (core/widgets/genre_artwork.dart) — der ist
+// bereits das "klar unterscheidbare, hochwertige Ersatzmotiv im jeweiligen
+// Event-Stil", um das der Nutzer gebeten hat, kein separater Baustein
+// nötig. og:image wird ohne Review-Schritt direkt in events.image_urls
+// geschrieben (direkter Verweis auf die eigene Werbeseite des Konzerts,
+// anders als die Wikimedia-Funde unten keine neue, ungeprüfte Quelle).
 //
 // Aufruf: POST { limit?: number } — verarbeitet bis zu `limit` (Default 8)
 // Entitäten pro Kategorie (venues/persons/ensembles/festivals) und bis zu
@@ -158,12 +161,10 @@ const EVENT_CONCURRENCY = 4;
 
 /** Titelbild für bevorstehende Events ohne eigenes Bild — dieselben
  * Kriterien (aktiv, bevorstehend) wie die Datenqualitäts-Review-Seite im
- * Admin-Dashboard. Priorität: das Bild der Event-Quellseite selbst
- * (og:image/twitter:image über website_url bzw. ersatzweise ticket_url —
- * die Quelle hat praktisch immer ein zum Konzert passendes Bild, siehe
- * _shared/ogImage.ts) — das Venue-Foto ist bewusst nur der allerletzte
- * Rückfall, wenn die Quellseite selbst kein Bild hergibt (kein
- * website_url/ticket_url, robots.txt-Sperre, oder kein og:image-Tag).
+ * Admin-Dashboard. NUR das Bild der Event-Quellseite selbst (og:image/
+ * twitter:image über website_url bzw. ersatzweise ticket_url, siehe
+ * _shared/ogImage.ts) — kein Venue-Foto-Rückfall mehr (siehe
+ * Datei-Kommentar oben). Findet sich keins, bleibt image_urls leer.
  * Begrenzte Stapelgröße + Nebenläufigkeit wie bei resolve-entity-
  * candidates: pro Event ist ein echter externer Fetch nötig, unbegrenzt
  * hätte das 150s-Idle-Timeout der Edge Function gerissen. */
@@ -174,7 +175,7 @@ async function enrichEventCovers(
 ): Promise<{ found: number; updated: number; errors: string[] }> {
   const { data: events, error } = await supabase
     .from("events")
-    .select("id, image_urls, website_url, ticket_url, venues(photo_url)")
+    .select("id, image_urls, website_url, ticket_url")
     .in("status", ["scheduled", "sold_out", "postponed"])
     .gte("start_datetime", new Date().toISOString())
     .order("start_datetime", { ascending: true });
@@ -196,14 +197,12 @@ async function enrichEventCovers(
     while (nextIndex < batch.length) {
       const event = batch[nextIndex++];
       try {
-        const venue = Array.isArray(event.venues) ? event.venues[0] : event.venues;
         let coverImage: string | null = null;
         for (const pageUrl of [event.website_url, event.ticket_url]) {
           if (!pageUrl) continue;
           coverImage = await extractOgImage(pageUrl);
           if (coverImage) break;
         }
-        coverImage ??= venue?.photo_url ?? null;
         if (!coverImage) continue;
 
         const { error: updateError } = await supabase

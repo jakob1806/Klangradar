@@ -47,11 +47,18 @@ class HomeEventItem {
         .whereType<String>();
     final imageUrls = row['image_urls'] as List?;
 
+    // Ticket-Status hat Vorrang vor "Kostenlos" — ein ausverkauftes Gratis-
+    // Event soll das auch als Badge zeigen, nicht "Kostenlos" vortäuschen.
     String? badge;
-    if (row['is_free'] == true) {
-      badge = 'Kostenlos';
-    } else if (row['remaining_tickets_status'] == 'few_left') {
-      badge = 'Fast ausverkauft';
+    switch (row['remaining_tickets_status'] as String?) {
+      case 'sold_out':
+        badge = 'Ausverkauft';
+      case 'few_left':
+        badge = 'Fast ausverkauft';
+      case 'box_office_only':
+        badge = 'Nur Abendkasse';
+      default:
+        if (row['is_free'] == true) badge = 'Kostenlos';
     }
 
     return HomeEventItem(

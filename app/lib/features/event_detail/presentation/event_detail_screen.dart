@@ -27,6 +27,8 @@ final _eventProvider = FutureProvider.family<Map<String, dynamic>?, String>((
         id, slug, title, subtitle, description_de,
         start_datetime, duration_minutes, has_intermission,
         ticket_url, price_min, price_max, price_currency, is_free,
+        remaining_tickets_status, doors_info, age_restriction,
+        discount_info, presale_fee_info,
         website_url, accessibility, status, image_urls,
         attribution_notice, attribution_license_url, last_verified_at,
         venues(id, slug, name, address_street, address_zip, address_city, photo_url, description_de),
@@ -164,326 +166,310 @@ class EventDetailScreen extends ConsumerWidget {
               ? imageUrls.first as String?
               : null;
 
-          return Stack(
-            children: [
-              CustomScrollView(
-                slivers: [
-                  SliverAppBar(
-                    expandedHeight: 260,
-                    pinned: true,
-                    backgroundColor: colors.backgroundPrimary,
-                    iconTheme: const IconThemeData(color: Colors.white),
-                    actions: [
-                      FavoriteButton(
-                        eventId: event['id'],
-                        activeColor: colors.accentPrimary,
-                        inactiveColor: Colors.white,
-                      ),
-                      IconButton(
-                        icon: const Icon(
-                          Icons.calendar_month_rounded,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                        tooltip: 'Zum Kalender hinzufügen',
-                        onPressed: start == null
-                            ? null
-                            : () => IcsExport.shareEvent(
-                                uid: event['id'],
-                                title: event['title'] ?? '',
-                                description: event['description_de'],
-                                start: start,
-                                durationMinutes: event['duration_minutes'],
-                                location: venue != null
-                                    ? '${venue['name']}, ${venue['address_street']}, ${venue['address_zip']} ${venue['address_city']}'
-                                    : null,
-                                url:
-                                    event['website_url'] ?? event['ticket_url'],
-                              ),
-                      ),
-                      IconButton(
-                        icon: const Icon(
-                          Icons.ios_share_rounded,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                        tooltip: 'Teilen',
-                        onPressed: () => Share.share(
-                          '${event['title']}${venue != null ? ' · ${venue['name']}' : ''}'
-                          '${event['website_url'] != null ? '\n${event['website_url']}' : ''}',
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                    ],
-                    flexibleSpace: FlexibleSpaceBar(
-                      background: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          DetailHeroBackground(
-                            photoUrl: photoUrl,
-                            fallbackGenre: primaryGenre,
-                            showGradient: false,
+          return CustomScrollView(
+            slivers: [
+              SliverAppBar(
+                expandedHeight: 260,
+                pinned: true,
+                backgroundColor: colors.backgroundPrimary,
+                iconTheme: const IconThemeData(color: Colors.white),
+                actions: [
+                  FavoriteButton(
+                    eventId: event['id'],
+                    activeColor: colors.accentPrimary,
+                    inactiveColor: Colors.white,
+                  ),
+                  IconButton(
+                    icon: const Icon(
+                      Icons.calendar_month_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                    tooltip: 'Zum Kalender hinzufügen',
+                    onPressed: start == null
+                        ? null
+                        : () => IcsExport.shareEvent(
+                            uid: event['id'],
+                            title: event['title'] ?? '',
+                            description: event['description_de'],
+                            start: start,
+                            durationMinutes: event['duration_minutes'],
+                            location: venue != null
+                                ? '${venue['name']}, ${venue['address_street']}, ${venue['address_zip']} ${venue['address_city']}'
+                                : null,
+                            url: event['website_url'] ?? event['ticket_url'],
                           ),
-                          Container(
-                            decoration: const BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [
-                                  Color(0x59000000),
-                                  Colors.transparent,
-                                  Color(0xBF000000),
-                                ],
-                                stops: [0.0, 0.35, 1.0],
-                              ),
-                            ),
-                          ),
-                          if (statusBadge != null)
-                            Positioned(
-                              left: 16,
-                              bottom: 16,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 5,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: colors.error,
-                                  borderRadius: BorderRadius.circular(999),
-                                ),
-                                child: Text(
-                                  statusBadge,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
+                  ),
+                  IconButton(
+                    icon: const Icon(
+                      Icons.ios_share_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                    tooltip: 'Teilen',
+                    onPressed: () => Share.share(
+                      '${event['title']}${venue != null ? ' · ${venue['name']}' : ''}'
+                      '${event['website_url'] != null ? '\n${event['website_url']}' : ''}',
                     ),
                   ),
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.screenPaddingMobile,
-                      AppSpacing.lg,
-                      AppSpacing.screenPaddingMobile,
-                      0,
-                    ),
-                    sliver: SliverList.list(
-                      children: [
-                        Text(
-                          event['title'] ?? '',
-                          style: Theme.of(context).textTheme.headlineLarge,
+                  const SizedBox(width: 4),
+                ],
+                flexibleSpace: FlexibleSpaceBar(
+                  background: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      DetailHeroBackground(
+                        photoUrl: photoUrl,
+                        fallbackGenre: primaryGenre,
+                        showGradient: false,
+                      ),
+                      Container(
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Color(0x59000000),
+                              Colors.transparent,
+                              Color(0xBF000000),
+                            ],
+                            stops: [0.0, 0.35, 1.0],
+                          ),
                         ),
-                        if (event['subtitle'] != null) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            event['subtitle'],
-                            style: TextStyle(
-                              color: colors.textSecondary,
-                              fontSize: 14,
+                      ),
+                      if (statusBadge != null)
+                        Positioned(
+                          left: 16,
+                          bottom: 16,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 5,
                             ),
-                          ),
-                        ],
-                        const SizedBox(height: AppSpacing.sm),
-                        Wrap(
-                          spacing: 6,
-                          runSpacing: 6,
-                          children: [
-                            for (final label in genreLabels)
-                              Chip(
-                                label: Text(
-                                  label,
-                                  style: const TextStyle(fontSize: 11),
-                                ),
-                                visualDensity: VisualDensity.compact,
-                              ),
-                            if (event['is_free'] == true)
-                              Chip(
-                                label: const Text(
-                                  'Kostenlos',
-                                  style: TextStyle(fontSize: 11),
-                                ),
-                                backgroundColor: colors.success.withValues(
-                                  alpha: 0.15,
-                                ),
-                                visualDensity: VisualDensity.compact,
-                              ),
-                          ],
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                        Text(
-                          [
-                            if (start != null)
-                              '${_weekday(start)}, ${start.day}.${start.month}.${start.year} · ${_time(start)} Uhr',
-                            if (event['duration_minutes'] != null)
-                              '${event['duration_minutes']} Min.${event['has_intermission'] == true ? ' inkl. Pause' : ''}',
-                          ].join(' — '),
-                          style: TextStyle(
-                            color: colors.textSecondary,
-                            fontSize: 13,
-                          ),
-                        ),
-                        if (venue != null) ...[
-                          const SizedBox(height: 4),
-                          GestureDetector(
-                            onTap: () =>
-                                context.push('/venue/${venue['slug']}'),
+                            decoration: BoxDecoration(
+                              color: colors.error,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
                             child: Text(
-                              '${venue['name']} — ${venue['address_street']}, ${venue['address_zip']} ${venue['address_city']}',
-                              style: TextStyle(
-                                color: colors.accentPrimary,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
-                        // description_de kommt bei vielen Quellen als reine
-                        // Komma-Aufzählung der Werke/Komponisten (die
-                        // Quell-Website selbst schreibt sie so, keine
-                        // KI-Erfindung) — sobald ein geparstes Programm
-                        // existiert, würde die Ansicht dieselbe Information
-                        // zweimal zeigen (einmal als Fließtext, einmal als
-                        // "Programm"-Liste direkt darunter). Nur ohne
-                        // Programm zeigen.
-                        if (event['description_de'] != null &&
-                            works.isEmpty) ...[
-                          const SizedBox(height: AppSpacing.lg),
-                          Text(
-                            event['description_de'],
-                            style: TextStyle(
-                              color: colors.textPrimary,
-                              fontSize: 14,
-                              height: 1.5,
-                            ),
-                          ),
-                        ],
-                        if (works.isNotEmpty) ...[
-                          const SizedBox(height: AppSpacing.xl),
-                          Text(
-                            'Programm',
-                            style: Theme.of(context).textTheme.headlineSmall,
-                          ),
-                          const SizedBox(height: AppSpacing.sm),
-                          for (final w in works)
-                            _ProgramRow(work: w, colors: colors),
-                        ],
-                        if (participants.isNotEmpty) ...[
-                          const SizedBox(height: AppSpacing.xl),
-                          Text(
-                            'Mitwirkende',
-                            style: Theme.of(context).textTheme.headlineSmall,
-                          ),
-                          const SizedBox(height: AppSpacing.sm),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: [
-                              for (final p in participants)
-                                _ParticipantChip(
-                                  participant: p,
-                                  colors: colors,
-                                ),
-                            ],
-                          ),
-                        ],
-                        if (accessibility.values.any((v) => v == true)) ...[
-                          const SizedBox(height: AppSpacing.xl),
-                          Text(
-                            'Barrierefreiheit',
-                            style: Theme.of(context).textTheme.headlineSmall,
-                          ),
-                          const SizedBox(height: AppSpacing.sm),
-                          Wrap(
-                            spacing: 8,
-                            children: [
-                              if (accessibility['wheelchair'] == true)
-                                const Chip(label: Text('Rollstuhlgerecht')),
-                              if (accessibility['hearing_loop'] == true)
-                                const Chip(label: Text('Induktionsschleife')),
-                              if (accessibility['sign_language'] == true)
-                                const Chip(label: Text('Gebärdensprache')),
-                            ],
-                          ),
-                        ],
-                        if (event['attribution_notice'] != null ||
-                            event['last_verified_at'] != null) ...[
-                          const SizedBox(height: AppSpacing.xl),
-                          if (event['attribution_notice'] != null)
-                            _AttributionNotice(
-                              notice: event['attribution_notice'] as String,
-                              licenseUrl:
-                                  event['attribution_license_url'] as String?,
-                              colors: colors,
-                            ),
-                          if (event['last_verified_at'] != null) ...[
-                            if (event['attribution_notice'] != null)
-                              const SizedBox(height: 2),
-                            Text(
-                              'Zuletzt geprüft: '
-                              '${_formatVerifiedDate(DateTime.parse(event['last_verified_at'] as String))}',
-                              style: TextStyle(
-                                color: colors.textTertiary,
+                              statusBadge,
+                              style: const TextStyle(
+                                color: Colors.white,
                                 fontSize: 11,
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
-                          ],
-                        ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.screenPaddingMobile,
+                  AppSpacing.lg,
+                  AppSpacing.screenPaddingMobile,
+                  0,
+                ),
+                sliver: SliverList.list(
+                  children: [
+                    Text(
+                      event['title'] ?? '',
+                      style: Theme.of(context).textTheme.headlineLarge,
+                    ),
+                    if (event['subtitle'] != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        event['subtitle'],
+                        style: TextStyle(
+                          color: colors.textSecondary,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: AppSpacing.sm),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        for (final label in genreLabels)
+                          Chip(
+                            label: Text(
+                              label,
+                              style: const TextStyle(fontSize: 11),
+                            ),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        if (event['is_free'] == true)
+                          Chip(
+                            label: const Text(
+                              'Kostenlos',
+                              style: TextStyle(fontSize: 11),
+                            ),
+                            backgroundColor: colors.success.withValues(
+                              alpha: 0.15,
+                            ),
+                            visualDensity: VisualDensity.compact,
+                          ),
                       ],
                     ),
-                  ),
-                  if (venue != null)
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(
-                        AppSpacing.screenPaddingMobile,
-                        AppSpacing.xl,
-                        AppSpacing.screenPaddingMobile,
-                        0,
-                      ),
-                      sliver: SliverToBoxAdapter(
-                        child: _VenueSection(venue: venue, colors: colors),
+                    const SizedBox(height: AppSpacing.md),
+                    Text(
+                      [
+                        if (start != null)
+                          '${_weekday(start)}, ${start.day}.${start.month}.${start.year} · ${_time(start)} Uhr',
+                        if (event['duration_minutes'] != null)
+                          '${event['duration_minutes']} Min.${event['has_intermission'] == true ? ' inkl. Pause' : ''}',
+                      ].join(' — '),
+                      style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: 13,
                       ),
                     ),
-                  if (similarEvents.isNotEmpty)
-                    SliverPadding(
-                      padding: const EdgeInsets.only(top: AppSpacing.xl),
-                      sliver: SliverToBoxAdapter(
-                        child: EventSection(
-                          title: 'Ähnliche Veranstaltungen',
-                          events: similarEvents,
+                    if (venue != null) ...[
+                      const SizedBox(height: 4),
+                      GestureDetector(
+                        onTap: () => context.push('/venue/${venue['slug']}'),
+                        child: Text(
+                          '${venue['name']} — ${venue['address_street']}, ${venue['address_zip']} ${venue['address_city']}',
+                          style: TextStyle(
+                            color: colors.accentPrimary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
-                    ),
-                  // Reserviert Platz für die fixierte _TicketBar unten (siehe
-                  // Positioned weiter unten) — ein reiner Fixwert reichte
-                  // nicht: die Leiste ist mit Tickets-Button + Safe-Area-
-                  // Bottom-Inset (z.B. Home-Indicator) höher als AppSpacing.huge
-                  // allein, wodurch der Preistext das Ende von "Ähnliche
-                  // Veranstaltungen" überlappte. AppSpacing.xl obendrauf als
-                  // Sicherheitsmarge für die Button-Variante der Leiste.
-                  SliverToBoxAdapter(
-                    child: SizedBox(
-                      height:
-                          AppSpacing.huge +
-                          AppSpacing.xl +
-                          MediaQuery.of(context).padding.bottom,
+                    ],
+                    _TicketInfoSection(event: event, colors: colors),
+                    // description_de kommt bei vielen Quellen als reine
+                    // Komma-Aufzählung der Werke/Komponisten (die
+                    // Quell-Website selbst schreibt sie so, keine
+                    // KI-Erfindung) — sobald ein geparstes Programm
+                    // existiert, würde die Ansicht dieselbe Information
+                    // zweimal zeigen (einmal als Fließtext, einmal als
+                    // "Programm"-Liste direkt darunter). Nur ohne
+                    // Programm zeigen.
+                    if (event['description_de'] != null && works.isEmpty) ...[
+                      const SizedBox(height: AppSpacing.lg),
+                      Text(
+                        event['description_de'],
+                        style: TextStyle(
+                          color: colors.textPrimary,
+                          fontSize: 14,
+                          height: 1.5,
+                        ),
+                      ),
+                    ],
+                    if (works.isNotEmpty) ...[
+                      const SizedBox(height: AppSpacing.xl),
+                      Text(
+                        'Programm',
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      for (final w in works)
+                        _ProgramRow(work: w, colors: colors),
+                    ],
+                    if (participants.isNotEmpty) ...[
+                      const SizedBox(height: AppSpacing.xl),
+                      Text(
+                        'Mitwirkende',
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final p in participants)
+                            _ParticipantChip(participant: p, colors: colors),
+                        ],
+                      ),
+                    ],
+                    if (accessibility.values.any((v) => v == true)) ...[
+                      const SizedBox(height: AppSpacing.xl),
+                      Text(
+                        'Barrierefreiheit',
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          if (accessibility['wheelchair'] == true)
+                            const Chip(label: Text('Rollstuhlgerecht')),
+                          if (accessibility['hearing_loop'] == true)
+                            const Chip(label: Text('Induktionsschleife')),
+                          if (accessibility['sign_language'] == true)
+                            const Chip(label: Text('Gebärdensprache')),
+                        ],
+                      ),
+                    ],
+                    if (event['attribution_notice'] != null ||
+                        event['last_verified_at'] != null) ...[
+                      const SizedBox(height: AppSpacing.xl),
+                      if (event['attribution_notice'] != null)
+                        _AttributionNotice(
+                          notice: event['attribution_notice'] as String,
+                          licenseUrl:
+                              event['attribution_license_url'] as String?,
+                          colors: colors,
+                        ),
+                      if (event['last_verified_at'] != null) ...[
+                        if (event['attribution_notice'] != null)
+                          const SizedBox(height: 2),
+                        Text(
+                          'Zuletzt geprüft: '
+                          '${_formatVerifiedDate(DateTime.parse(event['last_verified_at'] as String))}',
+                          style: TextStyle(
+                            color: colors.textTertiary,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ],
+                ),
+              ),
+              if (venue != null)
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.screenPaddingMobile,
+                    AppSpacing.xl,
+                    AppSpacing.screenPaddingMobile,
+                    0,
+                  ),
+                  sliver: SliverToBoxAdapter(
+                    child: _VenueSection(venue: venue, colors: colors),
+                  ),
+                ),
+              if (similarEvents.isNotEmpty)
+                SliverPadding(
+                  padding: const EdgeInsets.only(top: AppSpacing.xl),
+                  sliver: SliverToBoxAdapter(
+                    child: EventSection(
+                      title: 'Ähnliche Veranstaltungen',
+                      events: similarEvents,
                     ),
                   ),
-                ],
-              ),
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: _TicketBar(event: event, colors: colors),
-              ),
+                ),
+              const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.xl)),
             ],
           );
         },
+      ),
+      // bottomNavigationBar statt eines Positioned-Overlays mit von Hand
+      // ausgemessenem Platzhalter im Scroll-Inhalt (frühere Version, siehe
+      // Git-Historie) — Scaffold reserviert dafür automatisch exakt die
+      // tatsächliche Höhe der Leiste, ganz gleich wie viele Zeilen sie
+      // gerade zeigt (Preis allein, oder zusätzlich eine Ticket-Status-
+      // Zeile). Ein von Hand geschätzter Fixwert lag zweimal daneben
+      // (Button-Variante, dann die Status-Zeile) — das kann mit dieser
+      // Konstruktion strukturell nicht mehr passieren.
+      bottomNavigationBar: async.maybeWhen(
+        data: (event) =>
+            event == null ? null : _TicketBar(event: event, colors: colors),
+        orElse: () => null,
       ),
     );
   }
@@ -734,6 +720,96 @@ class _ParticipantChip extends StatelessWidget {
   }
 }
 
+/// Label + Farbe für remaining_tickets_status — geteilt zwischen _TicketBar
+/// (fixe Leiste unten) und _TicketInfoSection (Fließtext-Bereich weiter
+/// oben), damit beide Stellen dieselbe Sprache sprechen.
+({String label, Color color})? _ticketStatusInfo(
+  String? status,
+  AppColorsExtension colors,
+) => switch (status) {
+  'available' => (label: 'Tickets verfügbar', color: colors.success),
+  'few_left' => (label: 'Nur noch wenige Tickets', color: colors.warning),
+  'sold_out' => (label: 'Ausverkauft', color: colors.error),
+  'box_office_only' => (
+    label: 'Nur an der Abendkasse',
+    color: colors.textSecondary,
+  ),
+  _ => null,
+};
+
+String _formatPrice(dynamic value) {
+  final d = (value as num).toDouble();
+  return d == d.roundToDouble() ? d.toInt().toString() : d.toStringAsFixed(2);
+}
+
+/// Zusätzliche Ticket-Hinweise (Einlass, Altersbeschränkung, Ermäßigung,
+/// Vorverkaufsgebühr) im scrollenden Inhalt statt in der fixen _TicketBar
+/// unten — die hat schon einmal überlaufen, als sie mehr als eine Zeile
+/// Inhalt bekam (siehe Kommentar beim SizedBox-Platzhalter weiter oben),
+/// zusätzliche, meist leere optionale Felder gehören hier besser hin. Alle
+/// Felder sind rein optional — die Sektion zeigt nur, was tatsächlich
+/// gepflegt ist, und verschwindet komplett, wenn nichts davon vorliegt.
+class _TicketInfoSection extends StatelessWidget {
+  const _TicketInfoSection({required this.event, required this.colors});
+  final Map<String, dynamic> event;
+  final AppColorsExtension colors;
+
+  @override
+  Widget build(BuildContext context) {
+    final statusInfo = _ticketStatusInfo(
+      event['remaining_tickets_status'] as String?,
+      colors,
+    );
+    final hints = [
+      event['doors_info'],
+      event['age_restriction'],
+      event['discount_info'],
+      event['presale_fee_info'],
+    ].whereType<String>().where((s) => s.trim().isNotEmpty).toList();
+
+    if (statusInfo == null && hints.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (statusInfo != null)
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: statusInfo.color,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  statusInfo.label,
+                  style: TextStyle(
+                    color: statusInfo.color,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          for (final hint in hints) ...[
+            const SizedBox(height: 4),
+            Text(
+              hint,
+              style: TextStyle(color: colors.textSecondary, fontSize: 12.5),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class _TicketBar extends StatelessWidget {
   const _TicketBar({required this.event, required this.colors});
   final Map<String, dynamic> event;
@@ -742,17 +818,37 @@ class _TicketBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final priceMin = event['price_min'];
+    final priceMax = event['price_max'];
     final isFree = event['is_free'] == true;
-    final ticketUrl = event['ticket_url'] as String?;
+    final status = event['remaining_tickets_status'] as String?;
+    // Ticket-Link individuell pro Event, nie von der Venue übernommen —
+    // ticket_url ist bei so gut wie keinem Event gesetzt (die Quellen
+    // liefern fast immer nur eine allgemeine Event-Seite statt eines
+    // dedizierten Ticket-Links), website_url ist der Rückfall, damit der
+    // Button nicht bei praktisch jedem Event fehlt.
+    final link =
+        (event['ticket_url'] as String?) ?? (event['website_url'] as String?);
+    final soldOut = status == 'sold_out';
+    final boxOfficeOnly = status == 'box_office_only';
 
     String priceText;
     if (isFree) {
       priceText = 'Kostenlos';
+    } else if (priceMin != null && priceMax != null && priceMin != priceMax) {
+      priceText = '${_formatPrice(priceMin)}–${_formatPrice(priceMax)} €';
     } else if (priceMin != null) {
-      priceText = 'ab ${priceMin.toString()} €';
+      priceText = 'ab ${_formatPrice(priceMin)} €';
     } else {
       priceText = 'Preis auf Anfrage';
     }
+
+    final statusInfo = _ticketStatusInfo(status, colors);
+    // "Tickets kaufen" nur, wenn ein Kauf über den Link plausibel ist —
+    // bei ausverkauft/nur Abendkasse wäre das irreführend, der Link bleibt
+    // aber (führt oft trotzdem zu Restkarten-/Wartelisten-Infos).
+    final buttonLabel = soldOut || boxOfficeOnly
+        ? 'Zur Veranstaltungsseite'
+        : 'Tickets kaufen';
 
     return Container(
       padding: EdgeInsets.fromLTRB(
@@ -765,28 +861,59 @@ class _TicketBar extends StatelessWidget {
         color: colors.glass,
         border: Border(top: BorderSide(color: colors.separator, width: 0.5)),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            priceText,
-            style: TextStyle(
-              color: colors.textPrimary,
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
+          if (statusInfo != null) ...[
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: statusInfo.color,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  statusInfo.label,
+                  style: TextStyle(
+                    color: statusInfo.color,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
+            const SizedBox(height: 6),
+          ],
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                priceText,
+                style: TextStyle(
+                  color: colors.textPrimary,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              if (link != null)
+                ElevatedButton(
+                  onPressed: () => launchUrl(
+                    Uri.parse(link),
+                    mode: LaunchMode.externalApplication,
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: colors.accentPrimary,
+                  ),
+                  child: Text(buttonLabel),
+                ),
+            ],
           ),
-          if (ticketUrl != null)
-            ElevatedButton(
-              onPressed: () => launchUrl(
-                Uri.parse(ticketUrl),
-                mode: LaunchMode.externalApplication,
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: colors.accentPrimary,
-              ),
-              child: const Text('Tickets'),
-            ),
         ],
       ),
     );

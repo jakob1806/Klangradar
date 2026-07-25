@@ -30,6 +30,16 @@ const STATUS_OPTIONS = [
   { value: "draft", label: "Entwurf (nicht öffentlich)" },
 ];
 
+// Muss zum Check-Constraint events_remaining_tickets_status_check passen
+// (20260904000001_event_ticket_details.sql).
+const TICKET_STATUS_OPTIONS = [
+  { value: "", label: "— (unbekannt)" },
+  { value: "available", label: "Verfügbar" },
+  { value: "few_left", label: "Nur noch wenige" },
+  { value: "sold_out", label: "Ausverkauft" },
+  { value: "box_office_only", label: "Nur Abendkasse" },
+];
+
 export interface EventFormValues {
   slug: string;
   title: string;
@@ -44,6 +54,11 @@ export interface EventFormValues {
   price_min: number | null;
   price_max: number | null;
   is_free: boolean;
+  remaining_tickets_status: string | null;
+  doors_info: string | null;
+  age_restriction: string | null;
+  discount_info: string | null;
+  presale_fee_info: string | null;
   status: string;
   genreIds: string[];
 }
@@ -174,6 +189,50 @@ export function EventForm({
       <Field label="Ticket-Link">
         <TextInput name="ticket_url" type="url" defaultValue={initial?.ticket_url ?? ""} />
       </Field>
+
+      <Field label="Ticket-Status">
+        <Select name="remaining_tickets_status" defaultValue={initial?.remaining_tickets_status ?? ""}>
+          {TICKET_STATUS_OPTIONS.map((s) => (
+            <option key={s.value} value={s.value}>
+              {s.label}
+            </option>
+          ))}
+        </Select>
+      </Field>
+
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="Einlass">
+          <TextInput
+            name="doors_info"
+            placeholder="z.B. Einlass 19:00 Uhr"
+            defaultValue={initial?.doors_info ?? ""}
+          />
+        </Field>
+        <Field label="Altersbeschränkung">
+          <TextInput
+            name="age_restriction"
+            placeholder="z.B. ab 6 Jahren"
+            defaultValue={initial?.age_restriction ?? ""}
+          />
+        </Field>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="Ermäßigung">
+          <TextInput
+            name="discount_info"
+            placeholder="z.B. Schüler/Studierende 50%"
+            defaultValue={initial?.discount_info ?? ""}
+          />
+        </Field>
+        <Field label="Vorverkaufsgebühr">
+          <TextInput
+            name="presale_fee_info"
+            placeholder="z.B. zzgl. VVK-Gebühr"
+            defaultValue={initial?.presale_fee_info ?? ""}
+          />
+        </Field>
+      </div>
 
       <Field label="Status" required>
         <Select name="status" required defaultValue={initial?.status ?? "scheduled"}>
