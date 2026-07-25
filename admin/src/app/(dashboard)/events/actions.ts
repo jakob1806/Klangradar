@@ -26,6 +26,11 @@ function readEventFields(formData: FormData) {
     price_min: formData.get("price_min") ? Number(formData.get("price_min")) : null,
     price_max: formData.get("price_max") ? Number(formData.get("price_max")) : null,
     is_free: formData.get("is_free") === "on",
+    remaining_tickets_status: String(formData.get("remaining_tickets_status") ?? "").trim() || null,
+    doors_info: String(formData.get("doors_info") ?? "").trim() || null,
+    age_restriction: String(formData.get("age_restriction") ?? "").trim() || null,
+    discount_info: String(formData.get("discount_info") ?? "").trim() || null,
+    presale_fee_info: String(formData.get("presale_fee_info") ?? "").trim() || null,
     status: String(formData.get("status") ?? "scheduled"),
     genreIds: formData.getAll("genre_ids").map(String),
   };
@@ -64,6 +69,11 @@ export async function createEvent(formData: FormData) {
       price_min: f.price_min,
       price_max: f.price_max,
       is_free: f.is_free,
+      remaining_tickets_status: f.remaining_tickets_status,
+      doors_info: f.doors_info,
+      age_restriction: f.age_restriction,
+      discount_info: f.discount_info,
+      presale_fee_info: f.presale_fee_info,
       status: f.status,
     })
     .select("id")
@@ -97,6 +107,11 @@ export async function updateEvent(eventId: string, formData: FormData) {
       price_min: f.price_min,
       price_max: f.price_max,
       is_free: f.is_free,
+      remaining_tickets_status: f.remaining_tickets_status,
+      doors_info: f.doors_info,
+      age_restriction: f.age_restriction,
+      discount_info: f.discount_info,
+      presale_fee_info: f.presale_fee_info,
       status: f.status,
       updated_at: new Date().toISOString(),
     })

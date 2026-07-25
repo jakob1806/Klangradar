@@ -21,6 +21,11 @@ interface EventDetailRow {
   price_min: number | null;
   price_max: number | null;
   is_free: boolean;
+  remaining_tickets_status: string | null;
+  doors_info: string | null;
+  age_restriction: string | null;
+  discount_info: string | null;
+  presale_fee_info: string | null;
   status: string;
   event_genres: { genre_id: string }[];
 }
@@ -37,7 +42,7 @@ export default async function EditEventPage({
     supabase
       .from("events")
       .select(
-        "id, slug, title, subtitle, description_de, start_datetime, duration_minutes, has_intermission, venue_id, organizer_id, ticket_url, price_min, price_max, is_free, status, event_genres(genre_id)",
+        "id, slug, title, subtitle, description_de, start_datetime, duration_minutes, has_intermission, venue_id, organizer_id, ticket_url, price_min, price_max, is_free, remaining_tickets_status, doors_info, age_restriction, discount_info, presale_fee_info, status, event_genres(genre_id)",
       )
       .eq("id", id)
       .maybeSingle<EventDetailRow>(),
