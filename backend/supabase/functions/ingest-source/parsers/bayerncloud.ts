@@ -1,15 +1,20 @@
 // BayernCloud Tourismus API connector (data.bayerncloud.digital, dataCycle-
 // basiert). ANDERS als jede andere Quelle in diesem Repo: Bearer-Token-
-// authentifiziert (siehe index.ts's Auth-Header-Injektion für type='api')
-// und NICHT live von mir getestet — das Setzen des Secrets ist explizit
-// Sache des Nutzers (API-Keys gehören nicht zu den Dingen, die ich selbst
-// eintragen darf, auch nicht in die eigene Projekt-Infrastruktur), und ohne
-// gültigen Token kann ich keinen echten Response sehen. Diese Datei ist
-// daher bewusst DEFENSIV geschrieben: die klar dokumentierten Felder
+// authentifiziert (siehe index.ts's Auth-Header-Injektion für type='api').
+// War ursprünglich nicht live getestet (Token ist Nutzer-Sache), daher
+// bewusst DEFENSIV geschrieben: die klar dokumentierten Felder
 // (id/name/startDate/endDate/description/copyrightNotice/sdLicense) werden
 // mit hoher Zuversicht gemappt, die NICHT klar dokumentierten (Venue-Name
 // aus "location", Bild-URL aus "image") mit mehreren Fallback-Versuchen und
 // sauberer Degradierung auf null statt eines Crashs.
+//
+// Live verifiziert am 2026-07-25 (erster gültiger Token): Response ist
+// JSON-LD, Event-Liste liegt unter "@graph" (nicht "data" oder ein nacktes
+// Array, wie ursprünglich angenommen) — jetzt korrekt abgedeckt. name/
+// startDate/endDate/description sind wie angenommen einfache Strings, auch
+// bei dc:multilingual=true. "location" fehlte im ersten Testevent, konnte
+// also noch nicht bestätigt werden; extractVenue()'s Fallback-Kette bleibt
+// vorerst unverändert.
 //
 // Quelle der Feldnamen: öffentliche OpenAPI-Spec (bayerncloud.digital/
 // BayernCloud_API_Documentation_v3.yaml) + ein echtes Anfragebeispiel
@@ -87,16 +92,20 @@ export function parseBayernCloud(content: string): ParseResult {
   }
 
   // Manche dataCycle-Deployments wrappen die Liste in {"data": [...]} statt
-  // ein nacktes Array zurückzugeben — beides wird akzeptiert.
+  // ein nacktes Array zurückzugeben — beides wird akzeptiert. Live-
+  // verifiziert am 2026-07-25: die tatsächliche Antwort ist JSON-LD mit der
+  // Event-Liste unter "@graph" (schema.org-Kontext, siehe "@context").
   const items: unknown[] = Array.isArray(raw)
     ? raw
     : isRecord(raw) && Array.isArray(raw.data)
     ? raw.data
+    : isRecord(raw) && Array.isArray(raw["@graph"])
+    ? raw["@graph"]
     : [];
 
   if (items.length === 0) {
     errors.push(
-      "Response contained no event items (neither a bare array nor {data: [...]}) — check the actual response shape.",
+      "Response contained no event items (neither a bare array, {data: [...]}, nor {\"@graph\": [...]}) — check the actual response shape.",
     );
     return { events, errors };
   }
