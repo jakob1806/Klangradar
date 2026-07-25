@@ -5,6 +5,29 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
 function readSourceFields(formData: FormData) {
+  // "scrape"/"api" sources need per-site config (CSS selectors, secret-name
+  // for auth) that has no dedicated UI — a raw JSON textarea, consistent
+  // with how ingest-source/index.ts already treats sources.config as a free
+  // jsonb bag (see ScrapeConfig in parsers/scrape.ts and authHeaderEnvVar).
+  // Without this, a source created via "Neu anlegen" as type "Scraping"/
+  // "API" had NO way to ever get a working config and would fail every run
+  // forever ("itemSelector is required").
+  const configRaw = String(formData.get("config_json") ?? "").trim();
+  let config: Record<string, unknown> = {};
+  if (configRaw) {
+    try {
+      const parsed = JSON.parse(configRaw);
+      if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+        throw new Error("Konfiguration muss ein JSON-Objekt sein, z. B. {\"itemSelector\": \"...\"}");
+      }
+      config = parsed;
+    } catch (err) {
+      throw new Error(
+        `Konfiguration ist kein gültiges JSON: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
   return {
     name: String(formData.get("name") ?? "").trim(),
     type: String(formData.get("type") ?? "manual"),
@@ -16,6 +39,7 @@ function readSourceFields(formData: FormData) {
     crawl_frequency_minutes: Number(formData.get("crawl_frequency_minutes") ?? 1440),
     legal_basis: String(formData.get("legal_basis") ?? "").trim() || null,
     status: String(formData.get("status") ?? "active"),
+    config,
   };
 }
 
