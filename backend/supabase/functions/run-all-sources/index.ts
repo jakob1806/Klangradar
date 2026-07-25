@@ -9,7 +9,10 @@
 // Edge-Runtime. Der tägliche pg_cron-Job ruft künftig nur noch DIESE eine
 // Funktion auf statt pro Quelle einzeln zu loopen.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { runIngestion } from "../ingest-source/index.ts";
+// core.ts, NOT index.ts — index.ts has its own top-level Deno.serve() call,
+// and importing it here would silently register it as this isolate's
+// request handler too (see core.ts's file comment for the bug that caused).
+import { runIngestion, SUPPORTED_TYPES } from "../ingest-source/core.ts";
 
 // Bewusst niedrig gehalten: viele Quellen könnten dieselbe Ziel-Domain
 // treffen (z.B. mehrere Gasteig-Säle unter derselben Basis-URL), eine hohe
@@ -31,10 +34,15 @@ Deno.serve(async (_req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
   );
 
+  // "manual" (and any other type ingest-source's SUPPORTED_TYPES doesn't
+  // cover) is excluded here, not just inside runIngestion() — otherwise a
+  // manual-only source (e.g. the admin's single-URL-import placeholder)
+  // gets attempted and fails every single cron run forever, purely as noise.
   const { data: sources, error } = await supabase
     .from("sources")
     .select("id, last_run_at, crawl_frequency_minutes")
-    .eq("status", "active");
+    .eq("status", "active")
+    .in("type", Array.from(SUPPORTED_TYPES));
 
   if (error) {
     return jsonResponse({ error: `failed to load active sources: ${error.message}` }, 500);

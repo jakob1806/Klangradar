@@ -31,6 +31,7 @@ export default async function NewSourcePage({
         crawl_frequency_minutes: 1440,
         legal_basis: null,
         status: "under_review",
+        config: null,
       }
     : undefined;
 

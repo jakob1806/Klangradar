@@ -42,7 +42,7 @@ export default async function EditSourcePage({
       supabase
         .from("sources")
         .select(
-          "name, type, url, venue_id, organizer_id, person_id, ensemble_id, crawl_frequency_minutes, legal_basis, status",
+          "name, type, url, venue_id, organizer_id, person_id, ensemble_id, crawl_frequency_minutes, legal_basis, status, config",
         )
         .eq("id", id)
         .maybeSingle<SourceFormValues>(),

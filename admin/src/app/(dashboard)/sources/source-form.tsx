@@ -30,7 +30,15 @@ export interface SourceFormValues {
   crawl_frequency_minutes: number;
   legal_basis: string | null;
   status: string;
+  config: Record<string, unknown> | null;
 }
+
+const CONFIG_PLACEHOLDER = `Nur für Typ "Scraping"/"API" nötig, sonst leer lassen. Beispiele:
+
+Scraping: {"itemSelector": ".event-item", "titleSelector": ".title", "dateSelector": "time", "dateAttribute": "datetime"}
+API: {"authHeaderEnvVar": "MEIN_API_TOKEN_SECRET_NAME"}
+
+Siehe ScrapeConfig in backend/supabase/functions/ingest-source/parsers/scrape.ts für alle verfügbaren Felder.`;
 
 export function SourceForm({
   action,
@@ -134,6 +142,16 @@ export function SourceForm({
           rows={2}
           defaultValue={initial?.legal_basis ?? ""}
           placeholder="z. B. robots.txt geprüft am ..., API-Nutzungsbedingungen unter ..."
+        />
+      </Field>
+
+      <Field label="Konfiguration (JSON)">
+        <TextArea
+          name="config_json"
+          rows={5}
+          className="font-mono text-xs"
+          defaultValue={initial?.config ? JSON.stringify(initial.config, null, 2) : ""}
+          placeholder={CONFIG_PLACEHOLDER}
         />
       </Field>
 

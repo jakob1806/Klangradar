@@ -303,13 +303,23 @@ function extractText(root: any, selector: string, attribute?: string, firstTextN
     return val ? val.trim() : null;
   }
   if (firstTextNodeOnly) {
-    for (const child of el.childNodes) {
-      if (child.nodeType === 3 /* TEXT_NODE */) {
-        const text = (child.textContent ?? "").replace(/\s+/g, " ").trim();
-        if (text) return text;
-      }
-    }
-    return null;
+    // NOT just the first text-node child's own content — linkedom's HTML
+    // tokenizer splits a single run of text into SEVERAL sibling text nodes
+    // at every named character reference (e.g. "Lobet &amp; Singet" becomes
+    // three text nodes: "Lobet ", "&", " Singet"). Stopping at the first one
+    // silently truncated any title/text containing an entity (&, umlauts as
+    // &auml; etc.) right before it — concatenate ALL direct text-node
+    // children instead. Still deliberately excludes nested ELEMENT children
+    // (e.g. a subtitle <span>), which is the actual intent of this mode.
+    const text = Array.from(el.childNodes)
+      // deno-lint-ignore no-explicit-any
+      .filter((child: any) => child.nodeType === 3 /* TEXT_NODE */)
+      // deno-lint-ignore no-explicit-any
+      .map((child: any) => child.textContent ?? "")
+      .join("")
+      .replace(/\s+/g, " ")
+      .trim();
+    return text || null;
   }
   const text = (el.textContent ?? "").replace(/\s+/g, " ").trim();
   return text || null;
