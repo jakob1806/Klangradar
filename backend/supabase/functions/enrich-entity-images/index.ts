@@ -22,22 +22,40 @@
 //   2b) NUR Personen/Ensembles: Bild von der Seite einer KONKRETEN
 //      bevorstehenden Veranstaltung, bei der diese Person/dieses Ensemble
 //      laut event_participants mitwirkt (siehe _shared/imageNearName.ts) —
-//      auf Nutzerfeedback nachgerüstet, nachdem sich Prio 3 (blinde
-//      Namenssuche) für Personen als zu ungenau herausgestellt hat (z. B.
-//      Namensgleichheiten wie "Lazarova" trafen ein komplett anderes
-//      Wikimedia-Motiv). Landet in der Review-Queue, NICHT automatisch
-//      freigegeben — anders als die eigene Website ist das die Seite
-//      eines Dritten (Veranstalter/Ticketanbieter) ohne bekannte Lizenz.
-//   3) Fallback: Wikimedia Commons (wie vorher) — LANDET WEITERHIN in der
-//      manuellen Review-Queue (needs_review=true), auf ausdrücklichen
-//      Nutzerwunsch NICHT automatisch freigegeben (Lizenz-/
-//      Namensnennungsrisiko bei einem Bild ohne direkten Bezug zur
-//      Entität selbst) — jetzt zusätzlich mit Erreichbarkeitsprüfung, damit
-//      keine kaputte URL überhaupt erst in die Review-Queue kommt. Für
-//      Personen komplett DEAKTIVIERT (siehe 2b-Kommentar) — die reine
-//      Namensvolltextsuche produzierte dort zu viele falsche Treffer;
-//      Venues/Ensembles/Festivals behalten sie als letzten Rückfall, da
-//      Gebäude-/Ensemble-Namen deutlich seltener kollidieren.
+//      auf Nutzerfeedback nachgerüstet, nachdem sich die blinde
+//      Wikimedia-Namenssuche für Personen als zu ungenau herausgestellt hat
+//      (z. B. Namensgleichheiten wie "Lazarova" trafen ein komplett
+//      anderes Wikimedia-Motiv). Landet in der Review-Queue, NICHT
+//      automatisch freigegeben — anders als die eigene Website ist das die
+//      Seite eines Dritten (Veranstalter/Ticketanbieter) ohne bekannte
+//      Lizenz.
+//   3) Fallback:
+//      - Personen: Wikipedia-Zusammenfassungs-API (_shared/
+//        wikipediaPortrait.ts) statt blinder Commons-Volltextsuche — auf
+//        Nutzerfeedback NACHGERÜSTET, nachdem sich zeigte, dass sogar
+//        Bach/Mozart/Beethoven/Brahms/Mahler mangels Bild fehlten. Ein
+//        Wikipedia-Artikeltitel ist (fast) exakt, nicht fuzzy wie eine
+//        Commons-Volltextsuche — Mehrdeutigkeitsseiten werden explizit
+//        verworfen. Weiterhin review-pflichtig (Drittquelle, Lizenz nicht
+//        automatisch geprüft) — siehe mit dem Nutzer abgestimmte Regel:
+//        nur die EIGENE offizielle Quelle einer Entität geht automatisch
+//        live, jeder Fremdbild-Fund landet in der Review-Queue.
+//      - Venues/Ensembles/Festivals: weiterhin Wikimedia Commons
+//        (Gebäude-/Ensemble-Namen kollidieren deutlich seltener als
+//        Personennamen), jetzt zusätzlich mit Erreichbarkeitsprüfung.
+//
+// Jeder Entscheidungspunkt schreibt eine kurze Begründung nach
+// last_image_search_note (20260906000001_image_search_reason_tracking.sql)
+// — das Bildlücken-Dashboard (admin/src/app/(dashboard)/media/gaps) zeigt
+// diese Begründung an, statt sie nachträglich zu erraten.
+//
+// Events ohne website_url UND ohne ticket_url: eine Tavily-Websuche
+// (_shared/tavily.ts) versucht, eine passende Seite zu finden — auf
+// Nutzerwunsch ("Fehlende Website-/Ticket-URLs müssen automatisch
+// nachrecherchiert werden") — über die kostenlose DuckDuckGo-HTML-Suche
+// (_shared/duckDuckGoSearch.ts), nicht Tavily (Gratiskontingent
+// ausgeschöpft, Upgrade auf Nutzerwunsch abgelehnt). Bounded auf
+// EVENT_URL_DISCOVERY_LIMIT pro Lauf.
 //
 // Ein Datensatz gilt erst dann als "ohne verlässliches Bild trotz
 // Recherche", wenn WEDER photo_url/image_urls gesetzt ist NOCH ein
@@ -46,27 +64,32 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { searchCommonsImage } from "../_shared/wikimediaCommons.ts";
+import { fetchWikipediaPortrait } from "../_shared/wikipediaPortrait.ts";
 import { extractOgImage } from "../_shared/ogImage.ts";
 import { extractImageNearName } from "../_shared/imageNearName.ts";
 import { checkImageUrl } from "../_shared/imageValidation.ts";
+import { isAllowedByRobots } from "../_shared/robots.ts";
+import { searchDuckDuckGo } from "../_shared/duckDuckGoSearch.ts";
 import { logSystemAction } from "../_shared/systemLog.ts";
 
 const DEFAULT_LIMIT = 8;
 const HEALTH_CHECK_LIMIT = 15;
+const EVENT_URL_DISCOVERY_LIMIT = 5;
 
 interface EntityKind {
   table: string;
   originType: "venue" | "person" | "ensemble" | "festival";
   nameColumn: string;
-  /** Zusätzlicher Suchkontext für die Wikimedia-Fallback-Suche (Priorität
-   * 3), um Namensgleichheiten mit anderen Städten/Personen zu vermeiden. */
+  /** Zusätzlicher Suchkontext für die Wikimedia-Fallback-Suche (Venues/
+   * Ensembles/Festivals), um Namensgleichheiten mit anderen Städten zu
+   * vermeiden. */
   queryContext?: string;
   /** Spalte in event_participants, die auf diese Entität verweist — nur
    * für Personen/Ensembles gesetzt (Priorität 2b, siehe Datei-Kommentar). */
   participantColumn?: "person_id" | "ensemble_id";
-  /** Wikimedia-Blindsuche nach Namen (Priorität 3) komplett deaktivieren —
-   * für Personen auf Nutzerfeedback hin (zu viele Namenskollisionen). */
-  disableWikimediaFallback?: boolean;
+  /** Personen nutzen Wikipedia (präzise) statt Wikimedia Commons (fuzzy)
+   * als letzten Rückfall — siehe Datei-Kommentar. */
+  useWikipediaFallback?: boolean;
 }
 
 const ENTITY_KINDS: EntityKind[] = [
@@ -76,7 +99,7 @@ const ENTITY_KINDS: EntityKind[] = [
     originType: "person",
     nameColumn: "full_name",
     participantColumn: "person_id",
-    disableWikimediaFallback: true,
+    useWikipediaFallback: true,
   },
   { table: "ensembles", originType: "ensemble", nameColumn: "name", participantColumn: "ensemble_id" },
   { table: "festivals", originType: "festival", nameColumn: "name", queryContext: "München" },
@@ -133,6 +156,8 @@ Deno.serve(async (req) => {
   }
   const eventHealthCheck = await healthCheckEventImages(supabase);
 
+  const eventUrlDiscovery = await discoverMissingEventUrls(supabase);
+
   const perKind: Record<string, { found: number; autoApplied: number; queuedForReview: number; errors: string[] }> = {};
   for (const kind of ENTITY_KINDS) {
     perKind[kind.table] = await enrichEntityKind(supabase, kind, limit);
@@ -145,12 +170,13 @@ Deno.serve(async (req) => {
     await logSystemAction(supabase, "images", null, "auto_enrichment_batch", {
       healthCheck,
       eventHealthCheck,
+      eventUrlDiscovery,
       perKind,
       events: eventResult,
     });
   }
 
-  return jsonResponse({ healthCheck, eventHealthCheck, ...perKind, events: eventResult });
+  return jsonResponse({ healthCheck, eventHealthCheck, eventUrlDiscovery, ...perKind, events: eventResult });
 });
 
 /** Prüft bis zu HEALTH_CHECK_LIMIT Zeilen mit gesetztem photo_url auf
@@ -291,6 +317,9 @@ async function enrichEntityKind(
   let queuedForReview = 0;
   const errors: string[] = [];
 
+  const setNote = (id: string, note: string | null) =>
+    supabase.from(kind.table).update({ last_image_search_note: note }).eq("id", id);
+
   for (const row of list) {
     const id = row.id as string;
     const name = row[kind.nameColumn] as string;
@@ -302,33 +331,45 @@ async function enrichEntityKind(
       // Review — es ist die Entität selbst, die dieses Bild von sich
       // öffentlich zeigt, kein Fremdbild eines Dritten.
       if (websiteUrl) {
-        const ownImage = await extractOgImage(websiteUrl);
-        if (ownImage) {
-          const { reachable } = await checkImageUrl(ownImage);
-          if (reachable && !(await isUrlUsedElsewhere(supabase, ownImage, kind.table, id))) {
-            const now = new Date().toISOString();
-            const { error: updateError } = await supabase
-              .from(kind.table)
-              .update({ photo_url: ownImage, photo_checked_at: now })
-              .eq("id", id);
-            if (updateError) {
-              errors.push(`${kind.table} "${name}": Update fehlgeschlagen — ${updateError.message}`);
+        if (!(await isAllowedByRobots(websiteUrl))) {
+          await setNote(id, "Eigene Website durch robots.txt gesperrt — Zugriff verweigert.");
+        } else {
+          const ownImage = await extractOgImage(websiteUrl);
+          if (ownImage) {
+            const { reachable } = await checkImageUrl(ownImage);
+            if (!reachable) {
+              await setNote(id, "Bild von der eigenen Website nicht erreichbar/kein gültiges Bildformat.");
+            } else if (await isUrlUsedElsewhere(supabase, ownImage, kind.table, id)) {
+              await setNote(id, "Bild von der eigenen Website ist bereits einer anderen Entität zugeordnet (Duplikat).");
+            } else {
+              const now = new Date().toISOString();
+              const { error: updateError } = await supabase
+                .from(kind.table)
+                .update({ photo_url: ownImage, photo_checked_at: now, last_image_search_note: null })
+                .eq("id", id);
+              if (updateError) {
+                errors.push(`${kind.table} "${name}": Update fehlgeschlagen — ${updateError.message}`);
+                continue;
+              }
+              await supabase.from("images").insert({
+                source_url: ownImage,
+                origin_type: kind.originType,
+                origin_id: id,
+                license_status: "confirmed_licensed",
+                needs_review: false,
+                license_notes:
+                  `Automatisch übernommen von der eigenen offiziellen Website der Entität (${websiteUrl}) — ` +
+                  `kein Fremdbild, daher ohne manuelle Lizenzprüfung freigegeben.`,
+              });
+              autoApplied++;
               continue;
             }
-            await supabase.from("images").insert({
-              source_url: ownImage,
-              origin_type: kind.originType,
-              origin_id: id,
-              license_status: "confirmed_licensed",
-              needs_review: false,
-              license_notes:
-                `Automatisch übernommen von der eigenen offiziellen Website der Entität (${websiteUrl}) — ` +
-                `kein Fremdbild, daher ohne manuelle Lizenzprüfung freigegeben.`,
-            });
-            autoApplied++;
-            continue;
+          } else {
+            await setNote(id, "Eigene Website liefert kein nutzbares og:image/twitter:image.");
           }
         }
+      } else {
+        await setNote(id, "Keine Website-URL hinterlegt.");
       }
 
       // Schon eine images-Zeile (egal welchen Status außer 'rejected') für
@@ -341,7 +382,10 @@ async function enrichEntityKind(
         .eq("origin_id", id)
         .neq("license_status", "rejected")
         .maybeSingle();
-      if (existing) continue;
+      if (existing) {
+        await setNote(id, "Kandidat gefunden, wartet auf redaktionelle Lizenzprüfung (/media).");
+        continue;
+      }
 
       // Priorität 2b: Bild von der Seite einer konkreten bevorstehenden
       // Veranstaltung, bei der diese Person/dieses Ensemble mitwirkt —
@@ -366,6 +410,7 @@ async function enrichEntityKind(
                 errors.push(`${kind.table} "${name}": Insert fehlgeschlagen — ${insertError.message}`);
               } else {
                 queuedForReview++;
+                await setNote(id, "Kandidat von einer Veranstaltungsseite gefunden, wartet auf Lizenzprüfung (/media).");
               }
               continue;
             }
@@ -373,17 +418,57 @@ async function enrichEntityKind(
         }
       }
 
-      // Priorität 3: Wikimedia-Fallback — weiterhin review-pflichtig, und
-      // für Personen komplett deaktiviert (siehe Datei-Kommentar).
-      if (kind.disableWikimediaFallback) continue;
+      // Priorität 3: Personen nutzen Wikipedia (präzise, exakter
+      // Artikeltitel statt Volltextsuche), Venues/Ensembles/Festivals
+      // weiterhin Wikimedia Commons (siehe Datei-Kommentar).
+      if (kind.useWikipediaFallback) {
+        const portrait = await fetchWikipediaPortrait(name);
+        if (!portrait) {
+          await setNote(id, "Kein eindeutiger Wikipedia-Artikel mit Porträtbild gefunden.");
+          continue;
+        }
+        const { reachable } = await checkImageUrl(portrait.imageUrl);
+        if (!reachable) {
+          await setNote(id, "Wikipedia-Bild nicht erreichbar/kein gültiges Bildformat.");
+          continue;
+        }
+        if (await isUrlUsedElsewhere(supabase, portrait.imageUrl, kind.table, id)) {
+          await setNote(id, "Wikipedia-Bild ist bereits einer anderen Entität zugeordnet (Duplikat).");
+          continue;
+        }
+        const { error: insertError } = await supabase.from("images").insert({
+          source_url: portrait.imageUrl,
+          origin_type: kind.originType,
+          origin_id: id,
+          license_notes: `Wikipedia: ${portrait.pageUrl}` +
+            (portrait.description ? ` — "${portrait.description}"` : "") +
+            " — Lizenz/Namensnennung vor Freigabe auf der Wikipedia-Bildseite prüfen.",
+        });
+        if (insertError) {
+          errors.push(`${kind.table} "${name}": Insert fehlgeschlagen — ${insertError.message}`);
+          continue;
+        }
+        queuedForReview++;
+        await setNote(id, "Wikipedia-Kandidat gefunden, wartet auf Lizenzprüfung (/media).");
+        continue;
+      }
 
       const query = kind.queryContext ? `${name} ${kind.queryContext}` : name;
       const candidate = await searchCommonsImage(query);
-      if (!candidate) continue;
+      if (!candidate) {
+        await setNote(id, "Keine passende Wikimedia-Commons-Datei gefunden.");
+        continue;
+      }
 
       const { reachable } = await checkImageUrl(candidate.url);
-      if (!reachable) continue;
-      if (await isUrlUsedElsewhere(supabase, candidate.url, kind.table, id)) continue;
+      if (!reachable) {
+        await setNote(id, "Wikimedia-Bild nicht erreichbar/kein gültiges Bildformat.");
+        continue;
+      }
+      if (await isUrlUsedElsewhere(supabase, candidate.url, kind.table, id)) {
+        await setNote(id, "Wikimedia-Bild ist bereits einer anderen Entität zugeordnet (Duplikat).");
+        continue;
+      }
 
       const { error: insertError } = await supabase.from("images").insert({
         source_url: candidate.url,
@@ -399,6 +484,7 @@ async function enrichEntityKind(
         continue;
       }
       queuedForReview++;
+      await setNote(id, "Wikimedia-Kandidat gefunden, wartet auf Lizenzprüfung (/media).");
     } catch (err) {
       errors.push(`${kind.table} "${name}": ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -410,12 +496,73 @@ async function enrichEntityKind(
 const EVENT_BATCH_SIZE = 15;
 const EVENT_CONCURRENCY = 4;
 
+/** Events ganz ohne website_url/ticket_url: eine kostenlose DuckDuckGo-
+ * Websuche (_shared/duckDuckGoSearch.ts, kein API-Key/keine Anmeldung
+ * nötig) versucht, eine passende Seite zu finden (Titel + Venue-Name +
+ * "München Tickets") — auf Nutzerwunsch ("Fehlende Website-/Ticket-URLs
+ * müssen automatisch nachrecherchiert werden"). Gefundene URL wird als
+ * website_url gespeichert (auch wenn sich daraus kein Bild extrahieren
+ * lässt — die URL selbst ist der primäre Gewinn, ein Bild ist ein Bonus
+ * obendrauf).
+ *
+ * War ursprünglich mit Tavily gebaut (_shared/tavily.ts, schon anderswo im
+ * Projekt genutzt), aber Tavilys Gratiskontingent war ausgeschöpft und ein
+ * kostenpflichtiges Upgrade war auf Nutzerwunsch ausdrücklich abgelehnt —
+ * DuckDuckGos HTML-Suche ist der kostenlose Ersatz dafür (siehe
+ * duckDuckGoSearch.ts-Dateikommentar für den Tradeoff: HTML-Scraping statt
+ * einer stabilen JSON-API, für dieses geringe Volumen unproblematisch).
+ *
+ * Bounded auf EVENT_URL_DISCOVERY_LIMIT pro Lauf — kein Kontingent-Grund
+ * mehr, aber unnötig viele Requests pro Lauf sollen trotzdem vermieden
+ * werden (Rücksicht auf einen kostenlosen, nicht offiziell für
+ * Automatisierung gedachten Dienst). */
+async function discoverMissingEventUrls(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+): Promise<{ attempted: number; found: number }> {
+  const { data: events } = await supabase
+    .from("events")
+    .select("id, title, venues(name)")
+    .is("website_url", null)
+    .is("ticket_url", null)
+    .in("status", ["scheduled", "sold_out", "postponed"])
+    .gte("start_datetime", new Date().toISOString())
+    .order("start_datetime", { ascending: true })
+    .limit(EVENT_URL_DISCOVERY_LIMIT);
+
+  const rows = (events ?? []) as Array<{ id: string; title: string; venues: { name: string } | null }>;
+  let found = 0;
+
+  for (const event of rows) {
+    const venueName = event.venues?.name ?? "";
+    const query = `${event.title} ${venueName} München Tickets`;
+    const results = await searchDuckDuckGo(query, 3);
+    const topResult = results?.[0];
+    if (!topResult) {
+      // results === null bedeutet: die Suche selbst ist fehlgeschlagen
+      // (Netzwerk-/HTTP-Fehler) — anders als "Suche lief, aber 0
+      // organische Treffer" (results === []), das wird im Dashboard
+      // bewusst unterschieden.
+      const note = results === null
+        ? "Websuche nach Website-/Ticket-URL fehlgeschlagen (DuckDuckGo nicht erreichbar)."
+        : "Keine Website-/Ticket-URL per Websuche gefunden.";
+      await supabase.from("events").update({ last_image_search_note: note }).eq("id", event.id);
+      continue;
+    }
+    await supabase.from("events").update({ website_url: topResult.url }).eq("id", event.id);
+    found++;
+  }
+
+  return { attempted: rows.length, found };
+}
+
 /** Titelbild für bevorstehende Events ohne eigenes Bild — NUR das Bild der
  * Event-Quellseite selbst (og:image/twitter:image über website_url,
  * ersatzweise ticket_url), nie ein Venue-Foto (auf expliziten
  * Nutzerwunsch). Jetzt zusätzlich mit Erreichbarkeits- und
- * Duplikat-Prüfung vor dem Schreiben. Findet sich keins, bleibt
- * image_urls leer und die App zeigt den genre-spezifischen
+ * Duplikat-Prüfung vor dem Schreiben, plus einer Begründung nach
+ * last_image_search_note, wenn nichts gefunden wird. Findet sich keins,
+ * bleibt image_urls leer und die App zeigt den genre-spezifischen
  * GenreArtwork-Platzhalter. */
 async function enrichEventCovers(
   // deno-lint-ignore no-explicit-any
@@ -446,23 +593,56 @@ async function enrichEventCovers(
     while (nextIndex < batch.length) {
       const event = batch[nextIndex++];
       try {
+        if (!event.website_url && !event.ticket_url) {
+          await supabase
+            .from("events")
+            .update({ last_image_search_note: "Keine Website-/Ticket-URL hinterlegt." })
+            .eq("id", event.id);
+          continue;
+        }
+
         let coverImage: string | null = null;
+        const notes: string[] = [];
         for (const pageUrl of [event.website_url, event.ticket_url]) {
           if (!pageUrl) continue;
+          if (!(await isAllowedByRobots(pageUrl))) {
+            notes.push(`${pageUrl} durch robots.txt gesperrt`);
+            continue;
+          }
           const candidate = await extractOgImage(pageUrl);
-          if (!candidate) continue;
+          if (!candidate) {
+            notes.push(`${pageUrl} liefert kein nutzbares og:image`);
+            continue;
+          }
           const { reachable } = await checkImageUrl(candidate);
-          if (!reachable) continue;
-          if (await isUrlUsedElsewhere(supabase, candidate, "events", event.id)) continue;
+          if (!reachable) {
+            notes.push(`Bild von ${pageUrl} nicht erreichbar/ungültig`);
+            continue;
+          }
+          if (await isUrlUsedElsewhere(supabase, candidate, "events", event.id)) {
+            notes.push(`Bild von ${pageUrl} bereits einem anderen Event zugeordnet (Duplikat)`);
+            continue;
+          }
           coverImage = candidate;
           break;
         }
-        if (!coverImage) continue;
+        if (!coverImage) {
+          await supabase
+            .from("events")
+            .update({ last_image_search_note: notes.join("; ") || "Kein Bild gefunden." })
+            .eq("id", event.id);
+          continue;
+        }
 
         const now = new Date().toISOString();
         const { error: updateError } = await supabase
           .from("events")
-          .update({ image_urls: [coverImage], images_checked_at: now, updated_at: now })
+          .update({
+            image_urls: [coverImage],
+            images_checked_at: now,
+            updated_at: now,
+            last_image_search_note: null,
+          })
           .eq("id", event.id);
         if (updateError) {
           errors.push(`event ${event.id}: ${updateError.message}`);
