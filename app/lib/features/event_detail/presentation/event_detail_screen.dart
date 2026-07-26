@@ -28,13 +28,13 @@ final _eventProvider = FutureProvider.family<Map<String, dynamic>?, String>((
         start_datetime, duration_minutes, has_intermission,
         ticket_url, price_min, price_max, price_currency, is_free,
         remaining_tickets_status, doors_info, age_restriction,
-        discount_info, presale_fee_info,
+        discount_info, presale_fee_info, target_audience, performance_language,
         website_url, accessibility, status, image_urls,
         attribution_notice, attribution_license_url, last_verified_at,
         venues(id, slug, name, address_street, address_zip, address_city, photo_url, description_de),
         organizers(name),
         event_genres(genres(id, slug, label_de)),
-        event_works(position, after_intermission, works(title, catalog_number, composer:persons(full_name))),
+        event_works(position, after_intermission, works(title, catalog_number, key_signature, composer:persons(full_name))),
         event_participants(role, persons(slug, full_name), ensembles(slug, name))
       ''')
       .eq('slug', slug)
@@ -663,13 +663,36 @@ class _ProgramRow extends StatelessWidget {
                 ),
               Expanded(
                 flex: 3,
-                child: Text(
-                  w['title'] ?? '',
-                  style: TextStyle(
-                    color: colors.textPrimary,
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      w['title'] ?? '',
+                      style: TextStyle(
+                        color: colors.textPrimary,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    // Opus-/Werkverzeichnisnummer + Tonart nur, wenn
+                    // recherchiert (siehe enrich-event-references) — rein
+                    // optional, keine leere Zeile wenn nicht vorhanden.
+                    if ((w['catalog_number'] as String?)?.isNotEmpty ==
+                            true ||
+                        (w['key_signature'] as String?)?.isNotEmpty == true)
+                      Text(
+                        [
+                          w['catalog_number'],
+                          w['key_signature'],
+                        ].whereType<String>().where((s) => s.isNotEmpty).join(
+                          ' · ',
+                        ),
+                        style: TextStyle(
+                          color: colors.textTertiary,
+                          fontSize: 11,
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ],
@@ -765,6 +788,8 @@ class _TicketInfoSection extends StatelessWidget {
       event['age_restriction'],
       event['discount_info'],
       event['presale_fee_info'],
+      event['target_audience'],
+      event['performance_language'],
     ].whereType<String>().where((s) => s.trim().isNotEmpty).toList();
 
     if (statusInfo == null && hints.isEmpty) return const SizedBox.shrink();

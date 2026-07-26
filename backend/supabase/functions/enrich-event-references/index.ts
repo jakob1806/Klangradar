@@ -235,13 +235,30 @@ async function extractReferences(
   const args = response?.args;
   if (!args) return null;
 
+  // Live beobachtet: das Modell klassifiziert eine Opus-/Werkverzeichnis-
+  // nummer (z. B. "op. 21") gelegentlich fälschlich als keySignature statt
+  // catalogNumber (und umgekehrt eine Tonart als catalogNumber). Beide
+  // Felder haben ein erkennbares Muster (Opus/BWV/KV/Hob./WoO-Präfix vs.
+  // "-Dur"/"-Moll"-Suffix) — hier vertauschen statt die falsche Zuordnung
+  // unkorrigiert zu übernehmen.
+  const CATALOG_PATTERN = /^(op\.?|opus|bwv|kv|k\.?v\.?|hob\.?|woo|d\.?)\s?\d/i;
+  const KEY_SIGNATURE_PATTERN = /-(dur|moll)\b/i;
   const works = Array.isArray(args.works)
-    ? args.works.map((w: Record<string, unknown>) => ({
-      title: typeof w.title === "string" ? w.title : "",
-      composerName: typeof w.composerName === "string" ? w.composerName : null,
-      catalogNumber: typeof w.catalogNumber === "string" ? w.catalogNumber : null,
-      keySignature: typeof w.keySignature === "string" ? w.keySignature : null,
-    }))
+    ? args.works.map((w: Record<string, unknown>) => {
+      let catalogNumber = typeof w.catalogNumber === "string" ? w.catalogNumber : null;
+      let keySignature = typeof w.keySignature === "string" ? w.keySignature : null;
+      if (catalogNumber && KEY_SIGNATURE_PATTERN.test(catalogNumber) && !CATALOG_PATTERN.test(catalogNumber)) {
+        [catalogNumber, keySignature] = [keySignature, catalogNumber];
+      } else if (keySignature && CATALOG_PATTERN.test(keySignature) && !KEY_SIGNATURE_PATTERN.test(keySignature)) {
+        [catalogNumber, keySignature] = [keySignature, catalogNumber];
+      }
+      return {
+        title: typeof w.title === "string" ? w.title : "",
+        composerName: typeof w.composerName === "string" ? w.composerName : null,
+        catalogNumber,
+        keySignature,
+      };
+    })
     : [];
   const participants = Array.isArray(args.participants) ? args.participants : [];
   const tags = Array.isArray(args.tags) ? args.tags.filter((t: unknown) => typeof t === "string" && t.trim()) : [];
@@ -558,16 +575,47 @@ Deno.serve(async (req) => {
       return null;
     }
 
+    // Live beobachtet: dasselbe Werk (Brahms' 4. Sinfonie) wurde DREIFACH
+    // angelegt — "4. Sinfonie e-Moll", "4. Sinfonie", "4. Symphonie" — aus
+    // zwei unabhängigen Gründen, die beide hier behoben werden:
+    //  1) Anführungszeichen-Varianten ("Overture to »A Midsummer Night's
+    //     Dream«" vs. ohne »«) — ilike vergleicht exakt (case-insensitive),
+    //     keine Sonderzeichen-Normierung.
+    //  2) "Sinfonie"/"Symphonie" sind dasselbe Wort auf Deutsch/aus dem
+    //     Englischen übernommen, UND die Tonart steht mal im Titel selbst,
+    //     mal nur im separaten key_signature-Feld — beides muss beim
+    //     Vergleich ignoriert werden, sonst gilt "X e-Moll" nicht als
+    //     dasselbe Werk wie "X" (mit key_signature="e-Moll" separat).
+    // Der GESPEICHERTE Titel bleibt unverändert wie vom Modell geliefert —
+    // nur der Vergleich normalisiert.
+    function normalizeTitleForMatch(title: string): string {
+      return title
+        .replace(/[»«"""'']/g, "")
+        .replace(/symphonie/gi, "sinfonie")
+        .replace(/\s+[a-h](-dur|-moll)\s*$/i, "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toLowerCase();
+    }
+
     try {
       for (const [i, w] of extracted.works.entries()) {
         if (!w.title?.trim()) continue;
         const composerId = w.composerName?.trim() ? await getOrCreatePerson(w.composerName.trim()) : null;
 
-        const { data: existingWork } = await supabase
+        const normalizedTitle = normalizeTitleForMatch(w.title);
+        // Vorauswahl über einen Teilstring DES NORMALISIERTEN Titels (nicht
+        // des rohen) — sonst würde ein führendes »-Zeichen im rohen Titel
+        // genau die Fälle verfehlen, die dieser Fix eigentlich abdecken
+        // soll (ein bereits ohne Anführungszeichen gespeicherter Titel
+        // matcht nicht gegen ein Suchmuster, das noch das » enthält).
+        const { data: sameNamedWorks } = await supabase
           .from("works")
-          .select("id, catalog_number, key_signature")
-          .ilike("title", w.title.trim())
-          .maybeSingle();
+          .select("id, title, catalog_number, key_signature")
+          .ilike("title", `%${normalizedTitle.slice(0, 20)}%`);
+        const existingWork = (sameNamedWorks ?? []).find(
+          (existing: { title: string }) => normalizeTitleForMatch(existing.title) === normalizedTitle,
+        );
         let workId: string;
         if (existingWork) {
           workId = existingWork.id;
