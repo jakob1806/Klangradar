@@ -33,6 +33,11 @@ class DetailHeroBackground extends StatelessWidget {
           CachedNetworkImage(
             imageUrl: photoUrl!,
             fit: BoxFit.cover,
+            // Der feste Header ist oft schmaler/breiter als das Quellbild —
+            // topCenter statt des Standard-center verhindert, dass Gesichter/
+            // Motive nah am oberen Bildrand (z.B. Flyer-Portraits) abgeschnitten
+            // werden.
+            alignment: Alignment.topCenter,
             errorWidget: (context, url, error) =>
                 GenreArtwork(genre: fallbackGenre),
             placeholder: (context, url) => GenreArtwork(genre: fallbackGenre),
