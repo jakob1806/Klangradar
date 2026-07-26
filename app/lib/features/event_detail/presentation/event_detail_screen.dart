@@ -677,16 +677,13 @@ class _ProgramRow extends StatelessWidget {
                     // Opus-/Werkverzeichnisnummer + Tonart nur, wenn
                     // recherchiert (siehe enrich-event-references) — rein
                     // optional, keine leere Zeile wenn nicht vorhanden.
-                    if ((w['catalog_number'] as String?)?.isNotEmpty ==
-                            true ||
+                    if ((w['catalog_number'] as String?)?.isNotEmpty == true ||
                         (w['key_signature'] as String?)?.isNotEmpty == true)
                       Text(
-                        [
-                          w['catalog_number'],
-                          w['key_signature'],
-                        ].whereType<String>().where((s) => s.isNotEmpty).join(
-                          ' · ',
-                        ),
+                        [w['catalog_number'], w['key_signature']]
+                            .whereType<String>()
+                            .where((s) => s.isNotEmpty)
+                            .join(' · '),
                         style: TextStyle(
                           color: colors.textTertiary,
                           fontSize: 11,
