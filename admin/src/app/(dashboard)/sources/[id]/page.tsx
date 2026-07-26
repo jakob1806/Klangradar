@@ -115,8 +115,8 @@ export default async function EditSourcePage({
                       {Array.isArray(run.errors) && run.errors.length > 0 ? (
                         <details>
                           <summary className="cursor-pointer text-amber-700">{run.errors.length} Fehler</summary>
-                          <ul className="mt-1 max-w-xs list-disc space-y-1 pl-4 text-xs text-neutral-500">
-                            {run.errors.slice(0, 2).map((e, i) => (
+                          <ul className="mt-1 max-w-xs list-disc space-y-1 pl-4 text-xs text-neutral-500 max-h-64 overflow-y-auto">
+                            {run.errors.map((e, i) => (
                               <li key={i} className="break-words">
                                 {truncate(typeof e === "string" ? e : JSON.stringify(e))}
                               </li>
