@@ -34,7 +34,7 @@ final _eventProvider = FutureProvider.family<Map<String, dynamic>?, String>((
         venues(id, slug, name, address_street, address_zip, address_city, photo_url, description_de),
         organizers(name),
         event_genres(genres(id, slug, label_de)),
-        event_works(position, after_intermission, works(title, catalog_number, key_signature, composer:persons(full_name))),
+        event_works(position, after_intermission, works(title, catalog_number, key_signature, instrumentation, movements, composer:persons(slug, full_name))),
         event_participants(role, persons(slug, full_name), ensembles(slug, name))
       ''')
       .eq('slug', slug)
@@ -653,11 +653,18 @@ class _ProgramRow extends StatelessWidget {
               if (w['composer']?['full_name'] != null)
                 Expanded(
                   flex: 2,
-                  child: Text(
-                    w['composer']['full_name'],
-                    style: TextStyle(
-                      color: colors.textSecondary,
-                      fontSize: 12.5,
+                  child: GestureDetector(
+                    onTap: w['composer']?['slug'] != null
+                        ? () => context.push('/person/${w['composer']['slug']}')
+                        : null,
+                    child: Text(
+                      w['composer']['full_name'],
+                      style: TextStyle(
+                        color: w['composer']?['slug'] != null
+                            ? colors.accentPrimary
+                            : colors.textSecondary,
+                        fontSize: 12.5,
+                      ),
                     ),
                   ),
                 ),
@@ -684,6 +691,27 @@ class _ProgramRow extends StatelessWidget {
                             .whereType<String>()
                             .where((s) => s.isNotEmpty)
                             .join(' · '),
+                        style: TextStyle(
+                          color: colors.textTertiary,
+                          fontSize: 11,
+                        ),
+                      ),
+                    // Instrumentierung/Satzfolge nur, wenn recherchiert
+                    // (siehe enrich-work-profile) — rein optional.
+                    if ((w['instrumentation'] as String?)?.isNotEmpty == true)
+                      Text(
+                        w['instrumentation'],
+                        style: TextStyle(
+                          color: colors.textTertiary,
+                          fontSize: 11,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    if ((w['movements'] as List?)?.isNotEmpty == true)
+                      Text(
+                        (w['movements'] as List).whereType<String>().join(
+                          ' · ',
+                        ),
                         style: TextStyle(
                           color: colors.textTertiary,
                           fontSize: 11,

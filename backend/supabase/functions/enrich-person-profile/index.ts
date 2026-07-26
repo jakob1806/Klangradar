@@ -1,28 +1,35 @@
-// Reichert Personen-Profile automatisiert an — Phase 4 der grundlegend
+// Reichert Personen-Profile automatisiert an — Phase 4/5 der grundlegend
 // überarbeiteten Datenanreicherung (Nutzeranfrage: "kurze und ausführliche
 // Biografie", "Ausbildung, Karrierestationen, künstlerischer Schwerpunkt/
 // Repertoire", "aktuelle relevante Rollen: Chefdirigent, Professur,
-// Orchestermitgliedschaft"). Holt den Volltext der eigenen offiziellen
-// Website (_shared/pageText.ts) und extrahiert daraus strukturiert
-// Kurzbiografie (nur falls noch leer), Ausbildung/Karrierestationen,
-// aktuelle Rollen, Auszeichnungen, wichtige Aufnahmen und
-// Repertoire-Schwerpunkte.
+// Orchestermitgliedschaft"; für Komponisten zusätzlich "Epoche/Stil/
+// Bedeutung"). Holt den Volltext der eigenen offiziellen Website
+// (_shared/pageText.ts) und extrahiert daraus strukturiert Kurzbiografie
+// (nur falls noch leer), Ausbildung/Karrierestationen, aktuelle Rollen,
+// Auszeichnungen, wichtige Aufnahmen und Repertoire-Schwerpunkte.
 //
-// Gleiches Grundmuster wie enrich-venue-details: nur die eigene offizielle
-// Website als Quelle, jedes Feld nur befüllen wenn aktuell leer (nie eine
-// bestehende, ggf. redaktionell gepflegte Angabe überschreiben), Provenienz
-// pro Feld via _shared/provenance.ts, konservative Extraktion ("nicht
-// erfinden"). profile_checked_at als Auswahl-Gate von Anfang an (siehe
-// Konvergenz-Bug bei enrich-venue-details) statt eines Datenfelds.
+// Historische Komponisten haben naturgemäß keine offizielle Website — für
+// Personen ohne website_url, die als composer_id in works referenziert
+// werden, dient stattdessen der wahrscheinlichste Wikipedia-Artikel als
+// Quelle (_shared/wikipediaExtract.ts), mit demselben Extraktionsschema.
+//
+// Gleiches Grundmuster wie enrich-venue-details: jedes Feld nur befüllen
+// wenn aktuell leer (nie eine bestehende, ggf. redaktionell gepflegte
+// Angabe überschreiben), Provenienz pro Feld via _shared/provenance.ts,
+// konservative Extraktion ("nicht erfinden"). profile_checked_at als
+// Auswahl-Gate von Anfang an (siehe Konvergenz-Bug bei
+// enrich-venue-details) statt eines Datenfelds.
 //
 // Aufruf: POST { limit?: number } — verarbeitet bis zu `limit` (Default 5,
 // klein gehalten wegen des Seitenabrufs pro Person, siehe
 // WORKER_RESOURCE_LIMIT-Erfahrung bei enrich-event-references) Personen mit
-// website_url und noch offenem profile_checked_at.
+// noch offenem profile_checked_at: zuerst solche mit website_url, dann —
+// falls noch Kapazität im Batch frei ist — Komponisten ohne Website.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { callAiFunction, hasAnyAiProviderConfigured, type AiFunctionDeclaration } from "../_shared/ai/router.ts";
 import { fetchPageText } from "../_shared/pageText.ts";
+import { fetchWikipediaExtract } from "../_shared/wikipediaExtract.ts";
 import { recordFieldSources } from "../_shared/provenance.ts";
 
 const DEFAULT_LIMIT = 5;
@@ -104,11 +111,12 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
   );
 
-  const { data: persons, error: fetchError } = await supabase
+  const PERSON_COLUMNS =
+    "id, full_name, website_url, biography_de, education_career_de, current_roles_de, awards, notable_recordings, repertoire_highlights";
+
+  const { data: websitePersons, error: fetchError } = await supabase
     .from("persons")
-    .select(
-      "id, full_name, website_url, biography_de, education_career_de, current_roles_de, awards, notable_recordings, repertoire_highlights",
-    )
+    .select(PERSON_COLUMNS)
     .is("profile_checked_at", null)
     .not("website_url", "is", null)
     .limit(limit)
@@ -117,7 +125,36 @@ Deno.serve(async (req) => {
   if (fetchError) {
     return new Response(JSON.stringify({ error: fetchError.message }), { status: 500 });
   }
-  if (!persons || persons.length === 0) {
+
+  const persons = [...(websitePersons ?? [])];
+
+  // Bis der Batch voll ist, mit Komponisten OHNE eigene Website auffüllen —
+  // deren Quelle ist Wikipedia statt der offiziellen Website (siehe Kopf-
+  // kommentar). Nur Personen, die tatsächlich als composer_id in works
+  // referenziert werden, um die Wikipedia-Suchanfrage eindeutig genug zu
+  // halten (sonst zu hohes Risiko einer Namensgleichheit mit einer anderen
+  // Person, siehe Vorsicht in wikipediaPortrait.ts).
+  if (persons.length < limit) {
+    const { data: composerIdRows } = await supabase
+      .from("works")
+      .select("composer_id")
+      .not("composer_id", "is", null);
+    const composerIds = [...new Set((composerIdRows ?? []).map((r) => r.composer_id as string))];
+
+    if (composerIds.length > 0) {
+      const { data: composerPersons } = await supabase
+        .from("persons")
+        .select(PERSON_COLUMNS)
+        .is("profile_checked_at", null)
+        .is("website_url", null)
+        .in("id", composerIds)
+        .limit(limit - persons.length)
+        .returns<PersonRow[]>();
+      persons.push(...(composerPersons ?? []));
+    }
+  }
+
+  if (persons.length === 0) {
     return new Response(JSON.stringify({ processed: 0, message: "Keine Personen mit fehlendem Profil übrig." }));
   }
 
@@ -126,21 +163,38 @@ Deno.serve(async (req) => {
 
   for (const person of persons) {
     try {
-      const pageText = await fetchPageText(person.website_url!);
+      let pageText: string | null;
+      let sourceUrl: string | null;
+      let sourceName: string;
+
+      if (person.website_url) {
+        pageText = await fetchPageText(person.website_url);
+        sourceUrl = person.website_url;
+        sourceName = "Offizielle Website (via enrich-person-profile)";
+      } else {
+        const extract = await fetchWikipediaExtract(person.full_name);
+        pageText = extract?.text ?? null;
+        sourceUrl = extract?.pageUrl ?? null;
+        sourceName = `Wikipedia (via enrich-person-profile): ${extract?.articleTitle ?? ""}`;
+      }
+
       if (!pageText) {
         // profile_checked_at trotzdem setzen — sonst würden Personen mit
         // dauerhaft nicht abrufbarer Seite (robots.txt-Sperre, tote Seite)
-        // bei jedem Lauf erneut ausgewählt und der Backfill käme nie zum
-        // Ende (gleicher Bug wie live bei enrich-venue-details entdeckt).
+        // bzw. ohne auffindbaren Wikipedia-Artikel bei jedem Lauf erneut
+        // ausgewählt und der Backfill käme nie zum Ende (gleicher Bug wie
+        // live bei enrich-venue-details entdeckt).
         await supabase.from("persons").update({ profile_checked_at: new Date().toISOString() }).eq("id", person.id);
         continue;
       }
 
       const response = await callAiFunction(
-        "Du extrahierst strukturierte Profildaten einer Musikerin/eines Musikers aus dem Volltext ihrer/seiner " +
-          "offiziellen Website. Sei konservativ: lieber ein leeres Feld als geraten. Erfinde NIEMALS Informationen, " +
-          "die nicht wortwörtlich im Text stehen.",
-        `Person: ${person.full_name}\n\nVolltext der offiziellen Website:\n${pageText}`,
+        "Du extrahierst strukturierte Profildaten einer Musikerin/eines Musikers aus einem Text über sie/ihn " +
+          "(offizielle Website oder Wikipedia-Artikel). Der Text könnte auch von einer anderen Person mit " +
+          "ähnlichem Namen handeln — prüfe die Plausibilität und liefere im Zweifel leere Felder. Sei " +
+          "konservativ: lieber ein leeres Feld als geraten. Erfinde NIEMALS Informationen, die nicht " +
+          "wortwörtlich im Text stehen.",
+        `Person: ${person.full_name}\n\nText:\n${pageText}`,
         ENRICH_FUNCTION,
       );
       const args = response?.args;
@@ -220,8 +274,8 @@ Deno.serve(async (req) => {
             entityType: "person" as const,
             entityId: person.id,
             fieldName,
-            sourceUrl: person.website_url,
-            sourceName: "Offizielle Website (via enrich-person-profile)",
+            sourceUrl,
+            sourceName,
             confidence: "likely" as const,
           })),
         );
