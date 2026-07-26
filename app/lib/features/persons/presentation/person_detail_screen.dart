@@ -6,10 +6,12 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/detail_card.dart';
 import '../../../core/widgets/detail_hero_background.dart';
 import '../../../core/widgets/external_links_row.dart';
 import '../../../core/widgets/genre_artwork.dart';
 import '../../../core/widgets/past_events_expansion.dart';
+import '../../../core/widgets/source_hint.dart';
 
 final _personProvider = FutureProvider.family<Map<String, dynamic>?, String>((
   ref,
@@ -29,7 +31,17 @@ final _personProvider = FutureProvider.family<Map<String, dynamic>?, String>((
       .eq('person_id', person['id'])
       .order('events(start_datetime)');
 
-  return {'person': person, 'events': events};
+  final provenance = await client
+      .from('field_provenance')
+      .select('field_name, source_name, source_url, retrieved_at, confidence')
+      .eq('entity_type', 'person')
+      .eq('entity_id', person['id']);
+
+  return {
+    'person': person,
+    'events': events,
+    'sources': fieldSourcesFromRows(provenance),
+  };
 });
 
 class PersonDetailScreen extends ConsumerWidget {
@@ -52,6 +64,7 @@ class PersonDetailScreen extends ConsumerWidget {
           }
           final person = data['person'] as Map<String, dynamic>;
           final events = data['events'] as List;
+          final sources = data['sources'] as Map<String, FieldSource>;
           final roles = (person['roles'] as List?)?.cast<String>() ?? [];
           final now = DateTime.now();
           final upcoming = events.where((row) {
@@ -135,6 +148,12 @@ class PersonDetailScreen extends ConsumerWidget {
                     ],
                     if (person['biography_de'] != null) ...[
                       const SizedBox(height: AppSpacing.lg),
+                      SectionHeaderWithSource(
+                        title: 'Biografie',
+                        colors: colors,
+                        source: sources['biography_de'],
+                      ),
+                      const SizedBox(height: AppSpacing.xs),
                       Text(
                         person['biography_de'],
                         style: TextStyle(
@@ -158,9 +177,10 @@ class PersonDetailScreen extends ConsumerWidget {
                     ],
                     if (person['education_career_de'] != null) ...[
                       const SizedBox(height: AppSpacing.md),
-                      Text(
-                        'Ausbildung & Karriere',
-                        style: Theme.of(context).textTheme.titleSmall,
+                      SectionHeaderWithSource(
+                        title: 'Ausbildung & Karriere',
+                        colors: colors,
+                        source: sources['education_career_de'],
                       ),
                       const SizedBox(height: AppSpacing.xs),
                       Text(
@@ -226,8 +246,17 @@ class PersonDetailScreen extends ConsumerWidget {
                         ),
                       )
                     else
-                      for (final row in upcoming)
-                        _EventRow(row: row, colors: colors),
+                      DetailCard(
+                        children: [
+                          for (final row in upcoming)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: AppSpacing.md,
+                              ),
+                              child: _EventRow(row: row, colors: colors),
+                            ),
+                        ],
+                      ),
                     if (past.isNotEmpty) ...[
                       const SizedBox(height: AppSpacing.lg),
                       PastEventsExpansion(

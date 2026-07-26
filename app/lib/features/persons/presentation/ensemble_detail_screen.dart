@@ -5,10 +5,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/detail_card.dart';
 import '../../../core/widgets/detail_hero_background.dart';
 import '../../../core/widgets/external_links_row.dart';
 import '../../../core/widgets/genre_artwork.dart';
 import '../../../core/widgets/past_events_expansion.dart';
+import '../../../core/widgets/source_hint.dart';
 
 final _ensembleProvider = FutureProvider.family<Map<String, dynamic>?, String>((
   ref,
@@ -28,7 +30,17 @@ final _ensembleProvider = FutureProvider.family<Map<String, dynamic>?, String>((
       .eq('ensemble_id', ensemble['id'])
       .order('events(start_datetime)');
 
-  return {'ensemble': ensemble, 'events': events};
+  final provenance = await client
+      .from('field_provenance')
+      .select('field_name, source_name, source_url, retrieved_at, confidence')
+      .eq('entity_type', 'ensemble')
+      .eq('entity_id', ensemble['id']);
+
+  return {
+    'ensemble': ensemble,
+    'events': events,
+    'sources': fieldSourcesFromRows(provenance),
+  };
 });
 
 const _typeLabel = {
@@ -59,6 +71,7 @@ class EnsembleDetailScreen extends ConsumerWidget {
           }
           final ensemble = data['ensemble'] as Map<String, dynamic>;
           final events = data['events'] as List;
+          final sources = data['sources'] as Map<String, FieldSource>;
           final now = DateTime.now();
           final upcoming = events.where((row) {
             final start = DateTime.tryParse(
@@ -123,6 +136,12 @@ class EnsembleDetailScreen extends ConsumerWidget {
                     ),
                     if (ensemble['description_de'] != null) ...[
                       const SizedBox(height: AppSpacing.lg),
+                      SectionHeaderWithSource(
+                        title: 'Über das Ensemble',
+                        colors: colors,
+                        source: sources['description_de'],
+                      ),
+                      const SizedBox(height: AppSpacing.xs),
                       Text(
                         ensemble['description_de'],
                         style: TextStyle(
@@ -157,9 +176,10 @@ class EnsembleDetailScreen extends ConsumerWidget {
                     ],
                     if (ensemble['repertoire_de'] != null) ...[
                       const SizedBox(height: AppSpacing.md),
-                      Text(
-                        'Repertoire',
-                        style: Theme.of(context).textTheme.titleSmall,
+                      SectionHeaderWithSource(
+                        title: 'Repertoire',
+                        colors: colors,
+                        source: sources['repertoire_de'],
                       ),
                       const SizedBox(height: AppSpacing.xs),
                       Text(
@@ -192,8 +212,20 @@ class EnsembleDetailScreen extends ConsumerWidget {
                         ),
                       )
                     else
-                      for (final row in upcoming)
-                        _EnsembleEventRow(row: row, colors: colors),
+                      DetailCard(
+                        children: [
+                          for (final row in upcoming)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: AppSpacing.md,
+                              ),
+                              child: _EnsembleEventRow(
+                                row: row,
+                                colors: colors,
+                              ),
+                            ),
+                        ],
+                      ),
                     if (past.isNotEmpty) ...[
                       const SizedBox(height: AppSpacing.lg),
                       PastEventsExpansion(

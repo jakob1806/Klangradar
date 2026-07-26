@@ -11,10 +11,12 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/calendar/ics_export.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/detail_card.dart';
 import '../../../core/widgets/detail_hero_background.dart';
 import '../../../core/widgets/event_section.dart';
 import '../../../core/widgets/favorite_button.dart';
 import '../../../core/widgets/genre_artwork.dart';
+import '../../../core/widgets/source_hint.dart';
 import '../../home/application/home_providers.dart';
 
 final _eventProvider = FutureProvider.family<Map<String, dynamic>?, String>((
@@ -34,7 +36,7 @@ final _eventProvider = FutureProvider.family<Map<String, dynamic>?, String>((
         venues(id, slug, name, address_street, address_zip, address_city, photo_url, description_de),
         organizers(name),
         event_genres(genres(id, slug, label_de)),
-        event_works(position, after_intermission, works(title, catalog_number, key_signature, instrumentation, movements, composer:persons(slug, full_name))),
+        event_works(position, after_intermission, works(id, title, catalog_number, key_signature, instrumentation, movements, composer:persons(slug, full_name))),
         event_participants(role, persons(slug, full_name), ensembles(slug, name))
       ''')
       .eq('slug', slug)
@@ -52,8 +54,33 @@ final _eventProvider = FutureProvider.family<Map<String, dynamic>?, String>((
       }),
     );
   }
+  if (event == null) return null;
 
-  return event;
+  // Quellenbelege für Werk-Felder (Instrumentierung/Satzfolge, siehe
+  // enrich-work-profile) — je Werk-ID gruppiert, Phase 6: "dezente, aber
+  // nachvollziehbare Quellenhinweise".
+  final workIds = (event['event_works'] as List)
+      .map((ew) => ew['works']?['id'] as String?)
+      .whereType<String>()
+      .toList();
+  var workSources = <String, Map<String, FieldSource>>{};
+  if (workIds.isNotEmpty) {
+    final provenance = await Supabase.instance.client
+        .from('field_provenance')
+        .select(
+          'entity_id, field_name, source_name, source_url, retrieved_at, confidence',
+        )
+        .eq('entity_type', 'work')
+        .inFilter('entity_id', workIds);
+    workSources = <String, Map<String, FieldSource>>{};
+    for (final row in provenance as List) {
+      final id = row['entity_id'] as String;
+      (workSources[id] ??= {})[row['field_name'] as String] =
+          FieldSource.fromRow(row as Map<String, dynamic>);
+    }
+  }
+
+  return {...event, '_workSources': workSources};
 });
 
 typedef _SimilarEventsKey = ({
@@ -157,6 +184,8 @@ class EventDetailScreen extends ConsumerWidget {
             ..sort(
               (a, b) => (a['position'] as int).compareTo(b['position'] as int),
             );
+          final workSources =
+              event['_workSources'] as Map<String, Map<String, FieldSource>>;
           final participants = event['event_participants'] as List;
           final accessibility =
               (event['accessibility'] as Map<String, dynamic>?) ?? {};
@@ -367,8 +396,20 @@ class EventDetailScreen extends ConsumerWidget {
                         style: Theme.of(context).textTheme.headlineSmall,
                       ),
                       const SizedBox(height: AppSpacing.sm),
-                      for (final w in works)
-                        _ProgramRow(work: w, colors: colors),
+                      DetailCard(
+                        children: [
+                          for (final w in works)
+                            Padding(
+                              padding: const EdgeInsets.all(AppSpacing.md),
+                              child: _ProgramRow(
+                                work: w,
+                                colors: colors,
+                                sources:
+                                    workSources[w['works']?['id']] ?? const {},
+                              ),
+                            ),
+                        ],
+                      ),
                     ],
                     if (participants.isNotEmpty) ...[
                       const SizedBox(height: AppSpacing.xl),
@@ -620,9 +661,14 @@ class _AttributionNotice extends StatelessWidget {
 }
 
 class _ProgramRow extends StatelessWidget {
-  const _ProgramRow({required this.work, required this.colors});
+  const _ProgramRow({
+    required this.work,
+    required this.colors,
+    this.sources = const {},
+  });
   final dynamic work;
   final AppColorsExtension colors;
+  final Map<String, FieldSource> sources;
 
   @override
   Widget build(BuildContext context) {
@@ -699,13 +745,21 @@ class _ProgramRow extends StatelessWidget {
                     // Instrumentierung/Satzfolge nur, wenn recherchiert
                     // (siehe enrich-work-profile) — rein optional.
                     if ((w['instrumentation'] as String?)?.isNotEmpty == true)
-                      Text(
-                        w['instrumentation'],
-                        style: TextStyle(
-                          color: colors.textTertiary,
-                          fontSize: 11,
-                          fontStyle: FontStyle.italic,
-                        ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              w['instrumentation'],
+                              style: TextStyle(
+                                color: colors.textTertiary,
+                                fontSize: 11,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ),
+                          SourceHintIcon(source: sources['instrumentation']),
+                        ],
                       ),
                     if ((w['movements'] as List?)?.isNotEmpty == true)
                       Text(
