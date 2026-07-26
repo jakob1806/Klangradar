@@ -67,7 +67,7 @@ import { searchCommonsImage } from "../_shared/wikimediaCommons.ts";
 import { fetchWikipediaPortrait } from "../_shared/wikipediaPortrait.ts";
 import { extractOgImage } from "../_shared/ogImage.ts";
 import { extractImageNearName } from "../_shared/imageNearName.ts";
-import { checkImageUrl } from "../_shared/imageValidation.ts";
+import { checkImageUrl, isLikelyGenericImage } from "../_shared/imageValidation.ts";
 import { isAllowedByRobots } from "../_shared/robots.ts";
 import { searchDuckDuckGo } from "../_shared/duckDuckGoSearch.ts";
 import { searchViaGeminiGrounding } from "../_shared/geminiGroundedSearch.ts";
@@ -274,11 +274,21 @@ async function isUrlUsedElsewhere(
     const { count } = await query;
     if (count && count > 0) return true;
   }
-  if (excludeTable !== "events") {
-    const { count } = await supabase
-      .from("events")
-      .select("id", { count: "exact", head: true })
-      .contains("image_urls", [url]);
+  {
+    // BUGFIX: diese Prüfung lief vorher NUR, wenn excludeTable !== "events"
+    // — also genau dann NICHT, wenn wir für ein EVENT selbst prüfen, dem
+    // Hauptfall, für den sie gedacht war. Dadurch konnten mehrere
+    // verschiedene Events unbemerkt dasselbe generische Portal-Default-Bild
+    // (z. B. "default--og-image--mm.jpg" auf muenchenmusik.de, live auf 38
+    // verschiedenen Events gefunden) bekommen, statt dass ab dem zweiten
+    // Treffer erkannt wurde: "diese URL ist schon vergeben". Jetzt läuft
+    // die Prüfung immer, nur die eigene Zeile wird ausgeschlossen.
+    let eventsQuery = supabase.from("events").select("id", { count: "exact", head: true }).contains(
+      "image_urls",
+      [url],
+    );
+    if (excludeTable === "events") eventsQuery = eventsQuery.neq("id", excludeId);
+    const { count } = await eventsQuery;
     if (count && count > 0) return true;
   }
   // Auch gegen bereits (für eine ANDERE Entität) in die Review-Queue
@@ -336,7 +346,9 @@ async function enrichEntityKind(
           await setNote(id, "Eigene Website durch robots.txt gesperrt — Zugriff verweigert.");
         } else {
           const ownImage = await extractOgImage(websiteUrl);
-          if (ownImage) {
+          if (ownImage && isLikelyGenericImage(ownImage)) {
+            await setNote(id, "Eigene Website liefert nur ein generisches Logo/Platzhalterbild.");
+          } else if (ownImage) {
             const { reachable } = await checkImageUrl(ownImage);
             if (!reachable) {
               await setNote(id, "Bild von der eigenen Website nicht erreichbar/kein gültiges Bildformat.");
@@ -396,7 +408,7 @@ async function enrichEntityKind(
         const eventPageUrl = await findUpcomingEventPageUrl(supabase, kind.participantColumn, id);
         if (eventPageUrl) {
           const nearImage = await extractImageNearName(eventPageUrl, name);
-          if (nearImage) {
+          if (nearImage && !isLikelyGenericImage(nearImage)) {
             const { reachable } = await checkImageUrl(nearImage);
             if (reachable && !(await isUrlUsedElsewhere(supabase, nearImage, kind.table, id))) {
               const { error: insertError } = await supabase.from("images").insert({
@@ -638,6 +650,10 @@ async function enrichEventCovers(
           const candidate = await extractOgImage(pageUrl);
           if (!candidate) {
             notes.push(`${pageUrl} liefert kein nutzbares og:image`);
+            continue;
+          }
+          if (isLikelyGenericImage(candidate)) {
+            notes.push(`${pageUrl} liefert nur ein generisches Logo/Portal-Standardbild statt eines Event-Bilds`);
             continue;
           }
           const { reachable } = await checkImageUrl(candidate);
