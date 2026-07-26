@@ -1,12 +1,23 @@
-// Gemeinsamer Baustein: Websuche (Tavily) + LLM-Einordnung für einen
-// vermeintlichen klassischen Musiker/ein Ensemble — genutzt sowohl beim
-// erstmaligen Anlegen eines entity_candidate (enrich-event-references) als
-// auch beim nachträglichen Batch-Review bereits wartender Kandidaten
+// Gemeinsamer Baustein: Websuche + LLM-Einordnung für einen vermeintlichen
+// klassischen Musiker/ein Ensemble — genutzt sowohl beim erstmaligen Anlegen
+// eines entity_candidate (enrich-event-references) als auch beim
+// nachträglichen Batch-Review bereits wartender Kandidaten
 // (resolve-entity-candidates). confident=true ist die Voraussetzung dafür,
 // dass eine KI-Entscheidung den Kandidaten automatisch auflösen darf statt
 // ihn liegen zu lassen — siehe beide Aufrufer für die jeweilige Verwendung.
+//
+// Bug (live entdeckt): nutzte ursprünglich Tavily (_shared/tavily.ts), dessen
+// kostenloses Monatskontingent bereits an anderer Stelle in dieser Sitzung
+// als ausgeschöpft festgestellt wurde (siehe discover-sources' Umstieg auf
+// DuckDuckGo) — searchTavily gab dadurch für JEDEN Kandidaten null zurück,
+// wodurch die komplette Warteliste (134 Kandidaten) zwar bei jedem Lauf
+// erneut geprüft (ai_last_checked_at gesetzt), aber NIE mehr ein einziger
+// automatisch angelegt wurde. Auf denselben kostenlosen DuckDuckGo-Ersatz
+// umgestellt: erst Link-Suche, dann Volltext der Top-Treffer statt Tavilys
+// fertiger Snippets.
 import { callAiFunction, type AiFunctionDeclaration } from "./ai/router.ts";
-import { searchTavily } from "./tavily.ts";
+import { searchDuckDuckGo } from "./duckDuckGoSearch.ts";
+import { fetchPageText } from "./pageText.ts";
 
 export interface EntityEnrichment {
   bioSnippet: string | null;
@@ -43,21 +54,23 @@ const SUMMARIZE_ARTIST_FUNCTION: AiFunctionDeclaration = {
 };
 
 /** Websuche + LLM-Zusammenfassung für einen Kandidatennamen. Gibt null
- * zurück, wenn TAVILY_API_KEY fehlt, die Suche nichts findet, oder das LLM
- * nicht confident=true zurückgibt — Aufrufer behandeln null als "keine
- * verlässliche Anreicherung möglich", nie als Fehler. */
+ * zurück, wenn die Suche nichts findet, keiner der Treffer Text hergibt,
+ * oder das LLM nicht confident=true zurückgibt — Aufrufer behandeln null
+ * als "keine verlässliche Anreicherung möglich", nie als Fehler. */
 export async function enrichCandidateContext(
   entityType: "person" | "ensemble",
   name: string,
 ): Promise<EntityEnrichment | null> {
-  const tavilyApiKey = Deno.env.get("TAVILY_API_KEY");
-  if (!tavilyApiKey) return null;
-
   const kind = entityType === "person" ? "Musiker" : "Ensemble";
-  const results = await searchTavily(tavilyApiKey, `${name} ${kind} klassische Musik`);
-  if (!results || results.length === 0) return null;
+  const links = await searchDuckDuckGo(`${name} ${kind} klassische Musik`, 3);
+  if (!links || links.length === 0) return null;
 
-  const searchText = results.map((r) => `${r.title}\n${r.content}`).join("\n\n");
+  const pages = await Promise.all(links.map((l) => fetchPageText(l.url)));
+  const searchText = links
+    .map((l, i) => (pages[i] ? `${l.url}\n${pages[i]}` : null))
+    .filter((t): t is string => t !== null)
+    .join("\n\n");
+  if (!searchText) return null;
   const response = await callAiFunction(
     "Du ordnest Websuche-Treffer zu einem möglichen klassischen Musiker/Ensemble ein. " +
       "Sei konservativ: bei Unklarheit oder Namensvettern lieber confident=false und leere Felder.",

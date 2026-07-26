@@ -4,8 +4,10 @@
 // — Kandidaten, die vorher schon in der Warteliste lagen, werden dadurch nie
 // rückwirkend aufgelöst. Diese Function holt das nach: für jeden noch
 // offenen person/ensemble-Kandidaten OHNE bereits vermerkten possible_match
-// (Namensvetter-Risiko bleibt immer manuell) wird dieselbe Tavily+LLM-
-// Anreicherung wie bei der Ersterkennung versucht; ist das Ergebnis
+// (Namensvetter-Risiko bleibt immer manuell) wird dieselbe Websuche+LLM-
+// Anreicherung wie bei der Ersterkennung versucht (_shared/entityEnrichment.ts,
+// mittlerweile DuckDuckGo statt des ausgeschöpften Tavily-Kontingents); ist
+// das Ergebnis
 // confident=true, wird der Stammdaten-Eintrag direkt angelegt und der
 // Kandidat als "approved" markiert — sonst bleibt er unverändert in der
 // Warteliste liegen (kein Blindes Ablehnen, das wäre eine stärkere,
@@ -56,9 +58,6 @@ Deno.serve(async (req) => {
 
   if (!hasAnyAiProviderConfigured()) {
     return jsonResponse({ error: "kein AI-Provider konfiguriert (siehe _shared/ai/router.ts)" }, 500);
-  }
-  if (!Deno.env.get("TAVILY_API_KEY")) {
-    return jsonResponse({ error: "TAVILY_API_KEY nicht gesetzt — Anreicherung braucht Websuche" }, 500);
   }
 
   const supabase = createClient(

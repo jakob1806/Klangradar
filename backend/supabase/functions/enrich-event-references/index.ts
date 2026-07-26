@@ -588,11 +588,19 @@ Deno.serve(async (req) => {
     //     dasselbe Werk wie "X" (mit key_signature="e-Moll" separat).
     // Der GESPEICHERTE Titel bleibt unverändert wie vom Modell geliefert —
     // nur der Vergleich normalisiert.
+    // Bug (live in der App gefunden): "Matthäus-Passion" (mit separatem
+    // catalog_number="BWV 244") und "Matthäus-Passion BWV 244" (Katalognummer
+    // in den Titel eingebacken, ohne eigenes catalog_number-Feld) wurden als
+    // zwei verschiedene Werke angelegt und dadurch im Programm doppelt
+    // angezeigt — die Normalisierung strippte zwar einen angehängten
+    // Tonart-Suffix, aber keinen angehängten Katalognummer-Suffix. Gleiches
+    // CATALOG_PATTERN wie bei der Feld-Vertauschungs-Prüfung weiter oben.
     function normalizeTitleForMatch(title: string): string {
       return title
         .replace(/[»«"""'']/g, "")
         .replace(/symphonie/gi, "sinfonie")
         .replace(/\s+[a-h](-dur|-moll)\s*$/i, "")
+        .replace(/\s+(op\.?|opus|bwv|kv|k\.?v\.?|hob\.?|woo|d\.?)\s?\d+[a-z]?\s*$/i, "")
         .replace(/\s+/g, " ")
         .trim()
         .toLowerCase();
