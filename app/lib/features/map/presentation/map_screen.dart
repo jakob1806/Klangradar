@@ -127,6 +127,13 @@ class MapScreen extends ConsumerWidget {
   void _showVenueSheet(BuildContext context, MapVenue venue) {
     showModalBottomSheet(
       context: context,
+      // isScrollControlled + die SingleChildScrollView in
+      // _VenuePreviewSheet: ohne beides überschreitet der Inhalt (Name,
+      // Adresse, bis zu 5 Eventzeilen, Buttons) auf kleineren Geräten die
+      // Standardhöhe eines nicht scrollbaren Bottom-Sheets und überläuft
+      // (live beobachtet: "BOTTOM OVERFLOWED BY 119 PIXELS" bei Venues mit
+      // mehreren kommenden Veranstaltungen).
+      isScrollControlled: true,
       builder: (_) => _VenuePreviewSheet(venue: venue),
     );
   }
@@ -351,82 +358,90 @@ class _VenuePreviewSheet extends ConsumerWidget {
     final colors = context.appColors;
     final eventsAsync = ref.watch(venueUpcomingEventsProvider(venue.id));
     return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.screenPaddingMobile,
-          AppSpacing.lg,
-          AppSpacing.screenPaddingMobile,
-          AppSpacing.lg,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.7,
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(venue.name, style: Theme.of(context).textTheme.titleLarge),
-            if (venue.addressCity != null) ...[
-              const SizedBox(height: 4),
-              Text(
-                venue.addressCity!,
-                style: TextStyle(color: colors.textSecondary),
-              ),
-            ],
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              venue.upcomingEventCount > 0
-                  ? '${venue.upcomingEventCount} kommende Veranstaltung${venue.upcomingEventCount == 1 ? '' : 'en'}'
-                  : 'Keine kommenden Veranstaltungen',
-              style: TextStyle(color: colors.textTertiary, fontSize: 13),
-            ),
-            if (venue.upcomingEventCount > 0)
-              eventsAsync.when(
-                data: (events) => events.isEmpty
-                    ? const SizedBox.shrink()
-                    : Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Column(
-                          children: [
-                            for (final event in events)
-                              _VenueSheetEventRow(event: event, colors: colors),
-                          ],
-                        ),
-                      ),
-                loading: () => const Padding(
-                  padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
-                  child: SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                ),
-                error: (_, _) => const SizedBox.shrink(),
-              ),
-            const SizedBox(height: AppSpacing.lg),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => openExternalMaps(
-                      lat: venue.lat,
-                      lng: venue.lng,
-                      name: venue.name,
-                    ),
-                    icon: const Icon(Icons.directions_rounded),
-                    label: const Text('Route'),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: FilledButton(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                      context.push('/venue/${venue.slug}');
-                    },
-                    child: const Text('Details ansehen'),
-                  ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.screenPaddingMobile,
+            AppSpacing.lg,
+            AppSpacing.screenPaddingMobile,
+            AppSpacing.lg,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(venue.name, style: Theme.of(context).textTheme.titleLarge),
+              if (venue.addressCity != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  venue.addressCity!,
+                  style: TextStyle(color: colors.textSecondary),
                 ),
               ],
-            ),
-          ],
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                venue.upcomingEventCount > 0
+                    ? '${venue.upcomingEventCount} kommende Veranstaltung${venue.upcomingEventCount == 1 ? '' : 'en'}'
+                    : 'Keine kommenden Veranstaltungen',
+                style: TextStyle(color: colors.textTertiary, fontSize: 13),
+              ),
+              if (venue.upcomingEventCount > 0)
+                eventsAsync.when(
+                  data: (events) => events.isEmpty
+                      ? const SizedBox.shrink()
+                      : Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Column(
+                            children: [
+                              for (final event in events)
+                                _VenueSheetEventRow(
+                                  event: event,
+                                  colors: colors,
+                                ),
+                            ],
+                          ),
+                        ),
+                  loading: () => const Padding(
+                    padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                    child: SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ),
+                  error: (_, _) => const SizedBox.shrink(),
+                ),
+              const SizedBox(height: AppSpacing.lg),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => openExternalMaps(
+                        lat: venue.lat,
+                        lng: venue.lng,
+                        name: venue.name,
+                      ),
+                      icon: const Icon(Icons.directions_rounded),
+                      label: const Text('Route'),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        context.push('/venue/${venue.slug}');
+                      },
+                      child: const Text('Details ansehen'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
