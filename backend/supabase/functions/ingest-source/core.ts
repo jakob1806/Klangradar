@@ -19,6 +19,7 @@
 // no top-level Deno.serve() anywhere in this module.
 
 import { parseBayernCloud } from "./parsers/bayerncloud.ts";
+import { fetchBrsoConcertsJson, parseBrso } from "./parsers/brso.ts";
 import { isAllowedByRobots, USER_AGENT } from "../_shared/robots.ts";
 import { parseIcal } from "./parsers/ical.ts";
 import { parseRss } from "./parsers/rss.ts";
@@ -29,7 +30,11 @@ import { upsertRawEvent } from "./write.ts";
 
 // Exported so run-all-sources can exclude unsupported types (e.g. "manual")
 // up front, instead of attempting + failing every single cron run.
-export const SUPPORTED_TYPES = new Set(["schema_org", "ical", "rss", "scrape", "api"]);
+// "brso" ist wie "api" ein Sonderfall mit eigenem Fetch-Ablauf statt des
+// generischen Einzel-GET (siehe parsers/brso.ts's Datei-Kommentar für den
+// Grund: der Konzertinhalt lädt clientseitig per AJAX, kein CSS-Scraping
+// möglich).
+export const SUPPORTED_TYPES = new Set(["schema_org", "ical", "rss", "scrape", "api", "brso"]);
 
 /** Führt einen kompletten Ingestion-Lauf für eine Quelle aus — der eigentliche
  * Kern, den ingest-source/index.ts's Deno.serve-Handler direkt aufruft.
@@ -83,7 +88,7 @@ export async function runIngestion(
     return result({ status: "failed", error: message }, 422);
   }
 
-  if (source.type === "scrape") {
+  if (source.type === "scrape" || source.type === "brso") {
     const allowed = await isAllowedByRobots(source.url);
     if (!allowed) {
       const message = `robots.txt disallows fetching ${source.url} — refusing to scrape`;
@@ -148,28 +153,36 @@ export async function runIngestion(
   let responseEtag: string | null = null;
   let responseLastModified: string | null = null;
   try {
-    const res = await fetch(source.url, { headers });
+    // "brso" braucht einen zweistufigen Fetch (Kalenderseite -> Nonce ->
+    // JSON-POST, siehe parsers/brso.ts) statt des generischen Einzel-GET —
+    // liefert kein ETag/Last-Modified, der bodyHash-Fallback weiter unten
+    // greift trotzdem unverändert.
+    if (source.type === "brso") {
+      responseBody = await fetchBrsoConcertsJson(source.url);
+    } else {
+      const res = await fetch(source.url, { headers });
 
-    if (res.status === 304) {
-      // Server bestätigt: seit dem letzten Lauf unverändert — Parsen/
-      // Schreiben komplett überspringen. flagMissingEvents() wird bewusst
-      // NICHT aufgerufen (kein seenEventIds für diesen Lauf vorhanden), das
-      // würde sonst fälschlich alles als "verschwunden" markieren.
-      await finishRun(supabase, run.id, "skipped_unchanged", { events_found: 0 }, []);
-      await touchSource(supabase, source.id, true);
-      await adjustCrawlFrequency(supabase, source.id, source.crawl_frequency_minutes, false);
-      return result({ status: "skipped_unchanged", events_found: 0 });
-    }
+      if (res.status === 304) {
+        // Server bestätigt: seit dem letzten Lauf unverändert — Parsen/
+        // Schreiben komplett überspringen. flagMissingEvents() wird bewusst
+        // NICHT aufgerufen (kein seenEventIds für diesen Lauf vorhanden), das
+        // würde sonst fälschlich alles als "verschwunden" markieren.
+        await finishRun(supabase, run.id, "skipped_unchanged", { events_found: 0 }, []);
+        await touchSource(supabase, source.id, true);
+        await adjustCrawlFrequency(supabase, source.id, source.crawl_frequency_minutes, false);
+        return result({ status: "skipped_unchanged", events_found: 0 });
+      }
 
-    if (!res.ok) {
-      const message = `fetch failed: HTTP ${res.status} ${res.statusText}`;
-      await finishRun(supabase, run.id, "failed", { events_found: 0 }, [message]);
-      await touchSource(supabase, source.id, false);
-      return result({ status: "failed", error: message }, 502);
+      if (!res.ok) {
+        const message = `fetch failed: HTTP ${res.status} ${res.statusText}`;
+        await finishRun(supabase, run.id, "failed", { events_found: 0 }, [message]);
+        await touchSource(supabase, source.id, false);
+        return result({ status: "failed", error: message }, 502);
+      }
+      responseEtag = res.headers.get("etag");
+      responseLastModified = res.headers.get("last-modified");
+      responseBody = await res.text();
     }
-    responseEtag = res.headers.get("etag");
-    responseLastModified = res.headers.get("last-modified");
-    responseBody = await res.text();
   } catch (err) {
     const message = `fetch threw: ${err instanceof Error ? err.message : String(err)}`;
     await finishRun(supabase, run.id, "failed", { events_found: 0 }, [message]);
@@ -262,6 +275,9 @@ export async function runIngestion(
       }
       case "api":
         parsed = parseBayernCloud(responseBody);
+        break;
+      case "brso":
+        parsed = parseBrso(responseBody);
         break;
       default:
         // Unreachable given the SUPPORTED_TYPES guard above, but keeps the
