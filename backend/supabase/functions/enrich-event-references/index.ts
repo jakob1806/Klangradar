@@ -44,6 +44,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { callAiFunction, hasAnyAiProviderConfigured, type AiFunctionDeclaration } from "../_shared/ai/router.ts";
 import { logSystemAction } from "../_shared/systemLog.ts";
 import { enrichCandidateContext } from "../_shared/entityEnrichment.ts";
+import { fetchPageText } from "../_shared/pageText.ts";
+import { recordFieldSource } from "../_shared/provenance.ts";
 
 // Muss exakt dem genre_type-Enum entsprechen (20260715000002_enums_and_lookup.sql)
 // — eine feste, kuratierte Liste statt Freitext wie bei tags, damit
@@ -73,6 +75,17 @@ const ENRICH_FUNCTION: AiFunctionDeclaration = {
             composerName: {
               type: "string",
               description: "Voller Name des Komponisten, falls erkennbar (z. B. 'Johannes Brahms'), sonst weglassen.",
+            },
+            catalogNumber: {
+              type: "string",
+              description:
+                "Opus-/Werkverzeichnisnummer NUR, wenn wortwörtlich im Text steht (z. B. 'op. 68', 'KV 550', " +
+                "'BWV 244'). Niemals aus dem Werktitel ableiten oder aus allgemeinem Wissen ergänzen — lieber " +
+                "weglassen als raten.",
+            },
+            keySignature: {
+              type: "string",
+              description: "Tonart NUR, wenn wortwörtlich im Text steht (z. B. 'c-Moll'), sonst weglassen.",
             },
           },
           required: ["title"],
@@ -127,6 +140,43 @@ const ENRICH_FUNCTION: AiFunctionDeclaration = {
           enum: GENRE_SLUGS,
         },
       },
+      doorsInfo: {
+        type: "string",
+        description:
+          "Einlasszeit/-hinweis NUR, wenn wortwörtlich im Text steht (z. B. 'Einlass 19:00 Uhr', 'Einlass ab " +
+          "18:30'), sonst weglassen. Nicht aus der Konzertbeginn-Uhrzeit ableiten.",
+      },
+      estimatedDurationMinutes: {
+        type: "number",
+        description:
+          "Voraussichtliche Gesamtdauer in Minuten NUR, wenn im Text explizit genannt (z. B. 'Dauer: ca. 90 " +
+          "Minuten', 'ca. 2 Stunden inkl. Pause'), sonst weglassen. Niemals aus der Werkliste schätzen.",
+      },
+      hasIntermission: {
+        type: "boolean",
+        description:
+          "true/false NUR, wenn im Text explizit eine Pause erwähnt oder explizit ausgeschlossen wird (z. B. " +
+          "'mit Pause', 'ohne Pause', 'keine Pause'), sonst ganz weglassen (kein Rateergebnis).",
+      },
+      longDescription: {
+        type: "string",
+        description:
+          "Eine redaktionelle Kurzbeschreibung der Veranstaltung auf Deutsch (2-4 Sätze), NUR aus Informationen, " +
+          "die tatsächlich im bereitgestellten Text stehen (Programmidee, Anlass, Besonderheiten) — keine " +
+          "Floskeln, keine erfundenen Zusatzinformationen. Weglassen, wenn der Text dafür nicht genug hergibt.",
+      },
+      targetAudience: {
+        type: "string",
+        description:
+          "Zielgruppe NUR, wenn im Text explizit genannt (z. B. 'Familienkonzert ab 6 Jahren', 'für " +
+          "Kinder ab 4 Jahren'), sonst weglassen.",
+      },
+      language: {
+        type: "string",
+        description:
+          "Aufführungssprache/Übertitel-Hinweis NUR, wenn im Text explizit genannt (z. B. 'in italienischer " +
+          "Sprache mit deutschen Übertiteln'), sonst weglassen.",
+      },
     },
     required: ["works", "participants", "genres"],
   },
@@ -136,30 +186,84 @@ interface EventRow {
   id: string;
   title: string;
   description_de: string | null;
+  website_url: string | null;
+  ticket_url: string | null;
+  doors_info: string | null;
+  duration_minutes: number | null;
+  has_intermission: boolean | null;
+  target_audience: string | null;
+  performance_language: string | null;
 }
 
+interface ExtractedReferences {
+  works: Array<{ title: string; composerName: string | null; catalogNumber: string | null; keySignature: string | null }>;
+  participants: Array<
+    { name: string; type: string; role: string | null; ensembleType: string | null; instrument: string | null }
+  >;
+  tags: string[];
+  genres: string[];
+  doorsInfo: string | null;
+  estimatedDurationMinutes: number | null;
+  hasIntermission: boolean | null;
+  longDescription: string | null;
+  targetAudience: string | null;
+  language: string | null;
+}
+
+/** `pageText` ist der bereinigte Volltext der offiziellen Event-Seite
+ * (siehe _shared/pageText.ts), falls verfügbar — deutlich reichhaltiger
+ * als title+description_de allein (Opus/Werkverzeichnis, Einlasszeit,
+ * ausführliche Beschreibung stehen oft nur dort). Optional, da nicht jedes
+ * Event eine abrufbare website_url/ticket_url hat; die Extraktion fällt
+ * dann auf title+description_de zurück wie bisher. */
 async function extractReferences(
   title: string,
   description: string | null,
-): Promise<{ works: Array<{ title: string; composerName: string | null }>; participants: Array<{ name: string; type: string; role: string | null; ensembleType: string | null; instrument: string | null }>; tags: string[]; genres: string[] } | null> {
-  const text = `Titel: ${title}${description ? `\nBeschreibung: ${description}` : ""}`;
+  pageText: string | null,
+): Promise<ExtractedReferences | null> {
+  const text = `Titel: ${title}${description ? `\nBeschreibung: ${description}` : ""}` +
+    (pageText ? `\n\nVolltext der offiziellen Veranstaltungsseite:\n${pageText}` : "");
 
   const response = await callAiFunction(
-    "Du extrahierst Komponisten, Werke und Mitwirkende aus Titel/Beschreibung eines " +
-      "klassischen Konzerts. Sei konservativ: lieber ein leeres Array als geraten.",
+    "Du extrahierst Komponisten, Werke, Mitwirkende und praktische Details aus Titel/Beschreibung " +
+      "(und, falls vorhanden, dem Volltext der offiziellen Veranstaltungsseite) eines klassischen Konzerts. " +
+      "Sei konservativ: lieber ein leeres Feld/Array als geraten. Erfinde NIEMALS Informationen, die nicht " +
+      "wortwörtlich im bereitgestellten Text stehen.",
     text,
     ENRICH_FUNCTION,
   );
   const args = response?.args;
   if (!args) return null;
 
-  const works = Array.isArray(args.works) ? args.works : [];
+  const works = Array.isArray(args.works)
+    ? args.works.map((w: Record<string, unknown>) => ({
+      title: typeof w.title === "string" ? w.title : "",
+      composerName: typeof w.composerName === "string" ? w.composerName : null,
+      catalogNumber: typeof w.catalogNumber === "string" ? w.catalogNumber : null,
+      keySignature: typeof w.keySignature === "string" ? w.keySignature : null,
+    }))
+    : [];
   const participants = Array.isArray(args.participants) ? args.participants : [];
   const tags = Array.isArray(args.tags) ? args.tags.filter((t: unknown) => typeof t === "string" && t.trim()) : [];
   const genres = Array.isArray(args.genres)
     ? args.genres.filter((g: unknown) => typeof g === "string" && GENRE_SLUGS.includes(g))
     : [];
-  return { works, participants, tags, genres };
+  return {
+    works,
+    participants,
+    tags,
+    genres,
+    doorsInfo: typeof args.doorsInfo === "string" && args.doorsInfo.trim() ? args.doorsInfo.trim() : null,
+    estimatedDurationMinutes: typeof args.estimatedDurationMinutes === "number" ? args.estimatedDurationMinutes : null,
+    hasIntermission: typeof args.hasIntermission === "boolean" ? args.hasIntermission : null,
+    longDescription: typeof args.longDescription === "string" && args.longDescription.trim()
+      ? args.longDescription.trim()
+      : null,
+    targetAudience: typeof args.targetAudience === "string" && args.targetAudience.trim()
+      ? args.targetAudience.trim()
+      : null,
+    language: typeof args.language === "string" && args.language.trim() ? args.language.trim() : null,
+  };
 }
 
 Deno.serve(async (req) => {
@@ -189,12 +293,17 @@ Deno.serve(async (req) => {
   // Verknüpfung) bekäme sonst NIE eine solche Zeile und würde bei jedem Lauf
   // erneut ausgewählt, was den gesamten Batch-Fortschritt blockiert (siehe
   // 20260722000001_events_references_checked_at.sql).
+  // order by start_datetime statt id: auf Nutzerwunsch priorisieren bevor-
+  // stehende Events (insbesondere die nächsten 90 Tage) automatisch zuerst,
+  // statt in beliebiger Insert-Reihenfolge verarbeitet zu werden.
   const { data: candidates, error: fetchError } = await supabase
     .from("events")
-    .select("id, title, description_de")
+    .select(
+      "id, title, description_de, website_url, ticket_url, doors_info, duration_minutes, has_intermission, target_audience, performance_language",
+    )
     .eq("status", "scheduled")
     .is("references_checked_at", null)
-    .order("id")
+    .order("start_datetime", { ascending: true })
     .limit(limit)
     .returns<EventRow[]>();
 
@@ -213,7 +322,19 @@ Deno.serve(async (req) => {
   const errors: string[] = [];
 
   for (const event of candidates) {
-    const extracted = await extractReferences(event.title, event.description_de);
+    // Volltext der offiziellen Seite als zusätzlicher Kontext (siehe
+    // Datei-Kommentar zu extractReferences) — website_url zuerst, dann
+    // ticket_url. Ohne beide URLs oder bei Fetch-Fehler bleibt pageText
+    // null, die Extraktion fällt auf title+description_de zurück wie
+    // bisher (kein Fehlerfall).
+    let pageText: string | null = null;
+    for (const pageUrl of [event.website_url, event.ticket_url]) {
+      if (!pageUrl) continue;
+      pageText = await fetchPageText(pageUrl);
+      if (pageText) break;
+    }
+
+    const extracted = await extractReferences(event.title, event.description_de, pageText);
     if (!extracted) {
       errors.push(`"${event.title}": AI-Aufruf fehlgeschlagen (alle Provider)`);
       continue; // kein Mark — bei transientem Providerfehler soll ein späterer Lauf es erneut versuchen
@@ -444,21 +565,45 @@ Deno.serve(async (req) => {
 
         const { data: existingWork } = await supabase
           .from("works")
-          .select("id")
+          .select("id, catalog_number, key_signature")
           .ilike("title", w.title.trim())
           .maybeSingle();
         let workId: string;
         if (existingWork) {
           workId = existingWork.id;
+          // Opus/Tonart nur NACHTRÄGLICH ergänzen, wenn das Werk sie noch
+          // nicht hat — nie eine bereits vorhandene (ggf. redaktionell
+          // gepflegte) Angabe überschreiben.
+          const patch: Record<string, string> = {};
+          if (!existingWork.catalog_number && w.catalogNumber) patch.catalog_number = w.catalogNumber;
+          if (!existingWork.key_signature && w.keySignature) patch.key_signature = w.keySignature;
+          if (Object.keys(patch).length > 0) {
+            await supabase.from("works").update(patch).eq("id", workId);
+          }
         } else {
           const { data: createdWork, error } = await supabase
             .from("works")
-            .insert({ title: w.title.trim(), composer_id: composerId })
+            .insert({
+              title: w.title.trim(),
+              composer_id: composerId,
+              catalog_number: w.catalogNumber,
+              key_signature: w.keySignature,
+            })
             .select("id")
             .single();
           if (error) throw new Error(`works insert "${w.title}": ${error.message}`);
           worksCreated++;
           workId = createdWork.id;
+        }
+        if (w.catalogNumber || w.keySignature) {
+          await recordFieldSource(supabase, {
+            entityType: "work",
+            entityId: workId,
+            fieldName: "catalog_number_key_signature",
+            sourceUrl: event.website_url ?? event.ticket_url ?? null,
+            sourceName: "Offizielle Veranstaltungsseite (via enrich-event-references)",
+            confidence: "likely",
+          });
         }
 
         // PK ist (event_id, work_id, position) — kein simpler (event_id,
@@ -564,6 +709,73 @@ Deno.serve(async (req) => {
           .upsert({ event_id: event.id, genre_id: genre.id }, { onConflict: "event_id,genre_id" });
         if (eventGenreError) console.error(`event_genres link "${slug}": ${eventGenreError.message}`);
         else genresAssigned++;
+      }
+
+      // Praktische Event-Felder — jedes NUR befüllen, wenn aktuell leer,
+      // nie eine bereits vorhandene (ggf. redaktionell gepflegte) Angabe
+      // überschreiben. longDescription landet in description_de, aber nur
+      // wenn dort noch nichts oder nur ein sehr knapper Platzhalter steht
+      // (< 40 Zeichen) — die Ingestion setzt description_de oft mit einem
+      // kurzen, generischen Quellentext, der durch eine echte redaktionelle
+      // Kurzbeschreibung ersetzt werden soll, ohne einen bereits
+      // ausführlichen Text zu verlieren.
+      const eventPatch: Record<string, string | number | boolean> = {};
+      const sourceUrl = event.website_url ?? event.ticket_url ?? undefined;
+      const provenanceSources: Array<{ fieldName: string; sourceUrl?: string | null }> = [];
+
+      if (!event.doors_info && extracted.doorsInfo) {
+        eventPatch.doors_info = extracted.doorsInfo;
+        provenanceSources.push({ fieldName: "doors_info", sourceUrl });
+      }
+      if (!event.duration_minutes && extracted.estimatedDurationMinutes) {
+        eventPatch.duration_minutes = extracted.estimatedDurationMinutes;
+        provenanceSources.push({ fieldName: "duration_minutes", sourceUrl });
+      }
+      // has_intermission hat einen DB-Default von false (nie wirklich
+      // NULL) — anders als bei den übrigen Feldern hier IMMER überschreiben,
+      // wenn das LLM einen expliziten Wert liefert, statt auf "=== null" zu
+      // prüfen (das griff nie, da der Default bereits false ist statt
+      // NULL). Vertretbar, weil ein Event durch references_checked_at nur
+      // EINMAL durch diese Funktion läuft, nicht wiederkehrend — eine
+      // spätere manuelle Redaktions-Korrektur würde also nicht erneut
+      // überschrieben.
+      if (extracted.hasIntermission !== null) {
+        eventPatch.has_intermission = extracted.hasIntermission;
+        provenanceSources.push({ fieldName: "has_intermission", sourceUrl });
+      }
+      if ((!event.description_de || event.description_de.trim().length < 40) && extracted.longDescription) {
+        eventPatch.description_de = extracted.longDescription;
+        provenanceSources.push({ fieldName: "description_de", sourceUrl });
+      }
+      if (!event.target_audience && extracted.targetAudience) {
+        eventPatch.target_audience = extracted.targetAudience;
+        provenanceSources.push({ fieldName: "target_audience", sourceUrl });
+      }
+      if (!event.performance_language && extracted.language) {
+        eventPatch.performance_language = extracted.language;
+        provenanceSources.push({ fieldName: "performance_language", sourceUrl });
+      }
+
+      if (Object.keys(eventPatch).length > 0) {
+        const { error: patchError } = await supabase.from("events").update(eventPatch).eq("id", event.id);
+        if (patchError) {
+          console.error(`event detail patch "${event.title}": ${patchError.message}`);
+        } else {
+          await Promise.all(
+            provenanceSources.map((s) =>
+              recordFieldSource(supabase, {
+                entityType: "event",
+                entityId: event.id,
+                fieldName: s.fieldName,
+                sourceUrl: s.sourceUrl,
+                sourceName: pageText
+                  ? "Offizielle Veranstaltungsseite (via enrich-event-references)"
+                  : "Titel/Beschreibung (via enrich-event-references)",
+                confidence: pageText ? "likely" : "uncertain",
+              })
+            ),
+          );
+        }
       }
     } catch (err) {
       errors.push(`"${event.title}": ${err instanceof Error ? err.message : String(err)}`);
