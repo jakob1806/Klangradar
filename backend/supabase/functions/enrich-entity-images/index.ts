@@ -70,6 +70,7 @@ import { extractImageNearName } from "../_shared/imageNearName.ts";
 import { checkImageUrl } from "../_shared/imageValidation.ts";
 import { isAllowedByRobots } from "../_shared/robots.ts";
 import { searchDuckDuckGo } from "../_shared/duckDuckGoSearch.ts";
+import { searchViaGeminiGrounding } from "../_shared/geminiGroundedSearch.ts";
 import { logSystemAction } from "../_shared/systemLog.ts";
 
 const DEFAULT_LIMIT = 8;
@@ -496,30 +497,42 @@ async function enrichEntityKind(
 const EVENT_BATCH_SIZE = 15;
 const EVENT_CONCURRENCY = 4;
 
-/** Events ganz ohne website_url/ticket_url: eine kostenlose DuckDuckGo-
- * Websuche (_shared/duckDuckGoSearch.ts, kein API-Key/keine Anmeldung
- * nötig) versucht, eine passende Seite zu finden (Titel + Venue-Name +
- * "München Tickets") — auf Nutzerwunsch ("Fehlende Website-/Ticket-URLs
- * müssen automatisch nachrecherchiert werden"). Gefundene URL wird als
- * website_url gespeichert (auch wenn sich daraus kein Bild extrahieren
- * lässt — die URL selbst ist der primäre Gewinn, ein Bild ist ein Bonus
- * obendrauf).
+/** Events ganz ohne website_url/ticket_url: Geminis Google-Search-
+ * Grounding (_shared/geminiGroundedSearch.ts) versucht, eine passende
+ * Seite zu finden (Titel + Venue-Name + "München Tickets") — auf
+ * Nutzerwunsch ("Fehlende Website-/Ticket-URLs müssen automatisch
+ * nachrecherchiert werden"). Gefundene URL wird als website_url
+ * gespeichert (auch wenn sich daraus kein Bild extrahieren lässt — die URL
+ * selbst ist der primäre Gewinn, ein Bild ist ein Bonus obendrauf).
  *
- * War ursprünglich mit Tavily gebaut (_shared/tavily.ts, schon anderswo im
- * Projekt genutzt), aber Tavilys Gratiskontingent war ausgeschöpft und ein
- * kostenpflichtiges Upgrade war auf Nutzerwunsch ausdrücklich abgelehnt —
- * DuckDuckGos HTML-Suche ist der kostenlose Ersatz dafür (siehe
- * duckDuckGoSearch.ts-Dateikommentar für den Tradeoff: HTML-Scraping statt
- * einer stabilen JSON-API, für dieses geringe Volumen unproblematisch).
+ * War zunächst mit Tavily gebaut (Gratiskontingent ausgeschöpft,
+ * kostenpflichtiges Upgrade abgelehnt), dann mit Google Custom Search JSON
+ * API (die dafür nötige "auf das gesamte Web durchsuchen"-Option wurde von
+ * Google für Programmable Search Engine eingestellt) — beide verworfen.
+ * Gemini-Grounding liefert über groundingChunks die tatsächlich
+ * durchsuchten Quellen-URLs strukturiert mit, ohne HTML-Scraping — nutzt
+ * aber bewusst ein EIGENES Secret (GEMINI_SEARCH_API_KEY), nicht den im
+ * restlichen Projekt für generate-embeddings/enrich-event-references
+ * genutzten GEMINI_API_KEY: mit dem gemeinsamen Key kollidierte diese
+ * Suche mit deren Tageskontingent (429 RESOURCE_EXHAUSTED, live
+ * beobachtet) — ein zweiter, kostenloser Key von einem separaten
+ * Google-Konto hat sein eigenes Kontingent. DuckDuckGo bleibt als
+ * letzter, in der Praxis meist wirkungsloser Fallback (Supabase-Server-IPs
+ * werden dort geblockt, siehe duckDuckGoSearch.ts), falls kein
+ * GEMINI_SEARCH_API_KEY gesetzt ist oder Grounding nichts liefert.
  *
- * Bounded auf EVENT_URL_DISCOVERY_LIMIT pro Lauf — kein Kontingent-Grund
- * mehr, aber unnötig viele Requests pro Lauf sollen trotzdem vermieden
- * werden (Rücksicht auf einen kostenlosen, nicht offiziell für
- * Automatisierung gedachten Dienst). */
+ * Bounded auf EVENT_URL_DISCOVERY_LIMIT pro Lauf. */
 async function discoverMissingEventUrls(
   // deno-lint-ignore no-explicit-any
   supabase: any,
 ): Promise<{ attempted: number; found: number }> {
+  // Eigenes, separates Secret statt des gemeinsam mit generate-embeddings/
+  // enrich-event-references genutzten GEMINI_API_KEY — auf Nutzerwunsch,
+  // damit die Event-URL-Suche nicht mit deren Tageskontingent konkurriert
+  // (siehe Datei-Kommentar oben: genau das führte zu einem 429 mit dem
+  // gemeinsamen Key).
+  const geminiApiKey = Deno.env.get("GEMINI_SEARCH_API_KEY");
+
   const { data: events } = await supabase
     .from("events")
     .select("id, title, venues(name)")
@@ -536,20 +549,33 @@ async function discoverMissingEventUrls(
   for (const event of rows) {
     const venueName = event.venues?.name ?? "";
     const query = `${event.title} ${venueName} München Tickets`;
-    const results = await searchDuckDuckGo(query, 3);
-    const topResult = results?.[0];
-    if (!topResult) {
-      // results === null bedeutet: die Suche selbst ist fehlgeschlagen
-      // (Netzwerk-/HTTP-Fehler) — anders als "Suche lief, aber 0
-      // organische Treffer" (results === []), das wird im Dashboard
-      // bewusst unterschieden.
-      const note = results === null
-        ? "Websuche nach Website-/Ticket-URL fehlgeschlagen (DuckDuckGo nicht erreichbar)."
+
+    let topResultUrl: string | null = null;
+    let searchFailed = false;
+
+    if (geminiApiKey) {
+      const groundedResults = await searchViaGeminiGrounding(geminiApiKey, query);
+      if (groundedResults === null) searchFailed = true;
+      else if (groundedResults.length > 0) topResultUrl = groundedResults[0].url;
+    }
+
+    if (!topResultUrl) {
+      const ddgResults = await searchDuckDuckGo(query, 3);
+      if (ddgResults === null) searchFailed = true;
+      else if (ddgResults.length > 0) {
+        topResultUrl = ddgResults[0].url;
+        searchFailed = false;
+      }
+    }
+
+    if (!topResultUrl) {
+      const note = searchFailed
+        ? "Websuche nach Website-/Ticket-URL fehlgeschlagen (Such-API nicht erreichbar)."
         : "Keine Website-/Ticket-URL per Websuche gefunden.";
       await supabase.from("events").update({ last_image_search_note: note }).eq("id", event.id);
       continue;
     }
-    await supabase.from("events").update({ website_url: topResult.url }).eq("id", event.id);
+    await supabase.from("events").update({ website_url: topResultUrl }).eq("id", event.id);
     found++;
   }
 

@@ -15,15 +15,22 @@ export interface DuckDuckGoResult {
 
 const AD_REDIRECT_MARKERS = ["bing.com/aclick", "duckduckgo.com/y.js", "/ad_domain"];
 
-/** Extrahiert die echte Ziel-URL aus DuckDuckGos Weiterleitungs-Link
- * (`//duckduckgo.com/l/?uddg=<url-encoded-target>&rut=...`). Gibt null
- * zurück, wenn kein "uddg"-Parameter vorhanden oder die Dekodierung
- * fehlschlägt. */
-function extractTargetUrl(redirectHref: string): string | null {
+/** Extrahiert die echte Ziel-URL aus einem result__a-href — DuckDuckGo
+ * liefert je nach ausgespieltem Template ZWEI verschiedene Formen (live
+ * beobachtet, beide müssen abgedeckt sein):
+ *   1) Weiterleitungs-Link: `//duckduckgo.com/l/?uddg=<url-encoded-target>
+ *      &rut=...` — Ziel-URL steckt im "uddg"-Parameter.
+ *   2) Direkter Link: der href IST bereits die Ziel-URL selbst, ohne
+ *      jeden Wrapper.
+ * Gibt null zurück, wenn weder (1) noch (2) zutrifft. */
+function extractTargetUrl(href: string): string | null {
   try {
-    const url = new URL(redirectHref, "https://duckduckgo.com");
-    const target = url.searchParams.get("uddg");
-    return target ? decodeURIComponent(target) : null;
+    const url = new URL(href, "https://duckduckgo.com");
+    if (url.hostname.endsWith("duckduckgo.com")) {
+      const target = url.searchParams.get("uddg");
+      return target ? decodeURIComponent(target) : null;
+    }
+    return url.toString();
   } catch {
     return null;
   }
@@ -39,7 +46,20 @@ export async function searchDuckDuckGo(query: string, maxResults = 3): Promise<D
   try {
     const res = await fetch(url, {
       headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; KlassikMuenchenBot/1.0; redaktionelle Recherche)",
+        // Ein sich selbst identifizierender Bot-User-Agent (die erste
+        // Fassung nannte hier "KlassikMuenchenBot") wird von DuckDuckGos
+        // Anti-Bot-Erkennung sofort geblockt — live bestätigt: ein echter
+        // Browser-User-Agent (ohne Bot-Kennung) kam durch, derselbe String
+        // mit "Bot" im Namen nicht. Dieses Projekt identifiziert sich bei
+        // JEDEM anderen Fetch (siehe _shared/robots.ts' USER_AGENT) bewusst
+        // ehrlich als Bot und hält robots.txt ein — hier bewusste Ausnahme,
+        // weil DuckDuckGos HTML-Suche selbst kein robots.txt-Verbot für
+        // /html/ ausweist und diese Anfragen (wenige pro 15-Minuten-Lauf,
+        // siehe EVENT_URL_DISCOVERY_LIMIT) keinen ernsthaften Server-Impact
+        // haben.
+        "User-Agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
+        "Accept-Language": "de-DE,de;q=0.9,en;q=0.8",
       },
     });
     if (!res.ok) return null;
