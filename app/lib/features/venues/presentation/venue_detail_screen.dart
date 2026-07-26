@@ -103,7 +103,12 @@ class VenueDetailScreen extends ConsumerWidget {
                       children: [
                         Expanded(
                           child: Text(
-                            address,
+                            // Stadtteil ergänzt die Adresse, wenn recherchiert
+                            // (siehe enrich-venue-details) — rein additiv,
+                            // die Adresse selbst bleibt unverändert.
+                            venue['district'] != null
+                                ? '$address · ${venue['district']}'
+                                : address,
                             style: TextStyle(
                               color: colors.textSecondary,
                               fontSize: 13,
@@ -122,10 +127,15 @@ class VenueDetailScreen extends ConsumerWidget {
                         ),
                       ],
                     ),
-                    if (venue['capacity'] != null) ...[
+                    if (venue['capacity'] != null ||
+                        venue['venue_type'] != null) ...[
                       const SizedBox(height: 4),
                       Text(
-                        '${venue['capacity']} Plätze',
+                        [
+                          _venueTypeLabel(venue['venue_type'] as String?),
+                          if (venue['capacity'] != null)
+                            '${venue['capacity']} Plätze',
+                        ].whereType<String>().join(' · '),
                         style: TextStyle(
                           color: colors.textTertiary,
                           fontSize: 12.5,
@@ -143,10 +153,46 @@ class VenueDetailScreen extends ConsumerWidget {
                         ),
                       ),
                     ],
+                    // Geschichte/künstlerisches Profil — eigener Abschnitt,
+                    // getrennt vom Kurzporträt (description_de), da beide
+                    // unterschiedliche Zwecke haben (siehe
+                    // enrich-venue-details: historyDe ist bewusst ein
+                    // eigenes Feld, kein Ersatz für description_de).
+                    if (venue['history_de'] != null) ...[
+                      const SizedBox(height: AppSpacing.lg),
+                      Text(
+                        'Geschichte',
+                        style: Theme.of(
+                          context,
+                        ).textTheme.headlineSmall?.copyWith(fontSize: 15),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        venue['history_de'],
+                        style: TextStyle(
+                          color: colors.textSecondary,
+                          fontSize: 13,
+                          height: 1.5,
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: AppSpacing.md),
                     ExternalLinksRow(
                       websiteUrl: venue['website_url'] as String?,
                     ),
+                    if (venue['phone'] != null || venue['email'] != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        [
+                          venue['phone'],
+                          venue['email'],
+                        ].whereType<String>().join(' · '),
+                        style: TextStyle(
+                          color: colors.textSecondary,
+                          fontSize: 12.5,
+                        ),
+                      ),
+                    ],
                     if (accessibility.values.any((v) => v == true)) ...[
                       const SizedBox(height: AppSpacing.xl),
                       Text(
@@ -163,6 +209,12 @@ class VenueDetailScreen extends ConsumerWidget {
                             const Chip(label: Text('Induktionsschleife')),
                           if (accessibility['sign_language'] == true)
                             const Chip(label: Text('Gebärdensprache')),
+                          if (accessibility['step_free'] == true)
+                            const Chip(label: Text('Stufenloser Zugang')),
+                          if (accessibility['elevator'] == true)
+                            const Chip(label: Text('Aufzug')),
+                          if (accessibility['accessible_toilet'] == true)
+                            const Chip(label: Text('Barrierefreies WC')),
                         ],
                       ),
                     ],
@@ -198,6 +250,43 @@ class VenueDetailScreen extends ConsumerWidget {
                           colors: colors,
                         ),
                     ],
+                    // Fahrrad/Taxi/Fußweg — ergänzt MVV/Parken (oben),
+                    // nie ein Ersatz dafür (siehe enrich-venue-details).
+                    if (venue['arrival_info_de'] != null) ...[
+                      const SizedBox(height: AppSpacing.lg),
+                      Text(
+                        venue['arrival_info_de'],
+                        style: TextStyle(
+                          color: colors.textSecondary,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                    if (venue['doors_info_de'] != null ||
+                        venue['catering_info_de'] != null) ...[
+                      const SizedBox(height: AppSpacing.lg),
+                      Text(
+                        'Praktische Hinweise',
+                        style: Theme.of(
+                          context,
+                        ).textTheme.headlineSmall?.copyWith(fontSize: 15),
+                      ),
+                      const SizedBox(height: 4),
+                      for (final hint in [
+                        venue['doors_info_de'],
+                        venue['catering_info_de'],
+                      ].whereType<String>())
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Text(
+                            hint,
+                            style: TextStyle(
+                              color: colors.textSecondary,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                    ],
                     const SizedBox(height: AppSpacing.xxl),
                     Text(
                       'Kommende Veranstaltungen',
@@ -225,6 +314,18 @@ class VenueDetailScreen extends ConsumerWidget {
     );
   }
 }
+
+/// Muss zu den venue_type-Werten in enrich-venue-details/index.ts passen.
+String? _venueTypeLabel(String? type) => switch (type) {
+  'konzertsaal' => 'Konzertsaal',
+  'kirche' => 'Kirche',
+  'theater' => 'Theater',
+  'museum' => 'Museum',
+  'schloss' => 'Schloss',
+  'kulturzentrum' => 'Kulturzentrum',
+  'sonstiges' => null,
+  _ => null,
+};
 
 class _MvvStopRow extends StatelessWidget {
   const _MvvStopRow({required this.stop, required this.colors});
