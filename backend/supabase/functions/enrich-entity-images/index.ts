@@ -313,10 +313,18 @@ async function enrichEntityKind(
   kind: EntityKind,
   limit: number,
 ): Promise<{ found: number; autoApplied: number; queuedForReview: number; errors: string[] }> {
+  // Ohne Sortierung liefert Postgres bei jedem Lauf dieselben ersten Zeilen
+  // (physische Tabellenreihenfolge) — bei mehr Zeilen mit photo_url=null als
+  // `limit` verhungerten dadurch alle Zeilen nach den ersten `limit`
+  // permanent (live beobachtet: 266/302 persons, 46/91 ensembles, 19/46
+  // venues mit last_image_search_note=null trotz Cron alle 15 Minuten seit
+  // Wochen). nullsFirst sorgt dafür, dass noch nie versuchte Zeilen
+  // (note ist null) immer vor bereits (erfolglos) versuchten Zeilen drankommen.
   const { data: rows, error } = await supabase
     .from(kind.table)
     .select(`id, ${kind.nameColumn}, website_url`)
     .is("photo_url", null)
+    .order("last_image_search_note", { ascending: true, nullsFirst: true })
     .limit(limit);
 
   if (error) {
@@ -607,11 +615,18 @@ async function enrichEventCovers(
   supabase: any,
   limit = EVENT_BATCH_SIZE,
 ): Promise<{ found: number; updated: number; errors: string[] }> {
+  // Gleicher Fix wie in enrichEntityKind: never-tried Events (note ist null)
+  // zuerst, sonst blockieren die zeitlich nächsten Events dauerhaft den
+  // gesamten Batch, sobald sie einmal erfolglos versucht wurden (live
+  // beobachtet: 195/367 upcoming events ohne Bild). start_datetime bleibt
+  // die Tie-Break-Sortierung innerhalb jeder der beiden Gruppen — je
+  // näher das Event, desto eher lohnt sich ein (erneuter) Versuch.
   const { data: events, error } = await supabase
     .from("events")
     .select("id, image_urls, website_url, ticket_url")
     .in("status", ["scheduled", "sold_out", "postponed"])
     .gte("start_datetime", new Date().toISOString())
+    .order("last_image_search_note", { ascending: true, nullsFirst: true })
     .order("start_datetime", { ascending: true });
 
   if (error) {
