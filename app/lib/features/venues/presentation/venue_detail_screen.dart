@@ -6,9 +6,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/external_maps.dart';
+import '../../../core/widgets/detail_card.dart';
 import '../../../core/widgets/detail_hero_background.dart';
 import '../../../core/widgets/external_links_row.dart';
 import '../../../core/widgets/genre_artwork.dart';
+import '../../../core/widgets/source_hint.dart';
 
 final _venueProvider = FutureProvider.family<Map<String, dynamic>?, String>((
   ref,
@@ -36,7 +38,21 @@ final _venueProvider = FutureProvider.family<Map<String, dynamic>?, String>((
       .rpc('venue_with_latlng', params: {'p_id': venue['id']})
       .maybeSingle();
 
-  return {'venue': venue, 'events': events, 'latLng': latLng};
+  // Quellenbelege pro automatisiert recherchiertem Feld (Phase 6: "dezente,
+  // aber nachvollziehbare Quellenhinweise") — siehe _shared/provenance.ts
+  // auf Backend-Seite, hier nur gelesen, nie geschrieben.
+  final provenance = await client
+      .from('field_provenance')
+      .select('field_name, source_name, source_url, retrieved_at, confidence')
+      .eq('entity_type', 'venue')
+      .eq('entity_id', venue['id']);
+
+  return {
+    'venue': venue,
+    'events': events,
+    'latLng': latLng,
+    'sources': fieldSourcesFromRows(provenance),
+  };
 });
 
 class VenueDetailScreen extends ConsumerWidget {
@@ -60,6 +76,7 @@ class VenueDetailScreen extends ConsumerWidget {
           final venue = data['venue'] as Map<String, dynamic>;
           final events = data['events'] as List;
           final latLng = data['latLng'] as Map<String, dynamic>?;
+          final sources = data['sources'] as Map<String, FieldSource>;
           final accessibility =
               (venue['accessibility'] as Map<String, dynamic>?) ?? {};
           final now = DateTime.now();
@@ -160,11 +177,10 @@ class VenueDetailScreen extends ConsumerWidget {
                     // eigenes Feld, kein Ersatz für description_de).
                     if (venue['history_de'] != null) ...[
                       const SizedBox(height: AppSpacing.lg),
-                      Text(
-                        'Geschichte',
-                        style: Theme.of(
-                          context,
-                        ).textTheme.headlineSmall?.copyWith(fontSize: 15),
+                      SectionHeaderWithSource(
+                        title: 'Geschichte',
+                        colors: colors,
+                        source: sources['history_de'],
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -218,74 +234,87 @@ class VenueDetailScreen extends ConsumerWidget {
                         ],
                       ),
                     ],
-                    if (venue['parking_info_de'] != null) ...[
-                      const SizedBox(height: AppSpacing.lg),
+                    if (venue['parking_info_de'] != null ||
+                        (venue['mvv_stops'] as List?)?.isNotEmpty == true ||
+                        venue['arrival_info_de'] != null) ...[
+                      const SizedBox(height: AppSpacing.xl),
                       Text(
-                        'Parken',
-                        style: Theme.of(
-                          context,
-                        ).textTheme.headlineSmall?.copyWith(fontSize: 15),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        venue['parking_info_de'],
-                        style: TextStyle(
-                          color: colors.textSecondary,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                    if ((venue['mvv_stops'] as List?)?.isNotEmpty ?? false) ...[
-                      const SizedBox(height: AppSpacing.lg),
-                      Text(
-                        'MVV-Anbindung',
-                        style: Theme.of(
-                          context,
-                        ).textTheme.headlineSmall?.copyWith(fontSize: 15),
+                        'Anreise',
+                        style: Theme.of(context).textTheme.headlineSmall,
                       ),
                       const SizedBox(height: AppSpacing.sm),
-                      for (final stop in venue['mvv_stops'] as List)
-                        _MvvStopRow(
-                          stop: stop as Map<String, dynamic>,
-                          colors: colors,
-                        ),
-                    ],
-                    // Fahrrad/Taxi/Fußweg — ergänzt MVV/Parken (oben),
-                    // nie ein Ersatz dafür (siehe enrich-venue-details).
-                    if (venue['arrival_info_de'] != null) ...[
-                      const SizedBox(height: AppSpacing.lg),
-                      Text(
-                        venue['arrival_info_de'],
-                        style: TextStyle(
-                          color: colors.textSecondary,
-                          fontSize: 13,
-                        ),
+                      DetailCard(
+                        dividers: false,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.all(AppSpacing.md),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if ((venue['mvv_stops'] as List?)?.isNotEmpty ==
+                                    true)
+                                  for (final stop in venue['mvv_stops'] as List)
+                                    _MvvStopRow(
+                                      stop: stop as Map<String, dynamic>,
+                                      colors: colors,
+                                    ),
+                                if (venue['parking_info_de'] != null)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 4),
+                                    child: Text(
+                                      venue['parking_info_de'],
+                                      style: TextStyle(
+                                        color: colors.textSecondary,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ),
+                                // Fahrrad/Taxi/Fußweg — ergänzt MVV/Parken
+                                // (oben), nie ein Ersatz dafür (siehe
+                                // enrich-venue-details).
+                                if (venue['arrival_info_de'] != null)
+                                  Text(
+                                    venue['arrival_info_de'],
+                                    style: TextStyle(
+                                      color: colors.textSecondary,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                     if (venue['doors_info_de'] != null ||
                         venue['catering_info_de'] != null) ...[
-                      const SizedBox(height: AppSpacing.lg),
-                      Text(
-                        'Praktische Hinweise',
-                        style: Theme.of(
-                          context,
-                        ).textTheme.headlineSmall?.copyWith(fontSize: 15),
+                      const SizedBox(height: AppSpacing.xl),
+                      SectionHeaderWithSource(
+                        title: 'Praktische Hinweise',
+                        colors: colors,
+                        source:
+                            sources['doors_info_de'] ??
+                            sources['catering_info_de'],
                       ),
-                      const SizedBox(height: 4),
-                      for (final hint in [
-                        venue['doors_info_de'],
-                        venue['catering_info_de'],
-                      ].whereType<String>())
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 4),
-                          child: Text(
-                            hint,
-                            style: TextStyle(
-                              color: colors.textSecondary,
-                              fontSize: 13,
+                      const SizedBox(height: AppSpacing.sm),
+                      DetailCard(
+                        children: [
+                          for (final hint in [
+                            venue['doors_info_de'],
+                            venue['catering_info_de'],
+                          ].whereType<String>())
+                            Padding(
+                              padding: const EdgeInsets.all(AppSpacing.md),
+                              child: Text(
+                                hint,
+                                style: TextStyle(
+                                  color: colors.textSecondary,
+                                  fontSize: 13,
+                                ),
+                              ),
                             ),
-                          ),
-                        ),
+                        ],
+                      ),
                     ],
                     const SizedBox(height: AppSpacing.xxl),
                     Text(
@@ -302,8 +331,20 @@ class VenueDetailScreen extends ConsumerWidget {
                         ),
                       )
                     else
-                      for (final event in upcoming)
-                        _VenueEventRow(event: event, colors: colors),
+                      DetailCard(
+                        children: [
+                          for (final event in upcoming)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: AppSpacing.md,
+                              ),
+                              child: _VenueEventRow(
+                                event: event,
+                                colors: colors,
+                              ),
+                            ),
+                        ],
+                      ),
                   ],
                 ),
               ),
