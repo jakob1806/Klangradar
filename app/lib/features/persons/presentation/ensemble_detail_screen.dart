@@ -132,6 +132,45 @@ class EnsembleDetailScreen extends ConsumerWidget {
                         ),
                       ),
                     ],
+                    if (ensemble['leadership_de'] != null) ...[
+                      const SizedBox(height: AppSpacing.sm),
+                      Text(
+                        ensemble['leadership_de'],
+                        style: TextStyle(
+                          color: colors.textSecondary,
+                          fontSize: 13,
+                          height: 1.4,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                    if (ensemble['residency_de'] != null) ...[
+                      const SizedBox(height: AppSpacing.sm),
+                      Text(
+                        ensemble['residency_de'],
+                        style: TextStyle(
+                          color: colors.textSecondary,
+                          fontSize: 13,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                    if (ensemble['repertoire_de'] != null) ...[
+                      const SizedBox(height: AppSpacing.md),
+                      Text(
+                        'Repertoire',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(
+                        ensemble['repertoire_de'],
+                        style: TextStyle(
+                          color: colors.textPrimary,
+                          fontSize: 13.5,
+                          height: 1.5,
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: AppSpacing.md),
                     ExternalLinksRow(
                       websiteUrl: ensemble['website_url'] as String?,

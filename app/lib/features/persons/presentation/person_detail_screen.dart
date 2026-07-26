@@ -144,6 +144,34 @@ class PersonDetailScreen extends ConsumerWidget {
                         ),
                       ),
                     ],
+                    if (person['current_roles_de'] != null) ...[
+                      const SizedBox(height: AppSpacing.sm),
+                      Text(
+                        person['current_roles_de'],
+                        style: TextStyle(
+                          color: colors.textSecondary,
+                          fontSize: 13,
+                          height: 1.4,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                    if (person['education_career_de'] != null) ...[
+                      const SizedBox(height: AppSpacing.md),
+                      Text(
+                        'Ausbildung & Karriere',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(
+                        person['education_career_de'],
+                        style: TextStyle(
+                          color: colors.textPrimary,
+                          fontSize: 13.5,
+                          height: 1.5,
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: AppSpacing.md),
                     ExternalLinksRow(
                       websiteUrl: person['website_url'] as String?,
