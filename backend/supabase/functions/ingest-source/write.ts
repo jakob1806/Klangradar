@@ -6,6 +6,8 @@
 
 import { findEventMatch, resolveVenue } from "./matching.ts";
 import type { RawEvent } from "./types.ts";
+import { detectEventCoverImage } from "../_shared/coverImageDetection.ts";
+import { ensureCoverImage } from "../_shared/imagePipeline.ts";
 
 interface SourceRow {
   id: string;
@@ -144,7 +146,7 @@ export async function upsertRawEvent(
       const { data: existing, error } = await supabase
         .from("events")
         .select(
-          "id, title, description_de, start_datetime, end_datetime, price_min, price_max, is_free, website_url, image_urls, content_hash",
+          "id, title, description_de, start_datetime, end_datetime, price_min, price_max, is_free, website_url, image_urls, content_hash, primary_image_id",
         )
         .eq("source_id", source.id)
         .eq("external_id", raw.externalId)
@@ -168,7 +170,7 @@ export async function upsertRawEvent(
         }
         // Same source re-reporting the same external_id — authoritative,
         // always trust its image.
-        const outcome = await applyUpdate(supabase, existing, raw, contentHash, nowIso, source.id, true);
+        const outcome = await applyUpdate(supabase, existing, raw, contentHash, nowIso, source, venueId, true);
         if (outcome.outcome !== "error") await linkSourceEntity(supabase, source, outcome.eventId);
         return outcome;
       }
@@ -184,7 +186,7 @@ export async function upsertRawEvent(
       const { data: existing, error } = await supabase
         .from("events")
         .select(
-          "id, title, description_de, start_datetime, end_datetime, price_min, price_max, is_free, website_url, image_urls, content_hash",
+          "id, title, description_de, start_datetime, end_datetime, price_min, price_max, is_free, website_url, image_urls, content_hash, primary_image_id",
         )
         .eq("id", match.id)
         .maybeSingle();
@@ -204,7 +206,7 @@ export async function upsertRawEvent(
       // gap when the event has no photo yet; never overwrite/append one
       // that's already there from a possibly-different, already-verified
       // match.
-      const outcome = await applyUpdate(supabase, existing, raw, contentHash, nowIso, source.id, false);
+      const outcome = await applyUpdate(supabase, existing, raw, contentHash, nowIso, source, venueId, false);
       if (outcome.outcome !== "error") {
         // Backfill so future runs of THIS source hit the fast exact-match
         // path above. Guarded on source_id being null so we never steal
@@ -255,7 +257,7 @@ export async function upsertRawEvent(
     }
 
     await linkSourceEntity(supabase, source, created.id);
-    if (raw.imageUrl) await recordImage(supabase, "event", created.id, raw.imageUrl);
+    await attachCoverImage(supabase, source, raw, created.id, venueId, null, true);
 
     if (match) {
       const { error: dupError } = await supabase.from("duplicate_candidates").insert({
@@ -287,7 +289,8 @@ async function applyUpdate(
   raw: RawEvent,
   contentHash: string,
   nowIso: string,
-  sourceId: string,
+  source: SourceRow,
+  venueId: string | null,
   trustImage: boolean,
 ): Promise<WriteOutcome> {
   const updates = buildUpdatePayload(raw);
@@ -303,7 +306,6 @@ async function applyUpdate(
       // safe to fill the gap, nothing to accidentally overwrite.
       updates.image_urls = [raw.imageUrl];
     }
-    if (updates.image_urls) await recordImage(supabase, "event", existing.id, raw.imageUrl);
   }
 
   const { changedFields, oldValues, newValues } = diffFields(existing, updates);
@@ -323,7 +325,7 @@ async function applyUpdate(
       changed_fields: changedFields,
       old_values: oldValues,
       new_values: newValues,
-      changed_by: `ingestion:${sourceId}`,
+      changed_by: `ingestion:${source.id}`,
     });
     if (logError) {
       // The event itself was already updated successfully — a failed audit
@@ -333,7 +335,162 @@ async function applyUpdate(
     }
   }
 
+  await attachCoverImage(supabase, source, raw, existing.id, venueId, existing.primary_image_id ?? null, trustImage);
+
   return { outcome: "updated", eventId: existing.id };
+}
+
+/** Ordnet einem Event nach Möglichkeit ein Coverbild zu (Architektur-Auftrag
+ * "Event-Importer: automatische Bilderkennung") — läuft nach jedem
+ * Event-Write (create/update), best-effort: ein Fehlschlag hier lässt den
+ * eigentlichen Event-Write nie scheitern (siehe try/catch unten, genau wie
+ * beim bisherigen recordImage()).
+ *
+ * Ablauf:
+ *  1. raw.imageUrl, falls die Quelle selbst eins liefert (schema_org/brso/
+ *     bayerncloud/scrape-mit-Bildselektor) — bereits "erkannt", keine
+ *     erneute Seiten-Analyse nötig. Das ist die einzige "authoritative"
+ *     Quelle im Sinne von trustImage/mayOverwrite unten.
+ *  2. Sonst, falls raw.url gesetzt ist: Prioritätskaskade auf der
+ *     Event-Seite selbst (coverImageDetection.ts: schema.org -> og:image ->
+ *     twitter:image -> Hero -> Event-Container).
+ *  3. Für 1./2. gefundene URL: Download+WebP+Thumbnail+pHash-Dedupe+Storage
+ *     (imagePipeline.ts). Bei Erfolg -> primary_image_id gesetzt. Bei
+ *     Fehlschlag (nicht erreichbar/Decode-Fehler): Verhalten von vor dieser
+ *     Erweiterung erhalten, mindestens die URL für die redaktionelle
+ *     Lizenz-Review-Queue festhalten (recordImage()).
+ *  4. Kein Bild gefunden/gespeichert: Fallback auf Ensemble-/Künstler-/
+ *     Venue-Foto (resolveFallbackImage()).
+ *
+ * Überschreibt ein schon vorhandenes primary_image_id nur, wenn raw.imageUrl
+ * authoritativ UND trustImage true ist (exakter external_id-Match) — exakt
+ * dieselbe Vertrauens-Abstufung wie image_urls[] oben in applyUpdate(): ein
+ * bloß fuzzy-gematchtes oder nur von der Seite abgeleitetes Bild darf immer
+ * nur eine Lücke füllen, nie ein bestehendes Coverbild verdrängen. Ändert
+ * NIE image_urls[] selbst — das bleibt exakt das bisherige, von der App
+ * gelesene Verhalten (primary_image_id ist ein rein additives, noch nicht
+ * von der App gelesenes Feld, siehe 20260819000003_images_and_tags.sql). */
+async function attachCoverImage(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  source: SourceRow,
+  raw: RawEvent,
+  eventId: string,
+  venueId: string | null,
+  currentPrimaryImageId: string | null,
+  trustImage: boolean,
+): Promise<void> {
+  try {
+    const authoritative = raw.imageUrl != null;
+    let detected: { url: string; credits: string | null } | null = authoritative
+      ? { url: raw.imageUrl as string, credits: null }
+      : null;
+
+    if (!detected && raw.url) {
+      const found = await detectEventCoverImage(raw.url);
+      if (found) detected = { url: found.url, credits: found.credits };
+    }
+
+    const mayOverwrite = authoritative && trustImage;
+
+    let imageId: string | null = null;
+    if (detected && (mayOverwrite || !currentPrimaryImageId)) {
+      imageId = await ensureCoverImage(supabase, {
+        sourceUrl: detected.url,
+        originType: "event",
+        originId: eventId,
+        credits: detected.credits,
+      });
+      if (!imageId) {
+        await recordImage(supabase, "event", eventId, detected.url);
+      }
+    }
+
+    if (!imageId && !currentPrimaryImageId) {
+      imageId = await resolveFallbackImage(supabase, source, eventId, venueId);
+    }
+
+    if (imageId && imageId !== currentPrimaryImageId) {
+      const { error } = await supabase.from("events").update({ primary_image_id: imageId }).eq("id", eventId);
+      if (error) {
+        console.error(`attachCoverImage: failed to set primary_image_id for event ${eventId}: ${error.message}`);
+      }
+    }
+  } catch (err) {
+    console.error(`attachCoverImage failed for event ${eventId}: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+/** Fallback-Kaskade aus dem Architektur-Auftrag, wenn kein Veranstaltungsbild
+ * gefunden/gespeichert werden konnte: 1. Ensemble  2. Künstler/Person
+ * 3. Veranstaltungsort. Bevorzugt die feste Quellen-Bindung
+ * (source.ensemble_id/person_id — dasselbe Signal wie linkSourceEntity()
+ * oben), sonst die per event_participants verknüpften Entities, sonst die
+ * Venue. Reuses ensureCoverImage() für die eigentliche Zeile: das Foto
+ * gehört weiterhin der Entity (origin_type bleibt 'ensemble'/'person'/
+ * 'venue'), das Event bekommt nur eine primary_image_id-Referenz darauf —
+ * genau das "Bilder unabhängig vom Event speichern"-Prinzip des Auftrags. */
+async function resolveFallbackImage(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  source: SourceRow,
+  eventId: string,
+  venueId: string | null,
+): Promise<string | null> {
+  let ensembleId = source.ensemble_id ?? null;
+  let personId = source.person_id ?? null;
+
+  if (!ensembleId && !personId) {
+    const { data: ensembleParticipant } = await supabase
+      .from("event_participants")
+      .select("ensemble_id")
+      .eq("event_id", eventId)
+      .not("ensemble_id", "is", null)
+      .limit(1)
+      .maybeSingle();
+    if (ensembleParticipant?.ensemble_id) ensembleId = ensembleParticipant.ensemble_id;
+  }
+  if (!ensembleId && !personId) {
+    const { data: personParticipant } = await supabase
+      .from("event_participants")
+      .select("person_id")
+      .eq("event_id", eventId)
+      .not("person_id", "is", null)
+      .limit(1)
+      .maybeSingle();
+    if (personParticipant?.person_id) personId = personParticipant.person_id;
+  }
+
+  if (ensembleId) {
+    const id = await ensureEntityCoverImage(supabase, "ensemble", ensembleId);
+    if (id) return id;
+  }
+  if (personId) {
+    const id = await ensureEntityCoverImage(supabase, "person", personId);
+    if (id) return id;
+  }
+  if (venueId) {
+    const id = await ensureEntityCoverImage(supabase, "venue", venueId);
+    if (id) return id;
+  }
+  return null;
+}
+
+async function ensureEntityCoverImage(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  originType: "ensemble" | "person" | "venue",
+  originId: string,
+): Promise<string | null> {
+  const table = originType === "ensemble" ? "ensembles" : originType === "person" ? "persons" : "venues";
+  const { data: entity } = await supabase.from(table).select("photo_url").eq("id", originId).maybeSingle();
+  if (!entity?.photo_url) return null;
+  return await ensureCoverImage(supabase, {
+    sourceUrl: entity.photo_url,
+    originType,
+    originId,
+    credits: null,
+  });
 }
 
 /** Legt eine images-Zeile an (Architektur-Dokument Abschnitt 2.2/6:
@@ -344,7 +501,9 @@ async function applyUpdate(
  * automatisch freigegeben, unabhängig vom Confidence Score der übrigen
  * Event-Daten. Idempotent (kein Duplikat bei erneutem Lauf derselben
  * source_url für denselben origin_id) und best-effort — ein Fehlschlag
- * hier lässt den eigentlichen Event-Write nicht scheitern. */
+ * hier lässt den eigentlichen Event-Write nicht scheitern. Dient jetzt als
+ * Fallback von attachCoverImage(), wenn die Download-/Verarbeitungs-Pipeline
+ * (imagePipeline.ts) scheitert — vorher der einzige Pfad. */
 async function recordImage(
   // deno-lint-ignore no-explicit-any
   supabase: any,
