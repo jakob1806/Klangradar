@@ -114,6 +114,7 @@ interface VenueRow {
   doors_info_de: string | null;
   catering_info_de: string | null;
   accessibility: Record<string, unknown> | null;
+  profile_checked_at: string | null;
 }
 
 Deno.serve(async (req) => {
@@ -140,9 +141,9 @@ Deno.serve(async (req) => {
   const { data: venues, error: fetchError } = await supabase
     .from("venues")
     .select(
-      "id, name, website_url, history_de, district, phone, email, venue_type, arrival_info_de, doors_info_de, catering_info_de, accessibility",
+      "id, name, website_url, history_de, district, phone, email, venue_type, arrival_info_de, doors_info_de, catering_info_de, accessibility, profile_checked_at",
     )
-    .is("history_de", null)
+    .is("profile_checked_at", null)
     .not("website_url", "is", null)
     .limit(limit)
     .returns<VenueRow[]>();
@@ -161,10 +162,14 @@ Deno.serve(async (req) => {
     try {
       const pageText = await fetchPageText(venue.website_url!);
       if (!pageText) {
-        // Kein Text abrufbar (robots.txt/Fetch-Fehler) — als "geprüft"
-        // markieren wäre hier riskant, da website_url beim nächsten Lauf
-        // erneut versucht werden soll, falls die Seite nur transient
-        // nicht erreichbar war. Einfach überspringen, kein Fehler.
+        // Bug (live beim Backfill entdeckt): ungeprüftes "continue" ohne
+        // profile_checked_at zu setzen führte dazu, dass Venues mit
+        // dauerhaft nicht abrufbarem Seitentext (robots.txt-Sperre, tote
+        // Seite) bei JEDEM Lauf erneut ausgewählt wurden und der Backfill
+        // nie konvergierte. profile_checked_at trotzdem setzen — ein
+        // erneuter Versuch ist über einen gezielten Admin-Reset möglich,
+        // aber nicht per Dauerschleife alle 10 Minuten.
+        await supabase.from("venues").update({ profile_checked_at: new Date().toISOString() }).eq("id", venue.id);
         continue;
       }
 
@@ -235,26 +240,33 @@ Deno.serve(async (req) => {
         provenanceFields.push("accessibility");
       }
 
-      if (Object.keys(patch).length === 0) continue;
+      // profile_checked_at wird unabhängig davon gesetzt, ob die Website
+      // etwas Neues hergab — sonst würden Venues ohne extrahierbare Daten
+      // (z. B. keine Geschichte auf der Seite) bei JEDEM Lauf erneut
+      // ausgewählt und der Backfill käme nie zum Ende (live beobachtet:
+      // 11 Batches à 5 Venues brachten nur 1 Venue voran). Gleiches Prinzip
+      // wie references_checked_at bei enrich-event-references.
+      const checkedPatch = { ...patch, profile_checked_at: new Date().toISOString() };
 
-      const { error: updateError } = await supabase.from("venues").update(patch).eq("id", venue.id);
+      const { error: updateError } = await supabase.from("venues").update(checkedPatch).eq("id", venue.id);
       if (updateError) {
         errors.push(`"${venue.name}": Update fehlgeschlagen — ${updateError.message}`);
         continue;
       }
-      updated++;
-
-      await recordFieldSources(
-        supabase,
-        provenanceFields.map((fieldName) => ({
-          entityType: "venue" as const,
-          entityId: venue.id,
-          fieldName,
-          sourceUrl: venue.website_url,
-          sourceName: "Offizielle Venue-Website (via enrich-venue-details)",
-          confidence: "likely" as const,
-        })),
-      );
+      if (Object.keys(patch).length > 0) {
+        updated++;
+        await recordFieldSources(
+          supabase,
+          provenanceFields.map((fieldName) => ({
+            entityType: "venue" as const,
+            entityId: venue.id,
+            fieldName,
+            sourceUrl: venue.website_url,
+            sourceName: "Offizielle Venue-Website (via enrich-venue-details)",
+            confidence: "likely" as const,
+          })),
+        );
+      }
     } catch (err) {
       errors.push(`"${venue.name}": ${err instanceof Error ? err.message : String(err)}`);
     }
