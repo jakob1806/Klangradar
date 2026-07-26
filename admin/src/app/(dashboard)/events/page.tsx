@@ -1,5 +1,11 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import {
+  BulkActionBar,
+  BulkSelectionProvider,
+  RowCheckbox,
+  SelectAllCheckbox,
+} from "./bulk-select";
 
 // Event-Daten ändern sich häufig (Preise, Restkarten) — nie statisch cachen.
 export const dynamic = "force-dynamic";
@@ -121,11 +127,15 @@ export default async function EventsPage({
       )}
 
       {!error && (
-        <>
+        <BulkSelectionProvider>
+          <BulkActionBar />
           <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
             <table className="w-full text-sm">
               <thead className="bg-neutral-50 text-left text-xs uppercase tracking-wide text-neutral-500">
                 <tr>
+                  <th className="w-10 px-4 py-3">
+                    <SelectAllCheckbox ids={data?.map((e) => e.id) ?? []} />
+                  </th>
                   <th className="px-4 py-3 font-medium">Titel</th>
                   <th className="px-4 py-3 font-medium">Ort</th>
                   <th className="px-4 py-3 font-medium">Termin</th>
@@ -138,6 +148,9 @@ export default async function EventsPage({
                 {data?.length ? (
                   data.map((event) => (
                     <tr key={event.id} className="hover:bg-neutral-50">
+                      <td className="px-4 py-3">
+                        <RowCheckbox eventId={event.id} />
+                      </td>
                       <td className="px-4 py-3 font-medium text-neutral-900">{event.title}</td>
                       <td className="px-4 py-3 text-neutral-600">{event.venues?.name ?? "—"}</td>
                       <td className="px-4 py-3 text-neutral-600 tabular-nums">
@@ -164,7 +177,7 @@ export default async function EventsPage({
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={6} className="px-4 py-10 text-center text-neutral-400">
+                    <td colSpan={7} className="px-4 py-10 text-center text-neutral-400">
                       {status === "all"
                         ? "Noch keine Veranstaltungen. Seed-Daten via "
                         : `Keine Veranstaltungen mit Status "${STATUS_LABEL[status] ?? status}". Seed-Daten via `}
@@ -201,7 +214,7 @@ export default async function EventsPage({
               </div>
             </div>
           )}
-        </>
+        </BulkSelectionProvider>
       )}
     </div>
   );
