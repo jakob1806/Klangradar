@@ -81,3 +81,20 @@ export async function checkImageUrl(url: string): Promise<ImageCheckResult> {
     return { reachable: false, contentType: null };
   }
 }
+
+/** Erkennt offensichtlich generische Bilder (Site-weite Standard-og:image,
+ * Logos, Banner, Platzhalter) anhand des Dateinamens — auf Nutzerfeedback:
+ * mehrere Ticketportale (muenchenmusik.de, muenchenevent.de,
+ * hoertnagel.de) liefern für JEDE Veranstaltungsseite, die selbst kein
+ * eigenes og:image setzt, dasselbe site-weite Fallback-Bild
+ * ("default--og-image--mm.jpg" o. ä.) aus — das sah aus wie ein
+ * generisches Portal-/Veranstalter-Logo statt eines echten Event-Bilds und
+ * wurde (vor diesem Fix zusätzlich durch einen Duplikat-Check-Bug
+ * begünstigt) für viele verschiedene Events übernommen. Kein Ersatz für
+ * eine echte Bildinhaltsprüfung, nur ein Filter gegen die offensichtlichsten
+ * Fälle anhand des URL-Musters. */
+export function isLikelyGenericImage(url: string): boolean {
+  const path = url.toLowerCase();
+  return /default[-_]*[-_]og[-_]image|og[-_]image[-_]*default|\blogo\b|logo[-_.]|[-_.]logo\b|placeholder|\bbanner\b/
+    .test(path);
+}
