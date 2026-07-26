@@ -430,6 +430,77 @@ function extractPricing(
   return { priceMin, priceMax, isFree };
 }
 
+// ---------------------------------------------------------------------------
+// Bild-Extraktion für Quellen ohne eigenen schema_org-Sourcetyp
+// ---------------------------------------------------------------------------
+
+export interface JsonLdEventImage {
+  url: string;
+  credits: string | null;
+}
+
+/** Sucht das Bild des ersten Event-Kandidaten in beliebigem HTML mit
+ * eingebettetem JSON-LD — für den Prioritäts-1-Schritt der
+ * Coverbild-Kaskade (coverImageDetection.ts) bei Quellen, die keinen
+ * dedizierten "schema_org"-Sourcetyp haben (scrape/rss/ical/api/brso),
+ * deren Eventseite aber trotzdem schema.org-Markup einbettet. Reuses
+ * dieselbe Flatten-/Typ-Match-/Bild-Extraktions-Logik wie parseSchemaOrg()
+ * selbst, damit beide Wege garantiert dasselbe Bild finden. */
+export function extractFirstEventImageFromJsonLd(html: string): JsonLdEventImage | null {
+  if (typeof html !== "string" || html.trim() === "") return null;
+
+  const scriptBlocks = extractLdJsonScripts(stripBom(html));
+  if (scriptBlocks.length === 0) return null;
+
+  for (const block of scriptBlocks) {
+    const trimmed = block.trim();
+    if (!trimmed) continue;
+
+    const parsed = tryParseJson(trimmed);
+    let value: unknown = null;
+    if (parsed.ok) {
+      value = parsed.value;
+    } else {
+      const decoded = decodeHtmlEntities(trimmed);
+      const retried = decoded !== trimmed ? tryParseJson(decoded) : null;
+      if (retried?.ok) value = retried.value;
+    }
+    if (value == null) continue;
+
+    for (const candidate of flattenJsonLd(value)) {
+      if (!isEventCandidate(candidate)) continue;
+      const imageUrl = extractImageUrl(candidate.image);
+      if (!imageUrl) continue;
+      return { url: imageUrl, credits: extractImageCreditsFromJsonLd(candidate.image) };
+    }
+  }
+
+  return null;
+}
+
+/** schema.org ImageObject trägt optional creditText/copyrightNotice/creator —
+ * ein deutlich verlässlicheres Credit-Signal als ein Freitext-Scan der Seite
+ * (siehe coverImageDetection.ts's regex-basierten Fallback für Quellen ohne
+ * strukturiertes Markup), deshalb hier zuerst versucht. */
+function extractImageCreditsFromJsonLd(image: unknown): string | null {
+  const obj = Array.isArray(image) ? image[0] : image;
+  if (obj == null || typeof obj !== "object") return null;
+  const o = obj as Record<string, unknown>;
+
+  const creditText = typeof o.creditText === "string" ? o.creditText.trim() : "";
+  if (creditText) return creditText;
+
+  const copyrightNotice = typeof o.copyrightNotice === "string" ? o.copyrightNotice.trim() : "";
+  if (copyrightNotice) return copyrightNotice;
+
+  const creator = getLocalizedString(
+    o.creator != null && typeof o.creator === "object" && !Array.isArray(o.creator)
+      ? (o.creator as Record<string, unknown>).name
+      : o.creator,
+  );
+  return creator;
+}
+
 function extractExternalId(candidate: Record<string, unknown>): string | null {
   const id = candidate["@id"];
   if (typeof id === "string" && id.trim()) return id.trim();

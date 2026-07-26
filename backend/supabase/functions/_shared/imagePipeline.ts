@@ -1,0 +1,307 @@
+// Lädt ein erkanntes Coverbild herunter, dedupliziert es (source_url dann
+// pHash), speichert Original + WebP-Thumbnail in Supabase Storage und
+// legt die zugehörige images-Zeile an (20260819000003_images_and_tags.sql,
+// erweitert um width/height/mime_type/credits/license/phash/thumbnail_path
+// in 20260909000001_image_cover_pipeline.sql).
+//
+// Bildverarbeitung (Decode/Resize/WebP-Encode) läuft über
+// npm:@imagemagick/magick-wasm — die einzige in der Supabase-Edge-Runtime
+// unterstützte Bildbibliothek (WASM, keine native Bindings wie bei sharp;
+// siehe Supabase-Doku "Edge Functions currently doesn't support image
+// processing libraries such as Sharp"). Es gibt im Projekt bisher keinerlei
+// Bildverarbeitungscode zum Wiederverwenden — diese eine neue Abhängigkeit
+// ist unvermeidlich für Download+WebP+Thumbnail+Hash.
+//
+// Best-effort wie das bisherige recordImage() in ingest-source/write.ts:
+// jeder Fehlschlag (nicht erreichbar, Decode-Fehler, Storage-Fehler) liefert
+// null zurück, wirft nie — der Aufrufer entscheidet, ob dann auf die
+// URL-only-Zeile bzw. die Fallback-Kaskade zurückgefallen wird.
+
+import { ImageMagick, initializeImageMagick, MagickFormat } from "npm:@imagemagick/magick-wasm@0.0.31";
+import { checkImageUrl } from "./imageValidation.ts";
+import { USER_AGENT } from "./robots.ts";
+
+const MAX_IMAGE_BYTES = 15_000_000;
+const THUMBNAIL_SIZE = 400;
+const PHASH_IMAGE_SIZE = 32;
+const PHASH_HASH_SIZE = 8; // 8x8 niedrigfrequente Koeffizienten -> 64 Bit
+const BUCKET = "ingested-images";
+
+let magickReady: Promise<void> | null = null;
+
+/** Lazy, einmalige Initialisierung pro Isolate — initializeImageMagick() darf
+ * nur einmal aufgerufen werden, aber Edge-Function-Isolates werden zwischen
+ * "warmen" Invocations wiederverwendet, ein modulweiter Singleton-Promise
+ * reicht deshalb aus (kein zusätzlicher Caching-Layer nötig). */
+function ensureMagickReady(): Promise<void> {
+  if (!magickReady) {
+    magickReady = (async () => {
+      const wasmBytes = await Deno.readFile(
+        new URL("magick.wasm", import.meta.resolve("npm:@imagemagick/magick-wasm@0.0.31")),
+      );
+      await initializeImageMagick(wasmBytes);
+    })();
+  }
+  return magickReady;
+}
+
+export type ImageOriginType = "event" | "venue" | "ensemble" | "person" | "organizer";
+
+export interface CoverImageInput {
+  sourceUrl: string;
+  originType: ImageOriginType;
+  originId: string;
+  credits?: string | null;
+}
+
+/** Liefert die images.id des (ggf. wiederverwendeten) Coverbilds, oder null
+ * bei jedem Fehlschlag — nie eine geworfene Exception, siehe Datei-Kommentar. */
+export async function ensureCoverImage(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  input: CoverImageInput,
+): Promise<string | null> {
+  try {
+    return await ensureCoverImageInner(supabase, input);
+  } catch (err) {
+    console.error(
+      `ensureCoverImage failed for ${input.sourceUrl}: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    return null;
+  }
+}
+
+async function ensureCoverImageInner(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  input: CoverImageInput,
+): Promise<string | null> {
+  const { sourceUrl, originType, originId } = input;
+
+  // 1. Exakte source_url für dasselbe Origin schon bekannt? Direkt
+  // wiederverwenden, kein erneuter Download/keine erneute Verarbeitung.
+  const { data: existingByUrl } = await supabase
+    .from("images")
+    .select("id")
+    .eq("origin_type", originType)
+    .eq("origin_id", originId)
+    .eq("source_url", sourceUrl)
+    .maybeSingle();
+  if (existingByUrl) return existingByUrl.id;
+
+  const check = await checkImageUrl(sourceUrl);
+  if (!check.reachable) return null;
+
+  const bytes = await downloadImage(sourceUrl);
+  if (!bytes) return null;
+
+  await ensureMagickReady();
+
+  const decoded = decodeImage(bytes);
+  if (!decoded) return null;
+  const { width, height, webpBytes, thumbnailBytes, phash } = decoded;
+
+  // 2. pHash-Dedupe: dieselbe Bilddatei schon für irgendein Origin
+  // gespeichert (z.B. über eine andere source_url oder ein anderes Event
+  // derselben Quelle)? Dann die bestehende Zeile wiederverwenden statt
+  // erneut hochzuladen. Exakter Hash-Vergleich (siehe Migration), kein
+  // Hamming-Distanz-Scan über alle Zeilen.
+  const { data: existingByHash } = await supabase
+    .from("images")
+    .select("id")
+    .eq("phash", phash)
+    .not("storage_path", "is", null)
+    .limit(1)
+    .maybeSingle();
+  if (existingByHash) return existingByHash.id;
+
+  const storagePath = `${originType}/${crypto.randomUUID()}.webp`;
+  const thumbnailPath = `${originType}/${crypto.randomUUID()}-thumb.webp`;
+
+  const { error: uploadError } = await supabase.storage
+    .from(BUCKET)
+    .upload(storagePath, webpBytes, { contentType: "image/webp", upsert: false });
+  if (uploadError) {
+    console.error(`ensureCoverImage: upload failed for ${sourceUrl}: ${uploadError.message}`);
+    return null;
+  }
+
+  let storedThumbnailPath: string | null = thumbnailPath;
+  const { error: thumbError } = await supabase.storage
+    .from(BUCKET)
+    .upload(thumbnailPath, thumbnailBytes, { contentType: "image/webp", upsert: false });
+  if (thumbError) {
+    // Hauptbild ist schon gespeichert — kein Grund, das komplett scheitern
+    // zu lassen, nur ohne Thumbnail-Pfad weiterschreiben.
+    console.error(`ensureCoverImage: thumbnail upload failed for ${sourceUrl}: ${thumbError.message}`);
+    storedThumbnailPath = null;
+  }
+
+  const { data: inserted, error: insertError } = await supabase
+    .from("images")
+    .insert({
+      origin_type: originType,
+      origin_id: originId,
+      source_url: sourceUrl,
+      storage_path: storagePath,
+      thumbnail_path: storedThumbnailPath,
+      width,
+      height,
+      mime_type: check.contentType ?? "image/webp",
+      phash,
+      credits: input.credits ?? null,
+      copyright_notice: extractCopyrightFromCredits(input.credits ?? null),
+    })
+    .select("id")
+    .single();
+
+  if (insertError || !inserted) {
+    console.error(`ensureCoverImage: insert failed for ${sourceUrl}: ${insertError?.message ?? "unknown"}`);
+    return null;
+  }
+
+  return inserted.id;
+}
+
+async function downloadImage(url: string): Promise<Uint8Array | null> {
+  try {
+    const res = await fetch(url, { headers: { "User-Agent": USER_AGENT } });
+    if (!res.ok || !res.body) return null;
+    const contentLength = res.headers.get("content-length");
+    if (contentLength && Number(contentLength) > MAX_IMAGE_BYTES) {
+      await res.body.cancel().catch(() => {});
+      return null;
+    }
+    const buf = await res.arrayBuffer();
+    if (buf.byteLength > MAX_IMAGE_BYTES) return null;
+    return new Uint8Array(buf);
+  } catch {
+    return null;
+  }
+}
+
+interface DecodedImage {
+  width: number;
+  height: number;
+  webpBytes: Uint8Array;
+  thumbnailBytes: Uint8Array;
+  phash: string;
+}
+
+/** Drei unabhängige ImageMagick.read()-Aufrufe statt einmal lesen + klonen:
+ * etwas mehr Decode-Aufwand, aber ohne Annahmen über Clone/Dispose-Details
+ * der magick-wasm-API, die sich ansonsten schwer verifizieren lassen — jeder
+ * read()-Aufruf verwaltet seine Ressourcen vollständig selbst, exakt wie im
+ * offiziellen Supabase-Beispiel für Edge-Function-Bildverarbeitung. */
+function decodeImage(bytes: Uint8Array): DecodedImage | null {
+  try {
+    const full = ImageMagick.read(bytes, (img) => ({
+      width: img.width,
+      height: img.height,
+      webpBytes: img.write(MagickFormat.WebP, (data: Uint8Array) => data) as unknown as Uint8Array,
+    }));
+
+    const thumbnailBytes = ImageMagick.read(bytes, (img) => {
+      img.resize(THUMBNAIL_SIZE, THUMBNAIL_SIZE);
+      return img.write(MagickFormat.WebP, (data: Uint8Array) => data) as unknown as Uint8Array;
+    });
+
+    const phash = ImageMagick.read(bytes, (img) => {
+      img.resize(PHASH_IMAGE_SIZE, PHASH_IMAGE_SIZE);
+      const rgb = img.getPixels((pixels) =>
+        pixels.toByteArray(0, 0, PHASH_IMAGE_SIZE, PHASH_IMAGE_SIZE, "RGB")
+      ) as unknown as Uint8Array;
+      const gray = toGrayscale(rgb, PHASH_IMAGE_SIZE * PHASH_IMAGE_SIZE);
+      return computeDctHash(gray, PHASH_IMAGE_SIZE);
+    });
+
+    return { width: full.width, height: full.height, webpBytes: full.webpBytes, thumbnailBytes, phash };
+  } catch (err) {
+    console.error(`decodeImage failed: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  }
+}
+
+function toGrayscale(rgb: Uint8Array, pixelCount: number): Uint8Array {
+  const gray = new Uint8Array(pixelCount);
+  for (let i = 0; i < pixelCount; i++) {
+    const r = rgb[i * 3] ?? 0;
+    const g = rgb[i * 3 + 1] ?? 0;
+    const b = rgb[i * 3 + 2] ?? 0;
+    gray[i] = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+  }
+  return gray;
+}
+
+/** Klassischer pHash-Algorithmus (DCT-basiert) statt eines einfacheren
+ * Average-Hash — deutlich robuster gegen genau den Fall, der hier häufig
+ * vorkommt: dieselbe Bilddatei über verschiedene CMS/Quellen erneut
+ * komprimiert/leicht skaliert ausgeliefert. 2D-DCT-II über das komplette
+ * Graustufenbild, dann die niedrigfrequenten 8x8-Koeffizienten (ohne den
+ * DC-Term) gegen ihren Median als 64-Bit-Hash kodiert — Standardverfahren
+ * (z.B. von der pHash-Bibliothek/den meisten "imagehash"-Python-
+ * Implementierungen genutzt), hier direkt nachgebaut, weil es dafür keine
+ * fertige Deno/npm-Bibliothek für die Edge-Runtime gibt. */
+function computeDctHash(gray: Uint8Array, size: number): string {
+  const dct = dct2d(gray, size);
+
+  const lowFreq: number[] = [];
+  for (let y = 0; y < PHASH_HASH_SIZE; y++) {
+    for (let x = 0; x < PHASH_HASH_SIZE; x++) {
+      if (x === 0 && y === 0) continue; // DC-Term überspringen (nur Helligkeit, keine Struktur)
+      lowFreq.push(dct[y * size + x]);
+    }
+  }
+
+  const sorted = [...lowFreq].sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)];
+
+  let hash = 0n;
+  for (const value of lowFreq) {
+    hash = (hash << 1n) | (value > median ? 1n : 0n);
+  }
+  return hash.toString(16).padStart(16, "0");
+}
+
+/** Separierbare 2D-DCT-II: 1D-Transformation zeilenweise, dann spaltenweise —
+ * O(n^3) statt einer naiven O(n^4) 2D-Summe. Für n=32 (~33k Operationen pro
+ * Richtung) unproblematisch für eine Hintergrund-Ingestion. */
+function dct2d(pixels: Uint8Array, n: number): Float64Array {
+  const rows = new Float64Array(n * n);
+  for (let y = 0; y < n; y++) {
+    const row = dct1d(pixels.subarray(y * n, y * n + n), n);
+    rows.set(row, y * n);
+  }
+
+  const result = new Float64Array(n * n);
+  const col = new Float64Array(n);
+  for (let x = 0; x < n; x++) {
+    for (let y = 0; y < n; y++) col[y] = rows[y * n + x];
+    const transformed = dct1d(col, n);
+    for (let y = 0; y < n; y++) result[y * n + x] = transformed[y];
+  }
+  return result;
+}
+
+function dct1d(input: ArrayLike<number>, n: number): Float64Array {
+  const out = new Float64Array(n);
+  for (let k = 0; k < n; k++) {
+    let sum = 0;
+    for (let i = 0; i < n; i++) {
+      sum += input[i] * Math.cos((Math.PI / n) * (i + 0.5) * k);
+    }
+    out[k] = sum * (k === 0 ? Math.sqrt(1 / n) : Math.sqrt(2 / n));
+  }
+  return out;
+}
+
+/** Zieht einen reinen ©-Vermerk aus dem breiteren Credits-Text, falls
+ * vorhanden — copyright_notice ist ein eigenes, schon vor dieser Erweiterung
+ * bestehendes Feld (redaktionell genutzt), credits (neu) ist der breitere
+ * Bildnachweis ("Foto: ...", "Photographer: ..."). Beide können denselben
+ * Ursprungstext teilweise überlappen, deshalb hier nur der ©-Ausschnitt. */
+function extractCopyrightFromCredits(credits: string | null): string | null {
+  if (!credits) return null;
+  const match = /©[^,;]{0,80}/.exec(credits);
+  return match ? match[0].trim() : null;
+}
