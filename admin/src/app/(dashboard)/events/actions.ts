@@ -125,6 +125,31 @@ export async function updateEvent(eventId: string, formData: FormData) {
   redirect("/events");
 }
 
+/** Setzt mehrere Entwürfe in einem Rutsch auf status='scheduled' — bisher
+ * ging das nur einzeln über das Bearbeiten-Formular. Der `.eq("status",
+ * "draft")`-Filter ist eine bewusste Sicherheitsschranke: selbst wenn im
+ * "Alle"-Tab aus Versehen auch nicht-draft-Zeilen mit ausgewählt werden
+ * (z.B. bereits abgesagte/verschobene Events), ändert dieser Aufruf nur
+ * tatsächliche Entwürfe — kein versehentliches Zurücksetzen anderer
+ * Status. */
+export async function bulkPublishEvents(
+  eventIds: string[],
+): Promise<{ updated: number; error?: string }> {
+  if (eventIds.length === 0) return { updated: 0 };
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("events")
+    .update({ status: "scheduled", updated_at: new Date().toISOString() })
+    .in("id", eventIds)
+    .eq("status", "draft");
+
+  if (error) return { updated: 0, error: error.message };
+
+  revalidatePath("/events");
+  return { updated: eventIds.length };
+}
+
 export async function deleteEvent(eventId: string) {
   const supabase = await createClient();
   const { error } = await supabase.from("events").delete().eq("id", eventId);

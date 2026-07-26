@@ -742,25 +742,12 @@ class _ProgramRow extends StatelessWidget {
                           fontSize: 11,
                         ),
                       ),
-                    // Instrumentierung/Satzfolge nur, wenn recherchiert
-                    // (siehe enrich-work-profile) — rein optional.
-                    if ((w['instrumentation'] as String?)?.isNotEmpty == true)
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Flexible(
-                            child: Text(
-                              w['instrumentation'],
-                              style: TextStyle(
-                                color: colors.textTertiary,
-                                fontSize: 11,
-                                fontStyle: FontStyle.italic,
-                              ),
-                            ),
-                          ),
-                          SourceHintIcon(source: sources['instrumentation']),
-                        ],
-                      ),
+                    // Instrumentierung (SATB/Bläserbesetzung/etc.) wird bewusst
+                    // NICHT angezeigt — auf Nutzerwunsch: reines
+                    // Rohbesetzungs-Detail ohne Mehrwert für Konzertbesucher,
+                    // nicht das, was unter "Programm" erwartet wird. Das Feld
+                    // wird weiterhin von enrich-work-profile befüllt (siehe
+                    // dort), nur die Anzeige hier wurde entfernt.
                     if ((w['movements'] as List?)?.isNotEmpty == true)
                       Text(
                         (w['movements'] as List).whereType<String>().join(

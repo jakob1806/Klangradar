@@ -67,11 +67,22 @@ const ENRICH_FUNCTION: AiFunctionDeclaration = {
         description:
           "Nur konkrete, benannte Werke (z. B. 'Symphonie Nr. 5', 'Matthäus-Passion'). " +
           "KEINEN Eintrag erzeugen, wenn nur ein Komponisten-Nachname ohne erkennbares " +
-          "spezifisches Werk im Text steht — dann leer lassen statt zu raten.",
+          "spezifisches Werk im Text steht — dann leer lassen statt zu raten. " +
+          "Reihenfolge der Einträge MUSS der Reihenfolge entsprechen, in der die Werke im " +
+          "Text genannt werden (das ist die tatsächliche Konzert-/Programmreihenfolge) — " +
+          "niemals alphabetisch oder nach Bekanntheit umsortieren.",
         items: {
           type: "object",
           properties: {
-            title: { type: "string" },
+            title: {
+              type: "string",
+              description:
+                "NUR der Werktitel selbst (z. B. 'Symphonie Nr. 5 c-Moll'). Den " +
+                "Komponistennamen NIEMALS in dieses Feld mit aufnehmen, auch wenn er im " +
+                "Text unmittelbar vor dem Werktitel steht ('Beethoven: Symphonie Nr. 5' " +
+                "→ title ist NUR 'Symphonie Nr. 5', der Name gehört ausschließlich in " +
+                "composerName) — die Anwendung zeigt Komponist und Werktitel getrennt an.",
+            },
             composerName: {
               type: "string",
               description: "Voller Name des Komponisten, falls erkennbar (z. B. 'Johannes Brahms'), sonst weglassen.",
