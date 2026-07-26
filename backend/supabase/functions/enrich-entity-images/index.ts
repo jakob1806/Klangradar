@@ -65,7 +65,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { searchCommonsImage } from "../_shared/wikimediaCommons.ts";
 import { fetchWikipediaPortrait } from "../_shared/wikipediaPortrait.ts";
-import { extractOgImage } from "../_shared/ogImage.ts";
+import { detectEventCoverImage } from "../_shared/coverImageDetection.ts";
 import { extractImageNearName } from "../_shared/imageNearName.ts";
 import { checkImageUrl, isLikelyGenericImage } from "../_shared/imageValidation.ts";
 import { isAllowedByRobots } from "../_shared/robots.ts";
@@ -353,10 +353,17 @@ async function enrichEntityKind(
         if (!(await isAllowedByRobots(websiteUrl))) {
           await setNote(id, "Eigene Website durch robots.txt gesperrt — Zugriff verweigert.");
         } else {
-          const ownImage = await extractOgImage(websiteUrl);
-          if (ownImage && isLikelyGenericImage(ownImage)) {
-            await setNote(id, "Eigene Website liefert nur ein generisches Logo/Platzhalterbild.");
-          } else if (ownImage) {
+          // Volle Kaskade (schema.org -> og:image -> twitter:image -> Hero/
+          // Banner -> Bild im Content-Container) statt nur og:image/
+          // twitter:image — dieselbe Erkennung, die der Ingestion-Importer
+          // seit PR #92 für neue Events nutzt (coverImageDetection.ts), war
+          // hier bisher nicht verdrahtet, obwohl die meisten bildlosen
+          // Entities durchaus eine website_url hinterlegt haben.
+          const detected = await detectEventCoverImage(websiteUrl);
+          const ownImage = detected?.url ?? null;
+          if (!ownImage) {
+            await setNote(id, "Eigene Website liefert kein nutzbares Bild (og:image/Hero/Content-Bereich geprüft).");
+          } else {
             const { reachable } = await checkImageUrl(ownImage);
             if (!reachable) {
               await setNote(id, "Bild von der eigenen Website nicht erreichbar/kein gültiges Bildformat.");
@@ -376,6 +383,7 @@ async function enrichEntityKind(
                 source_url: ownImage,
                 origin_type: kind.originType,
                 origin_id: id,
+                photographer: detected?.credits ?? null,
                 license_status: "confirmed_licensed",
                 needs_review: false,
                 license_notes:
@@ -385,8 +393,6 @@ async function enrichEntityKind(
               autoApplied++;
               continue;
             }
-          } else {
-            await setNote(id, "Eigene Website liefert kein nutzbares og:image/twitter:image.");
           }
         }
       } else {
@@ -662,13 +668,14 @@ async function enrichEventCovers(
             notes.push(`${pageUrl} durch robots.txt gesperrt`);
             continue;
           }
-          const candidate = await extractOgImage(pageUrl);
+          // Volle Kaskade statt nur og:image (siehe Kommentar bei
+          // enrichEntityKind weiter oben) — deckt jetzt auch Fälle ab, in
+          // denen die Event-Seite kein og:image setzt, aber ein Hero-/
+          // Bannerbild oder ein Bild im Content-Bereich hat.
+          const detected = await detectEventCoverImage(pageUrl);
+          const candidate = detected?.url ?? null;
           if (!candidate) {
-            notes.push(`${pageUrl} liefert kein nutzbares og:image`);
-            continue;
-          }
-          if (isLikelyGenericImage(candidate)) {
-            notes.push(`${pageUrl} liefert nur ein generisches Logo/Portal-Standardbild statt eines Event-Bilds`);
+            notes.push(`${pageUrl} liefert kein nutzbares Bild (og:image/Hero/Content-Bereich geprüft)`);
             continue;
           }
           const { reachable } = await checkImageUrl(candidate);
