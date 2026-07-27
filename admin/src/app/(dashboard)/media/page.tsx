@@ -15,6 +15,20 @@ const ORIGIN_LABEL: Record<string, string> = {
   festival: "Festival",
 };
 
+/** Tabelle/Namensspalte/Admin-Route pro origin_type — damit jede Bildkarte
+ * zeigt, WEM das Bild zugeordnet werden soll (bisher nur origin_type +
+ * eine rohe origin_id-UUID, praktisch nicht zuordenbar ohne eigene Query).
+ * "organizer" hat keine eigene Admin-Detailseite, daher route: null (Name
+ * wird trotzdem angezeigt, nur ohne Link). */
+const ORIGIN_CONFIG: Record<string, { table: string; nameColumn: string; route: string | null }> = {
+  event: { table: "events", nameColumn: "title", route: "/events" },
+  venue: { table: "venues", nameColumn: "name", route: "/venues" },
+  ensemble: { table: "ensembles", nameColumn: "name", route: "/ensembles" },
+  person: { table: "persons", nameColumn: "full_name", route: "/persons" },
+  organizer: { table: "organizers", nameColumn: "name", route: null },
+  festival: { table: "festivals", nameColumn: "name", route: "/festivals" },
+};
+
 interface ImageRow {
   id: string;
   source_url: string;
@@ -38,6 +52,35 @@ export default async function MediaPage() {
     .eq("needs_review", true)
     .order("imported_at", { ascending: false })
     .returns<ImageRow[]>();
+
+  // Namen pro (origin_type, origin_id) auflösen — eine Query pro betroffenem
+  // Typ statt pro Bild, damit die Seite bei vielen Kandidaten nicht dutzende
+  // Einzel-Requests auslöst.
+  const idsByType = new Map<string, Set<string>>();
+  for (const image of data ?? []) {
+    if (!idsByType.has(image.origin_type)) idsByType.set(image.origin_type, new Set());
+    idsByType.get(image.origin_type)!.add(image.origin_id);
+  }
+
+  const nameByKey = new Map<string, string>();
+  await Promise.all(
+    Array.from(idsByType.entries()).map(async ([type, ids]) => {
+      const config = ORIGIN_CONFIG[type];
+      if (!config) return;
+      // Spaltenname ist dynamisch (pro origin_type verschieden) — der
+      // generierte Supabase-Typ kann ein Template-Literal-select() nicht
+      // statisch parsen, daher hier bewusst als unknown[] behandelt.
+      const { data: rows } = await supabase
+        .from(config.table)
+        .select(`id, ${config.nameColumn}`)
+        .in("id", Array.from(ids))
+        .returns<Array<Record<string, unknown>>>();
+      for (const row of rows ?? []) {
+        const name = row[config.nameColumn];
+        if (typeof name === "string") nameByKey.set(`${type}:${row.id}`, name);
+      }
+    }),
+  );
 
   return (
     <div className="p-8">
@@ -70,14 +113,34 @@ export default async function MediaPage() {
       {!error && (
         <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {data?.length ? (
-            data.map((image) => (
+            data.map((image) => {
+              const config = ORIGIN_CONFIG[image.origin_type];
+              const entityName = nameByKey.get(`${image.origin_type}:${image.origin_id}`);
+              const entityHref = config?.route ? `${config.route}/${image.origin_id}` : null;
+              return (
               <div key={image.id} className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={image.source_url} alt="" className="h-40 w-full object-cover bg-neutral-100" />
                 <div className="p-3">
-                  <p className="text-xs text-neutral-400">
-                    {ORIGIN_LABEL[image.origin_type] ?? image.origin_type} · {formatDate(image.imported_at)}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-medium text-neutral-600">
+                      {ORIGIN_LABEL[image.origin_type] ?? image.origin_type}
+                    </span>
+                    {entityHref ? (
+                      <Link
+                        href={entityHref}
+                        className="truncate text-sm font-semibold text-neutral-900 hover:underline"
+                        title={entityName ?? "Bearbeiten"}
+                      >
+                        {entityName ?? "(Name unbekannt — Eintrag anzeigen)"}
+                      </Link>
+                    ) : (
+                      <span className="truncate text-sm font-semibold text-neutral-900">
+                        {entityName ?? "(Name unbekannt)"}
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-0.5 text-xs text-neutral-400">{formatDate(image.imported_at)}</p>
                   <a
                     href={image.source_url}
                     target="_blank"
@@ -120,7 +183,8 @@ export default async function MediaPage() {
                   </div>
                 </div>
               </div>
-            ))
+              );
+            })
           ) : (
             <div className="col-span-full rounded-lg border border-dashed border-neutral-300 bg-white px-4 py-10 text-center text-sm text-neutral-400">
               Keine Bilder zur Prüfung.
