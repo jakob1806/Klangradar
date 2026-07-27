@@ -1,0 +1,34 @@
+name: Deploy Migrations to Production
+
+# Wendet neue Migrationen nach Merge auf main gegen das echte
+# Supabase-Projekt an (`supabase db push`). Der bestehende
+# supabase-migrations.yml-Workflow prüft nur, dass Migrationen sauber gegen
+# eine frische lokale/ephemere Instanz laufen — er berührt Produktion nie.
+#
+# Läuft gegen das `production`-Environment mit Required Reviewer: jeder
+# Migrations-Push braucht eine manuelle Freigabe in der Actions-UI. Es gibt
+# aktuell kein Staging-Projekt, das ist bewusst der einzige Schutz vor einem
+# ungeprobten Schema-Change in Produktion.
+on:
+  push:
+    branches: [main]
+    paths: ["backend/supabase/migrations/**", ".github/workflows/deploy-migrations.yml"]
+  workflow_dispatch:
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Migrationen gegen Produktion anwenden
+        working-directory: backend
+        run: supabase db push --project-ref zqgzcspeqllrihfwmayn
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
