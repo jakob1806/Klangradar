@@ -1,0 +1,32 @@
+name: Deploy Edge Functions
+
+# Deployt automatisch nach Merge auf main, wenn sich etwas unter
+# backend/supabase/functions/ ändert — bisher lief das ausschließlich
+# manuell per `supabase functions deploy` von der Kommandozeile.
+#
+# Läuft gegen das `production`-Environment mit Required Reviewer: jeder
+# Deploy braucht eine manuelle Freigabe in der Actions-UI, bevor er
+# tatsächlich startet (kein automatischer Prod-Deploy ohne Blick auf den
+# Diff).
+on:
+  push:
+    branches: [main]
+    paths: ["backend/supabase/functions/**", ".github/workflows/deploy-edge-functions.yml"]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Alle Edge Functions deployen
+        working-directory: backend
+        run: supabase functions deploy --project-ref zqgzcspeqllrihfwmayn
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
