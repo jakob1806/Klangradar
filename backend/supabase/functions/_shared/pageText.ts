@@ -36,12 +36,30 @@ export async function fetchPageText(pageUrl: string): Promise<string | null> {
   const withoutScripts = html
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
     .replace(/<style[\s\S]*?<\/style>/gi, " ");
-  const text = withoutScripts
+
+  // Zeilenumbrüche vor dem Tag-Strip einfügen — sonst verschmilzt z. B.
+  // eine "Komponist"-Zeile mit der direkt folgenden "Werktitel"-Zeile zu
+  // einem ununterscheidbaren Fließtext-Strom. Live beobachtet: eine
+  // Konzertprogramm-Seite mit Komponist/Werk je in eigenem <p> lieferte
+  // dadurch für KEIN einziges Werk einen Komponisten (enrich-event-
+  // references konnte Name und Titel nicht mehr paarweise zuordnen),
+  // obwohl die Seite selbst die Zuordnung eindeutig zeigt. Betrifft alle
+  // fetchPageText()-Aufrufer (auch enrich-person-profile/-venue-details/
+  // -ensemble-profile) — mehr Zeilenstruktur ist für jede Extraktion aus
+  // Fließtext eine reine Verbesserung, nie ein Nachteil.
+  const withLineBreaks = withoutScripts.replace(
+    /<br\s*\/?>|<\/(p|div|li|h[1-6]|tr|section|article)\s*>/gi,
+    "\n",
+  );
+
+  const text = withLineBreaks
     .replace(/<[^>]+>/g, " ")
     .replace(/&nbsp;/gi, " ")
     .replace(/&amp;/gi, "&")
     .replace(/&[a-z]+;/gi, " ")
-    .replace(/\s+/g, " ")
+    .replace(/[ \t]+/g, " ")
+    .replace(/ *\n */g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
     .trim();
 
   return text ? text.slice(0, MAX_CHARS) : null;

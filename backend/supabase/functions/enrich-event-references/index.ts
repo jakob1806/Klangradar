@@ -70,7 +70,14 @@ const ENRICH_FUNCTION: AiFunctionDeclaration = {
           "spezifisches Werk im Text steht — dann leer lassen statt zu raten. " +
           "Reihenfolge der Einträge MUSS der Reihenfolge entsprechen, in der die Werke im " +
           "Text genannt werden (das ist die tatsächliche Konzert-/Programmreihenfolge) — " +
-          "niemals alphabetisch oder nach Bekanntheit umsortieren.",
+          "niemals alphabetisch oder nach Bekanntheit umsortieren. " +
+          "WICHTIG gegen Duplikate: Texte erwähnen dasselbe Werk oft MEHRFACH (z. B. kurz " +
+          "in einer werbenden Einleitung UND danach nochmal ausführlich in einer formalen " +
+          "Programmliste, oder ein Spitzname wie 'Tragische' UND der volle Titel " +
+          "'Sinfonie Nr. 4 c-Moll »Tragische«' an anderer Stelle im selben Text). Das ist " +
+          "IMMER ein einziges Werk — dafür GENAU EINEN Eintrag erzeugen, nie mehrere. Bei " +
+          "mehreren Erwähnungen desselben Werks die Version mit den meisten Informationen " +
+          "verwenden (vollständigster Titel, Komponist, Opus-/Werkverzeichnisnummer, Tonart).",
         items: {
           type: "object",
           properties: {
@@ -630,7 +637,7 @@ Deno.serve(async (req) => {
         // matcht nicht gegen ein Suchmuster, das noch das » enthält).
         const { data: sameNamedWorks } = await supabase
           .from("works")
-          .select("id, title, catalog_number, key_signature")
+          .select("id, title, composer_id, catalog_number, key_signature")
           .ilike("title", `%${normalizedTitle.slice(0, 20)}%`);
         const existingWork = (sameNamedWorks ?? []).find(
           (existing: { title: string }) => normalizeTitleForMatch(existing.title) === normalizedTitle,
@@ -638,10 +645,17 @@ Deno.serve(async (req) => {
         let workId: string;
         if (existingWork) {
           workId = existingWork.id;
-          // Opus/Tonart nur NACHTRÄGLICH ergänzen, wenn das Werk sie noch
-          // nicht hat — nie eine bereits vorhandene (ggf. redaktionell
-          // gepflegte) Angabe überschreiben.
+          // Opus/Tonart/Komponist nur NACHTRÄGLICH ergänzen, wenn das Werk
+          // sie noch nicht hat — nie eine bereits vorhandene (ggf.
+          // redaktionell gepflegte) Angabe überschreiben. composer_id fehlte
+          // hier bisher komplett (nur catalog_number/key_signature wurden
+          // je nachgepflegt) — ein erneuter Lauf, der denselben Titel matcht
+          // aber diesmal den Komponisten erkennt (z. B. weil fetchPageText
+          // jetzt Zeilenstruktur erhält statt zu einem Fließtext-Strom zu
+          // verschmelzen), konnte den fehlenden Komponisten dadurch nie
+          // nachtragen.
           const patch: Record<string, string> = {};
+          if (!existingWork.composer_id && composerId) patch.composer_id = composerId;
           if (!existingWork.catalog_number && w.catalogNumber) patch.catalog_number = w.catalogNumber;
           if (!existingWork.key_signature && w.keySignature) patch.key_signature = w.keySignature;
           if (Object.keys(patch).length > 0) {
