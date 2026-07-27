@@ -76,6 +76,7 @@ import { logSystemAction } from "../_shared/systemLog.ts";
 const DEFAULT_LIMIT = 8;
 const HEALTH_CHECK_LIMIT = 15;
 const EVENT_URL_DISCOVERY_LIMIT = 5;
+const ENTITY_URL_DISCOVERY_LIMIT = 5;
 
 interface EntityKind {
   table: string;
@@ -159,6 +160,11 @@ Deno.serve(async (req) => {
 
   const eventUrlDiscovery = await discoverMissingEventUrls(supabase);
 
+  const entityUrlDiscovery: Record<string, { attempted: number; found: number }> = {};
+  for (const kind of ENTITY_KINDS) {
+    entityUrlDiscovery[kind.table] = await discoverMissingEntityWebsites(supabase, kind);
+  }
+
   const perKind: Record<string, { found: number; autoApplied: number; queuedForReview: number; errors: string[] }> = {};
   for (const kind of ENTITY_KINDS) {
     perKind[kind.table] = await enrichEntityKind(supabase, kind, limit);
@@ -172,12 +178,20 @@ Deno.serve(async (req) => {
       healthCheck,
       eventHealthCheck,
       eventUrlDiscovery,
+      entityUrlDiscovery,
       perKind,
       events: eventResult,
     });
   }
 
-  return jsonResponse({ healthCheck, eventHealthCheck, eventUrlDiscovery, ...perKind, events: eventResult });
+  return jsonResponse({
+    healthCheck,
+    eventHealthCheck,
+    eventUrlDiscovery,
+    entityUrlDiscovery,
+    ...perKind,
+    events: eventResult,
+  });
 });
 
 /** Prüft bis zu HEALTH_CHECK_LIMIT Zeilen mit gesetztem photo_url auf
@@ -518,6 +532,61 @@ async function enrichEntityKind(
   }
 
   return { found: list.length, autoApplied, queuedForReview, errors: errors.slice(0, 10) };
+}
+
+/** Analog zu discoverMissingEventUrls() (siehe dort für die Begründung
+ * Gemini-Grounding+DuckDuckGo statt Tavily/Google CSE) — aber für Venues/
+ * Personen/Ensembles/Festivals ohne website_url. Nur relevant für Zeilen
+ * OHNE photo_url: eine Website zu finden bringt nichts, wenn schon ein Bild
+ * vorhanden ist. Setzt nur website_url; das eigentliche Bild zieht
+ * enrichEntityKind()'s "eigene Website"-Priorität daraus im selben oder
+ * einem der nächsten Läufe (Reihenfolge im Deno.serve-Handler: erst
+ * Discovery für alle Entity-Kinds, dann enrichEntityKind für alle —
+ * innerhalb desselben Laufs sichtbar). Keine neue Abhängigkeit, dieselbe
+ * bereits vorhandene (und bereits bezahlte) Suche wie bei Events. */
+async function discoverMissingEntityWebsites(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  kind: EntityKind,
+): Promise<{ attempted: number; found: number }> {
+  const geminiApiKey = Deno.env.get("GEMINI_SEARCH_API_KEY");
+
+  const { data: rows } = await supabase
+    .from(kind.table)
+    .select(`id, ${kind.nameColumn}`)
+    .is("website_url", null)
+    .is("photo_url", null)
+    .limit(ENTITY_URL_DISCOVERY_LIMIT);
+
+  const list = (rows ?? []) as Array<Record<string, unknown>>;
+  let found = 0;
+
+  for (const row of list) {
+    const id = row.id as string;
+    const name = row[kind.nameColumn] as string;
+    if (!name?.trim()) continue;
+
+    const query = kind.queryContext
+      ? `${name} ${kind.queryContext} offizielle Website`
+      : `${name} offizielle Website`;
+
+    let topResultUrl: string | null = null;
+
+    if (geminiApiKey) {
+      const groundedResults = await searchViaGeminiGrounding(geminiApiKey, query);
+      if (groundedResults && groundedResults.length > 0) topResultUrl = groundedResults[0].url;
+    }
+    if (!topResultUrl) {
+      const ddgResults = await searchDuckDuckGo(query, 3);
+      if (ddgResults && ddgResults.length > 0) topResultUrl = ddgResults[0].url;
+    }
+    if (!topResultUrl) continue;
+
+    await supabase.from(kind.table).update({ website_url: topResultUrl }).eq("id", id);
+    found++;
+  }
+
+  return { attempted: list.length, found };
 }
 
 const EVENT_BATCH_SIZE = 15;
