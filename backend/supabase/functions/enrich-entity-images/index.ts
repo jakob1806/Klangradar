@@ -73,6 +73,8 @@ import { isAllowedByRobots } from "../_shared/robots.ts";
 import { searchDuckDuckGo } from "../_shared/duckDuckGoSearch.ts";
 import { searchViaGeminiGrounding } from "../_shared/geminiGroundedSearch.ts";
 import { logSystemAction } from "../_shared/systemLog.ts";
+import { nameSearchVariants } from "../_shared/nameVariants.ts";
+import { findLikelySubpages } from "../_shared/subpageDiscovery.ts";
 
 const DEFAULT_LIMIT = 8;
 const HEALTH_CHECK_LIMIT = 15;
@@ -344,7 +346,11 @@ async function tryWikidataFallback(
   name: string,
   errors: string[],
 ): Promise<"queued" | "error" | "not_found"> {
-  const candidate = await searchWikidataImage(name, kind.queryContext);
+  let candidate: Awaited<ReturnType<typeof searchWikidataImage>> = null;
+  for (const variant of nameSearchVariants(name)) {
+    candidate = await searchWikidataImage(variant, kind.queryContext);
+    if (candidate) break;
+  }
   if (!candidate) return "not_found";
 
   const { reachable } = await checkImageUrl(candidate.url);
@@ -424,10 +430,27 @@ async function enrichEntityKind(
           // seit PR #92 für neue Events nutzt (coverImageDetection.ts), war
           // hier bisher nicht verdrahtet, obwohl die meisten bildlosen
           // Entities durchaus eine website_url hinterlegt haben.
-          const detected = await detectEventCoverImage(websiteUrl);
+          let detected = await detectEventCoverImage(websiteUrl);
+          let ownImageSourcePage = websiteUrl;
+          if (!detected) {
+            // Startseite liefert nichts — 1-2 wahrscheinliche Unterseiten
+            // (Presse/Über uns/Kontakt) derselben Domain versuchen, bevor
+            // aufgegeben wird. Viele Vereine/Ensembles haben eine
+            // text-lastige Startseite ohne Foto, aber ein Foto auf einer
+            // "Über uns"-Unterseite.
+            const subpages = await findLikelySubpages(websiteUrl);
+            for (const subpageUrl of subpages) {
+              const subDetected = await detectEventCoverImage(subpageUrl);
+              if (subDetected) {
+                detected = subDetected;
+                ownImageSourcePage = subpageUrl;
+                break;
+              }
+            }
+          }
           const ownImage = detected?.url ?? null;
           if (!ownImage) {
-            await setNote(id, "Eigene Website liefert kein nutzbares Bild (og:image/Hero/Content-Bereich geprüft).");
+            await setNote(id, "Eigene Website liefert kein nutzbares Bild (og:image/Hero/Content-Bereich/Unterseiten geprüft).");
           } else {
             const { reachable } = await checkImageUrl(ownImage);
             if (!reachable) {
@@ -452,7 +475,7 @@ async function enrichEntityKind(
                 license_status: "confirmed_licensed",
                 needs_review: false,
                 license_notes:
-                  `Automatisch übernommen von der eigenen offiziellen Website der Entität (${websiteUrl}) — ` +
+                  `Automatisch übernommen von der eigenen offiziellen Website der Entität (${ownImageSourcePage}) — ` +
                   `kein Fremdbild, daher ohne manuelle Lizenzprüfung freigegeben.`,
               });
               autoApplied++;
@@ -517,7 +540,11 @@ async function enrichEntityKind(
       // "Prinzregententheater") — ein einzelnes, redaktionell gepflegtes
       // Bild pro Artikel ist zuverlässiger als das Ranking einer
       // Commons-Volltextsuche.
-      const portrait = await fetchWikipediaPortrait(name);
+      let portrait: Awaited<ReturnType<typeof fetchWikipediaPortrait>> = null;
+      for (const variant of nameSearchVariants(name)) {
+        portrait = await fetchWikipediaPortrait(variant);
+        if (portrait) break;
+      }
       if (portrait) {
         const { reachable } = await checkImageUrl(portrait.imageUrl);
         if (!reachable) {
@@ -550,8 +577,12 @@ async function enrichEntityKind(
       // Namensgleichheiten), gehen direkt zu Wikidata. Venues/Ensembles/
       // Festivals versuchen zuerst Commons.
       if (!kind.useWikipediaFallback) {
-        const query = kind.queryContext ? `${name} ${kind.queryContext}` : name;
-        const candidate = await searchCommonsImage(query);
+        let candidate: Awaited<ReturnType<typeof searchCommonsImage>> = null;
+        for (const variant of nameSearchVariants(name)) {
+          const query = kind.queryContext ? `${variant} ${kind.queryContext}` : variant;
+          candidate = await searchCommonsImage(query);
+          if (candidate) break;
+        }
         if (candidate) {
           const { reachable } = await checkImageUrl(candidate.url);
           if (!reachable) {
