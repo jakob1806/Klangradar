@@ -64,6 +64,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { searchCommonsImage } from "../_shared/wikimediaCommons.ts";
+import { searchWikidataImage } from "../_shared/wikidataImage.ts";
 import { fetchWikipediaPortrait } from "../_shared/wikipediaPortrait.ts";
 import { detectEventCoverImage } from "../_shared/coverImageDetection.ts";
 import { extractImageNearName } from "../_shared/imageNearName.ts";
@@ -76,6 +77,7 @@ import { logSystemAction } from "../_shared/systemLog.ts";
 const DEFAULT_LIMIT = 8;
 const HEALTH_CHECK_LIMIT = 15;
 const EVENT_URL_DISCOVERY_LIMIT = 5;
+const ENTITY_URL_DISCOVERY_LIMIT = 5;
 
 interface EntityKind {
   table: string;
@@ -159,6 +161,11 @@ Deno.serve(async (req) => {
 
   const eventUrlDiscovery = await discoverMissingEventUrls(supabase);
 
+  const entityUrlDiscovery: Record<string, { attempted: number; found: number }> = {};
+  for (const kind of ENTITY_KINDS) {
+    entityUrlDiscovery[kind.table] = await discoverMissingEntityWebsites(supabase, kind);
+  }
+
   const perKind: Record<string, { found: number; autoApplied: number; queuedForReview: number; errors: string[] }> = {};
   for (const kind of ENTITY_KINDS) {
     perKind[kind.table] = await enrichEntityKind(supabase, kind, limit);
@@ -172,12 +179,20 @@ Deno.serve(async (req) => {
       healthCheck,
       eventHealthCheck,
       eventUrlDiscovery,
+      entityUrlDiscovery,
       perKind,
       events: eventResult,
     });
   }
 
-  return jsonResponse({ healthCheck, eventHealthCheck, eventUrlDiscovery, ...perKind, events: eventResult });
+  return jsonResponse({
+    healthCheck,
+    eventHealthCheck,
+    eventUrlDiscovery,
+    entityUrlDiscovery,
+    ...perKind,
+    events: eventResult,
+  });
 });
 
 /** Prüft bis zu HEALTH_CHECK_LIMIT Zeilen mit gesetztem photo_url auf
@@ -305,6 +320,56 @@ async function isUrlUsedElsewhere(
     .neq("origin_id", excludeId);
   if (queuedCount && queuedCount > 0) return true;
   return false;
+}
+
+/** Letzter, kostenloser Fallback für ALLE Entity-Kinds — auch für Personen,
+ * nach einem erfolglosen Wikipedia-Versuch: Wikidata-Suche + P18-
+ * Bildeigenschaft, aufgelöst über denselben Commons-Lizenzcheck wie die
+ * reguläre Volltextsuche (siehe wikidataImage.ts/wikimediaCommons.ts).
+ * Manche Entitäten haben keinen (Wikipedia-)Artikel mit Infobox-Bild, aber
+ * ein eigenständiges Wikidata-Item mit strukturiert verknüpftem Bild — oder
+ * die Commons-Volltextsuche rankt die richtige Datei nicht hoch genug.
+ *
+ * Rückgabe statt reinem Boolean, weil drei Fälle unterscheidbar sein
+ * müssen: "queued" (Aufrufer zählt queuedForReview++ und macht `continue`),
+ * "error" (Insert fehlgeschlagen, schon in `errors` erfasst — Aufrufer
+ * macht `continue`, OHNE die generische "nichts gefunden"-Notiz zu
+ * überschreiben, denn es WURDE etwas gefunden) und "not_found" (Aufrufer
+ * setzt wie bisher seine eigene Notiz). */
+async function tryWikidataFallback(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  kind: EntityKind,
+  id: string,
+  name: string,
+  errors: string[],
+): Promise<"queued" | "error" | "not_found"> {
+  const candidate = await searchWikidataImage(name, kind.queryContext);
+  if (!candidate) return "not_found";
+
+  const { reachable } = await checkImageUrl(candidate.url);
+  if (!reachable) return "not_found";
+  if (await isUrlUsedElsewhere(supabase, candidate.url, kind.table, id)) return "not_found";
+
+  const { error: insertError } = await supabase.from("images").insert({
+    source_url: candidate.url,
+    origin_type: kind.originType,
+    origin_id: id,
+    photographer: candidate.artist,
+    license_notes: `Wikidata → Wikimedia Commons: ${candidate.license}` +
+      (candidate.attributionRequired ? " (Namensnennung erforderlich)" : "") +
+      ` — ${candidate.pageUrl}`,
+  });
+  if (insertError) {
+    errors.push(`${kind.table} "${name}": Insert fehlgeschlagen — ${insertError.message}`);
+    return "error";
+  }
+
+  await supabase
+    .from(kind.table)
+    .update({ last_image_search_note: "Wikidata-Kandidat gefunden, wartet auf Lizenzprüfung (/media)." })
+    .eq("id", id);
+  return "queued";
 }
 
 async function enrichEntityKind(
@@ -451,6 +516,11 @@ async function enrichEntityKind(
       if (kind.useWikipediaFallback) {
         const portrait = await fetchWikipediaPortrait(name);
         if (!portrait) {
+          // Kein (brauchbarer) Wikipedia-Artikel — Wikidata (P18) als
+          // letzter kostenloser Fallback, bevor endgültig aufgegeben wird.
+          const wikidataOutcome = await tryWikidataFallback(supabase, kind, id, name, errors);
+          if (wikidataOutcome === "queued") queuedForReview++;
+          if (wikidataOutcome !== "not_found") continue;
           await setNote(id, "Kein eindeutiger Wikipedia-Artikel mit Porträtbild gefunden.");
           continue;
         }
@@ -483,6 +553,12 @@ async function enrichEntityKind(
       const query = kind.queryContext ? `${name} ${kind.queryContext}` : name;
       const candidate = await searchCommonsImage(query);
       if (!candidate) {
+        // Volltextsuche hat nichts Brauchbares gerankt — Wikidata (P18) hat
+        // ggf. dieselbe Datei strukturiert verlinkt, ohne dass ein Ranking
+        // nötig wäre.
+        const wikidataOutcome = await tryWikidataFallback(supabase, kind, id, name, errors);
+        if (wikidataOutcome === "queued") queuedForReview++;
+        if (wikidataOutcome !== "not_found") continue;
         await setNote(id, "Keine passende Wikimedia-Commons-Datei gefunden.");
         continue;
       }
@@ -518,6 +594,61 @@ async function enrichEntityKind(
   }
 
   return { found: list.length, autoApplied, queuedForReview, errors: errors.slice(0, 10) };
+}
+
+/** Analog zu discoverMissingEventUrls() (siehe dort für die Begründung
+ * Gemini-Grounding+DuckDuckGo statt Tavily/Google CSE) — aber für Venues/
+ * Personen/Ensembles/Festivals ohne website_url. Nur relevant für Zeilen
+ * OHNE photo_url: eine Website zu finden bringt nichts, wenn schon ein Bild
+ * vorhanden ist. Setzt nur website_url; das eigentliche Bild zieht
+ * enrichEntityKind()'s "eigene Website"-Priorität daraus im selben oder
+ * einem der nächsten Läufe (Reihenfolge im Deno.serve-Handler: erst
+ * Discovery für alle Entity-Kinds, dann enrichEntityKind für alle —
+ * innerhalb desselben Laufs sichtbar). Keine neue Abhängigkeit, dieselbe
+ * bereits vorhandene (und bereits bezahlte) Suche wie bei Events. */
+async function discoverMissingEntityWebsites(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  kind: EntityKind,
+): Promise<{ attempted: number; found: number }> {
+  const geminiApiKey = Deno.env.get("GEMINI_SEARCH_API_KEY");
+
+  const { data: rows } = await supabase
+    .from(kind.table)
+    .select(`id, ${kind.nameColumn}`)
+    .is("website_url", null)
+    .is("photo_url", null)
+    .limit(ENTITY_URL_DISCOVERY_LIMIT);
+
+  const list = (rows ?? []) as Array<Record<string, unknown>>;
+  let found = 0;
+
+  for (const row of list) {
+    const id = row.id as string;
+    const name = row[kind.nameColumn] as string;
+    if (!name?.trim()) continue;
+
+    const query = kind.queryContext
+      ? `${name} ${kind.queryContext} offizielle Website`
+      : `${name} offizielle Website`;
+
+    let topResultUrl: string | null = null;
+
+    if (geminiApiKey) {
+      const groundedResults = await searchViaGeminiGrounding(geminiApiKey, query);
+      if (groundedResults && groundedResults.length > 0) topResultUrl = groundedResults[0].url;
+    }
+    if (!topResultUrl) {
+      const ddgResults = await searchDuckDuckGo(query, 3);
+      if (ddgResults && ddgResults.length > 0) topResultUrl = ddgResults[0].url;
+    }
+    if (!topResultUrl) continue;
+
+    await supabase.from(kind.table).update({ website_url: topResultUrl }).eq("id", id);
+    found++;
+  }
+
+  return { attempted: list.length, found };
 }
 
 const EVENT_BATCH_SIZE = 15;
