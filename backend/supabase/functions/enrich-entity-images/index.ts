@@ -510,20 +510,15 @@ async function enrichEntityKind(
         }
       }
 
-      // Priorität 3: Personen nutzen Wikipedia (präzise, exakter
-      // Artikeltitel statt Volltextsuche), Venues/Ensembles/Festivals
-      // weiterhin Wikimedia Commons (siehe Datei-Kommentar).
-      if (kind.useWikipediaFallback) {
-        const portrait = await fetchWikipediaPortrait(name);
-        if (!portrait) {
-          // Kein (brauchbarer) Wikipedia-Artikel — Wikidata (P18) als
-          // letzter kostenloser Fallback, bevor endgültig aufgegeben wird.
-          const wikidataOutcome = await tryWikidataFallback(supabase, kind, id, name, errors);
-          if (wikidataOutcome === "queued") queuedForReview++;
-          if (wikidataOutcome !== "not_found") continue;
-          await setNote(id, "Kein eindeutiger Wikipedia-Artikel mit Porträtbild gefunden.");
-          continue;
-        }
+      // Priorität 3: Wikipedia-Infobox-Bild — jetzt für ALLE Entity-Kinds
+      // versucht (vorher nur Personen), da bekannte Ensembles/Festivals und
+      // historische Venues genauso oft einen eigenen Artikel mit kuratiertem
+      // Infobox-Bild haben (z. B. "Bayerisches Staatsorchester",
+      // "Prinzregententheater") — ein einzelnes, redaktionell gepflegtes
+      // Bild pro Artikel ist zuverlässiger als das Ranking einer
+      // Commons-Volltextsuche.
+      const portrait = await fetchWikipediaPortrait(name);
+      if (portrait) {
         const { reachable } = await checkImageUrl(portrait.imageUrl);
         if (!reachable) {
           await setNote(id, "Wikipedia-Bild nicht erreichbar/kein gültiges Bildformat.");
@@ -550,44 +545,53 @@ async function enrichEntityKind(
         continue;
       }
 
-      const query = kind.queryContext ? `${name} ${kind.queryContext}` : name;
-      const candidate = await searchCommonsImage(query);
-      if (!candidate) {
-        // Volltextsuche hat nichts Brauchbares gerankt — Wikidata (P18) hat
-        // ggf. dieselbe Datei strukturiert verlinkt, ohne dass ein Ranking
-        // nötig wäre.
-        const wikidataOutcome = await tryWikidataFallback(supabase, kind, id, name, errors);
-        if (wikidataOutcome === "queued") queuedForReview++;
-        if (wikidataOutcome !== "not_found") continue;
-        await setNote(id, "Keine passende Wikimedia-Commons-Datei gefunden.");
-        continue;
+      // Priorität 4: Personen nutzen bewusst KEINE Commons-Volltextsuche
+      // (siehe wikimediaCommons.ts-Datei-Kommentar: zu viele Fehltreffer bei
+      // Namensgleichheiten), gehen direkt zu Wikidata. Venues/Ensembles/
+      // Festivals versuchen zuerst Commons.
+      if (!kind.useWikipediaFallback) {
+        const query = kind.queryContext ? `${name} ${kind.queryContext}` : name;
+        const candidate = await searchCommonsImage(query);
+        if (candidate) {
+          const { reachable } = await checkImageUrl(candidate.url);
+          if (!reachable) {
+            await setNote(id, "Wikimedia-Bild nicht erreichbar/kein gültiges Bildformat.");
+            continue;
+          }
+          if (await isUrlUsedElsewhere(supabase, candidate.url, kind.table, id)) {
+            await setNote(id, "Wikimedia-Bild ist bereits einer anderen Entität zugeordnet (Duplikat).");
+            continue;
+          }
+          const { error: insertError } = await supabase.from("images").insert({
+            source_url: candidate.url,
+            origin_type: kind.originType,
+            origin_id: id,
+            photographer: candidate.artist,
+            license_notes: `Wikimedia Commons: ${candidate.license}` +
+              (candidate.attributionRequired ? " (Namensnennung erforderlich)" : "") +
+              ` — ${candidate.pageUrl}`,
+          });
+          if (insertError) {
+            errors.push(`${kind.table} "${name}": Insert fehlgeschlagen — ${insertError.message}`);
+            continue;
+          }
+          queuedForReview++;
+          await setNote(id, "Wikimedia-Kandidat gefunden, wartet auf Lizenzprüfung (/media).");
+          continue;
+        }
       }
 
-      const { reachable } = await checkImageUrl(candidate.url);
-      if (!reachable) {
-        await setNote(id, "Wikimedia-Bild nicht erreichbar/kein gültiges Bildformat.");
-        continue;
-      }
-      if (await isUrlUsedElsewhere(supabase, candidate.url, kind.table, id)) {
-        await setNote(id, "Wikimedia-Bild ist bereits einer anderen Entität zugeordnet (Duplikat).");
-        continue;
-      }
-
-      const { error: insertError } = await supabase.from("images").insert({
-        source_url: candidate.url,
-        origin_type: kind.originType,
-        origin_id: id,
-        photographer: candidate.artist,
-        license_notes: `Wikimedia Commons: ${candidate.license}` +
-          (candidate.attributionRequired ? " (Namensnennung erforderlich)" : "") +
-          ` — ${candidate.pageUrl}`,
-      });
-      if (insertError) {
-        errors.push(`${kind.table} "${name}": Insert fehlgeschlagen — ${insertError.message}`);
-        continue;
-      }
-      queuedForReview++;
-      await setNote(id, "Wikimedia-Kandidat gefunden, wartet auf Lizenzprüfung (/media).");
+      // Priorität 5: Wikidata (P18) — letzter kostenloser Fallback für alle
+      // Kinds, bevor endgültig aufgegeben wird.
+      const wikidataOutcome = await tryWikidataFallback(supabase, kind, id, name, errors);
+      if (wikidataOutcome === "queued") queuedForReview++;
+      if (wikidataOutcome !== "not_found") continue;
+      await setNote(
+        id,
+        kind.useWikipediaFallback
+          ? "Kein eindeutiger Wikipedia-Artikel mit Porträtbild gefunden."
+          : "Keine passende Wikimedia-Commons-Datei gefunden.",
+      );
     } catch (err) {
       errors.push(`${kind.table} "${name}": ${err instanceof Error ? err.message : String(err)}`);
     }
