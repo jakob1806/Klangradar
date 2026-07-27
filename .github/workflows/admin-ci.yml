@@ -1,14 +1,34 @@
 name: Admin Dashboard CI
 
+# Kein `paths:`-Filter mehr auf dem Trigger selbst: der Job muss auf JEDEM PR
+# laufen (auch nur skippen), damit er als Required Status Check taugt — ein
+# per `paths:` komplett unterdrückter Workflow-Run hinterlässt gar keinen
+# Check und lässt den PR ewig auf "pending" hängen (GitHub behandelt einen
+# innerhalb des Workflows via `if:` übersprungenen Job dagegen als "skipped",
+# was für Required Checks als bestanden zählt).
 on:
   pull_request:
-    paths: ["admin/**", ".github/workflows/admin-ci.yml"]
   push:
     branches: [main]
-    paths: ["admin/**", ".github/workflows/admin-ci.yml"]
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      admin: ${{ steps.filter.outputs.admin }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            admin:
+              - 'admin/**'
+              - '.github/workflows/admin-ci.yml'
+
   lint-and-build:
+    needs: changes
+    if: needs.changes.outputs.admin == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:

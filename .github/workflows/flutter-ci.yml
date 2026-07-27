@@ -1,14 +1,31 @@
 name: Flutter CI
 
+# Kein `paths:`-Filter mehr auf dem Trigger selbst, siehe admin-ci.yml für
+# die Begründung (Required-Status-Check-Kompatibilität via skip statt
+# komplett fehlendem Workflow-Run).
 on:
   pull_request:
-    paths: ["app/**", ".github/workflows/flutter-ci.yml"]
   push:
     branches: [main]
-    paths: ["app/**", ".github/workflows/flutter-ci.yml"]
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      app: ${{ steps.filter.outputs.app }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            app:
+              - 'app/**'
+              - '.github/workflows/flutter-ci.yml'
+
   analyze-and-test:
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
     runs-on: macos-latest
     defaults:
       run:
