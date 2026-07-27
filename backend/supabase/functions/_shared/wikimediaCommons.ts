@@ -48,44 +48,13 @@ function stripHtml(value: string): string {
   return value.replace(/<[^>]*>/g, "").trim();
 }
 
-/** Sucht bis zu `limit` Bilddateien zu `query` auf Wikimedia Commons und gibt
- * den ersten Treffer mit einer erkennbar freien Lizenz zurück, oder null bei
- * jedem Fehler/keinem geeigneten Treffer — Aufrufer behandeln null als
- * "keine automatische Anreicherung möglich", kein Werfen. */
-export async function searchCommonsImage(
-  query: string,
-  limit = 5,
-): Promise<CommonsImageCandidate | null> {
-  const url = new URL(COMMONS_API);
-  url.searchParams.set("action", "query");
-  url.searchParams.set("generator", "search");
-  url.searchParams.set("gsrsearch", query);
-  url.searchParams.set("gsrnamespace", "6"); // File:-Namespace
-  url.searchParams.set("gsrlimit", String(limit));
-  url.searchParams.set("prop", "imageinfo");
-  url.searchParams.set("iiprop", "url|extmetadata");
-  url.searchParams.set("format", "json");
-  url.searchParams.set("origin", "*");
-
-  let res: Response;
-  try {
-    res = await fetch(url.toString(), {
-      headers: { "User-Agent": "KlassikMuenchenBot/1.0 (redaktionelle Bilderrecherche)" },
-    });
-  } catch {
-    return null;
-  }
-  if (!res.ok) return null;
-
-  // deno-lint-ignore no-explicit-any
-  let data: any;
-  try {
-    data = await res.json();
-  } catch {
-    return null;
-  }
-
-  const pages = data?.query?.pages as Record<string, CommonsQueryPage> | undefined;
+/** Gemeinsame Extraktion für beide Abfrageformen unten (Volltextsuche via
+ * generator=search und Direkt-Lookup via titles=) — beide liefern dieselbe
+ * `query.pages`-Form zurück. Nimmt den ersten Treffer mit einer erkennbar
+ * freien Lizenz. */
+function extractFirstAcceptableCandidate(
+  pages: Record<string, CommonsQueryPage> | undefined,
+): CommonsImageCandidate | null {
   if (!pages) return null;
 
   for (const page of Object.values(pages)) {
@@ -108,4 +77,68 @@ export async function searchCommonsImage(
   }
 
   return null;
+}
+
+async function fetchCommonsQuery(
+  params: Record<string, string>,
+): Promise<Record<string, CommonsQueryPage> | undefined> {
+  const url = new URL(COMMONS_API);
+  for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
+  url.searchParams.set("format", "json");
+  url.searchParams.set("origin", "*");
+
+  let res: Response;
+  try {
+    res = await fetch(url.toString(), {
+      headers: { "User-Agent": "KlassikMuenchenBot/1.0 (redaktionelle Bilderrecherche)" },
+    });
+  } catch {
+    return undefined;
+  }
+  if (!res.ok) return undefined;
+
+  // deno-lint-ignore no-explicit-any
+  let data: any;
+  try {
+    data = await res.json();
+  } catch {
+    return undefined;
+  }
+  return data?.query?.pages as Record<string, CommonsQueryPage> | undefined;
+}
+
+/** Sucht bis zu `limit` Bilddateien zu `query` auf Wikimedia Commons und gibt
+ * den ersten Treffer mit einer erkennbar freien Lizenz zurück, oder null bei
+ * jedem Fehler/keinem geeigneten Treffer — Aufrufer behandeln null als
+ * "keine automatische Anreicherung möglich", kein Werfen. */
+export async function searchCommonsImage(
+  query: string,
+  limit = 5,
+): Promise<CommonsImageCandidate | null> {
+  const pages = await fetchCommonsQuery({
+    action: "query",
+    generator: "search",
+    gsrsearch: query,
+    gsrnamespace: "6", // File:-Namespace
+    gsrlimit: String(limit),
+    prop: "imageinfo",
+    iiprop: "url|extmetadata",
+  });
+  return extractFirstAcceptableCandidate(pages);
+}
+
+/** Direkter Lookup einer bekannten Commons-Datei nach Dateiname (kein
+ * Ranking/Volltextsuche) — für Fälle, in denen der Dateiname bereits aus
+ * einer anderen strukturierten Quelle bekannt ist (z. B. Wikidatas
+ * P18-Bildeigenschaft, siehe wikidataImage.ts), statt zu raten, ob die
+ * Volltextsuche dieselbe Datei hoch genug rankt. */
+export async function getCommonsFileInfoByTitle(filename: string): Promise<CommonsImageCandidate | null> {
+  const title = filename.startsWith("File:") || filename.startsWith("Datei:") ? filename : `File:${filename}`;
+  const pages = await fetchCommonsQuery({
+    action: "query",
+    titles: title,
+    prop: "imageinfo",
+    iiprop: "url|extmetadata",
+  });
+  return extractFirstAcceptableCandidate(pages);
 }

@@ -64,6 +64,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { searchCommonsImage } from "../_shared/wikimediaCommons.ts";
+import { searchWikidataImage } from "../_shared/wikidataImage.ts";
 import { fetchWikipediaPortrait } from "../_shared/wikipediaPortrait.ts";
 import { detectEventCoverImage } from "../_shared/coverImageDetection.ts";
 import { extractImageNearName } from "../_shared/imageNearName.ts";
@@ -321,6 +322,56 @@ async function isUrlUsedElsewhere(
   return false;
 }
 
+/** Letzter, kostenloser Fallback für ALLE Entity-Kinds — auch für Personen,
+ * nach einem erfolglosen Wikipedia-Versuch: Wikidata-Suche + P18-
+ * Bildeigenschaft, aufgelöst über denselben Commons-Lizenzcheck wie die
+ * reguläre Volltextsuche (siehe wikidataImage.ts/wikimediaCommons.ts).
+ * Manche Entitäten haben keinen (Wikipedia-)Artikel mit Infobox-Bild, aber
+ * ein eigenständiges Wikidata-Item mit strukturiert verknüpftem Bild — oder
+ * die Commons-Volltextsuche rankt die richtige Datei nicht hoch genug.
+ *
+ * Rückgabe statt reinem Boolean, weil drei Fälle unterscheidbar sein
+ * müssen: "queued" (Aufrufer zählt queuedForReview++ und macht `continue`),
+ * "error" (Insert fehlgeschlagen, schon in `errors` erfasst — Aufrufer
+ * macht `continue`, OHNE die generische "nichts gefunden"-Notiz zu
+ * überschreiben, denn es WURDE etwas gefunden) und "not_found" (Aufrufer
+ * setzt wie bisher seine eigene Notiz). */
+async function tryWikidataFallback(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  kind: EntityKind,
+  id: string,
+  name: string,
+  errors: string[],
+): Promise<"queued" | "error" | "not_found"> {
+  const candidate = await searchWikidataImage(name, kind.queryContext);
+  if (!candidate) return "not_found";
+
+  const { reachable } = await checkImageUrl(candidate.url);
+  if (!reachable) return "not_found";
+  if (await isUrlUsedElsewhere(supabase, candidate.url, kind.table, id)) return "not_found";
+
+  const { error: insertError } = await supabase.from("images").insert({
+    source_url: candidate.url,
+    origin_type: kind.originType,
+    origin_id: id,
+    photographer: candidate.artist,
+    license_notes: `Wikidata → Wikimedia Commons: ${candidate.license}` +
+      (candidate.attributionRequired ? " (Namensnennung erforderlich)" : "") +
+      ` — ${candidate.pageUrl}`,
+  });
+  if (insertError) {
+    errors.push(`${kind.table} "${name}": Insert fehlgeschlagen — ${insertError.message}`);
+    return "error";
+  }
+
+  await supabase
+    .from(kind.table)
+    .update({ last_image_search_note: "Wikidata-Kandidat gefunden, wartet auf Lizenzprüfung (/media)." })
+    .eq("id", id);
+  return "queued";
+}
+
 async function enrichEntityKind(
   // deno-lint-ignore no-explicit-any
   supabase: any,
@@ -465,6 +516,11 @@ async function enrichEntityKind(
       if (kind.useWikipediaFallback) {
         const portrait = await fetchWikipediaPortrait(name);
         if (!portrait) {
+          // Kein (brauchbarer) Wikipedia-Artikel — Wikidata (P18) als
+          // letzter kostenloser Fallback, bevor endgültig aufgegeben wird.
+          const wikidataOutcome = await tryWikidataFallback(supabase, kind, id, name, errors);
+          if (wikidataOutcome === "queued") queuedForReview++;
+          if (wikidataOutcome !== "not_found") continue;
           await setNote(id, "Kein eindeutiger Wikipedia-Artikel mit Porträtbild gefunden.");
           continue;
         }
@@ -497,6 +553,12 @@ async function enrichEntityKind(
       const query = kind.queryContext ? `${name} ${kind.queryContext}` : name;
       const candidate = await searchCommonsImage(query);
       if (!candidate) {
+        // Volltextsuche hat nichts Brauchbares gerankt — Wikidata (P18) hat
+        // ggf. dieselbe Datei strukturiert verlinkt, ohne dass ein Ranking
+        // nötig wäre.
+        const wikidataOutcome = await tryWikidataFallback(supabase, kind, id, name, errors);
+        if (wikidataOutcome === "queued") queuedForReview++;
+        if (wikidataOutcome !== "not_found") continue;
         await setNote(id, "Keine passende Wikimedia-Commons-Datei gefunden.");
         continue;
       }
