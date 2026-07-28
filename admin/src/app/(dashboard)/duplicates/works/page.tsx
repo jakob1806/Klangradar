@@ -66,23 +66,36 @@ export default async function WorkDuplicatesPage() {
                   </span>
                 </div>
                 <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <WorkCard label="Bereits vorhanden" work={candidate.work_a} />
-                  <WorkCard label="Neu angelegt" work={candidate.work_b} />
+                  <WorkCard
+                    label="Bereits vorhanden"
+                    work={candidate.work_a}
+                    keepAction={
+                      candidate.work_a && candidate.work_b
+                        ? resolveWorkDuplicateAsMerged.bind(null, candidate.id, candidate.work_a.id)
+                        : undefined
+                    }
+                  />
+                  <WorkCard
+                    label="Neu angelegt"
+                    work={candidate.work_b}
+                    keepAction={
+                      candidate.work_a && candidate.work_b
+                        ? resolveWorkDuplicateAsMerged.bind(null, candidate.id, candidate.work_b.id)
+                        : undefined
+                    }
+                  />
                 </div>
-                <div className="mt-4 flex items-center justify-end gap-4">
+                <p className="mt-2 text-xs text-neutral-400">
+                  „Diese Version behalten“ löscht das jeweils andere Werk, alle Verlinkungen (Events, Programme,
+                  Provenienz) wandern auf die behaltene Version.
+                </p>
+                <div className="mt-3 flex items-center justify-end gap-4">
                   <ConfirmButton
                     action={resolveWorkDuplicateAsDistinct.bind(null, candidate.id)}
                     confirmMessage="Diese beiden Werke als unterschiedlich markieren? Beide bleiben erhalten."
                     label="Als unterschiedlich markieren"
                     pendingLabel="Speichere…"
                     className="text-sm font-medium text-neutral-600 hover:text-neutral-900 disabled:opacity-50"
-                  />
-                  <ConfirmButton
-                    action={resolveWorkDuplicateAsMerged.bind(null, candidate.id)}
-                    confirmMessage="Zusammenführen? Das neu angelegte Werk wird gelöscht, alle Verlinkungen (Events, Programme, Provenienz) wandern auf das bereits vorhandene Werk."
-                    label="Zusammenführen"
-                    pendingLabel="Führe zusammen…"
-                    className="text-sm font-medium text-red-600 hover:text-red-800 disabled:opacity-50"
                   />
                 </div>
               </div>
@@ -98,7 +111,15 @@ export default async function WorkDuplicatesPage() {
   );
 }
 
-function WorkCard({ label, work }: { label: string; work: CandidateWork | null }) {
+function WorkCard({
+  label,
+  work,
+  keepAction,
+}: {
+  label: string;
+  work: CandidateWork | null;
+  keepAction?: () => Promise<void>;
+}) {
   if (!work) {
     return (
       <div className="rounded-md border border-neutral-100 bg-neutral-50 p-3 text-sm text-neutral-400">
@@ -108,7 +129,7 @@ function WorkCard({ label, work }: { label: string; work: CandidateWork | null }
   }
 
   return (
-    <div className="rounded-md border border-neutral-100 bg-neutral-50 p-3">
+    <div className="flex flex-col rounded-md border border-neutral-100 bg-neutral-50 p-3">
       <p className="text-xs font-medium uppercase tracking-wide text-neutral-400">{label}</p>
       <p className="mt-1 text-sm font-medium text-neutral-900">{work.title}</p>
       <p className="mt-0.5 text-xs text-neutral-500">
@@ -116,6 +137,15 @@ function WorkCard({ label, work }: { label: string; work: CandidateWork | null }
         {work.catalog_number ? ` · ${work.catalog_number}` : ""}
         {work.key_signature ? ` · ${work.key_signature}` : ""}
       </p>
+      {keepAction && (
+        <ConfirmButton
+          action={keepAction}
+          confirmMessage={`„${work.title}“ behalten? Das jeweils andere Werk wird gelöscht.`}
+          label="Diese Version behalten"
+          pendingLabel="Führe zusammen…"
+          className="mt-2 self-start text-xs font-medium text-red-600 hover:text-red-800 disabled:opacity-50"
+        />
+      )}
     </div>
   );
 }
