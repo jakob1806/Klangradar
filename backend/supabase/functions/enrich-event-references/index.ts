@@ -662,7 +662,18 @@ Deno.serve(async (req) => {
           const { data: similarWorks } = await supabase.rpc("find_similar_works", { p_title: w.title.trim() });
           fuzzyMatch = (similarWorks ?? [])[0] ?? null;
         }
-        const fuzzyIsSameWork = fuzzyMatch != null && fuzzyMatch.similarity >= 0.6 &&
+        // composer_id-Konflikt (beide gesetzt, aber verschieden) ist ein
+        // GEGENBEWEIS, kein Unsicherheitsfall — "Symphonie Nr. 1" von
+        // Beethoven und "Symphonie Nr. 1" von Brahms sind per Definition
+        // unterschiedliche Werke, unabhängig von der Titel-Ähnlichkeit.
+        // Live beobachtet: ohne diese Prüfung flutete allein die generische
+        // Titel-Vokabular-Überschneidung ("Symphonie Nr. X", "Konzert für
+        // ... und Orchester") die Review-Queue mit Dutzenden eindeutig
+        // falschen Kandidaten.
+        const composerConflict = fuzzyMatch?.composer_id != null && composerId != null &&
+          fuzzyMatch.composer_id !== composerId;
+        const fuzzyIsSameWork = fuzzyMatch != null && !composerConflict &&
+          fuzzyMatch.similarity >= 0.6 &&
           (!fuzzyMatch.composer_id || !composerId || fuzzyMatch.composer_id === composerId);
 
         let workId: string;
@@ -701,9 +712,11 @@ Deno.serve(async (req) => {
           workId = createdWork.id;
 
           // Ähnlicher, aber nicht sicher genug für Auto-Match (siehe
-          // fuzzyIsSameWork oben) — zur redaktionellen Prüfung vormerken
-          // statt die Divergenz stillschweigend anwachsen zu lassen.
-          if (fuzzyMatch) {
+          // fuzzyIsSameWork oben) — zur redaktionellen Prüfung vormerken,
+          // AUSSER ein Komponisten-Konflikt beweist bereits, dass es
+          // unterschiedliche Werke sind (composerConflict oben) — das wäre
+          // reines Rauschen in der Review-Queue, kein Zweifelsfall.
+          if (fuzzyMatch && !composerConflict) {
             const { error: dupError } = await supabase.from("work_duplicate_candidates").insert({
               work_a_id: fuzzyMatch.id,
               work_b_id: workId,
