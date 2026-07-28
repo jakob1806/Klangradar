@@ -9,13 +9,16 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/calendar/ics_export.dart';
+import '../../../core/gallery/entity_gallery_providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/detail_card.dart';
 import '../../../core/widgets/detail_hero_background.dart';
+import '../../../core/widgets/entity_photo_gallery.dart';
 import '../../../core/widgets/event_section.dart';
 import '../../../core/widgets/favorite_button.dart';
 import '../../../core/widgets/genre_artwork.dart';
+import '../../../core/utils/share_position.dart';
 import '../../../core/widgets/source_hint.dart';
 import '../../home/application/home_providers.dart';
 
@@ -194,6 +197,12 @@ class EventDetailScreen extends ConsumerWidget {
           final photoUrl = (imageUrls != null && imageUrls.isNotEmpty)
               ? imageUrls.first as String?
               : null;
+          final gallery = ref.watch(
+            entityGalleryProvider((
+              originType: 'event',
+              originId: event['id'] as String,
+            )),
+          );
 
           return CustomScrollView(
             slivers: [
@@ -218,6 +227,7 @@ class EventDetailScreen extends ConsumerWidget {
                     onPressed: start == null
                         ? null
                         : () => IcsExport.shareEvent(
+                            context: context,
                             uid: event['id'],
                             title: event['title'] ?? '',
                             description: event['description_de'],
@@ -239,6 +249,7 @@ class EventDetailScreen extends ConsumerWidget {
                     onPressed: () => Share.share(
                       '${event['title']}${venue != null ? ' · ${venue['name']}' : ''}'
                       '${event['website_url'] != null ? '\n${event['website_url']}' : ''}',
+                      sharePositionOrigin: sharePositionOriginFor(context),
                     ),
                   ),
                   const SizedBox(width: 4),
@@ -247,10 +258,23 @@ class EventDetailScreen extends ConsumerWidget {
                   background: Stack(
                     fit: StackFit.expand,
                     children: [
-                      DetailHeroBackground(
-                        photoUrl: photoUrl,
-                        fallbackGenre: primaryGenre,
-                        showGradient: false,
+                      gallery.maybeWhen(
+                        data: (images) => images.isNotEmpty
+                            ? EntityPhotoGallery(
+                                images: images,
+                                fallbackGenre: primaryGenre,
+                                showGradient: false,
+                              )
+                            : DetailHeroBackground(
+                                photoUrl: photoUrl,
+                                fallbackGenre: primaryGenre,
+                                showGradient: false,
+                              ),
+                        orElse: () => DetailHeroBackground(
+                          photoUrl: photoUrl,
+                          fallbackGenre: primaryGenre,
+                          showGradient: false,
+                        ),
                       ),
                       Container(
                         decoration: const BoxDecoration(

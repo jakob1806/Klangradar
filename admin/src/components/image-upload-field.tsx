@@ -95,14 +95,27 @@ export function ImageUploadField({
           </div>
         )}
         <div className="flex flex-col gap-1">
+          {/* Natives <input type="file"> selbst versteckt und über einen
+           * echten, beschrifteten Button ausgelöst — die bisherige
+           * file:-Pseudoklassen-Styling-Variante blieb browserabhängig ein
+           * winziges, kaum sichtbares Element ohne erkennbare Beschriftung
+           * (Nutzerfeedback). */}
           <input
             ref={fileInputRef}
             type="file"
             accept={ACCEPTED_TYPES.join(",")}
             disabled={uploading}
             onChange={handleFileChange}
-            className="text-xs text-neutral-600 file:mr-2 file:rounded-md file:border file:border-neutral-300 file:bg-white file:px-2 file:py-1 file:text-xs file:font-medium file:text-neutral-700 hover:file:bg-neutral-50 disabled:opacity-50"
+            className="hidden"
           />
+          <button
+            type="button"
+            disabled={uploading}
+            onClick={() => fileInputRef.current?.click()}
+            className="self-start rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+          >
+            {url ? "Foto ersetzen" : "Foto auswählen"}
+          </button>
           {uploading && <span className="text-xs text-neutral-500">Lädt hoch…</span>}
           {error && <span className="text-xs text-red-600">{error}</span>}
           {url && !uploading && (

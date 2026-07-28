@@ -70,6 +70,7 @@ class _CalendarSyncSheetState extends ConsumerState<CalendarSyncSheet> {
     setState(() => _busy = true);
     try {
       await IcsExport.shareMultiple(
+        context: context,
         events: [
           for (final e in events)
             IcsEventInput(

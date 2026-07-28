@@ -1,7 +1,10 @@
 import 'dart:io';
 
+import 'package:flutter/widgets.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+
+import '../utils/share_position.dart';
 
 class IcsEventInput {
   const IcsEventInput({
@@ -34,6 +37,7 @@ class IcsExport {
   const IcsExport._();
 
   static Future<void> shareEvent({
+    required BuildContext context,
     required String uid,
     required String title,
     required DateTime start,
@@ -46,6 +50,8 @@ class IcsExport {
     final effectiveEnd =
         end ?? start.add(Duration(minutes: durationMinutes ?? 120));
     await shareMultiple(
+      // ignore: use_build_context_synchronously
+      context: context,
       events: [
         IcsEventInput(
           uid: uid,
@@ -63,6 +69,7 @@ class IcsExport {
   }
 
   static Future<void> shareMultiple({
+    required BuildContext context,
     required List<IcsEventInput> events,
     required String fileName,
     String? subject,
@@ -72,9 +79,12 @@ class IcsExport {
     final file = File('${dir.path}/$fileName');
     await file.writeAsString(ics);
 
-    await Share.shareXFiles([
-      XFile(file.path, mimeType: 'text/calendar'),
-    ], subject: subject);
+    if (!context.mounted) return;
+    await Share.shareXFiles(
+      [XFile(file.path, mimeType: 'text/calendar')],
+      subject: subject,
+      sharePositionOrigin: sharePositionOriginFor(context),
+    );
   }
 
   static String _buildIcs(List<IcsEventInput> events) {
