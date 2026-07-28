@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { DeleteButton } from "@/components/delete-button";
+import { GalleryEditor } from "@/components/entity-gallery/gallery-editor";
+import type { GalleryImage } from "@/lib/gallery-actions";
 import { deleteEnsemble, updateEnsemble } from "../actions";
 import { EnsembleForm, type EnsembleFormValues } from "../ensemble-form";
 
@@ -12,7 +14,7 @@ export default async function EditEnsemblePage({
   const { id } = await params;
   const supabase = await createClient();
 
-  const [{ data, error }, { data: venues }] = await Promise.all([
+  const [{ data, error }, { data: venues }, { data: images }] = await Promise.all([
     supabase
       .from("ensembles")
       .select(
@@ -21,6 +23,15 @@ export default async function EditEnsemblePage({
       .eq("id", id)
       .maybeSingle<EnsembleFormValues>(),
     supabase.from("venues").select("id, name").order("name"),
+    // Nur freigegebene Bilder — siehe Kommentar in persons/[id]/page.tsx.
+    supabase
+      .from("images")
+      .select("id, source_url, sort_order, crop_x, crop_y, crop_width, crop_height")
+      .eq("origin_type", "ensemble")
+      .eq("origin_id", id)
+      .in("license_status", ["confirmed_free", "confirmed_licensed"])
+      .order("sort_order", { ascending: true })
+      .returns<GalleryImage[]>(),
   ]);
 
   if (error || !data) notFound();
@@ -36,6 +47,9 @@ export default async function EditEnsemblePage({
       </div>
       <div className="mt-6">
         <EnsembleForm action={updateEnsemble.bind(null, id)} initial={data} venues={venues ?? []} />
+      </div>
+      <div className="mt-8 max-w-xl border-t border-neutral-200 pt-6">
+        <GalleryEditor originType="ensemble" originId={id} path={`/ensembles/${id}`} images={images ?? []} />
       </div>
     </div>
   );
