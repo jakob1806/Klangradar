@@ -42,42 +42,72 @@ function foldUmlauts(s: string): string {
     .join("");
 }
 
-function surnameKey(fullName: string): string {
-  const tokens = fullName.trim().split(/\s+/);
-  return foldUmlauts(tokens[tokens.length - 1] ?? "");
+/** Alle "bedeutsamen" Tokens (≥3 Zeichen, damit Initialen/Partikel wie "von"
+ * nicht selbst als Anker taugen) eines Namens, umlautgefaltet — dient als
+ * Gruppierungsschlüssel. Bewusst NICHT mehr nur das letzte Token: bei
+ * mehrteiligen Nachnamen ("Felix Mendelssohn Bartholdy") ist "Bartholdy"
+ * das letzte Token, aber die Kurzform "F. Mendelssohn" endet auf
+ * "Mendelssohn" — beide landeten dadurch nie in derselben Gruppe und
+ * wurden nie verglichen (live beobachteter Fall: "F. Mendelssohn" blieb
+ * neben "Felix Mendelssohn Bartholdy" als eigener Eintrag stehen). */
+// Adels-/Herkunfts-Partikel sind oft ≥3 Zeichen lang, taugen aber nicht als
+// Anker — sonst matcht "Friedrich von Thun" fälschlich gegen "Friedrich von
+// Flotow" (live beobachtet), weil beide "von" + denselben Vornamen teilen.
+const NAME_PARTICLES = new Set([
+  "von", "van", "der", "den", "des", "de", "di", "da", "do", "dos",
+  "le", "la", "les", "el", "al", "bin", "ibn", "y", "und",
+]);
+
+function significantTokens(fullName: string): string[] {
+  return fullName
+    .trim()
+    .split(/\s+/)
+    .map((t) => foldUmlauts(t.replace(/\./g, "")))
+    .filter((t) => t.length >= 3 && !NAME_PARTICLES.has(t));
 }
 
-/** true, wenn `shortName`s Vornamen-Initialen der Reihe nach zu den
- * Vornamen-Anfangsbuchstaben von `longName` passen UND beide denselben
- * Nachnamen haben — z.B. "J.S. Bach" vs "Johann Sebastian Bach". Erkennt
- * sowohl mit Leerzeichen getrennte Initialen ("J. S. Bach") als auch
- * zusammengeschriebene ("J.S. Bach", EIN Token mit zwei Punkten). Erkennt
- * NICHT umgekehrt "Johann Bach" vs "J.S. Bach" (fehlende Initiale im
- * längeren Namen) — im Zweifel lieber kein Heuristik-Treffer als ein
- * falscher. */
-function isAbbreviationOf(shortName: string, longName: string): boolean {
-  const shortTokens = shortName.trim().split(/\s+/);
-  const longTokens = longName.trim().split(/\s+/);
-  if (shortTokens.length < 2 || longTokens.length < 2) return false;
-  if (foldUmlauts(shortTokens[shortTokens.length - 1]) !== foldUmlauts(longTokens[longTokens.length - 1])) {
-    return false;
-  }
+/** Prüft, ob die Vornamens-Tokens vor dem gemeinsamen Anker-Token
+ * zueinander passen — entweder als Initialen-Abkürzung ("J.S." vs "Johann
+ * Sebastian") oder als exakte Übereinstimmung der ausgeschriebenen Vornamen. */
+function givenNamesMatch(shortGiven: string[], longGiven: string[]): boolean {
+  if (shortGiven.length === 0 || shortGiven.length > longGiven.length) return false;
 
-  const shortGiven = shortTokens.slice(0, -1);
-  const longGiven = longTokens.slice(0, -1);
-
-  // Jedes Vornamens-Token in Fragmente zerlegen (an Punkten getrennt) —
-  // "J.S." wird so zu ["J","S"], "Johann" bleibt ein Fragment ["Johann"].
-  // Sind ALLE Fragmente genau ein Zeichen lang, ist der Name durchgehend
-  // abgekürzt und die Fragmente sind die Initialen-Liste; taucht irgendwo
-  // ein längeres Fragment auf, ist das kein reiner Abkürzungsfall mehr.
   const fragments = shortGiven.flatMap((t) => t.split(".").filter(Boolean));
   if (fragments.length === 0) return false;
-  if (fragments.some((f) => f.length > 1)) return false;
-  const shortInitials = fragments.map((f) => foldUmlauts(f));
-  if (shortInitials.length > longGiven.length) return false;
 
-  return shortInitials.every((initial, i) => foldUmlauts(longGiven[i]).charAt(0) === initial);
+  if (fragments.every((f) => f.length === 1)) {
+    const shortInitials = fragments.map((f) => foldUmlauts(f));
+    if (shortInitials.length > longGiven.length) return false;
+    return shortInitials.every((initial, i) => foldUmlauts(longGiven[i]).charAt(0) === initial);
+  }
+
+  // Kein reiner Initialen-Fall — nur als Treffer werten, wenn die
+  // ausgeschriebenen Vornamen selbst übereinstimmen (z.B. "Felix
+  // Mendelssohn" vs "Felix Mendelssohn Bartholdy", wo der Nachnamens-Zusatz
+  // in der Kurzform schlicht fehlt statt abgekürzt zu sein).
+  return (
+    shortGiven.length === fragments.length &&
+    fragments.every((f, i) => foldUmlauts(f) === foldUmlauts(longGiven[i]))
+  );
+}
+
+/** true, wenn `shortName` eine abgekürzte/verkürzte Form von `longName`
+ * ist — beide teilen ein bedeutsames Namens-Token (der Anker, meist der
+ * Nachname oder ein Teil eines mehrteiligen Nachnamens), und die Tokens
+ * VOR diesem Anker in `shortName` passen als Initialen oder exakte
+ * Vornamen zu denen in `longName`. Ein evtl. NACH dem Anker folgender
+ * Rest in `longName` (z.B. "Bartholdy") muss in `shortName` nicht
+ * vorkommen — genau der Fall, den die alte nur-letztes-Token-Logik nicht
+ * abdeckte. */
+function isAbbreviationOf(shortName: string, longName: string, anchor: string): boolean {
+  const shortTokens = shortName.trim().split(/\s+/);
+  const longTokens = longName.trim().split(/\s+/);
+
+  const shortAnchorIdx = shortTokens.findIndex((t) => foldUmlauts(t.replace(/\./g, "")) === anchor);
+  const longAnchorIdx = longTokens.findIndex((t) => foldUmlauts(t.replace(/\./g, "")) === anchor);
+  if (shortAnchorIdx <= 0 || longAnchorIdx <= 0) return false; // Anker muss existieren und Vornamen davor haben
+
+  return givenNamesMatch(shortTokens.slice(0, shortAnchorIdx), longTokens.slice(0, longAnchorIdx));
 }
 
 const MERGE_CHECK_FUNCTION: AiFunctionDeclaration = {
@@ -145,21 +175,31 @@ Deno.serve(async (req) => {
     return jsonResponse({ processed: 0, merged: 0, message: "Nicht genug Personen für einen Vergleich." });
   }
 
+  // Gruppierung über JEDES bedeutsame Token statt nur des letzten — eine
+  // Person kann so über mehrere Anker-Gruppen (z.B. "mendelssohn" UND
+  // "bartholdy") mit anderen verglichen werden.
   const groups = new Map<string, PersonRow[]>();
   for (const p of persons) {
-    const key = surnameKey(p.full_name);
-    if (!key) continue;
-    (groups.get(key) ?? groups.set(key, []).get(key)!).push(p);
+    for (const token of significantTokens(p.full_name)) {
+      (groups.get(token) ?? groups.set(token, []).get(token)!).push(p);
+    }
   }
 
+  const seenPairs = new Set<string>();
   const candidatePairs: Array<{ shorter: PersonRow; longer: PersonRow }> = [];
-  for (const group of groups.values()) {
+  for (const [anchor, group] of groups.entries()) {
     if (group.length < 2) continue;
     for (let i = 0; i < group.length; i++) {
       for (let j = 0; j < group.length; j++) {
         if (i === j) continue;
-        if (isAbbreviationOf(group[i].full_name, group[j].full_name)) {
-          candidatePairs.push({ shorter: group[i], longer: group[j] });
+        const a = group[i];
+        const b = group[j];
+        if (a.id === b.id) continue;
+        if (isAbbreviationOf(a.full_name, b.full_name, anchor)) {
+          const pairKey = [a.id, b.id].sort().join(":");
+          if (seenPairs.has(pairKey)) continue;
+          seenPairs.add(pairKey);
+          candidatePairs.push({ shorter: a, longer: b });
         }
       }
     }
@@ -191,7 +231,19 @@ Deno.serve(async (req) => {
         MERGE_CHECK_FUNCTION,
       );
       const args = response?.args;
-      if (!args || args.samePerson !== true) continue;
+      if (!args || args.samePerson !== true) {
+        // Heuristik hat angeschlagen, aber die KI ist sich nicht sicher
+        // genug für einen automatischen Merge (z.B. "F. Mendelssohn" könnte
+        // Felix ODER Fanny Mendelssohn sein, beide real existierende
+        // Komponist:innen) — landet zur manuellen Entscheidung in der
+        // Review-Queue statt stillschweigend zu verschwinden.
+        await supabase
+          .from("person_duplicate_candidates")
+          .insert({ person_a_id: shorter.id, person_b_id: longer.id })
+          .select("id")
+          .maybeSingle(); // best effort — Unique-Konflikt (schon vorgemerkt) ist kein Fehlerfall
+        continue;
+      }
 
       // Kanonisch ist immer die ausgeschriebene ("longer") Form — die
       // Heuristik stellt bereits sicher, dass "shorter" eine reine

@@ -44,6 +44,10 @@ export default async function DuplicatesPage() {
         Kandidaten aus dem Fuzzy-Matching der Ingestion-Pipeline bestätigen oder verwerfen.
       </p>
       <p className="mt-2 text-sm">
+        <Link href="/duplicates/persons" className="text-neutral-500 underline hover:text-neutral-900">
+          Personen-Duplikate
+        </Link>{" "}
+        ·{" "}
         <Link href="/duplicates/works" className="text-neutral-500 underline hover:text-neutral-900">
           Werk-Duplikate →
         </Link>
