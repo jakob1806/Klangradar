@@ -14,6 +14,13 @@ on:
     paths: ["backend/supabase/functions/**", ".github/workflows/deploy-edge-functions.yml"]
   workflow_dispatch:
 
+# Siehe deploy-migrations.yml für die Begründung — hier sogar wichtiger:
+# ohne das könnte ein spät freigegebener alter Run einen bereits
+# deployten neueren Funktionsstand stillschweigend wieder zurückrollen.
+concurrency:
+  group: deploy-edge-functions-production
+  cancel-in-progress: true
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
