@@ -62,7 +62,12 @@ export async function enrichCandidateContext(
   name: string,
 ): Promise<EntityEnrichment | null> {
   const kind = entityType === "person" ? "Musiker" : "Ensemble";
-  const links = await searchDuckDuckGo(`${name} ${kind} klassische Musik`, 3);
+  // "München" im Suchbegriff — ohne das traf ein generischer Name wie
+  // "Markus-Chor" live einen gleichnamigen, aber komplett anderen Chor in
+  // Hannover (KI übernahm dessen Website/Leitung/Residenz unkritisch, weil
+  // die Suchtreffer selbst schon falsch waren, bevor die LLM-Einordnung
+  // überhaupt ansetzt).
+  const links = await searchDuckDuckGo(`${name} ${kind} München klassische Musik`, 3);
   if (!links || links.length === 0) return null;
 
   const pages = await Promise.all(links.map((l) => fetchPageText(l.url)));
@@ -73,7 +78,12 @@ export async function enrichCandidateContext(
   if (!searchText) return null;
   const response = await callAiFunction(
     "Du ordnest Websuche-Treffer zu einem möglichen klassischen Musiker/Ensemble ein. " +
-      "Sei konservativ: bei Unklarheit oder Namensvettern lieber confident=false und leere Felder.",
+      "Sei konservativ: bei Unklarheit oder Namensvettern lieber confident=false und leere Felder. " +
+      "WICHTIG: Der Name stammt aus einer Münchner Konzert-Datenbank — bei generischen Namen " +
+      "(z. B. Chor-/Ensemblenamen wie 'Markus-Chor', die es in mehreren Städten geben kann) NUR " +
+      "confident=true, wenn die Treffer erkennbar München/Bayern zuordnen. Verweisen Treffer klar " +
+      "auf eine andere Stadt (z. B. ein gleichnamiger Chor in Hannover), ist das ein anderer " +
+      "Namensvetter — confident=false.",
     `Gesuchter Name: "${name}"\n\nTreffer:\n${searchText}`,
     SUMMARIZE_ARTIST_FUNCTION,
   );

@@ -101,6 +101,28 @@ export type WriteOutcome =
   | { outcome: "flagged"; eventId: string }
   | { outcome: "error"; error: string };
 
+const HTML_ENTITIES: Record<string, string> = {
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  nbsp: " ",
+  hellip: "…",
+  mdash: "—",
+  ndash: "–",
+};
+
+/** Deno hat keine eingebaute HTML-Entity-Dekodierung außerhalb eines
+ * DOM-Parsers — für JSON-Quellen (kein DOM im Spiel) reicht das kleine,
+ * in klassischen Konzerttiteln vorkommende Set (siehe Aufrufer-Kommentar). */
+function decodeHtmlEntities(text: string): string {
+  return text
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(parseInt(dec, 10)))
+    .replace(/&([a-z]+);/gi, (match, name) => HTML_ENTITIES[name.toLowerCase()] ?? match);
+}
+
 /** Siehe Kommentar bei upsertRawEvent — stellt dem Titel den Ensemble-Namen
  * voran, wenn er nicht schon selbst darin vorkommt. Best-effort: schlägt
  * das Nachladen des Ensemble-Namens fehl, bleibt der Titel unangetastet
@@ -150,9 +172,21 @@ export async function upsertRawEvent(
   // deno-lint-ignore no-explicit-any
   supabase: any,
   source: SourceRow,
-  rawIn: RawEvent,
+  rawInRaw: RawEvent,
 ): Promise<WriteOutcome> {
   try {
+    // JSON-basierte Quellen (brso.ts, bayerncloud.ts) liefern Titel/
+    // Beschreibung manchmal HTML-entity-kodiert statt Klartext (live
+    // beobachtet: "Daniel Harding &amp; Seong-Jin Cho" statt "&") — anders
+    // als DOM-basierte Scrape-Quellen (scrape.ts), deren textContent das
+    // schon automatisch dekodiert. Zentral hier statt in jedem Parser
+    // einzeln, damit kein zukünftiger JSON-Parser dieselbe Lücke wiederholt.
+    const rawIn: RawEvent = {
+      ...rawInRaw,
+      title: decodeHtmlEntities(rawInRaw.title),
+      description: rawInRaw.description ? decodeHtmlEntities(rawInRaw.description) : rawInRaw.description,
+    };
+
     // Manche Quellen liefern als "Titel" nur eine Komponisten-Liste (z.B.
     // mphil.de's ".m-mphil-concertlist__headline" — "Ravel Bernstein
     // Strawinsky" statt eines echten Konzerttitels). Auf der Marken-Website

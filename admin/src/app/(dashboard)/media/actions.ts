@@ -133,8 +133,16 @@ export async function enrichEntityImages(): Promise<EnrichImagesResult> {
         apikey: anonKey ?? "",
         Authorization: `Bearer ${anonKey ?? ""}`,
       },
-      body: JSON.stringify({}),
-      signal: AbortSignal.timeout(60_000),
+      // Ohne limit läuft die Function mit ihrem Default (8) über alle 4
+      // Entity-Kinds (venues/persons/ensembles/festivals) UND die Event-
+      // Cover-Suche nacheinander durch — jeder Eintrag mit eigenen externen
+      // Websuchen. Das dauert live regelmäßig länger als 60s (Nutzerfeedback:
+      // "The operation was aborted due to timeout"). limit:3 hält den
+      // manuellen Button-Klick verlässlich innerhalb des Zeitlimits; der
+      // automatische Cron läuft ohnehin weiter im Hintergrund mit eigenem
+      // Takt für den Rest.
+      body: JSON.stringify({ limit: 3 }),
+      signal: AbortSignal.timeout(90_000),
     });
   } catch (err) {
     return {

@@ -3,7 +3,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/widgets/genre_artwork.dart';
 
-const _homeEventColumns =
+// Öffentlich (nicht mehr privat) statt einer eigenen Kopie in
+// favorites_screen.dart — die hatte image_urls schlicht vergessen
+// (Nutzerfeedback: Favoriten-Miniaturansichten blieben ohne Bild, obwohl
+// das Event eins hat). Eine Quelle für die Spaltenliste statt zwei, die
+// auseinanderlaufen können.
+const homeEventColumns =
     'id, slug, title, subtitle, is_free, remaining_tickets_status, start_datetime, image_urls, venues(name), event_genres(genres(slug))';
 
 String _formatDateTime(DateTime d) {
@@ -183,14 +188,14 @@ final homeDataProvider = FutureProvider.autoDispose<HomeData>((ref) async {
   final results = await Future.wait<dynamic>([
     client
         .from('events')
-        .select(_homeEventColumns)
+        .select(homeEventColumns)
         .eq('status', 'scheduled')
         .gte('start_datetime', nowIso)
         .order('start_datetime', ascending: true)
         .limit(1),
     client
         .from('events')
-        .select(_homeEventColumns)
+        .select(homeEventColumns)
         .eq('status', 'scheduled')
         .gte('start_datetime', todayStart.toIso8601String())
         .lt('start_datetime', todayEnd.toIso8601String())
@@ -207,7 +212,7 @@ final homeDataProvider = FutureProvider.autoDispose<HomeData>((ref) async {
     client.rpc('discovery_events', params: {'p_result_limit': 10}),
     client
         .from('events')
-        .select(_homeEventColumns)
+        .select(homeEventColumns)
         .eq('status', 'scheduled')
         .eq('remaining_tickets_status', 'few_left')
         .gte('start_datetime', nowIso)
@@ -215,7 +220,7 @@ final homeDataProvider = FutureProvider.autoDispose<HomeData>((ref) async {
         .limit(10),
     client
         .from('events')
-        .select(_homeEventColumns)
+        .select(homeEventColumns)
         .eq('status', 'scheduled')
         .eq('is_free', true)
         .gte('start_datetime', nowIso)
