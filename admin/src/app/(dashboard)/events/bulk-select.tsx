@@ -13,7 +13,7 @@ import {
   useTransition,
   type ReactNode,
 } from "react";
-import { bulkPublishEvents } from "./actions";
+import { bulkPublishEvents, publishEvent } from "./actions";
 
 interface SelectionContextValue {
   selected: Set<string>;
@@ -69,6 +69,33 @@ export function RowCheckbox({ eventId }: { eventId: string }) {
       onChange={() => toggle(eventId)}
       aria-label="Auswählen"
     />
+  );
+}
+
+/** Ein-Klick-Veröffentlichen für genau einen Entwurf, ohne erst die
+ * Checkbox anzuhaken und die Bulk-Bar zu benutzen. Rein lokaler
+ * useTransition-Zustand pro Zeile (keine Auswahl-Interaktion mit
+ * BulkSelectionProvider nötig). */
+export function PublishRowButton({ eventId }: { eventId: string }) {
+  const [pending, startTransition] = useTransition();
+  const [failed, setFailed] = useState(false);
+
+  function publish() {
+    startTransition(async () => {
+      const result = await publishEvent(eventId);
+      setFailed(Boolean(result.error));
+    });
+  }
+
+  return (
+    <button
+      type="button"
+      disabled={pending}
+      onClick={publish}
+      className="text-sm font-medium text-emerald-700 hover:text-emerald-900 disabled:opacity-50"
+    >
+      {pending ? "Wird veröffentlicht…" : failed ? "Fehlgeschlagen — erneut?" : "Veröffentlichen"}
+    </button>
   );
 }
 

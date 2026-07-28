@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import {
   BulkActionBar,
   BulkSelectionProvider,
+  PublishRowButton,
   RowCheckbox,
   SelectAllCheckbox,
 } from "./bulk-select";
@@ -165,13 +166,16 @@ export default async function EventsPage({
                           {STATUS_LABEL[event.status] ?? event.status}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-right">
-                        <Link
-                          href={`/events/${event.id}`}
-                          className="text-sm font-medium text-neutral-700 hover:text-neutral-900"
-                        >
-                          Bearbeiten
-                        </Link>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-4">
+                          {event.status === "draft" && <PublishRowButton eventId={event.id} />}
+                          <Link
+                            href={`/events/${event.id}`}
+                            className="text-sm font-medium text-neutral-700 hover:text-neutral-900"
+                          >
+                            Bearbeiten
+                          </Link>
+                        </div>
                       </td>
                     </tr>
                   ))
