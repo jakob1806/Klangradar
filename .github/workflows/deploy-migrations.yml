@@ -15,6 +15,17 @@ on:
     paths: ["backend/supabase/migrations/**", ".github/workflows/deploy-migrations.yml"]
   workflow_dispatch:
 
+# Freigaben verzögern sich oft (manueller Klick in der Actions-UI) — bei
+# mehreren schnell aufeinanderfolgenden Merges kann ein älterer Run erst
+# NACH einem neueren freigegeben werden und dann fehlschlagen ("Remote
+# migration versions not found in local migrations directory", weil die
+# DB inzwischen weiter ist als der zu diesem alten Commit ausgecheckte
+# Stand). cancel-in-progress verwirft veraltete Runs komplett, statt sie
+# gegen einen überholten Checkout laufen zu lassen.
+concurrency:
+  group: deploy-migrations-production
+  cancel-in-progress: true
+
 jobs:
   migrate:
     runs-on: ubuntu-latest
