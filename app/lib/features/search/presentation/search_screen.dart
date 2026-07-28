@@ -12,6 +12,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/event_filter_sheet.dart';
 import '../../../core/widgets/genre_artwork.dart';
+import '../../../core/constants/role_labels.dart';
 import '../../home/application/home_providers.dart';
 import '../application/directory_providers.dart';
 
@@ -94,22 +95,6 @@ const _typeRoute = {
   'venue': '/venue',
 };
 
-const _ensembleTypeLabel = {
-  'chor': 'Chor',
-  'orchester': 'Orchester',
-  'kammerensemble': 'Kammerensemble',
-  'big_band': 'Big Band',
-  'sonstiges': 'Ensemble',
-};
-
-const _personRoleLabel = {
-  'komponist': 'Komponist:in',
-  'dirigent': 'Dirigent:in',
-  'solist': 'Solist:in',
-  'chorleiter': 'Chorleiter:in',
-  'moderator': 'Moderator:in',
-};
-
 /// Ausgewählter Tab im Verzeichnis-Browser ("Künstler"/"Ensembles"/"Orte"),
 /// sichtbar solange kein Suchtext eingegeben ist. Nutzt dieselben
 /// Typ-Schlüssel wie _typeIcon/_typeRoute ('person'/'ensemble'/'venue').
@@ -182,6 +167,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                       controller: _controller,
                       onChanged: _onChanged,
                       decoration: InputDecoration(
+                        // isDense: sonst reserviert das InputDecorator
+                        // intern mehr Höhe als der umgebende Container
+                        // vorgibt (Standardverhalten für Label-Platz, auch
+                        // ganz ohne labelText) — der Text stand dadurch
+                        // nicht vertikal zentriert (Nutzerfeedback).
+                        isDense: true,
                         border: InputBorder.none,
                         icon: Icon(
                           Icons.search_rounded,
@@ -584,13 +575,13 @@ class _DirectoryList extends StatelessWidget {
     switch (type) {
       case 'ensemble':
         final t = r['type'] as String?;
-        return t == null ? null : (_ensembleTypeLabel[t] ?? t);
+        return t == null ? null : (ensembleTypeLabel[t] ?? t);
       case 'venue':
         return r['address_city'] as String?;
       default:
         final roles = (r['roles'] as List?)?.cast<String>() ?? [];
         if (roles.isEmpty) return null;
-        return roles.map((role) => _personRoleLabel[role] ?? role).join(' · ');
+        return roles.map((role) => personRoleLabel[role] ?? role).join(' · ');
     }
   }
 
