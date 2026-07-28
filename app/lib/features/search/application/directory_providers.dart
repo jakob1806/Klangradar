@@ -13,7 +13,7 @@ final allPersonsProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
       final rows = await Supabase.instance.client
           .from('persons')
-          .select('id, slug, full_name, roles')
+          .select('id, slug, full_name, roles, photo_url')
           .order('full_name');
       return (rows as List).cast<Map<String, dynamic>>();
     });
