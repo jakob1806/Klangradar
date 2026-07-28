@@ -186,13 +186,19 @@ export async function approveEntityCandidate(candidateId: string) {
 // aus find_matching_person/find_matching_ensemble, siehe
 // 20260722000002_find_matching_person_ensemble.sql): verlinkt den Kandidaten
 // mit der BEREITS VORHANDENEN Person/dem Ensemble statt einen neuen
-// Stammdaten-Eintrag anzulegen. Legt bewusst NICHTS in persons/ensembles an.
+// Stammdaten-Eintrag anzulegen. Legt bewusst NICHTS in persons/ensembles an
+// — der Hauptname der vorhandenen Zeile bleibt unverändert (Nutzeranfrage:
+// "im Zweifel soll beim Zusammenführen der Hauptname nicht geändert werden,
+// sondern das einfach nur als alternative Schreibweise hinzugefügt
+// werden"); der Kandidatenname landet stattdessen als Alias in
+// entity_aliases (20260907000001_field_provenance_and_aliases.sql), damit
+// er z. B. bei der Suche weiter auffindbar bleibt.
 export async function mergeEntityCandidate(candidateId: string, matchedEntityId: string) {
   const supabase = await createClient();
 
   const { data: candidate, error: fetchError } = await supabase
     .from("entity_candidates")
-    .select("entity_type")
+    .select("entity_type, name")
     .eq("id", candidateId)
     .maybeSingle();
   if (fetchError || !candidate) {
@@ -209,14 +215,58 @@ export async function mergeEntityCandidate(candidateId: string, matchedEntityId:
     .eq("id", candidateId);
   if (updateError) throw new Error(updateError.message);
 
+  await supabase
+    .from("entity_aliases")
+    .insert({ entity_type: candidate.entity_type, entity_id: matchedEntityId, alias: candidate.name })
+    .select("id")
+    .maybeSingle(); // best effort — unique-Constraint-Konflikt (Alias existiert schon) ist kein Fehlerfall
+
   const { data: { user } } = await supabase.auth.getUser();
   await logSystemAction(supabase, {
     entityType: "entity_candidate",
     entityId: candidateId,
     action: "merged",
     actor: user?.email ?? user?.id ?? "unknown",
-    after: { [createdIdColumn]: matchedEntityId },
+    after: { [createdIdColumn]: matchedEntityId, alias_added: candidate.name },
   });
+
+  revalidatePath("/entity-candidates");
+}
+
+/** Mehrfachauswahl-Variante von approveEntityCandidate — für die
+ * "hohe Konfidenz"-Kategorie (Score > 60%), die auf einen Schlag komplett
+ * freigegeben werden kann, sowie für die manuelle Mehrfachauswahl der
+ * übrigen Kandidaten. Einzelne Fehlschläge (z. B. Slug-Kollision) brechen
+ * den restlichen Batch nicht ab. */
+export async function bulkApproveEntityCandidates(candidateIds: string[]) {
+  const errors: string[] = [];
+  for (const id of candidateIds) {
+    try {
+      await approveEntityCandidate(id);
+    } catch (err) {
+      errors.push(err instanceof Error ? err.message : String(err));
+    }
+  }
+  if (errors.length > 0) throw new Error(errors.join("; "));
+}
+
+export async function bulkRejectEntityCandidates(candidateIds: string[]) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("entity_candidates")
+    .update({ status: "rejected", reviewed_at: new Date().toISOString() })
+    .in("id", candidateIds);
+  if (error) throw new Error(error.message);
+
+  const { data: { user } } = await supabase.auth.getUser();
+  for (const id of candidateIds) {
+    await logSystemAction(supabase, {
+      entityType: "entity_candidate",
+      entityId: id,
+      action: "rejected",
+      actor: user?.email ?? user?.id ?? "unknown",
+    });
+  }
 
   revalidatePath("/entity-candidates");
 }

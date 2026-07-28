@@ -1,7 +1,6 @@
-import { ConfirmButton } from "@/components/confirm-button";
 import { createClient } from "@/lib/supabase/server";
-import { approveEntityCandidate, mergeEntityCandidate, rejectEntityCandidate } from "./actions";
 import { ResolveWithAiButton } from "./resolve-with-ai-button";
+import { CandidateList, type UiCandidate } from "./candidate-list";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +9,14 @@ const ENTITY_TYPE_LABEL: Record<string, string> = {
   ensemble: "Ensemble",
   organizer: "Institution",
 };
+
+const HIGH_CONFIDENCE_THRESHOLD = 60;
+
+// Vollständig aussehender Name: mindestens zwei durch Leerzeichen getrennte,
+// groß beginnende Wortteile (z. B. "Anna-Maria Schmidt", "Jean-Paul Fitoussi"),
+// keine Ziffern — grobe Heuristik gegen Institutions-/Ensemble-artige Namen
+// oder unvollständige Fragmente, kein Anspruch auf sprachliche Korrektheit.
+const LOOKS_LIKE_FULL_NAME = /^[A-ZÀ-Ý][\wÀ-ÿ'-]*(\s+[A-ZÀ-Ý][\wÀ-ÿ'-]*)+$/;
 
 interface CandidateRow {
   id: string;
@@ -26,8 +33,38 @@ interface CandidateRow {
   } | null;
 }
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" });
+// Grober Konfidenz-Score dafür, wie sicher ein NEUER (kein Zusammenführen-)
+// Kandidat tatsächlich eine echte, in München relevante Person/ein echtes
+// Ensemble ist — Nutzeranfrage: "score einfügen, bei dem alle mit über 60%
+// in eine eigene Kategorie gesetzt werden, die man direkt sammelt
+// genehmigen kann". Es gibt keinen gespeicherten Score in der DB, daher
+// hier aus den bereits vorhandenen Anreicherungs-Signalen abgeleitet:
+// KI-Websuche (Tavily) hat eine Kurzbiografie bzw. eine offizielle Website
+// gefunden (starkes Signal: die Person/das Ensemble existiert nachweislich)
+// plus ob der Name wie ein vollständiger Name aussieht (schwaches Signal).
+function candidateScore(row: CandidateRow): number {
+  let score = 0;
+  if (row.discovery_context?.tavily?.bioSnippet) score += 40;
+  if (row.discovery_context?.tavily?.websiteUrl) score += 30;
+  if (LOOKS_LIKE_FULL_NAME.test(row.name.trim())) score += 30;
+  return score;
+}
+
+function toUiCandidate(row: CandidateRow): UiCandidate {
+  return {
+    id: row.id,
+    entityType: row.entity_type,
+    name: row.name,
+    suggestedEventTitle: row.suggested_event_title,
+    suggestedEventStart: row.suggested_event_start_datetime,
+    venueName: row.venue?.name ?? null,
+    sourceUrl: row.source_url,
+    createdAt: row.created_at,
+    bioSnippet: row.discovery_context?.tavily?.bioSnippet ?? null,
+    websiteUrl: row.discovery_context?.tavily?.websiteUrl ?? null,
+    possibleMatch: row.discovery_context?.possible_match ?? null,
+    score: candidateScore(row),
+  };
 }
 
 export default async function EntityCandidatesPage() {
@@ -74,95 +111,16 @@ export default async function EntityCandidatesPage() {
       {error && <p className="mt-6 text-sm text-amber-700">Konnte Kandidaten nicht laden: {error.message}</p>}
 
       {!error && (
-        <div className="mt-6 flex flex-col gap-3">
-          {data?.length ? (
-            data.map((candidate) => (
-              <div key={candidate.id} className="rounded-lg border border-neutral-200 bg-white p-4">
-                <div className="flex items-center justify-between gap-4">
-                  <span className="text-xs text-neutral-400">
-                    Gefunden {formatDate(candidate.created_at)} · {ENTITY_TYPE_LABEL[candidate.entity_type] ?? candidate.entity_type}
-                  </span>
-                </div>
-                <div className="mt-3 rounded-md border border-neutral-100 bg-neutral-50 p-3">
-                  <p className="text-sm font-medium text-neutral-900">{candidate.name}</p>
-                  {candidate.suggested_event_title && (
-                    <p className="mt-1 text-xs text-neutral-500">
-                      Anlass: {candidate.suggested_event_title}
-                      {candidate.venue?.name ? ` · ${candidate.venue.name}` : ""}
-                      {candidate.suggested_event_start_datetime
-                        ? ` · ${formatDate(candidate.suggested_event_start_datetime)}`
-                        : ""}
-                    </p>
-                  )}
-                  {candidate.source_url && (
-                    <a
-                      href={candidate.source_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-1 block truncate text-xs text-blue-600 hover:underline"
-                    >
-                      {candidate.source_url}
-                    </a>
-                  )}
-                  {candidate.discovery_context?.tavily?.bioSnippet && (
-                    <p className="mt-2 text-xs text-neutral-600">
-                      {candidate.discovery_context.tavily.bioSnippet}
-                    </p>
-                  )}
-                  {candidate.discovery_context?.tavily?.websiteUrl && (
-                    <a
-                      href={candidate.discovery_context.tavily.websiteUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-1 block truncate text-xs text-blue-600 hover:underline"
-                    >
-                      {candidate.discovery_context.tavily.websiteUrl}
-                    </a>
-                  )}
-                  {candidate.discovery_context?.possible_match && (
-                    <p className="mt-2 rounded bg-amber-50 px-2 py-1 text-xs text-amber-800">
-                      Möglicherweise identisch mit „{candidate.discovery_context.possible_match.name}“ (
-                      {Math.round(candidate.discovery_context.possible_match.similarity * 100)}% Ähnlichkeit) —
-                      bereits vorhanden.
-                    </p>
-                  )}
-                </div>
-                <div className="mt-4 flex items-center justify-end gap-4">
-                  <ConfirmButton
-                    action={rejectEntityCandidate.bind(null, candidate.id)}
-                    confirmMessage="Kandidat ablehnen? Es wird keine Person/kein Ensemble angelegt."
-                    label="Ablehnen"
-                    pendingLabel="Speichere…"
-                    className="text-sm font-medium text-neutral-600 hover:text-neutral-900 disabled:opacity-50"
-                  />
-                  {candidate.discovery_context?.possible_match && (
-                    <ConfirmButton
-                      action={mergeEntityCandidate.bind(
-                        null,
-                        candidate.id,
-                        candidate.discovery_context.possible_match.id,
-                      )}
-                      confirmMessage={`Mit „${candidate.discovery_context.possible_match.name}“ zusammenführen? Es wird KEIN neuer Stammdaten-Eintrag angelegt.`}
-                      label="Zusammenführen"
-                      pendingLabel="Speichere…"
-                      className="text-sm font-medium text-amber-700 hover:text-amber-900 disabled:opacity-50"
-                    />
-                  )}
-                  <ConfirmButton
-                    action={approveEntityCandidate.bind(null, candidate.id)}
-                    confirmMessage="Freigeben? Legt einen neuen (unverifizierten) Stammdaten-Eintrag an."
-                    label="Freigeben"
-                    pendingLabel="Speichere…"
-                    className="text-sm font-medium text-emerald-700 hover:text-emerald-900 disabled:opacity-50"
-                  />
-                </div>
-              </div>
-            ))
-          ) : (
-            <div className="rounded-lg border border-dashed border-neutral-300 bg-white px-4 py-10 text-center text-sm text-neutral-400">
-              Keine offenen Entity-Kandidaten.
-            </div>
-          )}
+        <div className="mt-6">
+          <CandidateList
+            mergeCandidates={(data ?? []).filter((c) => c.discovery_context?.possible_match).map(toUiCandidate)}
+            highConfidence={(data ?? [])
+              .filter((c) => !c.discovery_context?.possible_match && candidateScore(c) >= HIGH_CONFIDENCE_THRESHOLD)
+              .map(toUiCandidate)}
+            lowConfidence={(data ?? [])
+              .filter((c) => !c.discovery_context?.possible_match && candidateScore(c) < HIGH_CONFIDENCE_THRESHOLD)
+              .map(toUiCandidate)}
+          />
         </div>
       )}
     </div>

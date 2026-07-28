@@ -228,6 +228,18 @@ interface ExtractedReferences {
   language: string | null;
 }
 
+/** Erkennt Platzhalter-"Namen" aus Besetzungslisten, die keine echte Person/
+ * kein echtes Ensemble bezeichnen: "N.N." (nomen nescio, noch unbestimmt),
+ * einzelne Initialen ("J", "J."), "TBA"/"TBD"/"o. A."/"unbekannt". */
+function isPlaceholderName(name: string): boolean {
+  const trimmed = name.trim();
+  if (!trimmed) return true;
+  if (/^n\.?\s*n\.?$/i.test(trimmed)) return true;
+  if (/^[a-zà-ÿ]\.?$/i.test(trimmed)) return true;
+  if (/^(tba|tbd|t\.\s*b\.\s*a\.?|t\.\s*b\.\s*d\.?|o\.\s*a\.?|unbekannt|n\/a|k\.\s*a\.?)$/i.test(trimmed)) return true;
+  return false;
+}
+
 /** `pageText` ist der bereinigte Volltext der offiziellen Event-Seite
  * (siehe _shared/pageText.ts), falls verfügbar — deutlich reichhaltiger
  * als title+description_de allein (Opus/Werkverzeichnis, Einlasszeit,
@@ -410,6 +422,12 @@ Deno.serve(async (req) => {
       name: string,
       possibleMatch?: { id: string; name: string; similarity: number },
     ): Promise<string | null> {
+      // Platzhalter aus Besetzungslisten ("N.N." für noch unbestimmte
+      // Mitwirkende, einzelne Initialen, "TBA"/"TBD") sind keine echten
+      // Namen und sollen erst gar nicht als Kandidat landen — vorher
+      // musste die Redaktion jeden davon einzeln ablehnen.
+      if (isPlaceholderName(name)) return null;
+
       const { data: existingCandidate } = await supabase
         .from("entity_candidates")
         .select("id")
