@@ -87,7 +87,7 @@ final venueUpcomingEventsProvider = FutureProvider.autoDispose
           .eq('venue_id', venueId)
           .eq('status', 'scheduled')
           .gte('start_datetime', DateTime.now().toIso8601String())
-          .order('start_datetime')
+          .order('start_datetime', ascending: true)
           .limit(5);
       return (rows as List)
           .map((r) => VenueUpcomingEvent.fromRow(r as Map<String, dynamic>))

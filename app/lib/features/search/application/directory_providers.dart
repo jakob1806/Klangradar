@@ -7,6 +7,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 /// Die Tabellen sind klein (persons ~28, ensembles ~32, venues ~37 Zeilen),
 /// daher genügt ein vollständiger, alphabetisch sortierter Read ohne
 /// Pagination.
+///
+/// `ascending: true` ist hier Pflicht, nicht Kosmetik: anders als der
+/// JS-Supabase-Client (dort ist `ascending` standardmäßig `true`) defaultet
+/// `order()` im Dart-Client (`postgrest` Paket) auf `ascending: false` — ohne
+/// explizites `true` kam die Liste Z-A statt A-Z zurück.
 
 /// Alle Personen alphabetisch nach Name.
 final allPersonsProvider =
@@ -14,7 +19,7 @@ final allPersonsProvider =
       final rows = await Supabase.instance.client
           .from('persons')
           .select('id, slug, full_name, roles, photo_url')
-          .order('full_name');
+          .order('full_name', ascending: true);
       return (rows as List).cast<Map<String, dynamic>>();
     });
 
@@ -23,8 +28,8 @@ final allEnsemblesProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
       final rows = await Supabase.instance.client
           .from('ensembles')
-          .select('id, slug, name, type')
-          .order('name');
+          .select('id, slug, name, type, photo_url')
+          .order('name', ascending: true);
       return (rows as List).cast<Map<String, dynamic>>();
     });
 
@@ -34,6 +39,6 @@ final allVenuesProvider =
       final rows = await Supabase.instance.client
           .from('venues')
           .select('id, slug, name, address_city')
-          .order('name');
+          .order('name', ascending: true);
       return (rows as List).cast<Map<String, dynamic>>();
     });

@@ -16,7 +16,7 @@ final genreOptionsProvider = FutureProvider.autoDispose<List<InterestOption>>((
   final rows = await Supabase.instance.client
       .from('genres')
       .select('id, label_de')
-      .order('sort_order');
+      .order('sort_order', ascending: true);
   return (rows as List)
       .map(
         (r) => InterestOption(
@@ -33,7 +33,7 @@ final composerOptionsProvider =
           .from('persons')
           .select('id, full_name')
           .contains('roles', ['komponist'])
-          .order('full_name');
+          .order('full_name', ascending: true);
       return (rows as List)
           .map(
             (r) => InterestOption(
@@ -49,7 +49,7 @@ final ensembleOptionsProvider =
       final rows = await Supabase.instance.client
           .from('ensembles')
           .select('id, name')
-          .order('name');
+          .order('name', ascending: true);
       return (rows as List)
           .map(
             (r) => InterestOption(
@@ -66,7 +66,7 @@ final venueOptionsProvider = FutureProvider.autoDispose<List<InterestOption>>((
   final rows = await Supabase.instance.client
       .from('venues')
       .select('id, name')
-      .order('name');
+      .order('name', ascending: true);
   return (rows as List)
       .map(
         (r) =>

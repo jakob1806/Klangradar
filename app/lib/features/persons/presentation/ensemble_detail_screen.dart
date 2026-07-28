@@ -28,7 +28,7 @@ final _ensembleProvider = FutureProvider.family<Map<String, dynamic>?, String>((
       .from('event_participants')
       .select('events(id, slug, title, start_datetime, venues(name))')
       .eq('ensemble_id', ensemble['id'])
-      .order('events(start_datetime)');
+      .order('events(start_datetime)', ascending: true);
 
   final provenance = await client
       .from('field_provenance')

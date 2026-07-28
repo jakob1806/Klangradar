@@ -32,7 +32,7 @@ final _venueProvider = FutureProvider.family<Map<String, dynamic>?, String>((
       .select('id, slug, title, start_datetime')
       .eq('venue_id', venue['id'])
       .neq('status', 'draft')
-      .order('start_datetime');
+      .order('start_datetime', ascending: true);
 
   final latLng = await client
       .rpc('venue_with_latlng', params: {'p_id': venue['id']})
