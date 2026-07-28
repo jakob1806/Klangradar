@@ -529,7 +529,7 @@ class _EntryLeading extends StatelessWidget {
   final String? photoUrl;
   final AppColorsExtension colors;
 
-  static const double _size = 36;
+  static const double _size = 48;
 
   @override
   Widget build(BuildContext context) {
