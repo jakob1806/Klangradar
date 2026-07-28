@@ -26,9 +26,19 @@ jobs:
         with:
           version: latest
 
+      # `supabase db push` kennt (anders als `functions deploy`) kein
+      # --project-ref — es pusht immer gegen das gelinkte Projekt, deshalb
+      # erst linken.
+      - name: Projekt linken
+        working-directory: backend
+        run: supabase link --project-ref zqgzcspeqllrihfwmayn
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
       - name: Migrationen gegen Produktion anwenden
         working-directory: backend
-        run: supabase db push --project-ref zqgzcspeqllrihfwmayn
+        run: supabase db push
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}

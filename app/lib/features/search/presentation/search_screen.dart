@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -511,6 +512,41 @@ class _DirectoryEntries extends ConsumerWidget {
   }
 }
 
+/// Miniaturbild statt generischem Typ-Icon, sobald ein `photo_url`
+/// vorhanden ist (bisher zeigte jede Zeile in Verzeichnis- wie
+/// Suchergebnisliste nur ein Icon — Nutzerfeedback: Künstler-Miniaturbilder
+/// fehlten komplett). Fällt bei fehlendem/kaputtem Bild auf das bisherige
+/// Icon zurück, ändert also für Typen ohne photo_url (aktuell event/
+/// ensemble/venue in der Ergebnisliste) nichts.
+class _EntryLeading extends StatelessWidget {
+  const _EntryLeading({
+    required this.type,
+    required this.photoUrl,
+    required this.colors,
+  });
+
+  final String type;
+  final String? photoUrl;
+  final AppColorsExtension colors;
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = Icon(_typeIcon[type], color: colors.accentPrimary, size: 22);
+    if (photoUrl == null || photoUrl!.isEmpty) return icon;
+
+    return ClipOval(
+      child: CachedNetworkImage(
+        imageUrl: photoUrl!,
+        width: 36,
+        height: 36,
+        fit: BoxFit.cover,
+        placeholder: (context, url) => icon,
+        errorWidget: (context, url, error) => icon,
+      ),
+    );
+  }
+}
+
 class _DirectoryList extends StatelessWidget {
   const _DirectoryList({
     required this.type,
@@ -558,10 +594,10 @@ class _DirectoryList extends StatelessWidget {
         for (final r in rows)
           ListTile(
             contentPadding: EdgeInsets.zero,
-            leading: Icon(
-              _typeIcon[type],
-              color: colors.accentPrimary,
-              size: 22,
+            leading: _EntryLeading(
+              type: type,
+              photoUrl: r['photo_url'] as String?,
+              colors: colors,
             ),
             title: Text(
               _title(r),
@@ -621,10 +657,10 @@ class _ResultsList extends StatelessWidget {
             for (final r in grouped[type]!)
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                leading: Icon(
-                  _typeIcon[type],
-                  color: colors.accentPrimary,
-                  size: 22,
+                leading: _EntryLeading(
+                  type: type,
+                  photoUrl: r['photo_url'] as String?,
+                  colors: colors,
                 ),
                 title: Text(
                   r['title'] ?? '',
