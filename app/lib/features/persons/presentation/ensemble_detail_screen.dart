@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/gallery/entity_gallery_providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/detail_card.dart';
 import '../../../core/widgets/detail_hero_background.dart';
+import '../../../core/widgets/entity_photo_gallery.dart';
 import '../../../core/widgets/external_links_row.dart';
 import '../../../core/widgets/genre_artwork.dart';
 import '../../../core/widgets/past_events_expansion.dart';
@@ -70,6 +72,12 @@ class EnsembleDetailScreen extends ConsumerWidget {
             return const Center(child: Text('Ensemble nicht gefunden'));
           }
           final ensemble = data['ensemble'] as Map<String, dynamic>;
+          final gallery = ref.watch(
+            entityGalleryProvider((
+              originType: 'ensemble',
+              originId: ensemble['id'] as String,
+            )),
+          );
           final events = data['events'] as List;
           final sources = data['sources'] as Map<String, FieldSource>;
           final now = DateTime.now();
@@ -99,9 +107,20 @@ class EnsembleDetailScreen extends ConsumerWidget {
                 backgroundColor: colors.backgroundPrimary,
                 iconTheme: const IconThemeData(color: Colors.white),
                 flexibleSpace: FlexibleSpaceBar(
-                  background: DetailHeroBackground(
-                    photoUrl: ensemble['photo_url'] as String?,
-                    fallbackGenre: EventGenre.orchester,
+                  background: gallery.maybeWhen(
+                    data: (images) => images.isNotEmpty
+                        ? EntityPhotoGallery(
+                            images: images,
+                            fallbackGenre: EventGenre.orchester,
+                          )
+                        : DetailHeroBackground(
+                            photoUrl: ensemble['photo_url'] as String?,
+                            fallbackGenre: EventGenre.orchester,
+                          ),
+                    orElse: () => DetailHeroBackground(
+                      photoUrl: ensemble['photo_url'] as String?,
+                      fallbackGenre: EventGenre.orchester,
+                    ),
                   ),
                 ),
               ),

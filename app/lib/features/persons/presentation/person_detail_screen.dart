@@ -4,10 +4,12 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/gallery/entity_gallery_providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/detail_card.dart';
 import '../../../core/widgets/detail_hero_background.dart';
+import '../../../core/widgets/entity_photo_gallery.dart';
 import '../../../core/widgets/external_links_row.dart';
 import '../../../core/widgets/genre_artwork.dart';
 import '../../../core/widgets/past_events_expansion.dart';
@@ -63,6 +65,12 @@ class PersonDetailScreen extends ConsumerWidget {
             return const Center(child: Text('Person nicht gefunden'));
           }
           final person = data['person'] as Map<String, dynamic>;
+          final gallery = ref.watch(
+            entityGalleryProvider((
+              originType: 'person',
+              originId: person['id'] as String,
+            )),
+          );
           final events = data['events'] as List;
           final sources = data['sources'] as Map<String, FieldSource>;
           final roles = (person['roles'] as List?)?.cast<String>() ?? [];
@@ -93,9 +101,20 @@ class PersonDetailScreen extends ConsumerWidget {
                 backgroundColor: colors.backgroundPrimary,
                 iconTheme: const IconThemeData(color: Colors.white),
                 flexibleSpace: FlexibleSpaceBar(
-                  background: DetailHeroBackground(
-                    photoUrl: person['photo_url'] as String?,
-                    fallbackGenre: EventGenre.kammermusik,
+                  background: gallery.maybeWhen(
+                    data: (images) => images.isNotEmpty
+                        ? EntityPhotoGallery(
+                            images: images,
+                            fallbackGenre: EventGenre.kammermusik,
+                          )
+                        : DetailHeroBackground(
+                            photoUrl: person['photo_url'] as String?,
+                            fallbackGenre: EventGenre.kammermusik,
+                          ),
+                    orElse: () => DetailHeroBackground(
+                      photoUrl: person['photo_url'] as String?,
+                      fallbackGenre: EventGenre.kammermusik,
+                    ),
                   ),
                 ),
               ),
