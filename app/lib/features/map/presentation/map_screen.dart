@@ -14,13 +14,27 @@ import '../../../core/utils/external_maps.dart';
 import '../../../core/widgets/event_filter_sheet.dart';
 import '../application/map_providers.dart';
 
-class MapScreen extends ConsumerWidget {
+class MapScreen extends ConsumerStatefulWidget {
   const MapScreen({super.key});
 
   static const _muenchenCenter = LatLng(48.1351, 11.5820);
+  static const _muenchenZoom = 12.5;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MapScreen> createState() => _MapScreenState();
+}
+
+class _MapScreenState extends ConsumerState<MapScreen> {
+  final _mapController = MapController();
+
+  @override
+  void dispose() {
+    _mapController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final colors = context.appColors;
     final venuesAsync = ref.watch(mapVenuesProvider);
     final filters = ref.watch(eventFiltersProvider);
@@ -41,9 +55,10 @@ class MapScreen extends ConsumerWidget {
     return Stack(
       children: [
         FlutterMap(
+          mapController: _mapController,
           options: const MapOptions(
-            initialCenter: _muenchenCenter,
-            initialZoom: 12.5,
+            initialCenter: MapScreen._muenchenCenter,
+            initialZoom: MapScreen._muenchenZoom,
             minZoom: 10,
             maxZoom: 18,
           ),
@@ -117,6 +132,21 @@ class MapScreen extends ConsumerWidget {
                   _ErrorBanner(message: '${filteredEventsAsync!.error}'),
                 ],
               ],
+            ),
+          ),
+        ),
+        Positioned(
+          right: AppSpacing.screenPaddingMobile,
+          bottom: AppSpacing.lg,
+          child: SafeArea(
+            top: false,
+            child: _RecenterButton(
+              color: colors.backgroundElevated,
+              iconColor: colors.textPrimary,
+              onTap: () => _mapController.move(
+                MapScreen._muenchenCenter,
+                MapScreen._muenchenZoom,
+              ),
             ),
           ),
         ),
@@ -319,6 +349,38 @@ class _BarChip extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Setzt die Karte zurück auf München-Zentrum/Standardzoom (Nutzerwunsch:
+/// "einen Button in der Karte, der die Map wieder neu ausrichtet") —
+/// relevant, sobald man sich beim Erkunden weit weg gezoomt/gescrollt hat.
+class _RecenterButton extends StatelessWidget {
+  const _RecenterButton({
+    required this.color,
+    required this.iconColor,
+    required this.onTap,
+  });
+
+  final Color color;
+  final Color iconColor;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: color,
+      shape: const CircleBorder(),
+      elevation: 3,
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Icon(Icons.my_location_rounded, size: 22, color: iconColor),
         ),
       ),
     );

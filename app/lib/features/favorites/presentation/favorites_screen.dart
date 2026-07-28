@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -11,30 +12,28 @@ import '../../../core/widgets/favorite_button.dart';
 import '../../../core/widgets/genre_artwork.dart';
 import '../../home/application/home_providers.dart';
 
-final _favoriteEventsProvider = FutureProvider.autoDispose<List<HomeEventItem>>((
-  ref,
-) async {
-  final user = ref.watch(currentUserProvider);
-  if (user == null) return [];
+final _favoriteEventsProvider = FutureProvider.autoDispose<List<HomeEventItem>>(
+  (ref) async {
+    final user = ref.watch(currentUserProvider);
+    if (user == null) return [];
 
-  // Auf denselben Provider hören, damit die Liste sich sofort aktualisiert,
-  // sobald irgendwo ein Herz getoggelt wird — auch außerhalb dieses Screens.
-  ref.watch(favoriteIdsProvider);
+    // Auf denselben Provider hören, damit die Liste sich sofort aktualisiert,
+    // sobald irgendwo ein Herz getoggelt wird — auch außerhalb dieses Screens.
+    ref.watch(favoriteIdsProvider);
 
-  final rows = await Supabase.instance.client
-      .from('favorites')
-      .select(
-        'created_at, events(id, slug, title, is_free, remaining_tickets_status, start_datetime, venues(name), event_genres(genres(slug)))',
-      )
-      .eq('user_id', user.id)
-      .order('created_at', ascending: false);
+    final rows = await Supabase.instance.client
+        .from('favorites')
+        .select('created_at, events($homeEventColumns)')
+        .eq('user_id', user.id)
+        .order('created_at', ascending: false);
 
-  return (rows as List)
-      .map((r) => r['events'])
-      .whereType<Map<String, dynamic>>()
-      .map(HomeEventItem.fromRow)
-      .toList();
-});
+    return (rows as List)
+        .map((r) => r['events'])
+        .whereType<Map<String, dynamic>>()
+        .map(HomeEventItem.fromRow)
+        .toList();
+  },
+);
 
 class FavoritesScreen extends ConsumerWidget {
   const FavoritesScreen({super.key});
@@ -100,7 +99,16 @@ class FavoritesScreen extends ConsumerWidget {
                             height: 48,
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(10),
-                              child: GenreArtwork(genre: e.genre),
+                              child: e.imageUrl != null
+                                  ? CachedNetworkImage(
+                                      imageUrl: e.imageUrl!,
+                                      fit: BoxFit.cover,
+                                      errorWidget: (context, url, error) =>
+                                          GenreArtwork(genre: e.genre),
+                                      placeholder: (context, url) =>
+                                          GenreArtwork(genre: e.genre),
+                                    )
+                                  : GenreArtwork(genre: e.genre),
                             ),
                           ),
                           title: Text(
