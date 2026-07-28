@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/constants/role_labels.dart';
 import '../../../core/gallery/entity_gallery_providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -45,6 +46,14 @@ final _personProvider = FutureProvider.family<Map<String, dynamic>?, String>((
     'sources': fieldSourcesFromRows(provenance),
   };
 });
+
+/// Volles Geburts-/Sterbedatum statt nur des Jahres (Nutzerfeedback) — DB
+/// liefert birth_date/death_date als "YYYY-MM-DD"-Datumsstring.
+String _formatDate(String isoDate) {
+  final date = DateTime.tryParse(isoDate);
+  if (date == null) return isoDate;
+  return '${date.day}.${date.month}.${date.year}';
+}
 
 class PersonDetailScreen extends ConsumerWidget {
   const PersonDetailScreen({required this.slug, super.key});
@@ -139,7 +148,7 @@ class PersonDetailScreen extends ConsumerWidget {
                             .map(
                               (r) => Chip(
                                 label: Text(
-                                  r,
+                                  personRoleLabel[r] ?? r,
                                   style: const TextStyle(fontSize: 11),
                                 ),
                                 visualDensity: VisualDensity.compact,
@@ -149,15 +158,16 @@ class PersonDetailScreen extends ConsumerWidget {
                       ),
                     ],
                     if (person['nationality'] != null ||
-                        person['instrument'] != null) ...[
+                        person['instrument'] != null ||
+                        person['birth_date'] != null) ...[
                       const SizedBox(height: AppSpacing.sm),
                       Text(
                         [
                           person['nationality'],
                           person['instrument'],
                           if (person['birth_date'] != null)
-                            '* ${(person['birth_date'] as String).substring(0, 4)}'
-                                '${person['death_date'] != null ? ' † ${(person['death_date'] as String).substring(0, 4)}' : ''}',
+                            '* ${_formatDate(person['birth_date'] as String)}'
+                                '${person['death_date'] != null ? ' † ${_formatDate(person['death_date'] as String)}' : ''}',
                         ].whereType<String>().join(' · '),
                         style: TextStyle(
                           color: colors.textSecondary,
