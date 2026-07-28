@@ -186,7 +186,7 @@ final homeDataProvider = FutureProvider.autoDispose<HomeData>((ref) async {
         .select(_homeEventColumns)
         .eq('status', 'scheduled')
         .gte('start_datetime', nowIso)
-        .order('start_datetime')
+        .order('start_datetime', ascending: true)
         .limit(1),
     client
         .from('events')
@@ -194,7 +194,7 @@ final homeDataProvider = FutureProvider.autoDispose<HomeData>((ref) async {
         .eq('status', 'scheduled')
         .gte('start_datetime', todayStart.toIso8601String())
         .lt('start_datetime', todayEnd.toIso8601String())
-        .order('start_datetime'),
+        .order('start_datetime', ascending: true),
     // Regelbasierte Empfehlungen (docs/08-home-feed-recommendation-
     // algorithm.md, Abschnitt 4.1/0) — degradiert für anonyme/interesselose
     // Nutzer serverseitig automatisch zu Popularität + zeitlicher Nähe,
@@ -211,7 +211,7 @@ final homeDataProvider = FutureProvider.autoDispose<HomeData>((ref) async {
         .eq('status', 'scheduled')
         .eq('remaining_tickets_status', 'few_left')
         .gte('start_datetime', nowIso)
-        .order('start_datetime')
+        .order('start_datetime', ascending: true)
         .limit(10),
     client
         .from('events')
@@ -219,7 +219,7 @@ final homeDataProvider = FutureProvider.autoDispose<HomeData>((ref) async {
         .eq('status', 'scheduled')
         .eq('is_free', true)
         .gte('start_datetime', nowIso)
-        .order('start_datetime')
+        .order('start_datetime', ascending: true)
         .limit(10),
     client.rpc('popular_events', params: {'p_result_limit': 10}),
   ]);

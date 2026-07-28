@@ -45,7 +45,7 @@ final monthEventsProvider = FutureProvider.autoDispose
           .eq('status', 'scheduled')
           .gte('start_datetime', start.toIso8601String())
           .lt('start_datetime', end.toIso8601String())
-          .order('start_datetime');
+          .order('start_datetime', ascending: true);
 
       final byDay = <DateTime, List<HomeEventItem>>{};
       for (final row in rows as List) {
@@ -155,7 +155,7 @@ final agendaEventsProvider = FutureProvider.autoDispose<AgendaEvents>((
       // .toUtc(): siehe Kommentar bei monthEventsProvider — derselbe Bug
       // ohne die Konvertierung.
       .gte('start_datetime', _dayKey(now).toUtc().toIso8601String())
-      .order('start_datetime')
+      .order('start_datetime', ascending: true)
       .limit(_agendaPageSize);
 
   final byDay = <DateTime, List<HomeEventItem>>{};

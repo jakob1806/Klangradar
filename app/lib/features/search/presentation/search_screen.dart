@@ -529,19 +529,36 @@ class _EntryLeading extends StatelessWidget {
   final String? photoUrl;
   final AppColorsExtension colors;
 
+  static const double _size = 36;
+
   @override
   Widget build(BuildContext context) {
     final icon = Icon(_typeIcon[type], color: colors.accentPrimary, size: 22);
-    if (photoUrl == null || photoUrl!.isEmpty) return icon;
+    // Feste SizedBox um Icon UND Bild — sonst reserviert ListTile je nach
+    // intrinsischer Breite des leading-Widgets unterschiedlich viel Platz
+    // (22px-Icon vs. 36px-Bild), wodurch der Titeltext zeilenweise an
+    // unterschiedlichen x-Positionen begann (Nutzerfeedback: "nicht alle
+    // sind auf einer x Ebene").
+    if (photoUrl == null || photoUrl!.isEmpty) {
+      return SizedBox(
+        width: _size,
+        height: _size,
+        child: Center(child: icon),
+      );
+    }
 
-    return ClipOval(
-      child: CachedNetworkImage(
-        imageUrl: photoUrl!,
-        width: 36,
-        height: 36,
-        fit: BoxFit.cover,
-        placeholder: (context, url) => icon,
-        errorWidget: (context, url, error) => icon,
+    return SizedBox(
+      width: _size,
+      height: _size,
+      child: ClipOval(
+        child: CachedNetworkImage(
+          imageUrl: photoUrl!,
+          width: _size,
+          height: _size,
+          fit: BoxFit.cover,
+          placeholder: (context, url) => icon,
+          errorWidget: (context, url, error) => icon,
+        ),
       ),
     );
   }

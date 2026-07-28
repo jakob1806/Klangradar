@@ -29,7 +29,7 @@ final _personProvider = FutureProvider.family<Map<String, dynamic>?, String>((
       .from('event_participants')
       .select('role, events(id, slug, title, start_datetime, venues(name))')
       .eq('person_id', person['id'])
-      .order('events(start_datetime)');
+      .order('events(start_datetime)', ascending: true);
 
   final provenance = await client
       .from('field_provenance')
