@@ -1,0 +1,365 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { Field, Select, TextInput } from "@/components/form-fields";
+import { SubmitButton } from "@/components/submit-button";
+import { DeleteButton } from "@/components/delete-button";
+import { removeEventFromGroup } from "../actions";
+import {
+  addExistingWorkToGroup,
+  addParticipantToGroup,
+  createWorkAndAddToGroup,
+  removeParticipantFromGroup,
+  removeWorkFromGroup,
+} from "./actions";
+
+const ROLE_LABEL: Record<string, string> = {
+  komponist: "Komponist:in",
+  dirigent: "Dirigent:in",
+  solist: "Solist:in",
+  chorleiter: "Chorleiter:in",
+  moderator: "Moderator:in",
+};
+
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" });
+}
+
+interface MemberEvent {
+  id: string;
+  title: string;
+  start_datetime: string;
+  venues: { name: string } | null;
+}
+
+interface ProgramWorkRow {
+  event_id: string;
+  work_id: string;
+  after_intermission: boolean;
+  works: { title: string; catalog_number: string | null; composer: { full_name: string } | null } | null;
+}
+
+interface ParticipantRow {
+  event_id: string;
+  person_id: string | null;
+  ensemble_id: string | null;
+  role: string | null;
+  persons: { full_name: string } | null;
+  ensembles: { name: string } | null;
+}
+
+export default async function EventGroupDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const supabase = await createClient();
+
+  const { data: group } = await supabase.from("programs").select("id, title").eq("id", id).maybeSingle();
+  if (!group) notFound();
+
+  const { data: members } = await supabase
+    .from("events")
+    .select("id, title, start_datetime, venues(name)")
+    .eq("program_id", id)
+    .order("start_datetime", { ascending: true })
+    .returns<MemberEvent[]>();
+
+  const memberIds = (members ?? []).map((e) => e.id);
+
+  const [{ data: workRows }, { data: participantRows }, { data: works }, { data: persons }, { data: ensembles }, { data: ungrouped }] =
+    memberIds.length > 0
+      ? await Promise.all([
+          supabase
+            .from("event_works")
+            .select("event_id, work_id, after_intermission, works(title, catalog_number, composer:persons(full_name))")
+            .in("event_id", memberIds)
+            .returns<ProgramWorkRow[]>(),
+          supabase
+            .from("event_participants")
+            .select("event_id, person_id, ensemble_id, role, persons(full_name), ensembles(name)")
+            .in("event_id", memberIds)
+            .returns<ParticipantRow[]>(),
+          supabase
+            .from("works")
+            .select("id, title, composer:persons(full_name)")
+            .order("title")
+            .returns<{ id: string; title: string; composer: { full_name: string } | null }[]>(),
+          supabase.from("persons").select("id, full_name").order("full_name"),
+          supabase.from("ensembles").select("id, name").order("name"),
+          supabase
+            .from("events")
+            .select("id, title, start_datetime")
+            .is("program_id", null)
+            .order("start_datetime", { ascending: true })
+            .returns<{ id: string; title: string; start_datetime: string }[]>(),
+        ])
+      : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }];
+
+  // Werke/Mitwirkende sind über die Broadcast-Actions eigentlich auf allen
+  // Mitgliedsevents identisch — dedupliziert dargestellt, mit Hinweis, falls
+  // ein Event (noch) abweicht (z. B. weil es vor der Gruppierung schon
+  // eigene Einträge hatte).
+  const workMap = new Map<string, { work: ProgramWorkRow["works"]; afterIntermission: boolean; eventCount: number }>();
+  for (const row of workRows ?? []) {
+    const existing = workMap.get(row.work_id);
+    if (existing) existing.eventCount += 1;
+    else workMap.set(row.work_id, { work: row.works, afterIntermission: row.after_intermission, eventCount: 1 });
+  }
+
+  const participantMap = new Map<
+    string,
+    { label: string; role: string | null; personId: string | null; ensembleId: string | null; eventCount: number }
+  >();
+  for (const row of participantRows ?? []) {
+    const key = row.person_id ?? `ensemble:${row.ensemble_id}`;
+    const existing = participantMap.get(key);
+    if (existing) existing.eventCount += 1;
+    else
+      participantMap.set(key, {
+        label: row.persons?.full_name ?? row.ensembles?.name ?? "?",
+        role: row.role,
+        personId: row.person_id,
+        ensembleId: row.ensemble_id,
+        eventCount: 1,
+      });
+  }
+
+  const memberCount = memberIds.length;
+  const boundAddExistingWork = addExistingWorkToGroup.bind(null, id);
+  const boundCreateWorkAndAdd = createWorkAndAddToGroup.bind(null, id);
+  const boundAddParticipant = addParticipantToGroup.bind(null, id);
+
+  return (
+    <div className="p-8">
+      <Link href="/event-groups" className="text-sm text-neutral-500 hover:text-neutral-700">
+        ← Zurück zu Event-Gruppen
+      </Link>
+      <h1 className="mt-2 text-xl font-semibold tracking-tight">{group.title}</h1>
+      <p className="mt-1 text-sm text-neutral-500">
+        Änderungen an Programm &amp; Mitwirkenden wirken auf alle {memberCount} Termine dieser Gruppe.
+      </p>
+
+      <section className="mt-8">
+        <h2 className="text-sm font-semibold text-neutral-900">Termine ({memberCount})</h2>
+        <ul className="mt-3 flex flex-col gap-2">
+          {members?.length ? (
+            members.map((e) => (
+              <li
+                key={e.id}
+                className="flex items-center justify-between rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
+              >
+                <span>
+                  <Link href={`/events/${e.id}`} className="font-medium text-neutral-900 hover:underline">
+                    {formatDate(e.start_datetime)}
+                  </Link>
+                  {e.venues?.name && <span className="text-neutral-400"> · {e.venues.name}</span>}
+                </span>
+                <DeleteButton
+                  action={removeEventFromGroup.bind(null, id, e.id)}
+                  confirmMessage="Diesen Termin aus der Gruppe entfernen? Das Event selbst bleibt erhalten."
+                />
+              </li>
+            ))
+          ) : (
+            <li className="rounded-md border border-dashed border-neutral-300 px-3 py-6 text-center text-sm text-neutral-400">
+              Keine Termine mehr in dieser Gruppe.
+            </li>
+          )}
+        </ul>
+
+        {ungrouped && ungrouped.length > 0 && (
+          <form action={async (formData: FormData) => {
+            "use server";
+            const { addEventToGroup } = await import("../actions");
+            const eventId = String(formData.get("event_id") ?? "");
+            await addEventToGroup(id, eventId);
+          }} className="mt-3 flex items-end gap-2">
+            <div className="flex-1">
+              <Field label="Weiteren Termin hinzufügen">
+                <Select name="event_id" required defaultValue="">
+                  <option value="" disabled>
+                    Event wählen…
+                  </option>
+                  {ungrouped.map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.title} — {formatDate(e.start_datetime)}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+            <SubmitButton>Hinzufügen</SubmitButton>
+          </form>
+        )}
+      </section>
+
+      <div className="mt-10 grid gap-10 lg:grid-cols-2">
+        {/* Programm */}
+        <section>
+          <h2 className="text-sm font-semibold text-neutral-900">Programm (für alle Termine)</h2>
+
+          <ol className="mt-3 flex flex-col gap-2">
+            {workMap.size > 0 ? (
+              Array.from(workMap.entries()).map(([workId, entry]) => (
+                <li
+                  key={workId}
+                  className="flex items-center justify-between rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
+                >
+                  <span>
+                    {entry.afterIntermission && (
+                      <span className="mr-2 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium uppercase text-amber-700">
+                        nach Pause
+                      </span>
+                    )}
+                    <span className="font-medium text-neutral-900">{entry.work?.title}</span>
+                    {entry.work?.composer && (
+                      <span className="text-neutral-500"> — {entry.work.composer.full_name}</span>
+                    )}
+                    {entry.work?.catalog_number && (
+                      <span className="text-neutral-400"> ({entry.work.catalog_number})</span>
+                    )}
+                    {entry.eventCount < memberCount && (
+                      <span className="ml-2 text-[10px] font-medium uppercase text-amber-600">
+                        nur {entry.eventCount}/{memberCount} Termine
+                      </span>
+                    )}
+                  </span>
+                  <DeleteButton
+                    action={removeWorkFromGroup.bind(null, id, workId)}
+                    confirmMessage="Werk aus dem Programm aller Termine entfernen?"
+                  />
+                </li>
+              ))
+            ) : (
+              <li className="rounded-md border border-dashed border-neutral-300 px-3 py-6 text-center text-sm text-neutral-400">
+                Noch keine Werke im Programm.
+              </li>
+            )}
+          </ol>
+
+          <div className="mt-6 flex flex-col gap-4 rounded-lg border border-neutral-200 bg-white p-4">
+            <form action={boundAddExistingWork} className="flex flex-col gap-2">
+              <Field label="Vorhandenes Werk hinzufügen">
+                <Select name="work_id" required defaultValue="">
+                  <option value="" disabled>
+                    Werk wählen…
+                  </option>
+                  {works?.map((w) => (
+                    <option key={w.id} value={w.id}>
+                      {w.title}
+                      {w.composer ? ` — ${w.composer.full_name}` : ""}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <label className="flex items-center gap-2 text-xs text-neutral-600">
+                <input type="checkbox" name="after_intermission" />
+                Nach der Pause
+              </label>
+              <SubmitButton>Hinzufügen</SubmitButton>
+            </form>
+
+            <hr className="border-neutral-200" />
+
+            <form action={boundCreateWorkAndAdd} className="flex flex-col gap-2">
+              <p className="text-xs font-medium text-neutral-600">Neues Werk anlegen & hinzufügen</p>
+              <TextInput name="title" placeholder="Titel" required />
+              <Select name="composer_id" defaultValue="">
+                <option value="">Komponist:in (optional)</option>
+                {persons?.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.full_name}
+                  </option>
+                ))}
+              </Select>
+              <TextInput name="catalog_number" placeholder="Werkverzeichnis-Nr. (optional, z. B. BWV 244)" />
+              <label className="flex items-center gap-2 text-xs text-neutral-600">
+                <input type="checkbox" name="after_intermission_new" />
+                Nach der Pause
+              </label>
+              <SubmitButton>Anlegen & hinzufügen</SubmitButton>
+            </form>
+          </div>
+        </section>
+
+        {/* Mitwirkende */}
+        <section>
+          <h2 className="text-sm font-semibold text-neutral-900">Mitwirkende (für alle Termine)</h2>
+
+          <ul className="mt-3 flex flex-col gap-2">
+            {participantMap.size > 0 ? (
+              Array.from(participantMap.entries()).map(([key, entry]) => (
+                <li
+                  key={key}
+                  className="flex items-center justify-between rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
+                >
+                  <span>
+                    <span className="font-medium text-neutral-900">{entry.label}</span>
+                    {entry.role && <span className="text-neutral-500"> — {ROLE_LABEL[entry.role] ?? entry.role}</span>}
+                    {entry.eventCount < memberCount && (
+                      <span className="ml-2 text-[10px] font-medium uppercase text-amber-600">
+                        nur {entry.eventCount}/{memberCount} Termine
+                      </span>
+                    )}
+                  </span>
+                  <DeleteButton
+                    action={removeParticipantFromGroup.bind(null, id, entry.personId, entry.ensembleId)}
+                    confirmMessage="Mitwirkende:n aus allen Terminen entfernen?"
+                  />
+                </li>
+              ))
+            ) : (
+              <li className="rounded-md border border-dashed border-neutral-300 px-3 py-6 text-center text-sm text-neutral-400">
+                Noch keine Mitwirkenden erfasst.
+              </li>
+            )}
+          </ul>
+
+          <div className="mt-6 flex flex-col gap-4 rounded-lg border border-neutral-200 bg-white p-4">
+            <form action={boundAddParticipant} className="flex flex-col gap-2">
+              <p className="text-xs font-medium text-neutral-600">Person hinzufügen</p>
+              <Select name="person_id" required defaultValue="">
+                <option value="" disabled>
+                  Person wählen…
+                </option>
+                {persons?.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.full_name}
+                  </option>
+                ))}
+              </Select>
+              <Select name="role" defaultValue="">
+                <option value="">Rolle (optional)</option>
+                {Object.entries(ROLE_LABEL).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </Select>
+              <SubmitButton>Hinzufügen</SubmitButton>
+            </form>
+
+            <hr className="border-neutral-200" />
+
+            <form action={boundAddParticipant} className="flex flex-col gap-2">
+              <p className="text-xs font-medium text-neutral-600">Ensemble hinzufügen</p>
+              <Select name="ensemble_id" required defaultValue="">
+                <option value="" disabled>
+                  Ensemble wählen…
+                </option>
+                {ensembles?.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.name}
+                  </option>
+                ))}
+              </Select>
+              <SubmitButton>Hinzufügen</SubmitButton>
+            </form>
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
