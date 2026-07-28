@@ -350,6 +350,7 @@ Deno.serve(async (req) => {
   }
 
   let worksCreated = 0;
+  let workDuplicatesFlagged = 0;
   let personsFlagged = 0;
   let ensemblesFlagged = 0;
   let linksCreated = 0;
@@ -642,9 +643,32 @@ Deno.serve(async (req) => {
         const existingWork = (sameNamedWorks ?? []).find(
           (existing: { title: string }) => normalizeTitleForMatch(existing.title) === normalizedTitle,
         );
+
+        // Kein exakter Treffer nach Normalisierung — Fuzzy-Fallback über
+        // pg_trgm (find_similar_works, siehe 20260909000003). Deckt
+        // Beinamen-Varianten ab, die normalizeTitleForMatch nicht auflöst
+        // (z.B. "Sinfonie Nr. 4 c-moll" vs. "Sinfonie Nr. 4 c-moll
+        // 'Tragische'" — live beobachtet im Komponisten-Backfill-Testbatch:
+        // ohne dies legt jeder Lauf mit leicht anderem Titel ein neues
+        // Duplikat-Werk an). Nur bei hoher Ähnlichkeit UND
+        // widerspruchsfreiem Komponisten (einer der beiden fehlt oder
+        // beide stimmen überein) automatisch als dasselbe Werk behandeln —
+        // sonst lieber anlegen und zur redaktionellen Prüfung vormerken
+        // (work_duplicate_candidates), nie blind zusammenlegen.
+        let fuzzyMatch:
+          | { id: string; title: string; composer_id: string | null; catalog_number: string | null; key_signature: string | null; similarity: number }
+          | null = null;
+        if (!existingWork) {
+          const { data: similarWorks } = await supabase.rpc("find_similar_works", { p_title: w.title.trim() });
+          fuzzyMatch = (similarWorks ?? [])[0] ?? null;
+        }
+        const fuzzyIsSameWork = fuzzyMatch != null && fuzzyMatch.similarity >= 0.6 &&
+          (!fuzzyMatch.composer_id || !composerId || fuzzyMatch.composer_id === composerId);
+
         let workId: string;
-        if (existingWork) {
-          workId = existingWork.id;
+        if (existingWork || fuzzyIsSameWork) {
+          const matched = existingWork ?? fuzzyMatch!;
+          workId = matched.id;
           // Opus/Tonart/Komponist nur NACHTRÄGLICH ergänzen, wenn das Werk
           // sie noch nicht hat — nie eine bereits vorhandene (ggf.
           // redaktionell gepflegte) Angabe überschreiben. composer_id fehlte
@@ -655,9 +679,9 @@ Deno.serve(async (req) => {
           // verschmelzen), konnte den fehlenden Komponisten dadurch nie
           // nachtragen.
           const patch: Record<string, string> = {};
-          if (!existingWork.composer_id && composerId) patch.composer_id = composerId;
-          if (!existingWork.catalog_number && w.catalogNumber) patch.catalog_number = w.catalogNumber;
-          if (!existingWork.key_signature && w.keySignature) patch.key_signature = w.keySignature;
+          if (!matched.composer_id && composerId) patch.composer_id = composerId;
+          if (!matched.catalog_number && w.catalogNumber) patch.catalog_number = w.catalogNumber;
+          if (!matched.key_signature && w.keySignature) patch.key_signature = w.keySignature;
           if (Object.keys(patch).length > 0) {
             await supabase.from("works").update(patch).eq("id", workId);
           }
@@ -675,6 +699,19 @@ Deno.serve(async (req) => {
           if (error) throw new Error(`works insert "${w.title}": ${error.message}`);
           worksCreated++;
           workId = createdWork.id;
+
+          // Ähnlicher, aber nicht sicher genug für Auto-Match (siehe
+          // fuzzyIsSameWork oben) — zur redaktionellen Prüfung vormerken
+          // statt die Divergenz stillschweigend anwachsen zu lassen.
+          if (fuzzyMatch) {
+            const { error: dupError } = await supabase.from("work_duplicate_candidates").insert({
+              work_a_id: fuzzyMatch.id,
+              work_b_id: workId,
+              similarity_score: fuzzyMatch.similarity,
+            });
+            if (dupError) errors.push(`work_duplicate_candidates insert "${w.title}": ${dupError.message}`);
+            else workDuplicatesFlagged++;
+          }
         }
         if (w.catalogNumber || w.keySignature) {
           await recordFieldSource(supabase, {
@@ -867,6 +904,7 @@ Deno.serve(async (req) => {
     JSON.stringify({
       processed: candidates.length,
       worksCreated,
+      workDuplicatesFlagged,
       personsFlagged,
       ensemblesFlagged,
       linksCreated,

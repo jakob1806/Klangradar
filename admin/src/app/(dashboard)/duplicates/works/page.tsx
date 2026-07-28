@@ -1,37 +1,38 @@
 import Link from "next/link";
 import { ConfirmButton } from "@/components/confirm-button";
 import { createClient } from "@/lib/supabase/server";
-import { resolveDuplicateAsDistinct, resolveDuplicateAsMerged } from "./actions";
+import { resolveWorkDuplicateAsDistinct, resolveWorkDuplicateAsMerged } from "./actions";
 
 export const dynamic = "force-dynamic";
 
-interface CandidateEvent {
+interface CandidateWork {
   id: string;
   title: string;
-  start_datetime: string;
-  venues: { name: string } | null;
+  catalog_number: string | null;
+  key_signature: string | null;
+  composer: { full_name: string } | null;
 }
 
 interface CandidateRow {
   id: string;
   similarity_score: number;
   created_at: string;
-  event_a: CandidateEvent | null;
-  event_b: CandidateEvent | null;
+  work_a: CandidateWork | null;
+  work_b: CandidateWork | null;
 }
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" });
 }
 
-export default async function DuplicatesPage() {
+export default async function WorkDuplicatesPage() {
   const supabase = await createClient();
   const { data, error } = await supabase
-    .from("duplicate_candidates")
+    .from("work_duplicate_candidates")
     .select(
       `id, similarity_score, created_at,
-       event_a:events!duplicate_candidates_event_a_id_fkey(id, title, start_datetime, venues(name)),
-       event_b:events!duplicate_candidates_event_b_id_fkey(id, title, start_datetime, venues(name))`,
+       work_a:works!work_duplicate_candidates_work_a_id_fkey(id, title, catalog_number, key_signature, composer:persons(full_name)),
+       work_b:works!work_duplicate_candidates_work_b_id_fkey(id, title, catalog_number, key_signature, composer:persons(full_name))`,
     )
     .eq("status", "pending")
     .order("created_at", { ascending: false })
@@ -39,17 +40,19 @@ export default async function DuplicatesPage() {
 
   return (
     <div className="p-8">
-      <h1 className="text-xl font-semibold tracking-tight">Duplikate-Review</h1>
+      <h1 className="text-xl font-semibold tracking-tight">Werk-Duplikate-Review</h1>
       <p className="mt-1 max-w-xl text-sm text-neutral-500">
-        Kandidaten aus dem Fuzzy-Matching der Ingestion-Pipeline bestätigen oder verwerfen.
+        Kandidaten aus dem Fuzzy-Matching in enrich-event-references bestätigen oder verwerfen — Werke mit ähnlichem,
+        aber nicht identischem Titel (z.&nbsp;B. mit/ohne Beiname), bei denen eine automatische Zusammenlegung zu
+        riskant war.
       </p>
       <p className="mt-2 text-sm">
-        <Link href="/duplicates/works" className="text-neutral-500 underline hover:text-neutral-900">
-          Werk-Duplikate →
+        <Link href="/duplicates" className="text-neutral-500 underline hover:text-neutral-900">
+          ← Event-Duplikate
         </Link>
       </p>
 
-      {error && <p className="mt-6 text-sm text-amber-700">Konnte Duplikate nicht laden: {error.message}</p>}
+      {error && <p className="mt-6 text-sm text-amber-700">Konnte Werk-Duplikate nicht laden: {error.message}</p>}
 
       {!error && (
         <div className="mt-6 flex flex-col gap-3">
@@ -58,24 +61,25 @@ export default async function DuplicatesPage() {
               <div key={candidate.id} className="rounded-lg border border-neutral-200 bg-white p-4">
                 <div className="flex items-center justify-between gap-4">
                   <span className="text-xs text-neutral-400">
-                    Gefunden {formatDate(candidate.created_at)} · Ähnlichkeit {(candidate.similarity_score * 100).toFixed(0)}%
+                    Gefunden {formatDate(candidate.created_at)} · Ähnlichkeit{" "}
+                    {(candidate.similarity_score * 100).toFixed(0)}%
                   </span>
                 </div>
                 <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <EventCard label="Bereits vorhanden" event={candidate.event_a} />
-                  <EventCard label="Neu von der Ingestion" event={candidate.event_b} />
+                  <WorkCard label="Bereits vorhanden" work={candidate.work_a} />
+                  <WorkCard label="Neu angelegt" work={candidate.work_b} />
                 </div>
                 <div className="mt-4 flex items-center justify-end gap-4">
                   <ConfirmButton
-                    action={resolveDuplicateAsDistinct.bind(null, candidate.id)}
-                    confirmMessage="Diese beiden Veranstaltungen als unterschiedlich markieren? Beide bleiben erhalten."
+                    action={resolveWorkDuplicateAsDistinct.bind(null, candidate.id)}
+                    confirmMessage="Diese beiden Werke als unterschiedlich markieren? Beide bleiben erhalten."
                     label="Als unterschiedlich markieren"
                     pendingLabel="Speichere…"
                     className="text-sm font-medium text-neutral-600 hover:text-neutral-900 disabled:opacity-50"
                   />
                   <ConfirmButton
-                    action={resolveDuplicateAsMerged.bind(null, candidate.id)}
-                    confirmMessage="Zusammenführen? Das neu ingestierte Event wird gelöscht, das bereits vorhandene bleibt bestehen."
+                    action={resolveWorkDuplicateAsMerged.bind(null, candidate.id)}
+                    confirmMessage="Zusammenführen? Das neu angelegte Werk wird gelöscht, alle Verlinkungen (Events, Programme, Provenienz) wandern auf das bereits vorhandene Werk."
                     label="Zusammenführen"
                     pendingLabel="Führe zusammen…"
                     className="text-sm font-medium text-red-600 hover:text-red-800 disabled:opacity-50"
@@ -85,7 +89,7 @@ export default async function DuplicatesPage() {
             ))
           ) : (
             <div className="rounded-lg border border-dashed border-neutral-300 bg-white px-4 py-10 text-center text-sm text-neutral-400">
-              Keine offenen Duplikate-Kandidaten.
+              Keine offenen Werk-Duplikate-Kandidaten.
             </div>
           )}
         </div>
@@ -94,11 +98,11 @@ export default async function DuplicatesPage() {
   );
 }
 
-function EventCard({ label, event }: { label: string; event: CandidateEvent | null }) {
-  if (!event) {
+function WorkCard({ label, work }: { label: string; work: CandidateWork | null }) {
+  if (!work) {
     return (
       <div className="rounded-md border border-neutral-100 bg-neutral-50 p-3 text-sm text-neutral-400">
-        {label}: Event nicht mehr vorhanden.
+        {label}: Werk nicht mehr vorhanden.
       </div>
     );
   }
@@ -106,9 +110,11 @@ function EventCard({ label, event }: { label: string; event: CandidateEvent | nu
   return (
     <div className="rounded-md border border-neutral-100 bg-neutral-50 p-3">
       <p className="text-xs font-medium uppercase tracking-wide text-neutral-400">{label}</p>
-      <p className="mt-1 text-sm font-medium text-neutral-900">{event.title}</p>
+      <p className="mt-1 text-sm font-medium text-neutral-900">{work.title}</p>
       <p className="mt-0.5 text-xs text-neutral-500">
-        {event.venues?.name ?? "Ort unbekannt"} · {formatDate(event.start_datetime)}
+        {work.composer?.full_name ?? "Komponist unbekannt"}
+        {work.catalog_number ? ` · ${work.catalog_number}` : ""}
+        {work.key_signature ? ` · ${work.key_signature}` : ""}
       </p>
     </div>
   );
