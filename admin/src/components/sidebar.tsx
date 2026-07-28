@@ -5,6 +5,7 @@ const NAV_ITEMS = [
   { href: "/review-queue", label: "Review-Queue" },
   { href: "/data-quality", label: "Datenqualität" },
   { href: "/duplicates", label: "Duplikate-Review" },
+  { href: "/duplicates/works", label: "Werk-Duplikate" },
   { href: "/cancellations", label: "Absage-Review" },
   { href: "/entity-candidates", label: "Entity-Kandidaten" },
   { href: "/sources", label: "Datenquellen & Import" },
