@@ -677,7 +677,10 @@ Deno.serve(async (req) => {
           | { id: string; title: string; composer_id: string | null; catalog_number: string | null; key_signature: string | null; similarity: number }
           | null = null;
         if (!existingWork) {
-          const { data: similarWorks } = await supabase.rpc("find_similar_works", { p_title: w.title.trim() });
+          const { data: similarWorks } = await supabase.rpc("find_similar_works", {
+            p_title: w.title.trim(),
+            p_event_id: event.id,
+          });
           fuzzyMatch = (similarWorks ?? [])[0] ?? null;
         }
         // composer_id-Konflikt (beide gesetzt, aber verschieden) ist ein

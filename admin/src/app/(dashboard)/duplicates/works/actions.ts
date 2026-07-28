@@ -4,12 +4,14 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { logSystemAction } from "@/lib/system-log";
 
-// work_a_id ist immer das ältere/bereits existierende Werk, work_b_id das
-// neu angelegte — siehe die Kandidaten-Anlage in enrich-event-references/
-// index.ts. "Zusammenführen" behält work_a, biegt alle Referenzen auf
-// work_b um und löscht work_b danach (gleiche Reihenfolge wie beim
-// FK-Repointing in resolve-person-duplicates: erst umbiegen, dann löschen).
-export async function resolveWorkDuplicateAsMerged(candidateId: string) {
+// Nutzeranfrage: "man soll auswählen können, welche Version genommen
+// werden soll — das soll generell bei einer Zusammenführen-Funktion
+// gehen". work_a/work_b ist nur die technische Anlage-Reihenfolge (a =
+// bereits vorhanden, b = neu angelegt, siehe enrich-event-references/
+// index.ts) — welche der beiden Titel/Metadaten inhaltlich richtiger sind,
+// weiß nur die Redaktion beim Ansehen. keepWorkId ist deshalb Pflicht-
+// Parameter statt eines impliziten "a gewinnt immer".
+export async function resolveWorkDuplicateAsMerged(candidateId: string, keepWorkId: string) {
   const supabase = await createClient();
 
   const { data: candidate, error: fetchError } = await supabase
@@ -21,7 +23,11 @@ export async function resolveWorkDuplicateAsMerged(candidateId: string) {
   if (fetchError || !candidate) {
     throw new Error(fetchError?.message ?? "Werk-Duplikat-Kandidat nicht gefunden");
   }
-  const { work_a_id: workAId, work_b_id: workBId } = candidate;
+  if (keepWorkId !== candidate.work_a_id && keepWorkId !== candidate.work_b_id) {
+    throw new Error("Ausgewähltes Werk gehört nicht zu diesem Kandidaten");
+  }
+  const workAId = keepWorkId;
+  const workBId = keepWorkId === candidate.work_a_id ? candidate.work_b_id : candidate.work_a_id;
 
   // event_works hat PK (event_id, work_id, position) — ein Umbiegen auf
   // work_a_id kann kollidieren, wenn dasselbe Event work_a bereits (an
