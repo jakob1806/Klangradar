@@ -138,16 +138,38 @@ export async function bulkPublishEvents(
   if (eventIds.length === 0) return { updated: 0 };
   const supabase = await createClient();
 
-  const { error } = await supabase
+  // .select("id") statt eventIds.length zurückzugeben — der .eq("status",
+  // "draft")-Filter kann Zeilen stillschweigend überspringen (s.o.), sonst
+  // meldet die UI mehr "veröffentlicht" als tatsächlich geändert wurden.
+  const { data, error } = await supabase
     .from("events")
     .update({ status: "scheduled", updated_at: new Date().toISOString() })
     .in("id", eventIds)
-    .eq("status", "draft");
+    .eq("status", "draft")
+    .select("id");
 
   if (error) return { updated: 0, error: error.message };
 
   revalidatePath("/events");
-  return { updated: eventIds.length };
+  return { updated: data?.length ?? 0 };
+}
+
+/** Einzelnen Entwurf ohne Auswahl/Bulk-Bar direkt veröffentlichen — Klick
+ * pro Zeile statt "Checkbox anhaken → Bulk-Button klicken" für den
+ * Standardfall "genau ein Entwurf soll jetzt live gehen". */
+export async function publishEvent(eventId: string): Promise<{ error?: string }> {
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("events")
+    .update({ status: "scheduled", updated_at: new Date().toISOString() })
+    .eq("id", eventId)
+    .eq("status", "draft");
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/events");
+  return {};
 }
 
 export async function deleteEvent(eventId: string) {
