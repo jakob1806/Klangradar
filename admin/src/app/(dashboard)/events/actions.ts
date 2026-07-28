@@ -172,6 +172,73 @@ export async function publishEvent(eventId: string): Promise<{ error?: string }>
   return {};
 }
 
+/** Wendet nur die Felder an, die im Formular explizit über eine "Übernehmen"-
+ * Checkbox markiert wurden (siehe bulk-edit-form.tsx) — ein leeres Feld ist
+ * sonst nicht eindeutig "nicht ändern" vs. "auf leer setzen". Genres werden
+ * nur ersetzt, wenn die Genre-Übernehmen-Checkbox gesetzt ist (leere Auswahl
+ * dabei ist gültig: "alle Genres entfernen"). */
+export async function bulkUpdateEvents(
+  eventIds: string[],
+  formData: FormData,
+): Promise<{ updated: number; error?: string }> {
+  if (eventIds.length === 0) return { updated: 0 };
+  const supabase = await createClient();
+
+  const patch: Record<string, unknown> = {};
+  const applyText = (field: string) => {
+    if (formData.get(`apply_${field}`) !== "on") return;
+    const value = String(formData.get(field) ?? "").trim();
+    patch[field] = value || null;
+  };
+  const applyNumber = (field: string) => {
+    if (formData.get(`apply_${field}`) !== "on") return;
+    const raw = String(formData.get(field) ?? "").trim();
+    patch[field] = raw ? Number(raw) : null;
+  };
+
+  if (formData.get("apply_venue_id") === "on") patch.venue_id = String(formData.get("venue_id") ?? "");
+  if (formData.get("apply_organizer_id") === "on") {
+    patch.organizer_id = String(formData.get("organizer_id") ?? "") || null;
+  }
+  if (formData.get("apply_status") === "on") patch.status = String(formData.get("status") ?? "scheduled");
+  if (formData.get("apply_is_free") === "on") patch.is_free = formData.get("is_free") === "on";
+  applyNumber("price_min");
+  applyNumber("price_max");
+  applyText("ticket_url");
+  applyText("doors_info");
+  applyText("age_restriction");
+  applyText("discount_info");
+  applyText("presale_fee_info");
+  if (formData.get("apply_remaining_tickets_status") === "on") {
+    patch.remaining_tickets_status = String(formData.get("remaining_tickets_status") ?? "") || null;
+  }
+
+  const applyGenres = formData.get("apply_genre_ids") === "on";
+  const genreIds = formData.getAll("genre_ids").map(String);
+
+  if (Object.keys(patch).length === 0 && !applyGenres) {
+    return { updated: 0, error: "Keine Felder zum Übernehmen ausgewählt." };
+  }
+
+  if (Object.keys(patch).length > 0) {
+    patch.updated_at = new Date().toISOString();
+    const { error } = await supabase.from("events").update(patch).in("id", eventIds);
+    if (error) return { updated: 0, error: error.message };
+  }
+
+  if (applyGenres) {
+    await supabase.from("event_genres").delete().in("event_id", eventIds);
+    if (genreIds.length > 0) {
+      const rows = eventIds.flatMap((event_id) => genreIds.map((genre_id) => ({ event_id, genre_id })));
+      const { error } = await supabase.from("event_genres").insert(rows);
+      if (error) return { updated: 0, error: error.message };
+    }
+  }
+
+  revalidatePath("/events");
+  return { updated: eventIds.length };
+}
+
 export async function deleteEvent(eventId: string) {
   const supabase = await createClient();
   const { error } = await supabase.from("events").delete().eq("id", eventId);
