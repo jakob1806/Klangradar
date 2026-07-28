@@ -39,33 +39,39 @@ export function GalleryEditor({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 0) return;
     setError(null);
-
-    if (!ACCEPTED_TYPES.includes(file.type)) {
-      setError("Nur JPEG, PNG oder WebP erlaubt.");
-      return;
-    }
-    if (file.size > MAX_BYTES) {
-      setError("Datei zu groß (max. 5 MB).");
-      return;
-    }
 
     setUploading(true);
     try {
       const supabase = createClient();
-      const ext = file.name.split(".").pop() ?? "jpg";
-      const path_ = `${originType}s/${crypto.randomUUID()}.${ext}`;
+      // Sequenziell statt Promise.all: addGalleryImage bestimmt den
+      // nächsten sort_order aus dem aktuellen Maximum — parallel liefe
+      // das Risiko, dass zwei Uploads denselben sort_order lesen und
+      // vergeben.
+      for (const file of files) {
+        if (!ACCEPTED_TYPES.includes(file.type)) {
+          setError(`"${file.name}": Nur JPEG, PNG oder WebP erlaubt.`);
+          continue;
+        }
+        if (file.size > MAX_BYTES) {
+          setError(`"${file.name}": Datei zu groß (max. 5 MB).`);
+          continue;
+        }
 
-      const { error: uploadError } = await supabase.storage.from(BUCKET).upload(path_, file, {
-        cacheControl: "3600",
-        upsert: false,
-      });
-      if (uploadError) throw uploadError;
+        const ext = file.name.split(".").pop() ?? "jpg";
+        const path_ = `${originType}s/${crypto.randomUUID()}.${ext}`;
 
-      const { data } = supabase.storage.from(BUCKET).getPublicUrl(path_);
-      await addGalleryImage(originType, originId, data.publicUrl, path);
+        const { error: uploadError } = await supabase.storage.from(BUCKET).upload(path_, file, {
+          cacheControl: "3600",
+          upsert: false,
+        });
+        if (uploadError) throw uploadError;
+
+        const { data } = supabase.storage.from(BUCKET).getPublicUrl(path_);
+        await addGalleryImage(originType, originId, data.publicUrl, path);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Upload fehlgeschlagen.");
     } finally {
@@ -103,14 +109,26 @@ export function GalleryEditor({
           Bildergalerie {sorted.length > 0 && `(${sorted.length})`}
         </span>
         <div>
+          {/* Verstecktes <input>, echter Button löst es aus — siehe
+           * image-upload-field.tsx für die Begründung. `multiple`: mehrere
+           * Bilder in einem Rutsch auswählen statt einzeln nacheinander. */}
           <input
             ref={fileInputRef}
             type="file"
             accept={ACCEPTED_TYPES.join(",")}
+            multiple
             disabled={uploading}
             onChange={handleFileChange}
-            className="text-xs text-neutral-600 file:mr-2 file:rounded-md file:border file:border-neutral-300 file:bg-white file:px-2 file:py-1 file:text-xs file:font-medium file:text-neutral-700 hover:file:bg-neutral-50 disabled:opacity-50"
+            className="hidden"
           />
+          <button
+            type="button"
+            disabled={uploading}
+            onClick={() => fileInputRef.current?.click()}
+            className="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+          >
+            Bilder hochladen
+          </button>
           {uploading && <span className="ml-2 text-xs text-neutral-500">Lädt hoch…</span>}
         </div>
       </div>

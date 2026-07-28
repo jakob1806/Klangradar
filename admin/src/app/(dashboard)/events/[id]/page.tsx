@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { DeleteButton } from "@/components/delete-button";
+import { GalleryEditor } from "@/components/entity-gallery/gallery-editor";
+import type { GalleryImage } from "@/lib/gallery-actions";
 import { deleteEvent, updateEvent } from "../actions";
 import { EventForm, type EventFormValues } from "../event-form";
 import { loadEventFormOptions } from "../form-options";
@@ -38,7 +40,7 @@ export default async function EditEventPage({
   const { id } = await params;
   const supabase = await createClient();
 
-  const [{ data: event, error }, { venues, organizers, genres }] = await Promise.all([
+  const [{ data: event, error }, { venues, organizers, genres }, { data: images }] = await Promise.all([
     supabase
       .from("events")
       .select(
@@ -47,6 +49,15 @@ export default async function EditEventPage({
       .eq("id", id)
       .maybeSingle<EventDetailRow>(),
     loadEventFormOptions(),
+    // Nur freigegebene Bilder — siehe Kommentar in persons/[id]/page.tsx.
+    supabase
+      .from("images")
+      .select("id, source_url, sort_order, crop_x, crop_y, crop_width, crop_height")
+      .eq("origin_type", "event")
+      .eq("origin_id", id)
+      .in("license_status", ["confirmed_free", "confirmed_licensed"])
+      .order("sort_order", { ascending: true })
+      .returns<GalleryImage[]>(),
   ]);
 
   if (error || !event) notFound();
@@ -81,6 +92,9 @@ export default async function EditEventPage({
           organizers={organizers}
           genres={genres}
         />
+      </div>
+      <div className="mt-8 max-w-xl border-t border-neutral-200 pt-6">
+        <GalleryEditor originType="event" originId={id} path={`/events/${id}`} images={images ?? []} />
       </div>
     </div>
   );
