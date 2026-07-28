@@ -6,6 +6,7 @@
 // Server-gerenderte Tabelle herum — Datumsformatierung/Statuslabels bleiben
 // im Server Component, nur die Checkbox-Interaktion ist client-seitig.
 
+import Link from "next/link";
 import {
   createContext,
   useContext,
@@ -144,14 +145,22 @@ export function BulkActionBar() {
         {message ?? `${selected.size} ausgewählt`}
       </span>
       {selected.size > 0 && (
-        <button
-          type="button"
-          disabled={pending}
-          onClick={publish}
-          className="rounded-md bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-700 disabled:opacity-50"
-        >
-          {pending ? "Wird veröffentlicht…" : "Veröffentlichen"}
-        </button>
+        <div className="flex items-center gap-3">
+          <Link
+            href={`/events/bulk-edit?ids=${Array.from(selected).join(",")}`}
+            className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-white"
+          >
+            Bearbeiten
+          </Link>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={publish}
+            className="rounded-md bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-700 disabled:opacity-50"
+          >
+            {pending ? "Wird veröffentlicht…" : "Veröffentlichen"}
+          </button>
+        </div>
       )}
     </div>
   );
