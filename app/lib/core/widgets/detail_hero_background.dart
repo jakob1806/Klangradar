@@ -34,10 +34,12 @@ class DetailHeroBackground extends StatelessWidget {
             imageUrl: photoUrl!,
             fit: BoxFit.cover,
             // Der feste Header ist oft schmaler/breiter als das Quellbild —
-            // topCenter statt des Standard-center verhindert, dass Gesichter/
-            // Motive nah am oberen Bildrand (z.B. Flyer-Portraits) abgeschnitten
-            // werden.
-            alignment: Alignment.topCenter,
+            // nah am oberen statt am mittleren Bildrand ausgerichtet
+            // verhindert, dass Gesichter/Motive unten abgeschnitten werden.
+            // Nicht ganz topCenter (-1.0): auf iPhones mit Dynamic Island/
+            // Notch landete das Motiv (oft ein Gesicht) sonst genau unter
+            // der Aussparung — -0.6 lässt oben noch spürbar Luft.
+            alignment: const Alignment(0, -0.6),
             errorWidget: (context, url, error) =>
                 GenreArtwork(genre: fallbackGenre),
             placeholder: (context, url) => GenreArtwork(genre: fallbackGenre),
@@ -50,8 +52,16 @@ class DetailHeroBackground extends StatelessWidget {
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [Colors.transparent, Color(0xBF000000)],
-                stops: [0.5, 1.0],
+                // Zusätzlicher dunkler Verlauf oben (nicht nur unten wie
+                // bisher) — Status-Bar-Icons/Dynamic-Island-Umgebung waren
+                // auf hellen Fotos kaum lesbar.
+                colors: [
+                  Color(0x59000000),
+                  Colors.transparent,
+                  Colors.transparent,
+                  Color(0xBF000000),
+                ],
+                stops: [0.0, 0.2, 0.5, 1.0],
               ),
             ),
           ),

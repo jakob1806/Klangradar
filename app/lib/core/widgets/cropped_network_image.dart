@@ -33,7 +33,10 @@ class CroppedNetworkImage extends StatelessWidget {
     final image = CachedNetworkImage(
       imageUrl: imageUrl,
       fit: BoxFit.cover,
-      alignment: Alignment.topCenter,
+      // Nur relevant, wenn kein Zuschnitt gesetzt ist (Fallback unten) —
+      // siehe DetailHeroBackground für die -0.6-Begründung
+      // (Dynamic-Island/Notch-Freiraum).
+      alignment: const Alignment(0, -0.6),
       errorWidget: errorWidget == null
           ? null
           : (context, url, error) => errorWidget!(context),

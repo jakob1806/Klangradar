@@ -101,6 +101,26 @@ export type WriteOutcome =
   | { outcome: "flagged"; eventId: string }
   | { outcome: "error"; error: string };
 
+/** Siehe Kommentar bei upsertRawEvent — stellt dem Titel den Ensemble-Namen
+ * voran, wenn er nicht schon selbst darin vorkommt. Best-effort: schlägt
+ * das Nachladen des Ensemble-Namens fehl, bleibt der Titel unangetastet
+ * statt den ganzen Ingestion-Lauf für dieses Event scheitern zu lassen. */
+async function withEnsemblePrefix(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  ensembleId: string,
+  title: string,
+): Promise<string> {
+  const { data: ensemble } = await supabase
+    .from("ensembles")
+    .select("name")
+    .eq("id", ensembleId)
+    .maybeSingle();
+  const name: string | undefined = ensemble?.name;
+  if (!name || title.toLowerCase().includes(name.toLowerCase())) return title;
+  return `${name}: ${title}`;
+}
+
 const DIFFABLE_FIELDS = [
   "title",
   "description_de",
@@ -130,9 +150,22 @@ export async function upsertRawEvent(
   // deno-lint-ignore no-explicit-any
   supabase: any,
   source: SourceRow,
-  raw: RawEvent,
+  rawIn: RawEvent,
 ): Promise<WriteOutcome> {
   try {
+    // Manche Quellen liefern als "Titel" nur eine Komponisten-Liste (z.B.
+    // mphil.de's ".m-mphil-concertlist__headline" — "Ravel Bernstein
+    // Strawinsky" statt eines echten Konzerttitels). Auf der Marken-Website
+    // der Quelle ist das im Kontext klar, in der App ohne Ensemble-Namen
+    // missverständlich (Nutzerfeedback: "Mozart von Weber" wirkt wie ein
+    // (fiktiver) Personenname). Nur für Quellen mit fest hinterlegtem
+    // Ensemble (sources.ensemble_id) und nur, wenn der Titel den Namen
+    // nicht schon selbst enthält — sonst bliebe z.B. "BRSO: BRSO spielt..."
+    // stehen.
+    const raw = source.ensemble_id
+      ? { ...rawIn, title: await withEnsemblePrefix(supabase, source.ensemble_id, rawIn.title) }
+      : rawIn;
+
     const venueResult = await resolveVenue(supabase, source, raw);
     if ("error" in venueResult) {
       return { outcome: "error", error: venueResult.error };

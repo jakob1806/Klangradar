@@ -68,8 +68,16 @@ class _EntityPhotoGalleryState extends State<EntityPhotoGallery> {
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [Colors.transparent, Color(0xBF000000)],
-                  stops: [0.5, 1.0],
+                  // Verlauf oben UND unten (nicht nur unten wie bisher) —
+                  // siehe DetailHeroBackground für die Begründung
+                  // (Status-Bar-/Dynamic-Island-Lesbarkeit).
+                  colors: [
+                    Color(0x59000000),
+                    Colors.transparent,
+                    Colors.transparent,
+                    Color(0xBF000000),
+                  ],
+                  stops: [0.0, 0.2, 0.5, 1.0],
                 ),
               ),
             ),
