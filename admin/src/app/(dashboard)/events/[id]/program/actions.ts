@@ -64,6 +64,43 @@ export async function createWorkAndAdd(eventId: string, formData: FormData) {
   revalidatePath(`/events/${eventId}/program`);
 }
 
+/** Vertauscht die Position mit dem direkten Nachbarn — Nutzeranfrage: "man
+ * soll die Reihenfolge der Programmpunkte auch immer ändern können". Setzt
+ * die verschobene Zeile kurz auf eine unbenutzte Zwischen-Position (-1),
+ * um einen PK-Konflikt zu vermeiden, falls (event_id, work_id, position)
+ * für einen Moment mit der Zielposition kollidieren würde — analog zum
+ * bestehenden event_works-Umbiegen beim Werk-Duplikate-Merge
+ * (duplicates/works/actions.ts). after_intermission bleibt unangetastet,
+ * es hängt am work_id-Datensatz und wandert dadurch automatisch mit.
+ */
+export async function moveWork(
+  eventId: string,
+  workId: string,
+  position: number,
+  direction: "up" | "down",
+) {
+  const supabase = await createClient();
+  const { data: rows } = await supabase
+    .from("event_works")
+    .select("work_id, position")
+    .eq("event_id", eventId)
+    .order("position", { ascending: true });
+
+  const list = rows ?? [];
+  const index = list.findIndex((r) => r.work_id === workId && r.position === position);
+  const swapIndex = direction === "up" ? index - 1 : index + 1;
+  if (index === -1 || swapIndex < 0 || swapIndex >= list.length) return;
+
+  const a = list[index];
+  const b = list[swapIndex];
+
+  await supabase.from("event_works").update({ position: -1 }).eq("event_id", eventId).eq("work_id", a.work_id).eq("position", a.position);
+  await supabase.from("event_works").update({ position: a.position }).eq("event_id", eventId).eq("work_id", b.work_id).eq("position", b.position);
+  await supabase.from("event_works").update({ position: b.position }).eq("event_id", eventId).eq("work_id", a.work_id).eq("position", -1);
+
+  revalidatePath(`/events/${eventId}/program`);
+}
+
 export async function removeWork(eventId: string, workId: string, position: number) {
   const supabase = await createClient();
   const { error } = await supabase

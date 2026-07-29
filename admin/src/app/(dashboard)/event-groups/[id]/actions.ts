@@ -139,6 +139,103 @@ export async function removeWorkFromGroup(groupId: string, workId: string) {
   revalidatePath(`/event-groups/${groupId}`);
 }
 
+/** Fügt ein Bild der Bildergalerie JEDES Mitgliedsevents hinzu (Nutzeranfrage:
+ * "man muss auch ein Bild für die gesamte Gruppe, alle Konzerte der Gruppe,
+ * hinzufügen können") — es gibt keine eigene Galerie auf Gruppenebene, die
+ * App liest Bilder pro Event (images mit origin_type='event'), also wird
+ * dasselbe Bild bei jedem Mitgliedsevent eingetragen, das es noch nicht hat.
+ * Landet an oberster Position (sort_order 0) und wird damit die
+ * Miniaturansicht — vorhandene Event-eigene Bilder bleiben erhalten,
+ * rutschen nur eine Position nach hinten. */
+export async function addGroupImage(groupId: string, sourceUrl: string) {
+  const supabase = await createClient();
+  const eventIds = await memberEventIds(supabase, groupId);
+
+  for (const eventId of eventIds) {
+    const { data: existing } = await supabase
+      .from("images")
+      .select("id")
+      .eq("origin_type", "event")
+      .eq("origin_id", eventId)
+      .eq("source_url", sourceUrl)
+      .maybeSingle();
+    if (existing) continue;
+
+    const { data: currentImages } = await supabase
+      .from("images")
+      .select("id, sort_order")
+      .eq("origin_type", "event")
+      .eq("origin_id", eventId)
+      .order("sort_order", { ascending: true });
+
+    // Alle vorhandenen Bilder um eine Position nach hinten schieben, damit
+    // das Gruppenbild an Position 0 (= Miniaturansicht) landet, ohne die
+    // sort_order-Werte der bestehenden Bilder zu duplizieren.
+    for (let i = (currentImages ?? []).length - 1; i >= 0; i--) {
+      await supabase
+        .from("images")
+        .update({ sort_order: i + 1 })
+        .eq("id", currentImages![i].id);
+    }
+
+    await supabase.from("images").insert({
+      origin_type: "event",
+      origin_id: eventId,
+      source_url: sourceUrl,
+      storage_path: sourceUrl,
+      sort_order: 0,
+      license_status: "confirmed_free",
+      needs_review: false,
+    });
+  }
+
+  revalidatePath(`/event-groups/${groupId}`);
+}
+
+/** Verschiebt ein Werk in der (deduplizierten) Gruppen-Programmliste um
+ * einen Platz — wirkt auf ALLE Mitgliedsevents gleichzeitig, damit die
+ * Reihenfolge über die ganze Gruppe konsistent bleibt. Die Referenz-
+ * Reihenfolge kommt vom ersten Mitgliedsevent, das dieses Werk enthält
+ * (die Gruppen-Broadcast-Logik hält die Reihenfolgen ohnehin synchron);
+ * pro Event wird dieselbe (event_id, work_id)-Positionsvertauschung
+ * angewendet wie bei einem einzelnen Event (siehe events/[id]/program/
+ * actions.ts moveWork), nur für jedes Event einzeln wiederholt. */
+export async function moveWorkInGroup(groupId: string, workId: string, direction: "up" | "down") {
+  const supabase = await createClient();
+  const eventIds = await memberEventIds(supabase, groupId);
+  if (eventIds.length === 0) return;
+
+  const { data: referenceRows } = await supabase
+    .from("event_works")
+    .select("event_id, work_id, position")
+    .in("event_id", eventIds)
+    .eq("event_id", eventIds[0])
+    .order("position", { ascending: true });
+
+  const list = referenceRows ?? [];
+  const index = list.findIndex((r) => r.work_id === workId);
+  const swapIndex = direction === "up" ? index - 1 : index + 1;
+  if (index === -1 || swapIndex < 0 || swapIndex >= list.length) return;
+  const otherWorkId = list[swapIndex].work_id;
+
+  for (const eventId of eventIds) {
+    const { data: rows } = await supabase
+      .from("event_works")
+      .select("work_id, position")
+      .eq("event_id", eventId)
+      .in("work_id", [workId, otherWorkId]);
+    const a = (rows ?? []).find((r) => r.work_id === workId);
+    const b = (rows ?? []).find((r) => r.work_id === otherWorkId);
+    if (!a || !b) continue; // Event hat eines der beiden Werke nicht (nur X/N Termine) — überspringen
+
+    await supabase.from("event_works").update({ position: -1 }).eq("event_id", eventId).eq("work_id", a.work_id).eq("position", a.position);
+    await supabase.from("event_works").update({ position: a.position }).eq("event_id", eventId).eq("work_id", b.work_id).eq("position", b.position);
+    await supabase.from("event_works").update({ position: b.position }).eq("event_id", eventId).eq("work_id", a.work_id).eq("position", -1);
+  }
+
+  revalidatePath(`/event-groups/${groupId}`);
+}
+
 /** Setzt, bei welchen Terminen ein bereits hinzugefügtes Werk dabei ist —
  * fügt fehlende hinzu, entfernt überzählige. Macht die "nur X/N Termine"-
  * Anzeige in der Gruppenübersicht tatsächlich bearbeitbar. */
