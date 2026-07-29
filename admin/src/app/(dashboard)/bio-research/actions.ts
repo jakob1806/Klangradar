@@ -21,6 +21,7 @@ export interface BioResearchOutcome {
   found: boolean;
   biography?: string;
   sourceUrl?: string;
+  source?: "wikipedia" | "ai_knowledge";
   error?: string;
 }
 
@@ -64,6 +65,7 @@ export async function researchBio(entityType: BioEntityType, entityId: string): 
     found: Boolean(body.found),
     biography: typeof body.biography === "string" ? body.biography : undefined,
     sourceUrl: typeof body.sourceUrl === "string" ? body.sourceUrl : undefined,
+    source: body.source === "ai_knowledge" ? "ai_knowledge" : body.source === "wikipedia" ? "wikipedia" : undefined,
   };
 }
 

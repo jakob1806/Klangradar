@@ -27,7 +27,7 @@ export interface BioWorkflowEntity {
 
 type StepState =
   | { status: "loading" }
-  | { status: "found"; sourceUrl?: string }
+  | { status: "found"; sourceUrl?: string; source?: "wikipedia" | "ai_knowledge" }
   | { status: "not_found" }
   | { status: "error"; message: string };
 
@@ -105,7 +105,7 @@ function BioStep({
       if (result.error) {
         setStep({ status: "error", message: result.error });
       } else if (result.found && result.biography) {
-        setStep({ status: "found", sourceUrl: result.sourceUrl });
+        setStep({ status: "found", sourceUrl: result.sourceUrl, source: result.source });
         setDraft(result.biography);
       } else {
         setStep({ status: "not_found" });
@@ -141,22 +141,32 @@ function BioStep({
       )}
 
       <div className="mt-4">
-        {step.status === "loading" && <p className="text-sm text-neutral-500">KI recherchiert in Wikipedia…</p>}
+        {step.status === "loading" && (
+          <p className="text-sm text-neutral-500">KI recherchiert (Wikipedia, sonst eigenes Wissen)…</p>
+        )}
 
         {step.status === "not_found" && (
           <p className="text-sm text-amber-700">
-            Keine verlässliche Quelle gefunden — Text unten manuell eintragen oder überspringen.
+            Weder in Wikipedia noch aus KI-Wissen etwas Verlässliches gefunden — Text unten manuell eintragen oder
+            überspringen.
           </p>
         )}
 
         {step.status === "error" && <p className="text-sm text-red-600">Fehler: {step.message}</p>}
 
-        {step.status === "found" && step.sourceUrl && (
+        {step.status === "found" && step.source === "wikipedia" && step.sourceUrl && (
           <p className="text-xs text-neutral-500">
             Quelle:{" "}
             <a href={step.sourceUrl} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
               {step.sourceUrl}
             </a>
+          </p>
+        )}
+
+        {step.status === "found" && step.source === "ai_knowledge" && (
+          <p className="rounded bg-amber-50 px-2 py-1 text-xs text-amber-800">
+            ⚠ Von der KI aus eigenem Wissen geschrieben, kein Wikipedia-Artikel gefunden — nicht gegen eine Quelle
+            geprüft. Vor dem Übernehmen besonders sorgfältig kontrollieren.
           </p>
         )}
 
