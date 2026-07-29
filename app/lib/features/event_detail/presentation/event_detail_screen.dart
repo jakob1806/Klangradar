@@ -167,7 +167,9 @@ class EventDetailScreen extends ConsumerWidget {
               .map((g) => g['genres'] as Map<String, dynamic>?)
               .whereType<Map<String, dynamic>>()
               .where((g) => g['id'] != null && g['label_de'] != null)
-              .map((g) => (id: g['id'] as String, label: g['label_de'] as String))
+              .map(
+                (g) => (id: g['id'] as String, label: g['label_de'] as String),
+              )
               .toList();
           final primaryGenreId = genrePairs.firstOrNull?.id;
 
