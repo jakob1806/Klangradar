@@ -9,6 +9,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/calendar/ics_export.dart';
+import '../../../core/events/event_filters.dart';
+import '../../../core/events/filtered_events_providers.dart';
 import '../../../core/gallery/entity_gallery_providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -161,14 +163,13 @@ class EventDetailScreen extends ConsumerWidget {
           final primaryGenre = EventGenre.fromSlug(
             genreSlugs.isEmpty ? null : genreSlugs.first,
           );
-          final genreLabels = (event['event_genres'] as List)
-              .map((g) => g['genres']?['label_de'] as String?)
-              .whereType<String>()
+          final genrePairs = (event['event_genres'] as List)
+              .map((g) => g['genres'] as Map<String, dynamic>?)
+              .whereType<Map<String, dynamic>>()
+              .where((g) => g['id'] != null && g['label_de'] != null)
+              .map((g) => (id: g['id'] as String, label: g['label_de'] as String))
               .toList();
-          final primaryGenreId = (event['event_genres'] as List)
-              .map((g) => g['genres']?['id'] as String?)
-              .whereType<String>()
-              .firstOrNull;
+          final primaryGenreId = genrePairs.firstOrNull?.id;
 
           final start = DateTime.tryParse(event['start_datetime'] ?? '');
           final venue = event['venues'] as Map<String, dynamic>?;
@@ -345,13 +346,25 @@ class EventDetailScreen extends ConsumerWidget {
                       spacing: 6,
                       runSpacing: 6,
                       children: [
-                        for (final label in genreLabels)
-                          Chip(
+                        // Antippbar (Nutzerwunsch: "schön wäre es, dass man
+                        // sie antippen kann und dann alle Veranstaltungen mit
+                        // dieser Kategorie sehen kann") — setzt denselben
+                        // eventFiltersProvider, den auch die Filter-Sheet/
+                        // Karten-Chips nutzen, und wechselt zum Suche-Tab,
+                        // der bei aktivem Filter automatisch die gefilterte
+                        // Liste statt der Sucheingabe zeigt.
+                        for (final genre in genrePairs)
+                          ActionChip(
                             label: Text(
-                              label,
+                              genre.label,
                               style: const TextStyle(fontSize: 11),
                             ),
                             visualDensity: VisualDensity.compact,
+                            onPressed: () {
+                              ref.read(eventFiltersProvider.notifier).state =
+                                  EventFilters(genreIds: {genre.id});
+                              context.go('/search');
+                            },
                           ),
                         if (event['is_free'] == true)
                           Chip(
