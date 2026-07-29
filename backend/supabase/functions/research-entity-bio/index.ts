@@ -71,7 +71,12 @@ Deno.serve(async (req) => {
     return jsonResponse({ found: false });
   }
 
-  return jsonResponse({ found: true, biography: result.biography, sourceUrl: result.sourceUrl });
+  return jsonResponse({
+    found: true,
+    biography: result.biography,
+    sourceUrl: result.sourceUrl,
+    source: result.source,
+  });
 });
 
 function jsonResponse(body: unknown, status = 200): Response {

@@ -25,6 +25,13 @@ export type BioEntityType = "person" | "ensemble" | "venue";
 export interface BioResearchResult {
   biography: string;
   sourceUrl: string | null;
+  // "wikipedia": aus einem konkreten Artikel zusammengefasst — kann direkt
+  // zitiert/verlinkt werden. "ai_knowledge": die KI hat aus ihrem eigenen
+  // Trainingswissen geschrieben, ohne eine konkrete Quelle zu belegen —
+  // Nutzeranfrage: "es kann doch auch eine KI welche erstellen [wenn kein
+  // Wikipedia-Artikel existiert]". Unverifizierter als ein Wikipedia-Fund,
+  // die UI weist entsprechend deutlicher auf Prüfbedarf hin.
+  source: "wikipedia" | "ai_knowledge";
 }
 
 const WRITE_BIOGRAPHY_FUNCTION: AiFunctionDeclaration = {
@@ -53,17 +60,66 @@ const WRITE_BIOGRAPHY_FUNCTION: AiFunctionDeclaration = {
   },
 };
 
+const WRITE_FROM_KNOWLEDGE_FUNCTION: AiFunctionDeclaration = {
+  name: "write_biography_from_knowledge",
+  description:
+    "Verfasst eine deutschsprachige Kurzbiografie/-beschreibung ausschließlich aus eigenem Wissen, ohne Quellenbeleg.",
+  parameters: {
+    type: "object",
+    properties: {
+      biography: {
+        type: "string",
+        description:
+          "3-6 Sätze Fließtext auf Deutsch, nur gut belegte, allgemein bekannte Fakten (keine Vermutungen, keine " +
+          "erfundenen Details wie genaue Zahlen/Daten, die du nicht sicher weißt). Leerer String, wenn dir zu " +
+          "diesem Namen nichts Verlässliches bekannt ist.",
+      },
+      recognized: {
+        type: "boolean",
+        description:
+          "true nur, wenn du diese konkrete Person/dieses Ensemble/diese Venue (im Kontext klassischer Musik in " +
+          "München) tatsächlich kennst. false, wenn dir der Name nichts sagt — dann NICHTS erfinden.",
+      },
+    },
+    required: ["recognized"],
+  },
+};
+
 const KIND_LABEL: Record<BioEntityType, string> = {
   person: "klassische:r Musiker:in/Komponist:in",
   ensemble: "Ensemble/Orchester/Chor",
   venue: "Konzert-/Veranstaltungsort",
 };
 
+async function researchFromKnowledge(
+  entityType: BioEntityType,
+  name: string,
+  context?: string | null,
+): Promise<BioResearchResult | null> {
+  const kind = KIND_LABEL[entityType];
+  const response = await callAiFunction(
+    `Du schreibst eine Kurzbiografie/-beschreibung für ${kind} für eine Münchner Konzert-Datenbank, rein aus ` +
+      "deinem eigenen Wissen (keine Websuche verfügbar). Sei konservativ: kennst du den Namen nicht sicher oder " +
+      "bist du dir bei Details unsicher, recognized=false bzw. lass unsichere Details weg. Erfinde nichts.",
+    `Name: "${name}"${context ? `\nZusätzlicher Kontext: ${context}` : ""}`,
+    WRITE_FROM_KNOWLEDGE_FUNCTION,
+  );
+  const args = response?.args;
+  if (!args || args.recognized !== true) return null;
+  const biography = typeof args.biography === "string" ? args.biography.trim() : "";
+  if (!biography) return null;
+
+  return { biography, sourceUrl: null, source: "ai_knowledge" };
+}
+
 /** `context` sind zusätzliche bekannte Anhaltspunkte (z.B. Rolle/Instrument
  * bei Personen, Stadtteil bei Venues) — verbessert die Suchtrefferqualität,
- * rein optional. Gibt null zurück, wenn die Suche nichts Verlässliches
- * findet; Aufrufer zeigen das als "keine Recherche möglich" an, nie als
- * technischen Fehler. */
+ * rein optional. Versucht zuerst Wikipedia (belegbare Quelle); findet sich
+ * dort nichts Verlässliches, schreibt die KI ersatzweise aus eigenem
+ * Wissen (researchFromKnowledge) — klar als "ai_knowledge" markiert, damit
+ * die Redaktion weiß, dass hier nichts gegengeprüft wurde. Gibt nur dann
+ * null zurück, wenn auch das nichts liefert; Aufrufer zeigen das als
+ * "keine Recherche möglich" an, nie als technischen Fehler. */
 export async function researchBiography(
   entityType: BioEntityType,
   name: string,
@@ -71,24 +127,23 @@ export async function researchBiography(
 ): Promise<BioResearchResult | null> {
   const kind = KIND_LABEL[entityType];
   const hit = await searchWikipediaExtract(context ? `${name} ${context}` : name);
-  if (!hit || !hit.extract) return null;
 
-  const response = await callAiFunction(
-    `Du fasst einen Wikipedia-Artikel zu einer möglichen ${kind} für eine Münchner Konzert-Datenbank zu einer ` +
-      "eigenständig formulierten Kurzbiografie/-beschreibung zusammen. Sei konservativ: passt der Artikel " +
-      "erkennbar NICHT zum gesuchten Namen (Namensvetter, komplett andere Person/Institution, falsche Branche), " +
-      "confident=false und leere Felder. Erfinde nichts, was nicht im Artikel steht.",
-    `Gesuchter Name: "${name}"${context ? `\nZusätzlicher Kontext: ${context}` : ""}\n\n` +
-      `Wikipedia-Artikel "${hit.title}":\n${hit.extract}`,
-    WRITE_BIOGRAPHY_FUNCTION,
-  );
-  const args = response?.args;
-  if (!args || args.confident !== true) return null;
-  const biography = typeof args.biography === "string" ? args.biography.trim() : "";
-  if (!biography) return null;
+  if (hit?.extract) {
+    const response = await callAiFunction(
+      `Du fasst einen Wikipedia-Artikel zu einer möglichen ${kind} für eine Münchner Konzert-Datenbank zu einer ` +
+        "eigenständig formulierten Kurzbiografie/-beschreibung zusammen. Sei konservativ: passt der Artikel " +
+        "erkennbar NICHT zum gesuchten Namen (Namensvetter, komplett andere Person/Institution, falsche Branche), " +
+        "confident=false und leere Felder. Erfinde nichts, was nicht im Artikel steht.",
+      `Gesuchter Name: "${name}"${context ? `\nZusätzlicher Kontext: ${context}` : ""}\n\n` +
+        `Wikipedia-Artikel "${hit.title}":\n${hit.extract}`,
+      WRITE_BIOGRAPHY_FUNCTION,
+    );
+    const args = response?.args;
+    const biography = typeof args?.biography === "string" ? args.biography.trim() : "";
+    if (args?.confident === true && biography) {
+      return { biography, sourceUrl: hit.url, source: "wikipedia" };
+    }
+  }
 
-  return {
-    biography,
-    sourceUrl: hit.url,
-  };
+  return researchFromKnowledge(entityType, name, context);
 }
