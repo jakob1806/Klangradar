@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { BioResearchBar, BioRowCheckbox, BioSelectAllCheckbox, BioSelectionProvider } from "@/components/bio-select";
 
 export const dynamic = "force-dynamic";
 
@@ -41,54 +42,65 @@ export default async function VenuesPage() {
       )}
 
       {!error && (
-        <div className="mt-6 overflow-hidden rounded-lg border border-neutral-200 bg-white">
-          <table className="w-full text-sm">
-            <thead className="bg-neutral-50 text-left text-xs uppercase tracking-wide text-neutral-500">
-              <tr>
-                <th className="px-4 py-3 font-medium">Name</th>
-                <th className="px-4 py-3 font-medium">Stadt</th>
-                <th className="px-4 py-3 font-medium">Kapazität</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-neutral-100">
-              {data?.length ? (
-                data.map((venue) => (
-                  <tr key={venue.id} className="hover:bg-neutral-50">
-                    <td className="px-4 py-3 font-medium text-neutral-900">{venue.name}</td>
-                    <td className="px-4 py-3 text-neutral-600">{venue.address_city}</td>
-                    <td className="px-4 py-3 text-neutral-600 tabular-nums">
-                      {venue.capacity ?? "—"}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                          venue.is_verified
-                            ? "bg-emerald-50 text-emerald-700"
-                            : "bg-neutral-100 text-neutral-600"
-                        }`}
-                      >
-                        {venue.is_verified ? "Geprüft" : "Ungeprüft"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <Link href={`/venues/${venue.id}`} className="text-sm font-medium text-neutral-700 hover:text-neutral-900">
-                        Bearbeiten
-                      </Link>
-                    </td>
+        <BioSelectionProvider>
+          <div className="mt-6">
+            <BioResearchBar entityType="venue" />
+            <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
+              <table className="w-full text-sm">
+                <thead className="bg-neutral-50 text-left text-xs uppercase tracking-wide text-neutral-500">
+                  <tr>
+                    <th className="w-10 px-4 py-3">
+                      <BioSelectAllCheckbox ids={(data ?? []).map((v) => v.id)} />
+                    </th>
+                    <th className="px-4 py-3 font-medium">Name</th>
+                    <th className="px-4 py-3 font-medium">Stadt</th>
+                    <th className="px-4 py-3 font-medium">Kapazität</th>
+                    <th className="px-4 py-3 font-medium">Status</th>
+                    <th className="px-4 py-3" />
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={5} className="px-4 py-10 text-center text-neutral-400">
-                    Noch keine Venues angelegt.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+                </thead>
+                <tbody className="divide-y divide-neutral-100">
+                  {data?.length ? (
+                    data.map((venue) => (
+                      <tr key={venue.id} className="hover:bg-neutral-50">
+                        <td className="px-4 py-3">
+                          <BioRowCheckbox id={venue.id} />
+                        </td>
+                        <td className="px-4 py-3 font-medium text-neutral-900">{venue.name}</td>
+                        <td className="px-4 py-3 text-neutral-600">{venue.address_city}</td>
+                        <td className="px-4 py-3 text-neutral-600 tabular-nums">
+                          {venue.capacity ?? "—"}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                              venue.is_verified
+                                ? "bg-emerald-50 text-emerald-700"
+                                : "bg-neutral-100 text-neutral-600"
+                            }`}
+                          >
+                            {venue.is_verified ? "Geprüft" : "Ungeprüft"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <Link href={`/venues/${venue.id}`} className="text-sm font-medium text-neutral-700 hover:text-neutral-900">
+                            Bearbeiten
+                          </Link>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-10 text-center text-neutral-400">
+                        Noch keine Venues angelegt.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </BioSelectionProvider>
       )}
     </div>
   );

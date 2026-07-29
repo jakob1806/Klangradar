@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { BioResearchBar, BioRowCheckbox, BioSelectAllCheckbox, BioSelectionProvider } from "@/components/bio-select";
 
 export const dynamic = "force-dynamic";
 
@@ -51,55 +52,66 @@ export default async function EnsemblesPage() {
       )}
 
       {!error && (
-        <div className="mt-6 overflow-hidden rounded-lg border border-neutral-200 bg-white">
-          <table className="w-full text-sm">
-            <thead className="bg-neutral-50 text-left text-xs uppercase tracking-wide text-neutral-500">
-              <tr>
-                <th className="px-4 py-3 font-medium">Name</th>
-                <th className="px-4 py-3 font-medium">Typ</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-neutral-100">
-              {data?.length ? (
-                data.map((ensemble) => (
-                  <tr key={ensemble.id} className="hover:bg-neutral-50">
-                    <td className="px-4 py-3 font-medium text-neutral-900">{ensemble.name}</td>
-                    <td className="px-4 py-3 text-neutral-600">
-                      {TYPE_LABEL[ensemble.type] ?? ensemble.type}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                          ensemble.is_verified
-                            ? "bg-emerald-50 text-emerald-700"
-                            : "bg-neutral-100 text-neutral-600"
-                        }`}
-                      >
-                        {ensemble.is_verified ? "Geprüft" : "Ungeprüft"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <Link
-                        href={`/ensembles/${ensemble.id}`}
-                        className="text-sm font-medium text-neutral-700 hover:text-neutral-900"
-                      >
-                        Bearbeiten
-                      </Link>
-                    </td>
+        <BioSelectionProvider>
+          <div className="mt-6">
+            <BioResearchBar entityType="ensemble" />
+            <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
+              <table className="w-full text-sm">
+                <thead className="bg-neutral-50 text-left text-xs uppercase tracking-wide text-neutral-500">
+                  <tr>
+                    <th className="w-10 px-4 py-3">
+                      <BioSelectAllCheckbox ids={(data ?? []).map((e) => e.id)} />
+                    </th>
+                    <th className="px-4 py-3 font-medium">Name</th>
+                    <th className="px-4 py-3 font-medium">Typ</th>
+                    <th className="px-4 py-3 font-medium">Status</th>
+                    <th className="px-4 py-3" />
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={4} className="px-4 py-10 text-center text-neutral-400">
-                    Noch keine Ensembles angelegt.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+                </thead>
+                <tbody className="divide-y divide-neutral-100">
+                  {data?.length ? (
+                    data.map((ensemble) => (
+                      <tr key={ensemble.id} className="hover:bg-neutral-50">
+                        <td className="px-4 py-3">
+                          <BioRowCheckbox id={ensemble.id} />
+                        </td>
+                        <td className="px-4 py-3 font-medium text-neutral-900">{ensemble.name}</td>
+                        <td className="px-4 py-3 text-neutral-600">
+                          {TYPE_LABEL[ensemble.type] ?? ensemble.type}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                              ensemble.is_verified
+                                ? "bg-emerald-50 text-emerald-700"
+                                : "bg-neutral-100 text-neutral-600"
+                            }`}
+                          >
+                            {ensemble.is_verified ? "Geprüft" : "Ungeprüft"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <Link
+                            href={`/ensembles/${ensemble.id}`}
+                            className="text-sm font-medium text-neutral-700 hover:text-neutral-900"
+                          >
+                            Bearbeiten
+                          </Link>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-10 text-center text-neutral-400">
+                        Noch keine Ensembles angelegt.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </BioSelectionProvider>
       )}
     </div>
   );
