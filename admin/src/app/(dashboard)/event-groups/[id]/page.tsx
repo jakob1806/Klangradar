@@ -5,12 +5,18 @@ import { Field, Select, TextInput } from "@/components/form-fields";
 import { SubmitButton } from "@/components/submit-button";
 import { DeleteButton } from "@/components/delete-button";
 import { removeEventFromGroup } from "../actions";
+import { EventChecklist } from "./event-checklist";
+import { MembershipEditor } from "./membership-editor";
 import {
   addExistingWorkToGroup,
   addParticipantToGroup,
+  createEnsembleAndAddToGroup,
+  createPersonAndAddToGroup,
   createWorkAndAddToGroup,
   removeParticipantFromGroup,
   removeWorkFromGroup,
+  setParticipantEventMembership,
+  setWorkEventMembership,
 } from "./actions";
 
 const ROLE_LABEL: Record<string, string> = {
@@ -67,6 +73,11 @@ export default async function EventGroupDetailPage({
     .returns<MemberEvent[]>();
 
   const memberIds = (members ?? []).map((e) => e.id);
+  const checklistEvents = (members ?? []).map((e) => ({
+    id: e.id,
+    label: `${formatDate(e.start_datetime)}${e.venues?.name ? ` · ${e.venues.name}` : ""}`,
+  }));
+  const allMemberIdsSet = new Set(memberIds);
 
   const [{ data: workRows }, { data: participantRows }, { data: works }, { data: persons }, { data: ensembles }, { data: ungrouped }] =
     memberIds.length > 0
@@ -98,31 +109,44 @@ export default async function EventGroupDetailPage({
       : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }];
 
   // Werke/Mitwirkende sind über die Broadcast-Actions eigentlich auf allen
-  // Mitgliedsevents identisch — dedupliziert dargestellt, mit Hinweis, falls
-  // ein Event (noch) abweicht (z. B. weil es vor der Gruppierung schon
-  // eigene Einträge hatte).
-  const workMap = new Map<string, { work: ProgramWorkRow["works"]; afterIntermission: boolean; eventCount: number }>();
+  // Mitgliedsevents identisch — dedupliziert dargestellt, mit Hinweis und
+  // Bearbeiten-Möglichkeit, falls ein Event (noch) abweicht.
+  const workMap = new Map<
+    string,
+    { work: ProgramWorkRow["works"]; afterIntermission: boolean; eventIds: Set<string> }
+  >();
   for (const row of workRows ?? []) {
     const existing = workMap.get(row.work_id);
-    if (existing) existing.eventCount += 1;
-    else workMap.set(row.work_id, { work: row.works, afterIntermission: row.after_intermission, eventCount: 1 });
+    if (existing) existing.eventIds.add(row.event_id);
+    else
+      workMap.set(row.work_id, {
+        work: row.works,
+        afterIntermission: row.after_intermission,
+        eventIds: new Set([row.event_id]),
+      });
   }
 
   const participantMap = new Map<
     string,
-    { label: string; role: string | null; personId: string | null; ensembleId: string | null; eventCount: number }
+    {
+      label: string;
+      role: string | null;
+      personId: string | null;
+      ensembleId: string | null;
+      eventIds: Set<string>;
+    }
   >();
   for (const row of participantRows ?? []) {
     const key = row.person_id ?? `ensemble:${row.ensemble_id}`;
     const existing = participantMap.get(key);
-    if (existing) existing.eventCount += 1;
+    if (existing) existing.eventIds.add(row.event_id);
     else
       participantMap.set(key, {
         label: row.persons?.full_name ?? row.ensembles?.name ?? "?",
         role: row.role,
         personId: row.person_id,
         ensembleId: row.ensemble_id,
-        eventCount: 1,
+        eventIds: new Set([row.event_id]),
       });
   }
 
@@ -130,6 +154,8 @@ export default async function EventGroupDetailPage({
   const boundAddExistingWork = addExistingWorkToGroup.bind(null, id);
   const boundCreateWorkAndAdd = createWorkAndAddToGroup.bind(null, id);
   const boundAddParticipant = addParticipantToGroup.bind(null, id);
+  const boundCreatePerson = createPersonAndAddToGroup.bind(null, id);
+  const boundCreateEnsemble = createEnsembleAndAddToGroup.bind(null, id);
 
   return (
     <div className="p-8">
@@ -138,7 +164,8 @@ export default async function EventGroupDetailPage({
       </Link>
       <h1 className="mt-2 text-xl font-semibold tracking-tight">{group.title}</h1>
       <p className="mt-1 text-sm text-neutral-500">
-        Änderungen an Programm &amp; Mitwirkenden wirken auf alle {memberCount} Termine dieser Gruppe.
+        Änderungen an Programm &amp; Mitwirkenden gelten standardmäßig für alle {memberCount} Termine dieser Gruppe —
+        beim Hinzufügen und über „Termine bearbeiten“ pro Eintrag kann das auf einzelne Termine eingeschränkt werden.
       </p>
 
       <section className="mt-8">
@@ -198,37 +225,41 @@ export default async function EventGroupDetailPage({
       <div className="mt-10 grid gap-10 lg:grid-cols-2">
         {/* Programm */}
         <section>
-          <h2 className="text-sm font-semibold text-neutral-900">Programm (für alle Termine)</h2>
+          <h2 className="text-sm font-semibold text-neutral-900">Programm</h2>
 
           <ol className="mt-3 flex flex-col gap-2">
             {workMap.size > 0 ? (
               Array.from(workMap.entries()).map(([workId, entry]) => (
-                <li
-                  key={workId}
-                  className="flex items-center justify-between rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
-                >
-                  <span>
-                    {entry.afterIntermission && (
-                      <span className="mr-2 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium uppercase text-amber-700">
-                        nach Pause
-                      </span>
-                    )}
-                    <span className="font-medium text-neutral-900">{entry.work?.title}</span>
-                    {entry.work?.composer && (
-                      <span className="text-neutral-500"> — {entry.work.composer.full_name}</span>
-                    )}
-                    {entry.work?.catalog_number && (
-                      <span className="text-neutral-400"> ({entry.work.catalog_number})</span>
-                    )}
-                    {entry.eventCount < memberCount && (
-                      <span className="ml-2 text-[10px] font-medium uppercase text-amber-600">
-                        nur {entry.eventCount}/{memberCount} Termine
-                      </span>
-                    )}
-                  </span>
-                  <DeleteButton
-                    action={removeWorkFromGroup.bind(null, id, workId)}
-                    confirmMessage="Werk aus dem Programm aller Termine entfernen?"
+                <li key={workId} className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span>
+                      {entry.afterIntermission && (
+                        <span className="mr-2 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium uppercase text-amber-700">
+                          nach Pause
+                        </span>
+                      )}
+                      <span className="font-medium text-neutral-900">{entry.work?.title}</span>
+                      {entry.work?.composer && (
+                        <span className="text-neutral-500"> — {entry.work.composer.full_name}</span>
+                      )}
+                      {entry.work?.catalog_number && (
+                        <span className="text-neutral-400"> ({entry.work.catalog_number})</span>
+                      )}
+                      {entry.eventIds.size < memberCount && (
+                        <span className="ml-2 text-[10px] font-medium uppercase text-amber-600">
+                          nur {entry.eventIds.size}/{memberCount} Termine
+                        </span>
+                      )}
+                    </span>
+                    <DeleteButton
+                      action={removeWorkFromGroup.bind(null, id, workId)}
+                      confirmMessage="Werk aus dem Programm aller Termine entfernen?"
+                    />
+                  </div>
+                  <MembershipEditor
+                    events={checklistEvents}
+                    checkedIds={new Set([...entry.eventIds].filter((eid) => allMemberIdsSet.has(eid)))}
+                    onSave={setWorkEventMembership.bind(null, id, workId)}
                   />
                 </li>
               ))
@@ -258,6 +289,8 @@ export default async function EventGroupDetailPage({
                 <input type="checkbox" name="after_intermission" />
                 Nach der Pause
               </label>
+              <p className="text-xs font-medium text-neutral-500">Bei welchen Terminen?</p>
+              <EventChecklist events={checklistEvents} checkedIds={allMemberIdsSet} />
               <SubmitButton>Hinzufügen</SubmitButton>
             </form>
 
@@ -279,6 +312,8 @@ export default async function EventGroupDetailPage({
                 <input type="checkbox" name="after_intermission_new" />
                 Nach der Pause
               </label>
+              <p className="text-xs font-medium text-neutral-500">Bei welchen Terminen?</p>
+              <EventChecklist events={checklistEvents} checkedIds={allMemberIdsSet} />
               <SubmitButton>Anlegen & hinzufügen</SubmitButton>
             </form>
           </div>
@@ -286,27 +321,31 @@ export default async function EventGroupDetailPage({
 
         {/* Mitwirkende */}
         <section>
-          <h2 className="text-sm font-semibold text-neutral-900">Mitwirkende (für alle Termine)</h2>
+          <h2 className="text-sm font-semibold text-neutral-900">Mitwirkende</h2>
 
           <ul className="mt-3 flex flex-col gap-2">
             {participantMap.size > 0 ? (
               Array.from(participantMap.entries()).map(([key, entry]) => (
-                <li
-                  key={key}
-                  className="flex items-center justify-between rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
-                >
-                  <span>
-                    <span className="font-medium text-neutral-900">{entry.label}</span>
-                    {entry.role && <span className="text-neutral-500"> — {ROLE_LABEL[entry.role] ?? entry.role}</span>}
-                    {entry.eventCount < memberCount && (
-                      <span className="ml-2 text-[10px] font-medium uppercase text-amber-600">
-                        nur {entry.eventCount}/{memberCount} Termine
-                      </span>
-                    )}
-                  </span>
-                  <DeleteButton
-                    action={removeParticipantFromGroup.bind(null, id, entry.personId, entry.ensembleId)}
-                    confirmMessage="Mitwirkende:n aus allen Terminen entfernen?"
+                <li key={key} className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span>
+                      <span className="font-medium text-neutral-900">{entry.label}</span>
+                      {entry.role && <span className="text-neutral-500"> — {ROLE_LABEL[entry.role] ?? entry.role}</span>}
+                      {entry.eventIds.size < memberCount && (
+                        <span className="ml-2 text-[10px] font-medium uppercase text-amber-600">
+                          nur {entry.eventIds.size}/{memberCount} Termine
+                        </span>
+                      )}
+                    </span>
+                    <DeleteButton
+                      action={removeParticipantFromGroup.bind(null, id, entry.personId, entry.ensembleId)}
+                      confirmMessage="Mitwirkende:n aus allen Terminen entfernen?"
+                    />
+                  </div>
+                  <MembershipEditor
+                    events={checklistEvents}
+                    checkedIds={new Set([...entry.eventIds].filter((eid) => allMemberIdsSet.has(eid)))}
+                    onSave={setParticipantEventMembership.bind(null, id, entry.personId, entry.ensembleId)}
                   />
                 </li>
               ))
@@ -319,7 +358,7 @@ export default async function EventGroupDetailPage({
 
           <div className="mt-6 flex flex-col gap-4 rounded-lg border border-neutral-200 bg-white p-4">
             <form action={boundAddParticipant} className="flex flex-col gap-2">
-              <p className="text-xs font-medium text-neutral-600">Person hinzufügen</p>
+              <p className="text-xs font-medium text-neutral-600">Vorhandene Person hinzufügen</p>
               <Select name="person_id" required defaultValue="">
                 <option value="" disabled>
                   Person wählen…
@@ -338,13 +377,33 @@ export default async function EventGroupDetailPage({
                   </option>
                 ))}
               </Select>
+              <p className="text-xs font-medium text-neutral-500">Bei welchen Terminen?</p>
+              <EventChecklist events={checklistEvents} checkedIds={allMemberIdsSet} />
               <SubmitButton>Hinzufügen</SubmitButton>
             </form>
 
             <hr className="border-neutral-200" />
 
+            <form action={boundCreatePerson} className="flex flex-col gap-2">
+              <p className="text-xs font-medium text-neutral-600">Neue Person anlegen & hinzufügen</p>
+              <TextInput name="full_name" placeholder="Vollständiger Name" required />
+              <Select name="role_new_person" defaultValue="">
+                <option value="">Rolle (optional)</option>
+                {Object.entries(ROLE_LABEL).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </Select>
+              <p className="text-xs font-medium text-neutral-500">Bei welchen Terminen?</p>
+              <EventChecklist events={checklistEvents} checkedIds={allMemberIdsSet} />
+              <SubmitButton>Anlegen & hinzufügen</SubmitButton>
+            </form>
+
+            <hr className="border-neutral-200" />
+
             <form action={boundAddParticipant} className="flex flex-col gap-2">
-              <p className="text-xs font-medium text-neutral-600">Ensemble hinzufügen</p>
+              <p className="text-xs font-medium text-neutral-600">Vorhandenes Ensemble hinzufügen</p>
               <Select name="ensemble_id" required defaultValue="">
                 <option value="" disabled>
                   Ensemble wählen…
@@ -355,7 +414,19 @@ export default async function EventGroupDetailPage({
                   </option>
                 ))}
               </Select>
+              <p className="text-xs font-medium text-neutral-500">Bei welchen Terminen?</p>
+              <EventChecklist events={checklistEvents} checkedIds={allMemberIdsSet} />
               <SubmitButton>Hinzufügen</SubmitButton>
+            </form>
+
+            <hr className="border-neutral-200" />
+
+            <form action={boundCreateEnsemble} className="flex flex-col gap-2">
+              <p className="text-xs font-medium text-neutral-600">Neues Ensemble anlegen & hinzufügen</p>
+              <TextInput name="name" placeholder="Name" required />
+              <p className="text-xs font-medium text-neutral-500">Bei welchen Terminen?</p>
+              <EventChecklist events={checklistEvents} checkedIds={allMemberIdsSet} />
+              <SubmitButton>Anlegen & hinzufügen</SubmitButton>
             </form>
           </div>
         </section>

@@ -1,28 +1,66 @@
 "use server";
 
 // "Broadcast"-Bearbeitung: eine Aktion hier wirkt auf event_works/
-// event_participants ALLER Mitgliedsevents der Gruppe gleichzeitig, statt
+// event_participants der AUSGEWÄHLTEN Mitgliedsevents der Gruppe, statt
 // eine eigene programs/program_items-Struktur einzuführen — event_works
 // ist an event_id gebunden (siehe events/[id]/program/actions.ts), das
 // bleibt für die App-Seite unverändert, hier wird nur mehrfach dieselbe
 // Operation ausgeführt. Duplikate pro Event werden übersprungen (nicht
 // jedes Event startet zwangsläufig mit demselben Stand).
+//
+// Nutzeranfrage: "man kann nicht ändern, bei welchen Terminen eine Person
+// dabei ist, und beim Hinzufügen nicht auswählen, wie viele Termine
+// betroffen sind" — alle Add-Aktionen nehmen deshalb jetzt eine explizite
+// event_ids-Liste aus dem Formular entgegen (Checkbox-Liste in der UI,
+// vorbelegt mit allen Terminen) statt implizit "alle". setWork/
+// ParticipantEventMembership erlaubt nachträglich, die Zuordnung pro
+// bereits hinzugefügtem Werk/Mitwirkenden zu ändern.
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 
-async function memberEventIds(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  groupId: string,
-): Promise<string[]> {
+type Supa = Awaited<ReturnType<typeof createClient>>;
+
+// Dupliziert aus enrich-event-references/index.ts generateUniqueSlug —
+// persons.slug/ensembles.slug sind NOT NULL, kein gemeinsamer Modul-Raum
+// zwischen Edge Functions (Deno) und der Next.js-Admin-App.
+function slugifyBase(name: string): string {
+  const umlauts: Record<string, string> = { ä: "ae", ö: "oe", ü: "ue", ß: "ss", Ä: "ae", Ö: "oe", Ü: "ue" };
+  let s = name;
+  for (const [from, to] of Object.entries(umlauts)) s = s.split(from).join(to);
+  return (
+    s
+      .toLowerCase()
+      .normalize("NFKD")
+      .replace(/[̀-ͯ]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 80)
+      .replace(/-+$/g, "") || "eintrag"
+  );
+}
+
+async function generateUniqueSlug(supabase: Supa, table: "persons" | "ensembles", name: string): Promise<string> {
+  const base = slugifyBase(name);
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const candidate = attempt === 0 ? base : `${base}-${attempt + 1}`;
+    const { data } = await supabase.from(table).select("id").eq("slug", candidate).maybeSingle();
+    if (!data) return candidate;
+  }
+  return `${base}-${crypto.randomUUID().slice(0, 8)}`;
+}
+
+async function memberEventIds(supabase: Supa, groupId: string): Promise<string[]> {
   const { data } = await supabase.from("events").select("id").eq("program_id", groupId);
   return (data ?? []).map((e) => e.id);
 }
 
-async function nextWorkPosition(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  eventId: string,
-) {
+function selectedEventIds(formData: FormData, fallback: string[]): string[] {
+  const selected = formData.getAll("event_ids").map(String);
+  return selected.length > 0 ? selected : fallback;
+}
+
+async function nextWorkPosition(supabase: Supa, eventId: string) {
   const { data } = await supabase
     .from("event_works")
     .select("position")
@@ -33,14 +71,7 @@ async function nextWorkPosition(
   return (data?.position ?? -1) + 1;
 }
 
-export async function addExistingWorkToGroup(groupId: string, formData: FormData) {
-  const workId = String(formData.get("work_id") ?? "");
-  const afterIntermission = formData.get("after_intermission") === "on";
-  if (!workId) return;
-
-  const supabase = await createClient();
-  const eventIds = await memberEventIds(supabase, groupId);
-
+async function addWorkToEvents(supabase: Supa, eventIds: string[], workId: string, afterIntermission: boolean) {
   for (const eventId of eventIds) {
     const { data: existing } = await supabase
       .from("event_works")
@@ -58,6 +89,16 @@ export async function addExistingWorkToGroup(groupId: string, formData: FormData
       after_intermission: afterIntermission,
     });
   }
+}
+
+export async function addExistingWorkToGroup(groupId: string, formData: FormData) {
+  const workId = String(formData.get("work_id") ?? "");
+  const afterIntermission = formData.get("after_intermission") === "on";
+  if (!workId) return;
+
+  const supabase = await createClient();
+  const eventIds = selectedEventIds(formData, await memberEventIds(supabase, groupId));
+  await addWorkToEvents(supabase, eventIds, workId, afterIntermission);
 
   revalidatePath(`/event-groups/${groupId}`);
 }
@@ -78,24 +119,15 @@ export async function createWorkAndAddToGroup(groupId: string, formData: FormDat
     .single();
   if (error) throw new Error(error.message);
 
-  const eventIds = await memberEventIds(supabase, groupId);
-  for (const eventId of eventIds) {
-    const position = await nextWorkPosition(supabase, eventId);
-    await supabase.from("event_works").insert({
-      event_id: eventId,
-      work_id: work.id,
-      position,
-      after_intermission: afterIntermission,
-    });
-  }
+  const eventIds = selectedEventIds(formData, await memberEventIds(supabase, groupId));
+  await addWorkToEvents(supabase, eventIds, work.id, afterIntermission);
 
   revalidatePath(`/event-groups/${groupId}`);
 }
 
-/** Entfernt das Werk aus JEDEM Mitgliedsevent, das es gerade hat (nicht nur
- * dem, über das der Button geklickt wurde) — die Gruppenansicht zeigt eine
- * deduplizierte Werkliste, "Entfernen" soll sich deshalb auf die ganze
- * Gruppe beziehen. */
+/** Entfernt das Werk aus JEDEM Mitgliedsevent, das es gerade hat — Klick auf
+ * "Entfernen" in der deduplizierten Liste bezieht sich auf die ganze
+ * Gruppe. Für eine Teilmenge siehe setWorkEventMembership. */
 export async function removeWorkFromGroup(groupId: string, workId: string) {
   const supabase = await createClient();
   const eventIds = await memberEventIds(supabase, groupId);
@@ -107,15 +139,39 @@ export async function removeWorkFromGroup(groupId: string, workId: string) {
   revalidatePath(`/event-groups/${groupId}`);
 }
 
-export async function addParticipantToGroup(groupId: string, formData: FormData) {
-  const personId = String(formData.get("person_id") ?? "") || null;
-  const ensembleId = String(formData.get("ensemble_id") ?? "") || null;
-  const role = String(formData.get("role") ?? "") || null;
-  if (!personId && !ensembleId) return;
-
+/** Setzt, bei welchen Terminen ein bereits hinzugefügtes Werk dabei ist —
+ * fügt fehlende hinzu, entfernt überzählige. Macht die "nur X/N Termine"-
+ * Anzeige in der Gruppenübersicht tatsächlich bearbeitbar. */
+export async function setWorkEventMembership(groupId: string, workId: string, eventIds: string[]) {
   const supabase = await createClient();
-  const eventIds = await memberEventIds(supabase, groupId);
+  const allMemberIds = await memberEventIds(supabase, groupId);
+  const targetIds = new Set(eventIds.filter((id) => allMemberIds.includes(id)));
 
+  const { data: currentLinks } = await supabase
+    .from("event_works")
+    .select("event_id")
+    .eq("work_id", workId)
+    .in("event_id", allMemberIds);
+  const currentIds = new Set((currentLinks ?? []).map((l) => l.event_id));
+
+  const toAdd = [...targetIds].filter((id) => !currentIds.has(id));
+  const toRemove = [...currentIds].filter((id) => !targetIds.has(id));
+
+  await addWorkToEvents(supabase, toAdd, workId, false);
+  if (toRemove.length > 0) {
+    await supabase.from("event_works").delete().eq("work_id", workId).in("event_id", toRemove);
+  }
+
+  revalidatePath(`/event-groups/${groupId}`);
+}
+
+async function addParticipantToEvents(
+  supabase: Supa,
+  eventIds: string[],
+  personId: string | null,
+  ensembleId: string | null,
+  role: string | null,
+) {
   for (const eventId of eventIds) {
     let query = supabase.from("event_participants").select("id").eq("event_id", eventId);
     query = personId ? query.eq("person_id", personId) : query.eq("ensemble_id", ensembleId);
@@ -129,6 +185,60 @@ export async function addParticipantToGroup(groupId: string, formData: FormData)
       role,
     });
   }
+}
+
+export async function addParticipantToGroup(groupId: string, formData: FormData) {
+  const personId = String(formData.get("person_id") ?? "") || null;
+  const ensembleId = String(formData.get("ensemble_id") ?? "") || null;
+  const role = String(formData.get("role") ?? "") || null;
+  if (!personId && !ensembleId) return;
+
+  const supabase = await createClient();
+  const eventIds = selectedEventIds(formData, await memberEventIds(supabase, groupId));
+  await addParticipantToEvents(supabase, eventIds, personId, ensembleId, role);
+
+  revalidatePath(`/event-groups/${groupId}`);
+}
+
+/** Legt eine komplett neue Person an (statt nur aus bestehenden wählen zu
+ * können, siehe Datei-Kommentar) und fügt sie direkt den ausgewählten
+ * Terminen hinzu — is_verified:false wie bei jeder redaktionell frisch
+ * angelegten Person (siehe entity-candidates/actions.ts approveEntityCandidate). */
+export async function createPersonAndAddToGroup(groupId: string, formData: FormData) {
+  const fullName = String(formData.get("full_name") ?? "").trim();
+  const role = String(formData.get("role_new_person") ?? "") || null;
+  if (!fullName) return;
+
+  const supabase = await createClient();
+  const slug = await generateUniqueSlug(supabase, "persons", fullName);
+  const { data: person, error } = await supabase
+    .from("persons")
+    .insert({ full_name: fullName, slug, is_verified: false })
+    .select("id")
+    .single();
+  if (error) throw new Error(error.message);
+
+  const eventIds = selectedEventIds(formData, await memberEventIds(supabase, groupId));
+  await addParticipantToEvents(supabase, eventIds, person.id, null, role);
+
+  revalidatePath(`/event-groups/${groupId}`);
+}
+
+export async function createEnsembleAndAddToGroup(groupId: string, formData: FormData) {
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) return;
+
+  const supabase = await createClient();
+  const slug = await generateUniqueSlug(supabase, "ensembles", name);
+  const { data: ensemble, error } = await supabase
+    .from("ensembles")
+    .insert({ name, slug, type: "sonstiges", is_verified: false })
+    .select("id")
+    .single();
+  if (error) throw new Error(error.message);
+
+  const eventIds = selectedEventIds(formData, await memberEventIds(supabase, groupId));
+  await addParticipantToEvents(supabase, eventIds, null, ensemble.id, null);
 
   revalidatePath(`/event-groups/${groupId}`);
 }
@@ -146,6 +256,35 @@ export async function removeParticipantFromGroup(
   query = personId ? query.eq("person_id", personId) : query.eq("ensemble_id", ensembleId);
   const { error } = await query;
   if (error) throw new Error(error.message);
+
+  revalidatePath(`/event-groups/${groupId}`);
+}
+
+/** Analog zu setWorkEventMembership, für Mitwirkende. */
+export async function setParticipantEventMembership(
+  groupId: string,
+  personId: string | null,
+  ensembleId: string | null,
+  eventIds: string[],
+) {
+  const supabase = await createClient();
+  const allMemberIds = await memberEventIds(supabase, groupId);
+  const targetIds = new Set(eventIds.filter((id) => allMemberIds.includes(id)));
+
+  let currentQuery = supabase.from("event_participants").select("event_id").in("event_id", allMemberIds);
+  currentQuery = personId ? currentQuery.eq("person_id", personId) : currentQuery.eq("ensemble_id", ensembleId);
+  const { data: currentLinks } = await currentQuery;
+  const currentIds = new Set((currentLinks ?? []).map((l) => l.event_id));
+
+  const toAdd = [...targetIds].filter((id) => !currentIds.has(id));
+  const toRemove = [...currentIds].filter((id) => !targetIds.has(id));
+
+  await addParticipantToEvents(supabase, toAdd, personId, ensembleId, null);
+  if (toRemove.length > 0) {
+    let delQuery = supabase.from("event_participants").delete().in("event_id", toRemove);
+    delQuery = personId ? delQuery.eq("person_id", personId) : delQuery.eq("ensemble_id", ensembleId);
+    await delQuery;
+  }
 
   revalidatePath(`/event-groups/${groupId}`);
 }
