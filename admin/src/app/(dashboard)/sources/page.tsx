@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { TableSearchFilter } from "@/components/table-search-filter";
 
 export const dynamic = "force-dynamic";
 
@@ -74,7 +75,9 @@ export default async function SourcesPage() {
       {error && <p className="mt-6 text-sm text-amber-700">Konnte Quellen nicht laden: {error.message}</p>}
 
       {!error && (
-        <div className="mt-6 overflow-hidden rounded-lg border border-neutral-200 bg-white">
+        <div className="mt-6">
+        <TableSearchFilter containerId="sources-table" placeholder="Name durchsuchen…" />
+        <div id="sources-table" className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
           <table className="w-full text-sm">
             <thead className="bg-neutral-50 text-left text-xs uppercase tracking-wide text-neutral-500">
               <tr>
@@ -88,7 +91,7 @@ export default async function SourcesPage() {
             <tbody className="divide-y divide-neutral-100">
               {data?.length ? (
                 data.map((source) => (
-                  <tr key={source.id} className="hover:bg-neutral-50">
+                  <tr key={source.id} data-search={source.name.toLowerCase()} className="hover:bg-neutral-50">
                     <td className="px-4 py-3 font-medium text-neutral-900">{source.name}</td>
                     <td className="px-4 py-3 text-neutral-600">{TYPE_LABEL[source.type] ?? source.type}</td>
                     <td className="px-4 py-3">
@@ -118,6 +121,7 @@ export default async function SourcesPage() {
               )}
             </tbody>
           </table>
+        </div>
         </div>
       )}
     </div>

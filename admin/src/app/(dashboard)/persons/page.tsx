@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { BioResearchBar, BioRowCheckbox, BioSelectAllCheckbox, BioSelectionProvider } from "@/components/bio-select";
+import { TableSearchFilter } from "@/components/table-search-filter";
 
 export const dynamic = "force-dynamic";
 
@@ -54,8 +55,9 @@ export default async function PersonsPage() {
       {!error && (
         <BioSelectionProvider>
           <div className="mt-6">
+            <TableSearchFilter containerId="persons-table" placeholder="Name durchsuchen…" />
             <BioResearchBar entityType="person" />
-            <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
+            <div id="persons-table" className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
               <table className="w-full text-sm">
                 <thead className="bg-neutral-50 text-left text-xs uppercase tracking-wide text-neutral-500">
                   <tr>
@@ -71,7 +73,11 @@ export default async function PersonsPage() {
                 <tbody className="divide-y divide-neutral-100">
                   {data?.length ? (
                     data.map((person) => (
-                      <tr key={person.id} className="hover:bg-neutral-50">
+                      <tr
+                        key={person.id}
+                        data-search={person.full_name.toLowerCase()}
+                        className="hover:bg-neutral-50"
+                      >
                         <td className="px-4 py-3">
                           <BioRowCheckbox id={person.id} />
                         </td>

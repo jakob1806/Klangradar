@@ -41,7 +41,7 @@ const STATUS_TABS = [
 export default async function EventsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; page?: string }>;
+  searchParams: Promise<{ status?: string; page?: string; q?: string }>;
 }) {
   const params = await searchParams;
   // Entwürfe zuerst als Default: das ist review-pflichtiger Content aus der
@@ -49,17 +49,24 @@ export default async function EventsPage({
   // Öffnen dieser Seite, nicht "alles chronologisch", das ihn bei .limit(50)
   // komplett aus der sichtbaren Liste verdrängt hätte.
   const status = params.status ?? "draft";
+  const q = (params.q ?? "").trim();
   const page = Math.max(1, parseInt(params.page ?? "1", 10) || 1);
   const from = (page - 1) * PAGE_SIZE;
   const to = from + PAGE_SIZE - 1;
 
   const supabase = await createClient();
 
+  // Server-seitig statt Client-Filter: die Liste ist paginiert (50/Seite),
+  // ein reiner Client-Filter würde nur innerhalb der gerade geladenen Seite
+  // suchen, nicht über alle Events hinweg.
   let query = supabase
     .from("events")
     .select("id, slug, title, start_datetime, status, venues(name), sources(name)", { count: "exact" });
   if (status !== "all") {
     query = query.eq("status", status);
+  }
+  if (q) {
+    query = query.ilike("title", `%${q}%`);
   }
   const { data, error, count } = await query
     .order("start_datetime", { ascending: true })
@@ -105,7 +112,7 @@ export default async function EventsPage({
           return (
             <Link
               key={tab.value}
-              href={`/events?status=${tab.value}`}
+              href={`/events?status=${tab.value}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
               className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
                 isActive
                   ? "border-neutral-900 text-neutral-900"
@@ -117,6 +124,31 @@ export default async function EventsPage({
           );
         })}
       </div>
+
+      <form method="get" action="/events" className="mb-4 flex items-center gap-2">
+        <input type="hidden" name="status" value={status} />
+        <input
+          type="search"
+          name="q"
+          defaultValue={q}
+          placeholder="Titel durchsuchen…"
+          className="w-full max-w-xs rounded-md border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-neutral-500"
+        />
+        <button
+          type="submit"
+          className="rounded-md border border-neutral-300 px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+        >
+          Suchen
+        </button>
+        {q && (
+          <Link
+            href={`/events?status=${status}`}
+            className="text-sm font-medium text-neutral-500 hover:text-neutral-800"
+          >
+            Zurücksetzen
+          </Link>
+        )}
+      </form>
 
       {error && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
@@ -146,7 +178,13 @@ export default async function EventsPage({
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-100">
-                {data?.length ? (
+                {q && !data?.length ? (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-10 text-center text-neutral-400">
+                      Keine Veranstaltungen für „{q}“ gefunden.
+                    </td>
+                  </tr>
+                ) : data?.length ? (
                   data.map((event) => (
                     <tr key={event.id} className="hover:bg-neutral-50">
                       <td className="px-4 py-3">
@@ -201,7 +239,7 @@ export default async function EventsPage({
               <div className="flex gap-2">
                 {page > 1 && (
                   <Link
-                    href={`/events?status=${status}&page=${page - 1}`}
+                    href={`/events?status=${status}&page=${page - 1}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
                     className="rounded-md border border-neutral-300 px-3 py-1.5 font-medium text-neutral-700 hover:bg-neutral-50"
                   >
                     Zurück
@@ -209,7 +247,7 @@ export default async function EventsPage({
                 )}
                 {page < totalPages && (
                   <Link
-                    href={`/events?status=${status}&page=${page + 1}`}
+                    href={`/events?status=${status}&page=${page + 1}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
                     className="rounded-md border border-neutral-300 px-3 py-1.5 font-medium text-neutral-700 hover:bg-neutral-50"
                   >
                     Weiter
