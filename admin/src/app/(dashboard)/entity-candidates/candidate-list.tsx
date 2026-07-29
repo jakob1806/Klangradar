@@ -260,10 +260,13 @@ function useSelection() {
       return next;
     });
   }
+  function setAll(ids: string[]) {
+    setSelected(new Set(ids));
+  }
   function clear() {
     setSelected(new Set());
   }
-  return { selected, toggle, clear };
+  return { selected, toggle, setAll, clear };
 }
 
 function NewCandidateCard({
@@ -427,7 +430,18 @@ export function CandidateList({
 
       {visibleLow.length > 0 && (
         <section>
-          <h2 className="text-sm font-semibold text-neutral-900">Weitere Kandidaten ({visibleLow.length})</h2>
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-neutral-300"
+              checked={visibleLow.length > 0 && lowSelection.selected.size === visibleLow.length}
+              onChange={(e) =>
+                e.target.checked ? lowSelection.setAll(visibleLow.map((c) => c.id)) : lowSelection.clear()
+              }
+              aria-label="Alle auswählen"
+            />
+            <h2 className="text-sm font-semibold text-neutral-900">Weitere Kandidaten ({visibleLow.length})</h2>
+          </div>
           {lowSelection.selected.size > 0 && (
             <div className="mt-3 flex items-center justify-between rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-2 text-sm">
               <span className="text-neutral-600">{lowSelection.selected.size} ausgewählt</span>

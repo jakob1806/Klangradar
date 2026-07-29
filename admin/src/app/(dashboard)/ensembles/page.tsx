@@ -1,7 +1,15 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { BioResearchBar, BioRowCheckbox, BioSelectAllCheckbox, BioSelectionProvider } from "@/components/bio-select";
+import {
+  BioResearchBar,
+  BioRowCheckbox,
+  BioSelectAllCheckbox,
+  BioSelectMissingButton,
+  BioSelectionProvider,
+  BioStatusBadge,
+} from "@/components/bio-select";
 import { TableSearchFilter } from "@/components/table-search-filter";
+import { bulkDeleteEnsembles, bulkSetEnsemblesVerified } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +18,7 @@ interface EnsembleRow {
   name: string;
   type: string;
   is_verified: boolean;
+  description_de: string | null;
 }
 
 const TYPE_LABEL: Record<string, string> = {
@@ -24,9 +33,11 @@ export default async function EnsemblesPage() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("ensembles")
-    .select("id, name, type, is_verified")
+    .select("id, name, type, is_verified, description_de")
     .order("name")
     .returns<EnsembleRow[]>();
+
+  const missingBioIds = (data ?? []).filter((e) => !e.description_de).map((e) => e.id);
 
   return (
     <div className="p-8">
@@ -55,8 +66,15 @@ export default async function EnsemblesPage() {
       {!error && (
         <BioSelectionProvider>
           <div className="mt-6">
-            <TableSearchFilter containerId="ensembles-table" placeholder="Name durchsuchen…" />
-            <BioResearchBar entityType="ensemble" />
+            <div className="flex items-center justify-between">
+              <TableSearchFilter containerId="ensembles-table" placeholder="Name durchsuchen…" />
+              <BioSelectMissingButton ids={missingBioIds} />
+            </div>
+            <BioResearchBar
+              entityType="ensemble"
+              bulkDeleteAction={bulkDeleteEnsembles}
+              bulkSetVerifiedAction={bulkSetEnsemblesVerified}
+            />
             <div id="ensembles-table" className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
               <table className="w-full text-sm">
                 <thead className="bg-neutral-50 text-left text-xs uppercase tracking-wide text-neutral-500">
@@ -67,6 +85,7 @@ export default async function EnsemblesPage() {
                     <th className="px-4 py-3 font-medium">Name</th>
                     <th className="px-4 py-3 font-medium">Typ</th>
                     <th className="px-4 py-3 font-medium">Status</th>
+                    <th className="px-4 py-3 font-medium">Bio</th>
                     <th className="px-4 py-3" />
                   </tr>
                 </thead>
@@ -96,6 +115,9 @@ export default async function EnsemblesPage() {
                             {ensemble.is_verified ? "Geprüft" : "Ungeprüft"}
                           </span>
                         </td>
+                        <td className="px-4 py-3">
+                          <BioStatusBadge hasBio={!!ensemble.description_de} />
+                        </td>
                         <td className="px-4 py-3 text-right">
                           <Link
                             href={`/ensembles/${ensemble.id}`}
@@ -108,7 +130,7 @@ export default async function EnsemblesPage() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={5} className="px-4 py-10 text-center text-neutral-400">
+                      <td colSpan={6} className="px-4 py-10 text-center text-neutral-400">
                         Noch keine Ensembles angelegt.
                       </td>
                     </tr>

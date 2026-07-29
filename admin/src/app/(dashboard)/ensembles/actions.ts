@@ -50,3 +50,19 @@ export async function deleteEnsemble(ensembleId: string) {
   revalidatePath("/ensembles");
   redirect("/ensembles");
 }
+
+export async function bulkDeleteEnsembles(ids: string[]) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("ensembles").delete().in("id", ids);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/ensembles");
+}
+
+export async function bulkSetEnsemblesVerified(ids: string[], verified: boolean) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("ensembles").update({ is_verified: verified }).in("id", ids);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/ensembles");
+}

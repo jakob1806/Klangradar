@@ -9,7 +9,7 @@
 // Workflow) ist identisch.
 
 import Link from "next/link";
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, useState, useTransition, type ReactNode } from "react";
 
 type EntityType = "person" | "ensemble" | "venue";
 
@@ -17,6 +17,8 @@ interface SelectionContextValue {
   selected: Set<string>;
   toggle: (id: string) => void;
   setAll: (ids: string[], checked: boolean) => void;
+  replaceSelection: (ids: string[]) => void;
+  clear: () => void;
 }
 
 const SelectionContext = createContext<SelectionContextValue | null>(null);
@@ -50,8 +52,18 @@ export function BioSelectionProvider({ children }: { children: ReactNode }) {
     });
   }
 
+  function replaceSelection(ids: string[]) {
+    setSelected(new Set(ids));
+  }
+
+  function clear() {
+    setSelected(new Set());
+  }
+
   return (
-    <SelectionContext.Provider value={{ selected, toggle, setAll }}>{children}</SelectionContext.Provider>
+    <SelectionContext.Provider value={{ selected, toggle, setAll, replaceSelection, clear }}>
+      {children}
+    </SelectionContext.Provider>
   );
 }
 
@@ -82,20 +94,104 @@ export function BioSelectAllCheckbox({ ids }: { ids: string[] }) {
   );
 }
 
-export function BioResearchBar({ entityType }: { entityType: EntityType }) {
-  const { selected } = useSelection();
+/** Nutzeranfrage: "man soll die mgl. haben, nur alle auzuwählen, die keine
+ * bio besitzen" — ersetzt die aktuelle Auswahl durch genau die IDs ohne Bio. */
+export function BioSelectMissingButton({ ids }: { ids: string[] }) {
+  const { replaceSelection } = useSelection();
+  if (ids.length === 0) return null;
+  return (
+    <button
+      type="button"
+      onClick={() => replaceSelection(ids)}
+      className="text-xs font-medium text-neutral-500 underline hover:text-neutral-800"
+    >
+      Alle ohne Bio auswählen ({ids.length})
+    </button>
+  );
+}
+
+/** Sichtbarer Hinweis, ob bereits eine Bio/Beschreibung vorliegt —
+ * Nutzeranfrage: "alle, die bereits eine bio haben, sollen sichtbar zeigen,
+ * dass sie eine besitzen". */
+export function BioStatusBadge({ hasBio }: { hasBio: boolean }) {
+  return (
+    <span
+      className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+        hasBio ? "bg-blue-50 text-blue-700" : "bg-neutral-100 text-neutral-400"
+      }`}
+    >
+      {hasBio ? "Bio vorhanden" : "Keine Bio"}
+    </span>
+  );
+}
+
+export function BioResearchBar({
+  entityType,
+  bulkDeleteAction,
+  bulkSetVerifiedAction,
+}: {
+  entityType: EntityType;
+  bulkDeleteAction?: (ids: string[]) => Promise<void>;
+  bulkSetVerifiedAction?: (ids: string[], verified: boolean) => Promise<void>;
+}) {
+  const { selected, clear } = useSelection();
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
   if (selected.size === 0) return null;
 
-  const ids = Array.from(selected).join(",");
+  const ids = Array.from(selected);
+  const idsParam = ids.join(",");
+
+  function runBulk(fn: () => Promise<void>) {
+    setError(null);
+    startTransition(async () => {
+      try {
+        await fn();
+        clear();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Aktion fehlgeschlagen.");
+      }
+    });
+  }
+
   return (
-    <div className="mb-4 flex items-center justify-between rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-2 text-sm">
-      <span className="text-neutral-600">{selected.size} ausgewählt</span>
-      <Link
-        href={`/bio-research?type=${entityType}&ids=${ids}`}
-        className="rounded-md bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-700"
-      >
-        Bios recherchieren
-      </Link>
+    <div className="mb-4 flex flex-col gap-1">
+      <div className="flex items-center justify-between rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-2 text-sm">
+        <span className="text-neutral-600">{selected.size} ausgewählt</span>
+        <div className="flex items-center gap-3">
+          {bulkSetVerifiedAction && (
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => runBulk(() => bulkSetVerifiedAction(ids, true))}
+              className="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-100 disabled:opacity-50"
+            >
+              Als geprüft markieren
+            </button>
+          )}
+          {bulkDeleteAction && (
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => {
+                if (window.confirm(`${selected.size} Einträge wirklich löschen?`)) {
+                  runBulk(() => bulkDeleteAction(ids));
+                }
+              }}
+              className="rounded-md border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+            >
+              Löschen
+            </button>
+          )}
+          <Link
+            href={`/bio-research?type=${entityType}&ids=${idsParam}`}
+            className="rounded-md bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-700"
+          >
+            Bios recherchieren
+          </Link>
+        </div>
+      </div>
+      {error && <p className="text-xs text-red-600">{error}</p>}
     </div>
   );
 }

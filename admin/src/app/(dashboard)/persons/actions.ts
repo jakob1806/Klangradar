@@ -51,3 +51,19 @@ export async function deletePerson(personId: string) {
   revalidatePath("/persons");
   redirect("/persons");
 }
+
+export async function bulkDeletePersons(ids: string[]) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("persons").delete().in("id", ids);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/persons");
+}
+
+export async function bulkSetPersonsVerified(ids: string[], verified: boolean) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("persons").update({ is_verified: verified }).in("id", ids);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/persons");
+}
