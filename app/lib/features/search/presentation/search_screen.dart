@@ -349,7 +349,18 @@ class _FilteredResultsList extends StatelessWidget {
             height: 48,
             child: ClipRRect(
               borderRadius: BorderRadius.circular(10),
-              child: GenreArtwork(genre: e.genre),
+              child: e.imageUrl == null
+                  ? GenreArtwork(genre: e.genre)
+                  : CachedNetworkImage(
+                      imageUrl: e.imageUrl!,
+                      width: 48,
+                      height: 48,
+                      fit: BoxFit.cover,
+                      placeholder: (context, url) =>
+                          GenreArtwork(genre: e.genre),
+                      errorWidget: (context, url, error) =>
+                          GenreArtwork(genre: e.genre),
+                    ),
             ),
           ),
           title: Text(
