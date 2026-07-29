@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -26,11 +27,55 @@ class MapScreen extends ConsumerStatefulWidget {
 
 class _MapScreenState extends ConsumerState<MapScreen> {
   final _mapController = MapController();
+  LatLng? _userLocation;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserLocation();
+  }
 
   @override
   void dispose() {
     _mapController.dispose();
     super.dispose();
+  }
+
+  /// Fragt die Standortberechtigung an und holt einmalig die aktuelle
+  /// Position — Nutzeranfrage: "die App muss noch auf den Standort
+  /// zugreifen, damit man auf der Karte sieht, wo man ist". Bewusst ein
+  /// einzelner getCurrentPosition()-Aufruf statt eines Live-Streams: die
+  /// Karte muss nur zeigen, wo man ungefähr ist, kein Turn-by-Turn-Tracking,
+  /// das würde nur unnötig Akku kosten. Scheitert leise (keine
+  /// Fehlermeldung) bei fehlender Berechtigung/deaktivierten
+  /// Standortdiensten — der blaue Punkt fehlt dann einfach, die Karte
+  /// bleibt trotzdem voll nutzbar.
+  Future<void> _loadUserLocation() async {
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) return;
+
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+        ),
+      );
+      if (!mounted) return;
+      setState(() {
+        _userLocation = LatLng(position.latitude, position.longitude);
+      });
+    } catch (_) {
+      // Standort ist eine Zusatzfunktion, kein Blocker für die Karte —
+      // jeder Fehler (Timeout, Plattform-Ausnahme, ...) bleibt lautlos.
+    }
   }
 
   @override
@@ -94,6 +139,17 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                 },
               ),
             ),
+            if (_userLocation != null)
+              MarkerLayer(
+                markers: [
+                  Marker(
+                    point: _userLocation!,
+                    width: 22,
+                    height: 22,
+                    child: const _UserLocationDot(),
+                  ),
+                ],
+              ),
             RichAttributionWidget(
               attributions: [
                 TextSourceAttribution(
@@ -193,6 +249,37 @@ class _VenuePin extends StatelessWidget {
         Icons.music_note_rounded,
         color: Colors.white,
         size: 16,
+      ),
+    );
+  }
+}
+
+/// Blauer "Wo bin ich"-Punkt im gängigen Kartenapp-Stil (weißer Ring, blauer
+/// Kern) — bewusst optisch klar von den roten Veranstaltungsort-Pins
+/// unterschieden.
+class _UserLocationDot extends StatelessWidget {
+  const _UserLocationDot();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        shape: BoxShape.circle,
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x40000000),
+            blurRadius: 4,
+            offset: Offset(0, 1),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(4),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFF2E7BE0),
+          shape: BoxShape.circle,
+        ),
       ),
     );
   }
