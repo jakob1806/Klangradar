@@ -8,9 +8,11 @@ import {
   addExistingWork,
   addParticipant,
   createWorkAndAdd,
+  moveWork,
   removeParticipant,
   removeWork,
 } from "./actions";
+import { MoveButtons } from "./move-buttons";
 
 const ROLE_LABEL: Record<string, string> = {
   komponist: "Komponist:in",
@@ -91,12 +93,18 @@ export default async function EventProgramPage({
 
           <ol className="mt-3 flex flex-col gap-2">
             {program?.length ? (
-              program.map((row) => (
+              program.map((row, index) => (
                 <li
                   key={`${row.work_id}-${row.position}`}
-                  className="flex items-center justify-between rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
+                  className="flex items-center justify-between gap-3 rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
                 >
-                  <span>
+                  <MoveButtons
+                    onMoveUp={moveWork.bind(null, id, row.work_id, row.position, "up")}
+                    onMoveDown={moveWork.bind(null, id, row.work_id, row.position, "down")}
+                    disableUp={index === 0}
+                    disableDown={index === program.length - 1}
+                  />
+                  <span className="flex-1">
                     {row.after_intermission && (
                       <span className="mr-2 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium uppercase text-amber-700">
                         nach Pause

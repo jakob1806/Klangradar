@@ -6,13 +6,16 @@ import { SubmitButton } from "@/components/submit-button";
 import { DeleteButton } from "@/components/delete-button";
 import { removeEventFromGroup } from "../actions";
 import { EventChecklist } from "./event-checklist";
+import { GroupImageUploader } from "./group-image-uploader";
 import { MembershipEditor } from "./membership-editor";
+import { MoveButtons } from "../../events/[id]/program/move-buttons";
 import {
   addExistingWorkToGroup,
   addParticipantToGroup,
   createEnsembleAndAddToGroup,
   createPersonAndAddToGroup,
   createWorkAndAddToGroup,
+  moveWorkInGroup,
   removeParticipantFromGroup,
   removeWorkFromGroup,
   setParticipantEventMembership,
@@ -41,6 +44,7 @@ interface MemberEvent {
 interface ProgramWorkRow {
   event_id: string;
   work_id: string;
+  position: number;
   after_intermission: boolean;
   works: { title: string; catalog_number: string | null; composer: { full_name: string } | null } | null;
 }
@@ -84,8 +88,9 @@ export default async function EventGroupDetailPage({
       ? await Promise.all([
           supabase
             .from("event_works")
-            .select("event_id, work_id, after_intermission, works(title, catalog_number, composer:persons(full_name))")
+            .select("event_id, work_id, position, after_intermission, works(title, catalog_number, composer:persons(full_name))")
             .in("event_id", memberIds)
+            .order("position", { ascending: true })
             .returns<ProgramWorkRow[]>(),
           supabase
             .from("event_participants")
@@ -168,6 +173,10 @@ export default async function EventGroupDetailPage({
         beim Hinzufügen und über „Termine bearbeiten“ pro Eintrag kann das auf einzelne Termine eingeschränkt werden.
       </p>
 
+      <div className="mt-4">
+        <GroupImageUploader groupId={id} />
+      </div>
+
       <section className="mt-8">
         <h2 className="text-sm font-semibold text-neutral-900">Termine ({memberCount})</h2>
         <ul className="mt-3 flex flex-col gap-2">
@@ -229,10 +238,16 @@ export default async function EventGroupDetailPage({
 
           <ol className="mt-3 flex flex-col gap-2">
             {workMap.size > 0 ? (
-              Array.from(workMap.entries()).map(([workId, entry]) => (
+              Array.from(workMap.entries()).map(([workId, entry], index, arr) => (
                 <li key={workId} className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm">
-                  <div className="flex items-center justify-between">
-                    <span>
+                  <div className="flex items-center justify-between gap-3">
+                    <MoveButtons
+                      onMoveUp={moveWorkInGroup.bind(null, id, workId, "up")}
+                      onMoveDown={moveWorkInGroup.bind(null, id, workId, "down")}
+                      disableUp={index === 0}
+                      disableDown={index === arr.length - 1}
+                    />
+                    <span className="flex-1">
                       {entry.afterIntermission && (
                         <span className="mr-2 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium uppercase text-amber-700">
                           nach Pause
