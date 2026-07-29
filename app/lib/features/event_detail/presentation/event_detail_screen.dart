@@ -8,12 +8,13 @@ import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../../core/calendar/ics_export.dart';
+import '../../../core/calendar/calendar_sync_service.dart';
 import '../../../core/events/event_filters.dart';
 import '../../../core/events/filtered_events_providers.dart';
 import '../../../core/gallery/entity_gallery_providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/calendar_picker_sheet.dart';
 import '../../../core/widgets/detail_card.dart';
 import '../../../core/widgets/detail_hero_background.dart';
 import '../../../core/widgets/entity_photo_gallery.dart';
@@ -23,6 +24,67 @@ import '../../../core/widgets/genre_artwork.dart';
 import '../../../core/utils/share_position.dart';
 import '../../../core/widgets/source_hint.dart';
 import '../../home/application/home_providers.dart';
+
+/// Trägt das Event direkt in einen vom Nutzer gewählten Gerätekalender ein
+/// — ersetzt das bisherige "ICS-Datei teilen" (Nutzeranfrage: "Kalender-
+/// Button soll die ICS-Datei nicht teilen, sondern automatisch importieren,
+/// Auswahl der Kalenderkategorie beachten"). Scheitert die Berechtigungs-
+/// abfrage oder gibt es keinen beschreibbaren Kalender, zeigt eine
+/// SnackBar statt eines stillen Fehlers.
+Future<void> _addEventToDeviceCalendar({
+  required BuildContext context,
+  required String title,
+  required DateTime start,
+  String? description,
+  int? durationMinutes,
+  String? location,
+  String? url,
+}) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final calendars = await CalendarSyncService.requestWritableCalendars();
+  if (!context.mounted) return;
+
+  if (calendars == null) {
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Kalenderzugriff wurde nicht erlaubt.')),
+    );
+    return;
+  }
+  if (calendars.isEmpty) {
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Kein beschreibbarer Kalender gefunden.')),
+    );
+    return;
+  }
+
+  final chosen = calendars.length == 1
+      ? calendars.first
+      : await showCalendarPickerSheet(context, calendars);
+  if (chosen?.id == null || !context.mounted) return;
+
+  final result = await CalendarSyncService.addEventToCalendar(
+    event: CalendarSyncEvent(
+      title: title,
+      start: start,
+      end: start.add(Duration(minutes: durationMinutes ?? 120)),
+      description: description,
+      location: location,
+      url: url,
+    ),
+    calendarId: chosen!.id!,
+  );
+  if (!context.mounted) return;
+
+  messenger.showSnackBar(
+    SnackBar(
+      content: Text(
+        result.outcome == CalendarSyncOutcome.success
+            ? 'Zum Kalender „${chosen.name}" hinzugefügt.'
+            : 'Eintragen fehlgeschlagen${result.message != null ? ': ${result.message}' : '.'}',
+      ),
+    ),
+  );
+}
 
 final _eventProvider = FutureProvider.family<Map<String, dynamic>?, String>((
   ref,
@@ -229,9 +291,8 @@ class EventDetailScreen extends ConsumerWidget {
                     tooltip: 'Zum Kalender hinzufügen',
                     onPressed: start == null
                         ? null
-                        : () => IcsExport.shareEvent(
+                        : () => _addEventToDeviceCalendar(
                             context: context,
-                            uid: event['id'],
                             title: event['title'] ?? '',
                             description: event['description_de'],
                             start: start,
