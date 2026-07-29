@@ -62,9 +62,14 @@ export async function searchDuckDuckGo(query: string, maxResults = 3): Promise<D
         "Accept-Language": "de-DE,de;q=0.9,en;q=0.8",
       },
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.log(`[searchDuckDuckGo] HTTP ${res.status} for query="${query}"`);
+      return null;
+    }
     html = await res.text();
-  } catch {
+    console.log(`[searchDuckDuckGo] status=${res.status} bytes=${html.length} snippet=${html.slice(0, 300).replace(/\s+/g, " ")}`);
+  } catch (err) {
+    console.log(`[searchDuckDuckGo] fetch threw: ${err instanceof Error ? err.message : String(err)}`);
     return null;
   }
 
