@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { repointFieldProvenance } from "@/lib/merge-provenance";
 import { logSystemAction } from "@/lib/system-log";
 
 type Supa = Awaited<ReturnType<typeof createClient>>;
@@ -51,11 +52,7 @@ async function repointEventReferences(supabase: Supa, deleteEventId: string, kee
     await supabase.from(table).update({ event_id: keepEventId }).eq("event_id", deleteEventId);
   }
 
-  await supabase
-    .from("field_provenance")
-    .update({ entity_id: keepEventId })
-    .eq("entity_type", "event")
-    .eq("entity_id", deleteEventId);
+  await repointFieldProvenance(supabase, "event", keepEventId, deleteEventId);
 }
 
 // event_a_id ist im Ingestion-Worker (backend/supabase/functions/ingest-

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { repointFieldProvenance } from "@/lib/merge-provenance";
 import { logSystemAction } from "@/lib/system-log";
 
 // Gleiche FK-Liste wie backend/supabase/functions/resolve-person-
@@ -49,11 +50,7 @@ export async function resolvePersonDuplicateAsMerged(candidateId: string, keepPe
     if (error) throw new Error(`Repoint ${table}.${column} fehlgeschlagen: ${error.message}`);
   }
 
-  await supabase
-    .from("field_provenance")
-    .update({ entity_id: keepPersonId })
-    .eq("entity_type", "person")
-    .eq("entity_id", deletePersonId);
+  await repointFieldProvenance(supabase, "person", keepPersonId, deletePersonId);
 
   if (deletedPerson?.full_name) {
     await supabase
