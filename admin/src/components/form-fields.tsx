@@ -7,10 +7,12 @@ const controlClass =
 export function Field({
   label,
   required,
+  hint,
   children,
 }: {
   label: string;
   required?: boolean;
+  hint?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -20,6 +22,7 @@ export function Field({
         {required && <span className="text-red-500"> *</span>}
       </span>
       {children}
+      {hint && <span className="text-xs text-neutral-400">{hint}</span>}
     </label>
   );
 }

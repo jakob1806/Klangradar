@@ -295,7 +295,7 @@ export async function runIngestion(
   let updated = 0;
   let unchanged = 0;
   let flagged = 0;
-  const writeErrors: string[] = [...parsed.errors];
+  const rawWriteErrors: string[] = [...parsed.errors];
   const seenEventIds: string[] = [];
 
   for (const raw of parsed.events) {
@@ -318,10 +318,12 @@ export async function runIngestion(
         seenEventIds.push(result.eventId);
         break;
       case "error":
-        writeErrors.push(`"${raw.title}": ${result.error}`);
+        rawWriteErrors.push(`"${raw.title}": ${result.error}`);
         break;
     }
   }
+
+  const writeErrors = summarizeErrors(rawWriteErrors);
 
   const attempted = parsed.events.length;
   const succeeded = created + updated + unchanged + flagged;
@@ -377,6 +379,39 @@ export async function runIngestion(
     events_flagged_for_review: flagged,
     error_count: writeErrors.length,
   });
+}
+
+// Nutzerfeedback: Quellen ohne feste venue_id, deren Parser auch keinen
+// Venue-Namen pro Event liefert (z.B. eine reine Terminliste eines
+// Vereins/Konzertreihe, ohne wiederholte Ortsangabe), scheiterten mit
+// EINER identischen Fehlermeldung pro Event — bei einer vollen Terminliste
+// schnell Dutzende Zeilen desselben Fehlers, der in ingestion_runs.errors
+// unübersichtlich wurde und die eigentlich nötige Handlung (Quelle
+// bearbeiten, feste Venue setzen) verschleierte. Fasst wiederkehrende
+// Venue-Zuordnungsfehler zu einer Zeile mit Beispielen + Handlungsanweisung
+// zusammen, statt sie 1:1 durchzureichen.
+function summarizeErrors(errors: string[]): string[] {
+  const noVenueNameReason = "no venue_id on source and RawEvent has no venueName to match against";
+  const titles: string[] = [];
+  const passthrough: string[] = [];
+
+  for (const e of errors) {
+    if (e.endsWith(`": ${noVenueNameReason}`)) {
+      titles.push(e.slice(1, e.indexOf(`": ${noVenueNameReason}`) + 1));
+    } else {
+      passthrough.push(e);
+    }
+  }
+
+  if (titles.length === 0) return passthrough;
+
+  const examples = titles.slice(0, 3).join(", ");
+  const more = titles.length > 3 ? ` (+${titles.length - 3} weitere)` : "";
+  passthrough.push(
+    `${titles.length}× übersprungen, da diese Quelle keine feste Venue hat und die Events auch keinen Venue-Namen liefern: ${examples}${more}. ` +
+      `Lösung: in den Quellen-Einstellungen eine feste Venue setzen (Feld "Venue"), dann erneut ausführen.`,
+  );
+  return passthrough;
 }
 
 async function sha256Hex(text: string): Promise<string> {

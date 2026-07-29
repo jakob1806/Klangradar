@@ -87,7 +87,10 @@ export function SourceForm({
       </Field>
 
       <div className="grid grid-cols-2 gap-4">
-        <Field label="Zugehörige Venue">
+        <Field
+          label="Zugehörige Venue"
+          hint='Wenn diese Quelle IMMER am selben Ort stattfindet (z. B. eine einzelne Konzertreihe), hier die Venue fest hinterlegen. Liefert die Quelle pro Termin keinen eigenen Ortsnamen und ist hier nichts gesetzt, schlägt der Import für jeden Termin fehl ("no venue_id on source and RawEvent has no venueName to match against").'
+        >
           <Select name="venue_id" defaultValue={initial?.venue_id ?? ""}>
             <option value="">—</option>
             {venues.map((v) => (
