@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { LowConfidenceTable } from "./low-confidence-table";
 
 export const dynamic = "force-dynamic";
 
@@ -18,17 +19,13 @@ export const dynamic = "force-dynamic";
 // dafür machen.
 const REVIEW_STATUSES_TO_SHOW = ["needs_review", "needs_quick_check"] as const;
 
-interface LowConfidenceEvent {
+interface LowConfidenceEventRow {
   id: string;
   title: string;
   start_datetime: string;
   status: string;
   import_confidence: number;
   venue: { name: string } | null;
-}
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" });
 }
 
 export default async function ReviewQueuePage() {
@@ -49,7 +46,7 @@ export default async function ReviewQueuePage() {
       .in("review_status", REVIEW_STATUSES_TO_SHOW)
       .order("import_confidence", { ascending: true })
       .limit(30)
-      .returns<LowConfidenceEvent[]>(),
+      .returns<LowConfidenceEventRow[]>(),
   ]);
 
   const summaryCards = [
@@ -87,43 +84,17 @@ export default async function ReviewQueuePage() {
       )}
 
       {!lowConfidenceError && (
-        <div className="mt-4 overflow-hidden rounded-lg border border-neutral-200 bg-white">
-          <table className="w-full text-sm">
-            <thead className="bg-neutral-50 text-left text-xs uppercase tracking-wide text-neutral-500">
-              <tr>
-                <th className="px-4 py-3 font-medium">Titel</th>
-                <th className="px-4 py-3 font-medium">Venue</th>
-                <th className="px-4 py-3 font-medium">Termin</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium">Score</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-neutral-100">
-              {lowConfidenceEvents?.length ? (
-                lowConfidenceEvents.map((e) => (
-                  <tr key={e.id} className="hover:bg-neutral-50">
-                    <td className="px-4 py-3 font-medium text-neutral-900">{e.title}</td>
-                    <td className="px-4 py-3 text-neutral-600">{e.venue?.name ?? "—"}</td>
-                    <td className="px-4 py-3 text-neutral-600">{formatDate(e.start_datetime)}</td>
-                    <td className="px-4 py-3 text-neutral-600">{e.status}</td>
-                    <td className="px-4 py-3 text-amber-700">{Math.round(e.import_confidence * 100)}%</td>
-                    <td className="px-4 py-3 text-right">
-                      <Link href={`/events/${e.id}`} className="text-sm font-medium text-neutral-700 hover:text-neutral-900">
-                        Prüfen →
-                      </Link>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-neutral-400">
-                    Keine Events mit niedrigem Confidence-Score.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+        <div className="mt-4">
+          <LowConfidenceTable
+            events={(lowConfidenceEvents ?? []).map((e) => ({
+              id: e.id,
+              title: e.title,
+              start_datetime: e.start_datetime,
+              status: e.status,
+              import_confidence: e.import_confidence,
+              venueName: e.venue?.name ?? null,
+            }))}
+          />
         </div>
       )}
     </div>
