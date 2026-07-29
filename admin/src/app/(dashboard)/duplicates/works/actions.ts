@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { repointFieldProvenance } from "@/lib/merge-provenance";
 import { logSystemAction } from "@/lib/system-log";
 
 // Nutzeranfrage: "man soll auswählen können, welche Version genommen
@@ -72,12 +73,7 @@ export async function resolveWorkDuplicateAsMerged(candidateId: string, keepWork
 
   // field_provenance referenziert generisch über (entity_type, entity_id),
   // kein FK — muss beim Merge separat mitgezogen werden.
-  const { error: provenanceError } = await supabase
-    .from("field_provenance")
-    .update({ entity_id: workAId })
-    .eq("entity_type", "work")
-    .eq("entity_id", workBId);
-  if (provenanceError) throw new Error(provenanceError.message);
+  await repointFieldProvenance(supabase, "work", workAId, workBId);
 
   const { error: candidateUpdateError } = await supabase
     .from("work_duplicate_candidates")
