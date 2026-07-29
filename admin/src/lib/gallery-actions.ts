@@ -15,7 +15,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { logSystemAction } from "@/lib/system-log";
 
-export type GalleryOriginType = "person" | "ensemble" | "event";
+export type GalleryOriginType = "person" | "ensemble" | "event" | "venue";
 
 export interface GalleryCrop {
   x: number;

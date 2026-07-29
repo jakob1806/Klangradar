@@ -102,7 +102,7 @@ class EnsembleDetailScreen extends ConsumerWidget {
           return CustomScrollView(
             slivers: [
               SliverAppBar(
-                expandedHeight: 220,
+                expandedHeight: 293,
                 pinned: true,
                 backgroundColor: colors.backgroundPrimary,
                 iconTheme: const IconThemeData(color: Colors.white),

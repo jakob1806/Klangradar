@@ -3,11 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/gallery/entity_gallery_providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/external_maps.dart';
 import '../../../core/widgets/detail_card.dart';
 import '../../../core/widgets/detail_hero_background.dart';
+import '../../../core/widgets/entity_photo_gallery.dart';
 import '../../../core/widgets/external_links_row.dart';
 import '../../../core/widgets/genre_artwork.dart';
 import '../../../core/widgets/source_hint.dart';
@@ -74,6 +76,12 @@ class VenueDetailScreen extends ConsumerWidget {
             return const Center(child: Text('Venue nicht gefunden'));
           }
           final venue = data['venue'] as Map<String, dynamic>;
+          final gallery = ref.watch(
+            entityGalleryProvider((
+              originType: 'venue',
+              originId: venue['id'] as String,
+            )),
+          );
           final events = data['events'] as List;
           final latLng = data['latLng'] as Map<String, dynamic>?;
           final sources = data['sources'] as Map<String, FieldSource>;
@@ -91,14 +99,25 @@ class VenueDetailScreen extends ConsumerWidget {
           return CustomScrollView(
             slivers: [
               SliverAppBar(
-                expandedHeight: 220,
+                expandedHeight: 293,
                 pinned: true,
                 backgroundColor: colors.backgroundPrimary,
                 iconTheme: const IconThemeData(color: Colors.white),
                 flexibleSpace: FlexibleSpaceBar(
-                  background: DetailHeroBackground(
-                    photoUrl: venue['photo_url'] as String?,
-                    fallbackGenre: EventGenre.kirchenmusik,
+                  background: gallery.maybeWhen(
+                    data: (images) => images.isNotEmpty
+                        ? EntityPhotoGallery(
+                            images: images,
+                            fallbackGenre: EventGenre.kirchenmusik,
+                          )
+                        : DetailHeroBackground(
+                            photoUrl: venue['photo_url'] as String?,
+                            fallbackGenre: EventGenre.kirchenmusik,
+                          ),
+                    orElse: () => DetailHeroBackground(
+                      photoUrl: venue['photo_url'] as String?,
+                      fallbackGenre: EventGenre.kirchenmusik,
+                    ),
                   ),
                 ),
               ),
@@ -132,7 +151,7 @@ class VenueDetailScreen extends ConsumerWidget {
                             ),
                           ),
                         ),
-                        TextButton(
+                        _RouteButton(
                           onPressed: latLng == null
                               ? null
                               : () => openExternalMaps(
@@ -140,7 +159,6 @@ class VenueDetailScreen extends ConsumerWidget {
                                   lng: (latLng['lng'] as num).toDouble(),
                                   name: venue['name'] as String? ?? '',
                                 ),
-                          child: const Text('Route'),
                         ),
                       ],
                     ),
@@ -439,6 +457,53 @@ class _MvvStopRow extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Runder, modern gestalteter Routen-Button im Akzent-Rot der App (Nutzer-
+/// anfrage: "den Button der Route bei Venues etwas auffälliger, passend im
+/// eh schon roten Stil farblich hinterlegen, runder Button, modernes
+/// Design") — ersetzt den bisher unauffälligen TextButton.
+class _RouteButton extends StatelessWidget {
+  const _RouteButton({required this.onPressed});
+
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+    final disabled = onPressed == null;
+
+    return Material(
+      color: disabled ? colors.separator : colors.accentPrimary,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: onPressed,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.directions_rounded,
+                size: 18,
+                color: disabled ? colors.textSecondary : Colors.white,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'Route',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  color: disabled ? colors.textSecondary : Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

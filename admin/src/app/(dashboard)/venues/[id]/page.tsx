@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { DeleteButton } from "@/components/delete-button";
+import { GalleryEditor } from "@/components/entity-gallery/gallery-editor";
+import type { GalleryImage } from "@/lib/gallery-actions";
 import { deleteVenue, updateVenue } from "../actions";
 import { VenueForm, type VenueFormValues } from "../venue-form";
 
@@ -11,9 +13,18 @@ export default async function EditVenuePage({
 }) {
   const { id } = await params;
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .rpc("venue_with_latlng", { p_id: id })
-    .maybeSingle<VenueFormValues>();
+  const [{ data, error }, { data: images }] = await Promise.all([
+    supabase.rpc("venue_with_latlng", { p_id: id }).maybeSingle<VenueFormValues>(),
+    // Nur freigegebene Bilder — siehe Kommentar in persons/[id]/page.tsx.
+    supabase
+      .from("images")
+      .select("id, source_url, sort_order, crop_x, crop_y, crop_width, crop_height")
+      .eq("origin_type", "venue")
+      .eq("origin_id", id)
+      .in("license_status", ["confirmed_free", "confirmed_licensed"])
+      .order("sort_order", { ascending: true })
+      .returns<GalleryImage[]>(),
+  ]);
 
   if (error || !data) notFound();
 
@@ -28,6 +39,9 @@ export default async function EditVenuePage({
       </div>
       <div className="mt-6">
         <VenueForm action={updateVenue.bind(null, id)} initial={data} />
+      </div>
+      <div className="mt-8 max-w-xl border-t border-neutral-200 pt-6">
+        <GalleryEditor originType="venue" originId={id} path={`/venues/${id}`} images={images ?? []} />
       </div>
     </div>
   );
