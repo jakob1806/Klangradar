@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/events/event_filters.dart';
 import '../../../core/events/filtered_events_providers.dart';
+import '../../../core/interests/interests_providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/external_maps.dart';
@@ -322,9 +323,13 @@ class _ClusterBubble extends StatelessWidget {
 /// "FilterBar (oben, horizontal scrollbar Chips)" laut
 /// docs/05-navigation-structure.md. Öffnet dieselbe FilterSheet wie die
 /// Suche (geteilter eventFiltersProvider) statt einer Karte-eigenen
-/// Filter-Implementierung; Barrierefrei/Open Air zusätzlich als
-/// Direkt-Umschalter, weil das die zwei häufigsten Einzelfilter beim
-/// spontanen Kartenblättern sein dürften.
+/// Filter-Implementierung. Nutzeranfrage: "die zwei vorschläge
+/// 'barrierefrei' und 'openair' sollen von dort entfernt werden. neben dem
+/// button 'filter' soll (leicht rot eingefärbt) immer nur die kategorien
+/// stehen, die ausgewählt wurden. wenn man die ausgewählten kategorien
+/// anklickt, sollen sie wieder entwählt werden." — die Direkt-Umschalter
+/// sind komplett weg, stattdessen zeigt die Leiste die aktuell gewählten
+/// Genres als eigene Chips, die per Tap wieder entfernt werden.
 class _FilterBar extends ConsumerWidget {
   const _FilterBar({required this.filters});
 
@@ -332,6 +337,20 @@ class _FilterBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final genres = ref.watch(genreOptionsProvider).valueOrNull ?? const [];
+    final genreLabels = {for (final g in genres) g.id: g.label};
+
+    void removeGenre(String genreId) {
+      ref.read(eventFiltersProvider.notifier).state = EventFilters(
+        dateRange: filters.dateRange,
+        genreIds: filters.genreIds.where((id) => id != genreId).toSet(),
+        maxPrice: filters.maxPrice,
+        accessibleOnly: filters.accessibleOnly,
+        openAirOnly: filters.openAirOnly,
+        maxDistanceKm: filters.maxDistanceKm,
+      );
+    }
+
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
@@ -344,34 +363,13 @@ class _FilterBar extends ConsumerWidget {
             active: filters.activeCount > 0,
             onTap: () => showEventFilterSheet(context),
           ),
-          const SizedBox(width: 8),
-          _BarChip(
-            label: 'Barrierefrei',
-            active: filters.accessibleOnly,
-            onTap: () =>
-                ref.read(eventFiltersProvider.notifier).state = EventFilters(
-                  dateRange: filters.dateRange,
-                  genreIds: filters.genreIds,
-                  maxPrice: filters.maxPrice,
-                  accessibleOnly: !filters.accessibleOnly,
-                  openAirOnly: filters.openAirOnly,
-                  maxDistanceKm: filters.maxDistanceKm,
-                ),
-          ),
-          const SizedBox(width: 8),
-          _BarChip(
-            label: 'Open Air',
-            active: filters.openAirOnly,
-            onTap: () =>
-                ref.read(eventFiltersProvider.notifier).state = EventFilters(
-                  dateRange: filters.dateRange,
-                  genreIds: filters.genreIds,
-                  maxPrice: filters.maxPrice,
-                  accessibleOnly: filters.accessibleOnly,
-                  openAirOnly: !filters.openAirOnly,
-                  maxDistanceKm: filters.maxDistanceKm,
-                ),
-          ),
+          for (final genreId in filters.genreIds) ...[
+            const SizedBox(width: 8),
+            _SelectedGenreChip(
+              label: genreLabels[genreId] ?? genreId,
+              onTap: () => removeGenre(genreId),
+            ),
+          ],
           if (filters.isActive) ...[
             const SizedBox(width: 8),
             _BarChip(
@@ -383,6 +381,48 @@ class _FilterBar extends ConsumerWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+/// Chip für ein aktuell ausgewähltes Genre — leicht rot eingefärbt, wandert
+/// bei Tap wieder aus dem Filter raus (siehe _FilterBar.removeGenre).
+class _SelectedGenreChip extends StatelessWidget {
+  const _SelectedGenreChip({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    const chipColor = Color(0xFFFCE4E4);
+    const textColor = Color(0xFFB3261E);
+    return Material(
+      color: chipColor,
+      borderRadius: BorderRadius.circular(20),
+      elevation: 2,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: textColor,
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Icon(Icons.close_rounded, size: 14, color: textColor),
+            ],
+          ),
+        ),
       ),
     );
   }
