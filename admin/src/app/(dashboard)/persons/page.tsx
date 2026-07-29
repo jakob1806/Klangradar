@@ -1,7 +1,15 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { BioResearchBar, BioRowCheckbox, BioSelectAllCheckbox, BioSelectionProvider } from "@/components/bio-select";
+import {
+  BioResearchBar,
+  BioRowCheckbox,
+  BioSelectAllCheckbox,
+  BioSelectMissingButton,
+  BioSelectionProvider,
+  BioStatusBadge,
+} from "@/components/bio-select";
 import { TableSearchFilter } from "@/components/table-search-filter";
+import { bulkDeletePersons, bulkSetPersonsVerified } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +18,7 @@ interface PersonRow {
   full_name: string;
   roles: string[];
   is_verified: boolean;
+  biography_de: string | null;
 }
 
 const ROLE_LABEL: Record<string, string> = {
@@ -24,9 +33,11 @@ export default async function PersonsPage() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("persons")
-    .select("id, full_name, roles, is_verified")
+    .select("id, full_name, roles, is_verified, biography_de")
     .order("full_name")
     .returns<PersonRow[]>();
+
+  const missingBioIds = (data ?? []).filter((p) => !p.biography_de).map((p) => p.id);
 
   return (
     <div className="p-8">
@@ -55,8 +66,15 @@ export default async function PersonsPage() {
       {!error && (
         <BioSelectionProvider>
           <div className="mt-6">
-            <TableSearchFilter containerId="persons-table" placeholder="Name durchsuchen…" />
-            <BioResearchBar entityType="person" />
+            <div className="flex items-center justify-between">
+              <TableSearchFilter containerId="persons-table" placeholder="Name durchsuchen…" />
+              <BioSelectMissingButton ids={missingBioIds} />
+            </div>
+            <BioResearchBar
+              entityType="person"
+              bulkDeleteAction={bulkDeletePersons}
+              bulkSetVerifiedAction={bulkSetPersonsVerified}
+            />
             <div id="persons-table" className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
               <table className="w-full text-sm">
                 <thead className="bg-neutral-50 text-left text-xs uppercase tracking-wide text-neutral-500">
@@ -67,6 +85,7 @@ export default async function PersonsPage() {
                     <th className="px-4 py-3 font-medium">Name</th>
                     <th className="px-4 py-3 font-medium">Rollen</th>
                     <th className="px-4 py-3 font-medium">Status</th>
+                    <th className="px-4 py-3 font-medium">Bio</th>
                     <th className="px-4 py-3" />
                   </tr>
                 </thead>
@@ -96,6 +115,9 @@ export default async function PersonsPage() {
                             {person.is_verified ? "Geprüft" : "Ungeprüft"}
                           </span>
                         </td>
+                        <td className="px-4 py-3">
+                          <BioStatusBadge hasBio={!!person.biography_de} />
+                        </td>
                         <td className="px-4 py-3 text-right">
                           <Link
                             href={`/persons/${person.id}`}
@@ -108,7 +130,7 @@ export default async function PersonsPage() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={5} className="px-4 py-10 text-center text-neutral-400">
+                      <td colSpan={6} className="px-4 py-10 text-center text-neutral-400">
                         Noch keine Personen angelegt.
                       </td>
                     </tr>

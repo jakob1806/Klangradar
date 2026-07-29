@@ -1,7 +1,15 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { BioResearchBar, BioRowCheckbox, BioSelectAllCheckbox, BioSelectionProvider } from "@/components/bio-select";
+import {
+  BioResearchBar,
+  BioRowCheckbox,
+  BioSelectAllCheckbox,
+  BioSelectMissingButton,
+  BioSelectionProvider,
+  BioStatusBadge,
+} from "@/components/bio-select";
 import { TableSearchFilter } from "@/components/table-search-filter";
+import { bulkDeleteVenues, bulkSetVenuesVerified } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -11,15 +19,18 @@ interface VenueRow {
   address_city: string;
   capacity: number | null;
   is_verified: boolean;
+  description_de: string | null;
 }
 
 export default async function VenuesPage() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("venues")
-    .select("id, name, address_city, capacity, is_verified")
+    .select("id, name, address_city, capacity, is_verified, description_de")
     .order("name")
     .returns<VenueRow[]>();
+
+  const missingBioIds = (data ?? []).filter((v) => !v.description_de).map((v) => v.id);
 
   return (
     <div className="p-8">
@@ -45,8 +56,15 @@ export default async function VenuesPage() {
       {!error && (
         <BioSelectionProvider>
           <div className="mt-6">
-            <TableSearchFilter containerId="venues-table" placeholder="Name durchsuchen…" />
-            <BioResearchBar entityType="venue" />
+            <div className="flex items-center justify-between">
+              <TableSearchFilter containerId="venues-table" placeholder="Name durchsuchen…" />
+              <BioSelectMissingButton ids={missingBioIds} />
+            </div>
+            <BioResearchBar
+              entityType="venue"
+              bulkDeleteAction={bulkDeleteVenues}
+              bulkSetVerifiedAction={bulkSetVenuesVerified}
+            />
             <div id="venues-table" className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
               <table className="w-full text-sm">
                 <thead className="bg-neutral-50 text-left text-xs uppercase tracking-wide text-neutral-500">
@@ -58,6 +76,7 @@ export default async function VenuesPage() {
                     <th className="px-4 py-3 font-medium">Stadt</th>
                     <th className="px-4 py-3 font-medium">Kapazität</th>
                     <th className="px-4 py-3 font-medium">Status</th>
+                    <th className="px-4 py-3 font-medium">Bio</th>
                     <th className="px-4 py-3" />
                   </tr>
                 </thead>
@@ -84,6 +103,9 @@ export default async function VenuesPage() {
                             {venue.is_verified ? "Geprüft" : "Ungeprüft"}
                           </span>
                         </td>
+                        <td className="px-4 py-3">
+                          <BioStatusBadge hasBio={!!venue.description_de} />
+                        </td>
                         <td className="px-4 py-3 text-right">
                           <Link href={`/venues/${venue.id}`} className="text-sm font-medium text-neutral-700 hover:text-neutral-900">
                             Bearbeiten
@@ -93,7 +115,7 @@ export default async function VenuesPage() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={6} className="px-4 py-10 text-center text-neutral-400">
+                      <td colSpan={7} className="px-4 py-10 text-center text-neutral-400">
                         Noch keine Venues angelegt.
                       </td>
                     </tr>

@@ -77,3 +77,19 @@ export async function deleteVenue(venueId: string) {
   revalidatePath("/venues");
   redirect("/venues");
 }
+
+export async function bulkDeleteVenues(ids: string[]) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("venues").delete().in("id", ids);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/venues");
+}
+
+export async function bulkSetVenuesVerified(ids: string[], verified: boolean) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("venues").update({ is_verified: verified }).in("id", ids);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/venues");
+}
