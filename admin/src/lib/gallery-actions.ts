@@ -124,6 +124,44 @@ export async function moveGalleryImage(
   revalidatePath(path);
 }
 
+/** Setzt ein Bild direkt als Miniaturansicht/Titelbild, statt es per
+ * moveGalleryImage Schritt für Schritt nach vorne zu schieben: alle
+ * Bilder werden in ihrer aktuellen Reihenfolge neu durchnummeriert, mit
+ * dem gewählten Bild an Position 0. */
+export async function setPrimaryGalleryImage(
+  originType: GalleryOriginType,
+  originId: string,
+  imageId: string,
+  path: string,
+) {
+  const supabase = await createClient();
+
+  const { data: images, error } = await supabase
+    .from("images")
+    .select("id, sort_order")
+    .eq("origin_type", originType)
+    .eq("origin_id", originId)
+    .order("sort_order", { ascending: true });
+  if (error) throw new Error(error.message);
+
+  const rows = images ?? [];
+  const target = rows.find((r) => r.id === imageId);
+  if (!target) return;
+
+  const reordered = [target, ...rows.filter((r) => r.id !== imageId)];
+
+  for (let i = 0; i < reordered.length; i++) {
+    if (reordered[i].sort_order === i) continue;
+    const { error: updateError } = await supabase
+      .from("images")
+      .update({ sort_order: i })
+      .eq("id", reordered[i].id);
+    if (updateError) throw new Error(updateError.message);
+  }
+
+  revalidatePath(path);
+}
+
 export async function saveGalleryImageCrop(
   imageId: string,
   crop: GalleryCrop | null,

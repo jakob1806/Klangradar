@@ -6,6 +6,7 @@ import {
   addGalleryImage,
   deleteGalleryImage,
   moveGalleryImage,
+  setPrimaryGalleryImage,
   type GalleryImage,
   type GalleryOriginType,
 } from "@/lib/gallery-actions";
@@ -100,6 +101,16 @@ export function GalleryEditor({
     });
   }
 
+  function handleSetPrimary(imageId: string) {
+    startTransition(async () => {
+      try {
+        await setPrimaryGalleryImage(originType, originId, imageId, path);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Als Miniaturansicht festlegen fehlgeschlagen.");
+      }
+    });
+  }
+
   const sorted = [...images].sort((a, b) => a.sort_order - b.sort_order);
 
   return (
@@ -154,7 +165,7 @@ export function GalleryEditor({
                     Miniaturansicht
                   </span>
                 )}
-                <div className="flex items-center justify-between text-xs">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
                   <div className="flex gap-2">
                     <button
                       type="button"
@@ -175,6 +186,16 @@ export function GalleryEditor({
                       ↓
                     </button>
                   </div>
+                  {index !== 0 && (
+                    <button
+                      type="button"
+                      disabled={pending}
+                      onClick={() => handleSetPrimary(image.id)}
+                      className="text-neutral-600 hover:text-neutral-900 disabled:opacity-50"
+                    >
+                      Als Titelbild
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => setCropTarget(image)}
