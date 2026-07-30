@@ -98,7 +98,7 @@ final _eventProvider = FutureProvider.family<Map<String, dynamic>?, String>((
         ticket_url, price_min, price_max, price_currency, is_free,
         remaining_tickets_status, doors_info, age_restriction,
         discount_info, presale_fee_info, target_audience, performance_language,
-        website_url, accessibility, status, image_urls,
+        website_url, accessibility, status, image_urls, program_id,
         attribution_notice, attribution_license_url, last_verified_at,
         venues(id, slug, name, address_street, address_zip, address_city, photo_url, description_de),
         organizers(name),
@@ -174,6 +174,26 @@ final _similarEventsProvider =
       return (rows as List)
           .map((r) => HomeEventItem.fromRow(r as Map<String, dynamic>))
           .toList();
+    });
+
+/// Andere Termine desselben Konzerts (Nutzeranfrage: "falls ein konzert
+/// mehrere male aufgeführt wird, soll es... eine kategorie geben 'Weitere
+/// Termine'"). programId ist events.program_id — dieselbe Gruppierung, die
+/// die Admin-Event-Gruppen-Verwaltung schon für das gemeinsame
+/// Programm/Mitwirkende nutzt (siehe admin event-groups).
+final _otherDatesProvider =
+    FutureProvider.family<
+      List<Map<String, dynamic>>,
+      ({String programId, String currentEventId})
+    >((ref, key) async {
+      final rows = await Supabase.instance.client
+          .from('events')
+          .select('slug, start_datetime')
+          .eq('program_id', key.programId)
+          .neq('id', key.currentEventId)
+          .neq('status', 'draft')
+          .order('start_datetime', ascending: true);
+      return (rows as List).cast<Map<String, dynamic>>();
     });
 
 String _formatVerifiedDate(DateTime d) =>
@@ -489,6 +509,12 @@ class EventDetailScreen extends ConsumerWidget {
                         ),
                       ),
                     ],
+                    if (event['program_id'] != null)
+                      _OtherDatesSection(
+                        programId: event['program_id'] as String,
+                        currentEventId: event['id'] as String,
+                        colors: colors,
+                      ),
                     if (works.isNotEmpty) ...[
                       const SizedBox(height: AppSpacing.xl),
                       Text(
@@ -619,6 +645,164 @@ class EventDetailScreen extends ConsumerWidget {
       const ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'][d.weekday - 1];
   String _time(DateTime d) =>
       '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+}
+
+const _fullWeekdayNames = [
+  'Montag',
+  'Dienstag',
+  'Mittwoch',
+  'Donnerstag',
+  'Freitag',
+  'Samstag',
+  'Sonntag',
+];
+
+const _fullMonthNames = [
+  'Januar',
+  'Februar',
+  'März',
+  'April',
+  'Mai',
+  'Juni',
+  'Juli',
+  'August',
+  'September',
+  'Oktober',
+  'November',
+  'Dezember',
+];
+
+/// "Weitere Termine": andere Aufführungen desselben Konzerts (gleiches
+/// events.program_id), tappable zum jeweils anderen Event — Nutzeranfrage:
+/// "falls ein konzert mehrere male aufgeführt wird, soll es vor der
+/// kategorie 'Programm'... eine kategorie geben 'Weitere Termine'... das
+/// format soll ungefähr so sein wie im screenshot" (umrandete Zeilen: fetter
+/// Wochentag, Datum darunter, Uhrzeit rechtsbündig normal). Rendert nichts,
+/// solange die Gruppe (noch) keine weiteren Termine hat — z.B. eine
+/// Event-Gruppe mit bisher nur einem angelegten Termin.
+class _OtherDatesSection extends ConsumerWidget {
+  const _OtherDatesSection({
+    required this.programId,
+    required this.currentEventId,
+    required this.colors,
+  });
+
+  final String programId;
+  final String currentEventId;
+  final AppColorsExtension colors;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(
+      _otherDatesProvider((
+        programId: programId,
+        currentEventId: currentEventId,
+      )),
+    );
+    final dates = async.valueOrNull ?? const [];
+    if (dates.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.xl),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Weitere Termine',
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          for (final row in dates) ...[
+            _OtherDateRow(row: row, colors: colors),
+            if (row != dates.last) const SizedBox(height: AppSpacing.sm),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _OtherDateRow extends StatelessWidget {
+  const _OtherDateRow({required this.row, required this.colors});
+
+  final Map<String, dynamic> row;
+  final AppColorsExtension colors;
+
+  @override
+  Widget build(BuildContext context) {
+    final start = DateTime.tryParse(row['start_datetime'] as String? ?? '');
+    final slug = row['slug'] as String?;
+    if (start == null || slug == null) return const SizedBox.shrink();
+
+    final weekday = _fullWeekdayNames[start.weekday - 1];
+    final date =
+        '${start.day}. ${_fullMonthNames[start.month - 1]} ${start.year}';
+    final time =
+        '${start.hour.toString().padLeft(2, '0')}:${start.minute.toString().padLeft(2, '0')} Uhr';
+
+    return Semantics(
+      button: true,
+      label: '$weekday, $date, $time',
+      onTap: () => context.push('/event/$slug'),
+      child: Material(
+        color: colors.backgroundPrimary,
+        borderRadius: BorderRadius.circular(AppSpacing.md),
+        child: InkWell(
+          onTap: () => context.push('/event/$slug'),
+          borderRadius: BorderRadius.circular(AppSpacing.md),
+          child: ExcludeSemantics(
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.sm + 2,
+              ),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(AppSpacing.md),
+                border: Border.all(color: colors.separator),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          weekday,
+                          style: TextStyle(
+                            color: colors.textPrimary,
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          date,
+                          style: TextStyle(
+                            color: colors.textSecondary,
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    time,
+                    style: TextStyle(
+                      color: colors.textSecondary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// Kurzinfo zum Veranstaltungsort (Foto, Name, Adresse, ggf. Kurzbeschreibung)
