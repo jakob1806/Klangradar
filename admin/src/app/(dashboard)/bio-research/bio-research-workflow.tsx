@@ -16,8 +16,8 @@
 // ein Lint-Fehler, siehe react-hooks/set-state-in-effect).
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { researchBio, saveBio, type BioEntityType } from "./actions";
+import { useEffect, useRef, useState } from "react";
+import { researchBio, saveBio, type BioEntityType, type BioResearchOutcome } from "./actions";
 
 export interface BioWorkflowEntity {
   id: string;
@@ -41,8 +41,39 @@ export function BioResearchWorkflow({
   const [index, setIndex] = useState(0);
   const [results, setResults] = useState<{ saved: number; skipped: number }>({ saved: 0, skipped: 0 });
 
+  // Nutzeranfrage: "die bio recherche in wikipedia dauert etwas zu lange"
+  // — der eigentliche Wikipedia-Abruf ist bereits ein einzelner schlanker
+  // API-Call (siehe _shared/wikipedia.ts), der spürbare Teil der Wartezeit
+  // ist die anschließende KI-Zusammenfassung. Statt das serverseitig weiter
+  // zu optimieren, wird hier die WARTEZEIT VERSTECKT: während die Redaktion
+  // den aktuellen Eintrag liest/bearbeitet, läuft die Recherche für den
+  // NÄCHSTEN Eintrag schon im Hintergrund — ein Cache aus in-flight
+  // Promises statt eines einfachen Ergebnis-Caches, damit ein Prefetch, der
+  // noch läuft, wenn man weiterklickt, nicht doppelt gestartet wird.
+  const fetchCache = useRef<Map<string, Promise<BioResearchOutcome>>>(new Map());
+  function ensureFetch(id: string) {
+    let promise = fetchCache.current.get(id);
+    if (!promise) {
+      promise = researchBio(entityType, id);
+      fetchCache.current.set(id, promise);
+    }
+    return promise;
+  }
+  // Für "Erneut recherchieren" — sonst würde ensureFetch das gecachte (evtl.
+  // fehlgeschlagene) Ergebnis erneut zurückgeben, statt tatsächlich neu zu
+  // fragen.
+  function invalidateFetch(id: string) {
+    fetchCache.current.delete(id);
+  }
+
   const current = entities[index];
   const done = index >= entities.length;
+
+  useEffect(() => {
+    const next = entities[index + 1];
+    if (next) ensureFetch(next.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- ensureFetch liest nur aus dem Ref, kein State-Zugriff
+  }, [index, entities]);
 
   function advance(outcome: "saved" | "skipped") {
     setResults((prev) => ({ ...prev, [outcome]: prev[outcome] + 1 }));
@@ -67,13 +98,28 @@ export function BioResearchWorkflow({
 
   return (
     <div className="max-w-2xl">
-      <p className="text-xs font-medium uppercase tracking-wide text-neutral-400">
-        {index + 1} / {entities.length}
-      </p>
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-medium uppercase tracking-wide text-neutral-400">
+          {index + 1} / {entities.length}
+        </p>
+        <p className="text-xs text-neutral-400">
+          {results.saved + results.skipped} erledigt
+        </p>
+      </div>
+      {/* Sichtbarer Fortschrittsbalken statt nur des "N / M"-Texts —
+          Nutzeranfrage: "außerdem muss man einen Fortschritt sehen". */}
+      <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-neutral-100">
+        <div
+          className="h-full rounded-full bg-neutral-900 transition-all duration-300"
+          style={{ width: `${(index / entities.length) * 100}%` }}
+        />
+      </div>
       <BioStep
         key={current.id}
         entityType={entityType}
         entity={current}
+        ensureFetch={ensureFetch}
+        invalidateFetch={invalidateFetch}
         onTakeOver={() => advance("saved")}
         onSkip={() => advance("skipped")}
       />
@@ -84,11 +130,15 @@ export function BioResearchWorkflow({
 function BioStep({
   entityType,
   entity,
+  ensureFetch,
+  invalidateFetch,
   onTakeOver,
   onSkip,
 }: {
   entityType: BioEntityType;
   entity: BioWorkflowEntity;
+  ensureFetch: (id: string) => Promise<BioResearchOutcome>;
+  invalidateFetch: (id: string) => void;
   onTakeOver: () => void;
   onSkip: () => void;
 }) {
@@ -100,7 +150,7 @@ function BioStep({
   useEffect(() => {
     let cancelled = false;
 
-    researchBio(entityType, entity.id).then((result) => {
+    ensureFetch(entity.id).then((result) => {
       if (cancelled) return;
       if (result.error) {
         setStep({ status: "error", message: result.error });
@@ -115,7 +165,8 @@ function BioStep({
     return () => {
       cancelled = true;
     };
-  }, [entityType, entity.id, retryKey]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- retryKey erzwingt bewusst einen Re-Fetch, ensureFetch selbst ist stabil (aus dem Parent-Ref)
+  }, [entity.id, retryKey]);
 
   async function handleTakeOver() {
     setSaving(true);
@@ -199,6 +250,7 @@ function BioStep({
             type="button"
             disabled={saving || step.status === "loading"}
             onClick={() => {
+              invalidateFetch(entity.id);
               setStep({ status: "loading" });
               setRetryKey((k) => k + 1);
             }}
