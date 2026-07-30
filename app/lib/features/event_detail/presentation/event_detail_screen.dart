@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:add_2_calendar/add_2_calendar.dart' as add2cal;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,13 +9,11 @@ import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../../core/calendar/calendar_sync_service.dart';
 import '../../../core/events/event_filters.dart';
 import '../../../core/events/filtered_events_providers.dart';
 import '../../../core/gallery/entity_gallery_providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
-import '../../../core/widgets/calendar_picker_sheet.dart';
 import '../../../core/widgets/detail_card.dart';
 import '../../../core/widgets/detail_hero_background.dart';
 import '../../../core/widgets/entity_photo_gallery.dart';
@@ -25,12 +24,16 @@ import '../../../core/utils/share_position.dart';
 import '../../../core/widgets/source_hint.dart';
 import '../../home/application/home_providers.dart';
 
-/// Trägt das Event direkt in einen vom Nutzer gewählten Gerätekalender ein
-/// — ersetzt das bisherige "ICS-Datei teilen" (Nutzeranfrage: "Kalender-
-/// Button soll die ICS-Datei nicht teilen, sondern automatisch importieren,
-/// Auswahl der Kalenderkategorie beachten"). Scheitert die Berechtigungs-
-/// abfrage oder gibt es keinen beschreibbaren Kalender, zeigt eine
-/// SnackBar statt eines stillen Fehlers.
+/// Öffnet die native "Neuer Termin"-Vorlage des Betriebssystems (auf iOS:
+/// EKEventEditViewController — dieselbe Ansicht wie beim direkten Anlegen
+/// eines Termins in der Apple-Kalender-App), vorausgefüllt mit den
+/// Event-Daten. Die Nutzerin wählt Kalender/bearbeitet/speichert selbst —
+/// Nutzeranfrage: "der Button 'kalender' soll erst einmal ein pop up
+/// öffnen, wo man entscheiden kann, in welchen kalender man es
+/// importiert... so eine vorlage von apple, die aussieht, als würde man
+/// gerade ein ereignis im apple kalender erstellen". Ersetzt die bisherige
+/// Variante (device_calendar, Berechtigungsabfrage + eigenes BottomSheet +
+/// stilles Schreiben ohne native UI).
 Future<void> _addEventToDeviceCalendar({
   required BuildContext context,
   required String title,
@@ -41,48 +44,19 @@ Future<void> _addEventToDeviceCalendar({
   String? url,
 }) async {
   final messenger = ScaffoldMessenger.of(context);
-  final calendars = await CalendarSyncService.requestWritableCalendars();
-  if (!context.mounted) return;
-
-  if (calendars == null) {
-    messenger.showSnackBar(
-      const SnackBar(content: Text('Kalenderzugriff wurde nicht erlaubt.')),
-    );
-    return;
-  }
-  if (calendars.isEmpty) {
-    messenger.showSnackBar(
-      const SnackBar(content: Text('Kein beschreibbarer Kalender gefunden.')),
-    );
-    return;
-  }
-
-  final chosen = calendars.length == 1
-      ? calendars.first
-      : await showCalendarPickerSheet(context, calendars);
-  if (chosen?.id == null || !context.mounted) return;
-
-  final result = await CalendarSyncService.addEventToCalendar(
-    event: CalendarSyncEvent(
+  final added = await add2cal.Add2Calendar.addEvent2Cal(
+    add2cal.Event(
       title: title,
-      start: start,
-      end: start.add(Duration(minutes: durationMinutes ?? 120)),
       description: description,
       location: location,
-      url: url,
+      startDate: start,
+      endDate: start.add(Duration(minutes: durationMinutes ?? 120)),
+      iosParams: add2cal.IOSParams(url: url),
     ),
-    calendarId: chosen!.id!,
   );
-  if (!context.mounted) return;
-
+  if (!context.mounted || added) return;
   messenger.showSnackBar(
-    SnackBar(
-      content: Text(
-        result.outcome == CalendarSyncOutcome.success
-            ? 'Zum Kalender „${chosen.name}" hinzugefügt.'
-            : 'Eintragen fehlgeschlagen${result.message != null ? ': ${result.message}' : '.'}',
-      ),
-    ),
+    const SnackBar(content: Text('Kalender konnte nicht geöffnet werden.')),
   );
 }
 
