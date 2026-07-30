@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { ConfirmButton } from "@/components/confirm-button";
 import { createClient } from "@/lib/supabase/server";
-import { confirmImageFree, confirmImageLicensed, rejectImage } from "./actions";
+import { confirmImageFree, confirmImageLicensed, rejectImage, updateImageMetadata } from "./actions";
 import { EnrichImagesButton } from "./enrich-images-button";
+import { MediaBulkBar, MediaRowCheckbox, MediaSelectAllCheckbox, MediaSelectionProvider } from "./media-select";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +38,16 @@ interface ImageRow {
   photographer: string | null;
   copyright_notice: string | null;
   license_notes: string | null;
+  source_page_url: string | null;
+  source_name: string | null;
+  credits: string | null;
+  license_name: string | null;
+  license_url: string | null;
+  license_status: string;
+  confidence_score: number | null;
+  match_reason: string | null;
+  warnings: string[];
+  thumbnail_path: string | null;
   imported_at: string;
 }
 
@@ -48,7 +59,7 @@ export default async function MediaPage() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("images")
-    .select("id, source_url, origin_type, origin_id, photographer, copyright_notice, license_notes, imported_at")
+    .select("id, source_url, origin_type, origin_id, photographer, copyright_notice, license_notes, imported_at, source_page_url, source_name, credits, license_name, license_url, license_status, confidence_score, match_reason, warnings, thumbnail_path")
     .eq("needs_review", true)
     .order("imported_at", { ascending: false })
     .returns<ImageRow[]>();
@@ -111,7 +122,15 @@ export default async function MediaPage() {
       {error && <p className="mt-6 text-sm text-amber-700">Konnte Bilder nicht laden: {error.message}</p>}
 
       {!error && (
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <MediaSelectionProvider>
+          <div className="mt-6">
+            {(data?.length ?? 0) > 0 && (
+              <div className="mb-3">
+                <MediaSelectAllCheckbox ids={(data ?? []).map((i) => i.id)} />
+              </div>
+            )}
+            <MediaBulkBar />
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {data?.length ? (
             data.map((image) => {
               const config = ORIGIN_CONFIG[image.origin_type];
@@ -123,6 +142,7 @@ export default async function MediaPage() {
                 <img src={image.source_url} alt="" className="h-40 w-full object-cover bg-neutral-100" />
                 <div className="p-3">
                   <div className="flex items-center gap-2">
+                    <MediaRowCheckbox id={image.id} />
                     <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-medium text-neutral-600">
                       {ORIGIN_LABEL[image.origin_type] ?? image.origin_type}
                     </span>
@@ -158,6 +178,22 @@ export default async function MediaPage() {
                   {image.license_notes && (
                     <p className="mt-1 text-xs text-neutral-500">{image.license_notes}</p>
                   )}
+                  {image.match_reason && <p className="mt-2 text-xs text-neutral-700"><strong>Zuordnung:</strong> {image.match_reason}</p>}
+                  <p className="mt-1 text-xs text-neutral-500">
+                    Quelle: {image.source_name ?? "unbekannt"} · Lizenz: {image.license_name ?? image.license_status}
+                    {image.confidence_score !== null ? ` · Confidence: ${Math.round(image.confidence_score * 100)} %` : ""}
+                  </p>
+                  {image.source_page_url && <a href={image.source_page_url} target="_blank" rel="noreferrer" className="mt-1 block truncate text-xs text-blue-600 hover:underline">Quellseite öffnen</a>}
+                  {image.warnings?.map((warning) => <p key={warning} className="mt-1 text-xs text-amber-700">⚠ {warning}</p>)}
+                  <form action={updateImageMetadata} className="mt-3 grid grid-cols-2 gap-2 border-t pt-3">
+                    <input type="hidden" name="imageId" value={image.id} />
+                    <input name="photographer" defaultValue={image.photographer ?? ""} placeholder="Fotograf" className="rounded border px-2 py-1 text-xs" />
+                    <input name="credits" defaultValue={image.credits ?? ""} placeholder="Credit-Text" className="rounded border px-2 py-1 text-xs" />
+                    <input name="licenseName" defaultValue={image.license_name ?? ""} placeholder="Lizenz" className="rounded border px-2 py-1 text-xs" />
+                    <input name="licenseUrl" defaultValue={image.license_url ?? ""} placeholder="Lizenz-URL" className="rounded border px-2 py-1 text-xs" />
+                    <input name="confidenceScore" type="number" min="0" max="1" step="0.01" defaultValue={image.confidence_score ?? ""} placeholder="Confidence 0–1" className="rounded border px-2 py-1 text-xs" />
+                    <button type="submit" className="rounded border px-2 py-1 text-xs font-medium hover:bg-neutral-50">Metadaten speichern</button>
+                  </form>
                   <div className="mt-3 flex flex-wrap gap-3">
                     <ConfirmButton
                       action={confirmImageFree.bind(null, image.id)}
@@ -190,7 +226,9 @@ export default async function MediaPage() {
               Keine Bilder zur Prüfung.
             </div>
           )}
-        </div>
+            </div>
+          </div>
+        </MediaSelectionProvider>
       )}
     </div>
   );
