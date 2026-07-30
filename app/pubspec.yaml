@@ -82,6 +82,12 @@ dependencies:
   # calendar_sync_service.dart initializeTimeZones() selbst aufrufen muss
   # (siehe dort) — Version an das bereits aufgelöste pubspec.lock gepinnt.
   timezone: ^0.9.4
+  # Nutzeranfrage: der "Kalender"-Button in der Event-Detailansicht soll
+  # die native Apple-"Neuer Termin"-Vorlage öffnen (Kalenderauswahl +
+  # Bearbeiten + Sichern durch die Nutzerin selbst), statt das Event über
+  # device_calendar direkt und ohne native UI einzutragen. add_2_calendar
+  # präsentiert genau diese native EKEventEditViewController-Sheet auf iOS.
+  add_2_calendar: ^3.1.1
 
 dev_dependencies:
   flutter_test:
