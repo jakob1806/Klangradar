@@ -304,7 +304,10 @@ export async function upsertRawEvent(
         price_max: raw.priceMax,
         is_free: raw.isFree ?? false,
         website_url: raw.url,
-        image_urls: raw.imageUrl ? [raw.imageUrl] : [],
+        // image_urls bewusst leer statt raw.imageUrl direkt zu übernehmen —
+        // attachCoverImage() unten füllt es erst, wenn das Bild die
+        // Mindestauflösung der Pipeline besteht (siehe dortiger Kommentar).
+        image_urls: [],
         status: "draft",
         source_id: source.id,
         external_id: raw.externalId,
@@ -324,7 +327,7 @@ export async function upsertRawEvent(
     }
 
     await linkSourceEntity(supabase, source, created.id);
-    await attachCoverImage(supabase, source, raw, created.id, venueId, null, true);
+    await attachCoverImage(supabase, source, raw, created.id, venueId, null, [], true);
 
     if (match) {
       const { error: dupError } = await supabase.from("duplicate_candidates").insert({
@@ -361,19 +364,10 @@ async function applyUpdate(
   trustImage: boolean,
 ): Promise<WriteOutcome> {
   const updates = buildUpdatePayload(raw);
-
-  if (raw.imageUrl) {
-    const currentImages: string[] = Array.isArray(existing.image_urls) ? existing.image_urls : [];
-    if (trustImage) {
-      if (!currentImages.includes(raw.imageUrl)) {
-        updates.image_urls = [...currentImages, raw.imageUrl];
-      }
-    } else if (currentImages.length === 0) {
-      // Fuzzy-matched source and the event has no photo at all yet —
-      // safe to fill the gap, nothing to accidentally overwrite.
-      updates.image_urls = [raw.imageUrl];
-    }
-  }
+  // image_urls wird NICHT hier aus raw.imageUrl befüllt — das würde jede
+  // (ggf. viel zu kleine) Quell-URL ungeprüft übernehmen. attachCoverImage()
+  // unten setzt image_urls erst, nachdem die Pipeline die Mindestauflösung
+  // bestätigt hat (siehe dortiger Kommentar).
 
   const { changedFields, oldValues, newValues } = diffFields(existing, updates);
 
@@ -402,7 +396,16 @@ async function applyUpdate(
     }
   }
 
-  await attachCoverImage(supabase, source, raw, existing.id, venueId, existing.primary_image_id ?? null, trustImage);
+  await attachCoverImage(
+    supabase,
+    source,
+    raw,
+    existing.id,
+    venueId,
+    existing.primary_image_id ?? null,
+    Array.isArray(existing.image_urls) ? existing.image_urls : [],
+    trustImage,
+  );
 
   return { outcome: "updated", eventId: existing.id };
 }
@@ -431,12 +434,22 @@ async function applyUpdate(
  *
  * Überschreibt ein schon vorhandenes primary_image_id nur, wenn raw.imageUrl
  * authoritativ UND trustImage true ist (exakter external_id-Match) — exakt
- * dieselbe Vertrauens-Abstufung wie image_urls[] oben in applyUpdate(): ein
- * bloß fuzzy-gematchtes oder nur von der Seite abgeleitetes Bild darf immer
- * nur eine Lücke füllen, nie ein bestehendes Coverbild verdrängen. Ändert
- * NIE image_urls[] selbst — das bleibt exakt das bisherige, von der App
- * gelesene Verhalten (primary_image_id ist ein rein additives, noch nicht
- * von der App gelesenes Feld, siehe 20260819000003_images_and_tags.sql). */
+ * dieselbe Vertrauens-Abstufung gilt jetzt auch für image_urls[] (siehe
+ * unten): ein bloß fuzzy-gematchtes oder nur von der Seite abgeleitetes
+ * Bild darf immer nur eine Lücke füllen, nie ein bestehendes Coverbild
+ * verdrängen.
+ *
+ * image_urls[] (das von der App tatsächlich gerenderte Feld, siehe
+ * event_detail_screen.dart) wird NUR gesetzt, wenn ensureCoverImage()
+ * erfolgreich war — also die Bild-Pipeline die Mindestauflösung bestätigt
+ * hat (imagePipeline.ts). Scheitert die Pipeline (zu klein/nicht
+ * erreichbar/Decode-Fehler), landet die URL nur in der Lizenz-Review-Queue
+ * (recordImage()), OHNE image_urls zu setzen — ein fehlendes Bild (Genre-
+ * Platzhalter in der App) ist besser als ein auf Hero-Breite hochskaliertes,
+ * unscharfes Kleinstbild (Nutzerfeedback: "die Bilder... sind noch etwas
+ * unscharf"). Der Ensemble-/Personen-/Venue-Fallback (resolveFallbackImage)
+ * setzt bewusst NUR primary_image_id, nie image_urls — das wäre nicht das
+ * Foto DIESES Events. */
 async function attachCoverImage(
   // deno-lint-ignore no-explicit-any
   supabase: any,
@@ -445,6 +458,7 @@ async function attachCoverImage(
   eventId: string,
   venueId: string | null,
   currentPrimaryImageId: string | null,
+  currentImageUrls: string[],
   trustImage: boolean,
 ): Promise<void> {
   try {
@@ -468,7 +482,24 @@ async function attachCoverImage(
         originId: eventId,
         credits: detected.credits,
       });
-      if (!imageId) {
+      if (imageId) {
+        if (mayOverwrite) {
+          if (!currentImageUrls.includes(detected.url)) {
+            const { error } = await supabase
+              .from("events")
+              .update({ image_urls: [...currentImageUrls, detected.url] })
+              .eq("id", eventId);
+            if (error) {
+              console.error(`attachCoverImage: failed to set image_urls for event ${eventId}: ${error.message}`);
+            }
+          }
+        } else if (currentImageUrls.length === 0) {
+          const { error } = await supabase.from("events").update({ image_urls: [detected.url] }).eq("id", eventId);
+          if (error) {
+            console.error(`attachCoverImage: failed to set image_urls for event ${eventId}: ${error.message}`);
+          }
+        }
+      } else {
         await recordImage(supabase, "event", eventId, detected.url);
       }
     }

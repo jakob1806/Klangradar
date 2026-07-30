@@ -101,6 +101,18 @@ async function ensureCoverImageInner(
   if (!decoded) return null;
   const { width, height, webpBytes, thumbnailBytes, phash } = decoded;
 
+  // Nutzerfeedback: "die Bilder, die in der Detailansicht von einzelnen
+  // Veranstaltungen in der App angezeigt werden sind noch etwas unscharf".
+  // Ohne Mindestauflösung landet hier jedes noch so kleine Vorschaubild
+  // einer Quelle (viele Event-Listing-Seiten liefern nur ein ~250-300px
+  // breites Karten-Thumbnail als og:image/schema.org-Bild) im Speicher und
+  // wird später auf die volle, bildschirmfüllende Hero-Breite der
+  // Detailansicht hochskaliert — das wirkt zwangsläufig verwaschen. 640x480
+  // lässt die meisten echten Pressefotos/Veranstaltungsbilder durch, sperrt
+  // aber reine Listing-Thumbnails aus (dann bleibt der Genre-Platzhalter
+  // sichtbar statt eines hochskalierten Kleinstbilds).
+  if (width < 640 || height < 480) return null;
+
   // 2. pHash-Dedupe: dieselbe Bilddatei schon für irgendein Origin
   // gespeichert (z.B. über eine andere source_url oder ein anderes Event
   // derselben Quelle)? Dann die bestehende Zeile wiederverwenden statt
