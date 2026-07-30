@@ -46,7 +46,10 @@ function resolveUrl(value: string | null, baseUrl: string): string | null {
 /** Lädt `pageUrl` (robots.txt-geprüft) und sucht ein Bild, das erkennbar zu
  * `name` gehört. Gibt null bei robots.txt-Sperre, jedem Fetch-/Parse-Fehler
  * oder fehlendem Treffer zurück. */
-export async function extractImageNearName(pageUrl: string, name: string): Promise<string | null> {
+export async function extractImageNearName(
+  pageUrl: string,
+  name: string,
+): Promise<string | null> {
   if (!(await isAllowedByRobots(pageUrl))) return null;
 
   let html: string;
@@ -61,9 +64,13 @@ export async function extractImageNearName(pageUrl: string, name: string): Promi
   const needle = normalize(name);
   if (!needle) return null;
 
-  let document: Document;
+  // linkedom liefert in der Deno-Runtime ein document, deklariert seinen
+  // Rückgabewert aber als Window ohne DOM-lib-Typen.
+  // deno-lint-ignore no-explicit-any
+  let document: any;
   try {
-    ({ document } = parseHTML(html));
+    // deno-lint-ignore no-explicit-any
+    document = (parseHTML(html) as any).document;
   } catch {
     return null;
   }
@@ -101,5 +108,6 @@ export async function extractImageNearName(pageUrl: string, name: string): Promi
  * offensichtlichsten Fehltreffer. */
 function isLikelyDecorativeAsset(url: string): boolean {
   const path = url.toLowerCase();
-  return /ticket|logo|icon|button|btn[-_.]|spacer|pixel|arrow|share|social|placeholder|sprite|banner/.test(path);
+  return /ticket|logo|icon|button|btn[-_.]|spacer|pixel|arrow|share|social|placeholder|sprite|banner/
+    .test(path);
 }

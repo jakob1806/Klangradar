@@ -13,12 +13,48 @@
 
 const TIMEOUT_MS = 8_000;
 
+/** Blockiert lokale, private und link-local Ziele. Die Prüfung wird von der
+ * Download-Pipeline bei jedem Redirect erneut durchgeführt. */
+export function isPublicImageUrl(value: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") return false;
+  const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (
+    host === "localhost" || host.endsWith(".localhost") ||
+    host.endsWith(".local")
+  ) return false;
+  if (
+    host === "::1" || host === "0.0.0.0" || host.startsWith("fe80:") ||
+    host.startsWith("fc") || host.startsWith("fd")
+  ) return false;
+  const parts = host.split(".").map(Number);
+  if (
+    parts.length === 4 &&
+    parts.every((part) => Number.isInteger(part) && part >= 0 && part <= 255)
+  ) {
+    const [a, b] = parts;
+    if (
+      a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || a >= 224
+    ) return false;
+  }
+  return true;
+}
+
 export interface ImageCheckResult {
   reachable: boolean;
   contentType: string | null;
 }
 
-async function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+): Promise<Response> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
@@ -35,9 +71,7 @@ async function fetchWithTimeout(url: string, init: RequestInit): Promise<Respons
  * geworfene Exception — Aufrufer behandeln das als "kein verlässliches
  * Bild", nicht als Fehlerfall. */
 export async function checkImageUrl(url: string): Promise<ImageCheckResult> {
-  try {
-    new URL(url);
-  } catch {
+  if (!isPublicImageUrl(url)) {
     return { reachable: false, contentType: null };
   }
 

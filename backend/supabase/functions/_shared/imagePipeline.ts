@@ -17,8 +17,12 @@
 // null zurück, wirft nie — der Aufrufer entscheidet, ob dann auf die
 // URL-only-Zeile bzw. die Fallback-Kaskade zurückgefallen wird.
 
-import { ImageMagick, initializeImageMagick, MagickFormat } from "npm:@imagemagick/magick-wasm@0.0.31";
-import { checkImageUrl } from "./imageValidation.ts";
+import {
+  ImageMagick,
+  initializeImageMagick,
+  MagickFormat,
+} from "npm:@imagemagick/magick-wasm@0.0.31";
+import { checkImageUrl, isPublicImageUrl } from "./imageValidation.ts";
 import { USER_AGENT } from "./robots.ts";
 
 const MAX_IMAGE_BYTES = 15_000_000;
@@ -37,7 +41,10 @@ function ensureMagickReady(): Promise<void> {
   if (!magickReady) {
     magickReady = (async () => {
       const wasmBytes = await Deno.readFile(
-        new URL("magick.wasm", import.meta.resolve("npm:@imagemagick/magick-wasm@0.0.31")),
+        new URL(
+          "magick.wasm",
+          import.meta.resolve("npm:@imagemagick/magick-wasm@0.0.31"),
+        ),
       );
       await initializeImageMagick(wasmBytes);
     })();
@@ -45,13 +52,34 @@ function ensureMagickReady(): Promise<void> {
   return magickReady;
 }
 
-export type ImageOriginType = "event" | "venue" | "ensemble" | "person" | "organizer";
+export type ImageOriginType =
+  | "event"
+  | "venue"
+  | "ensemble"
+  | "person"
+  | "organizer"
+  | "festival";
 
 export interface CoverImageInput {
   sourceUrl: string;
   originType: ImageOriginType;
   originId: string;
   credits?: string | null;
+  sourcePageUrl?: string | null;
+  sourceName?: string | null;
+  photographer?: string | null;
+  licenseName?: string | null;
+  licenseUrl?: string | null;
+  licenseStatus?:
+    | "confirmed_free"
+    | "confirmed_licensed"
+    | "official_press_image"
+    | "permission_required"
+    | "unknown";
+  confidenceScore?: number | null;
+  matchReason?: string | null;
+  warnings?: string[];
+  needsReview?: boolean;
 }
 
 /** Liefert die images.id des (ggf. wiederverwendeten) Coverbilds, oder null
@@ -65,7 +93,9 @@ export async function ensureCoverImage(
     return await ensureCoverImageInner(supabase, input);
   } catch (err) {
     console.error(
-      `ensureCoverImage failed for ${input.sourceUrl}: ${err instanceof Error ? err.message : String(err)}`,
+      `ensureCoverImage failed for ${input.sourceUrl}: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
     );
     return null;
   }
@@ -82,24 +112,64 @@ async function ensureCoverImageInner(
   // wiederverwenden, kein erneuter Download/keine erneute Verarbeitung.
   const { data: existingByUrl } = await supabase
     .from("images")
-    .select("id")
+    .select("id, storage_path")
     .eq("origin_type", originType)
     .eq("origin_id", originId)
     .eq("source_url", sourceUrl)
     .maybeSingle();
-  if (existingByUrl) return existingByUrl.id;
+  if (existingByUrl?.storage_path) return existingByUrl.id;
 
   const check = await checkImageUrl(sourceUrl);
   if (!check.reachable) return null;
 
   const bytes = await downloadImage(sourceUrl);
   if (!bytes) return null;
+  const contentHash = await sha256(bytes);
+
+  const { data: existingByContentHash } = await supabase
+    .from("images").select(
+      "id, storage_path, thumbnail_path, width, height, mime_type, phash",
+    ).eq("content_hash", contentHash)
+    .not("storage_path", "is", null).limit(1).maybeSingle();
+  if (existingByContentHash) {
+    // Derselbe Blob darf wiederverwendet werden, die Provenienz-Zeile aber
+    // nicht: origin_type/origin_id gehören immer zum aktuellen Datensatz.
+    const { data: linked } = await supabase.from("images").insert({
+      storage_path: existingByContentHash.storage_path,
+      thumbnail_path: existingByContentHash.thumbnail_path,
+      width: existingByContentHash.width,
+      height: existingByContentHash.height,
+      mime_type: existingByContentHash.mime_type,
+      phash: existingByContentHash.phash,
+      content_hash: contentHash,
+      source_url: sourceUrl,
+      original_image_url: sourceUrl,
+      origin_type: originType,
+      origin_id: originId,
+      source_page_url: input.sourcePageUrl ?? null,
+      source_name: input.sourceName ?? null,
+      photographer: input.photographer ?? null,
+      credits: input.credits ?? null,
+      license_name: input.licenseName ?? null,
+      license_url: input.licenseUrl ?? null,
+      license_status: input.licenseStatus ?? "unknown",
+      confidence_score: input.confidenceScore ?? null,
+      match_reason: input.matchReason ?? null,
+      warnings: [
+        ...(input.warnings ?? []),
+        "Identischer Bildinhalt war bereits im Storage vorhanden.",
+      ],
+      needs_review: input.needsReview ?? true,
+    }).select("id").single();
+    return linked?.id ?? null;
+  }
 
   await ensureMagickReady();
 
   const decoded = decodeImage(bytes);
   if (!decoded) return null;
   const { width, height, webpBytes, thumbnailBytes, phash } = decoded;
+  if (width < 400 || height < 300) return null;
 
   // Nutzerfeedback: "die Bilder, die in der Detailansicht von einzelnen
   // Veranstaltungen in der App angezeigt werden sind noch etwas unscharf".
@@ -120,32 +190,47 @@ async function ensureCoverImageInner(
   // Hamming-Distanz-Scan über alle Zeilen.
   const { data: existingByHash } = await supabase
     .from("images")
-    .select("id")
+    .select("id, origin_type, origin_id")
     .eq("phash", phash)
     .not("storage_path", "is", null)
     .limit(1)
     .maybeSingle();
-  if (existingByHash) return existingByHash.id;
+  if (existingByHash) {
+    return existingByHash.origin_type === originType &&
+        existingByHash.origin_id === originId
+      ? existingByHash.id
+      : null;
+  }
 
   const storagePath = `${originType}/${crypto.randomUUID()}.webp`;
   const thumbnailPath = `${originType}/${crypto.randomUUID()}-thumb.webp`;
 
   const { error: uploadError } = await supabase.storage
     .from(BUCKET)
-    .upload(storagePath, webpBytes, { contentType: "image/webp", upsert: false });
+    .upload(storagePath, webpBytes, {
+      contentType: "image/webp",
+      upsert: false,
+    });
   if (uploadError) {
-    console.error(`ensureCoverImage: upload failed for ${sourceUrl}: ${uploadError.message}`);
+    console.error(
+      `ensureCoverImage: upload failed for ${sourceUrl}: ${uploadError.message}`,
+    );
     return null;
   }
 
   let storedThumbnailPath: string | null = thumbnailPath;
   const { error: thumbError } = await supabase.storage
     .from(BUCKET)
-    .upload(thumbnailPath, thumbnailBytes, { contentType: "image/webp", upsert: false });
+    .upload(thumbnailPath, thumbnailBytes, {
+      contentType: "image/webp",
+      upsert: false,
+    });
   if (thumbError) {
     // Hauptbild ist schon gespeichert — kein Grund, das komplett scheitern
     // zu lassen, nur ohne Thumbnail-Pfad weiterschreiben.
-    console.error(`ensureCoverImage: thumbnail upload failed for ${sourceUrl}: ${thumbError.message}`);
+    console.error(
+      `ensureCoverImage: thumbnail upload failed for ${sourceUrl}: ${thumbError.message}`,
+    );
     storedThumbnailPath = null;
   }
 
@@ -161,14 +246,31 @@ async function ensureCoverImageInner(
       height,
       mime_type: check.contentType ?? "image/webp",
       phash,
+      content_hash: contentHash,
       credits: input.credits ?? null,
+      source_page_url: input.sourcePageUrl ?? null,
+      source_name: input.sourceName ?? null,
+      original_image_url: sourceUrl,
+      photographer: input.photographer ?? null,
+      license_name: input.licenseName ?? null,
+      license_url: input.licenseUrl ?? null,
+      license_status: input.licenseStatus ?? "unknown",
+      confidence_score: input.confidenceScore ?? null,
+      match_reason: input.matchReason ?? null,
+      warnings: input.warnings ?? [],
+      needs_review: input.needsReview ?? true,
+      fetched_at: new Date().toISOString(),
       copyright_notice: extractCopyrightFromCredits(input.credits ?? null),
     })
     .select("id")
     .single();
 
   if (insertError || !inserted) {
-    console.error(`ensureCoverImage: insert failed for ${sourceUrl}: ${insertError?.message ?? "unknown"}`);
+    console.error(
+      `ensureCoverImage: insert failed for ${sourceUrl}: ${
+        insertError?.message ?? "unknown"
+      }`,
+    );
     return null;
   }
 
@@ -177,8 +279,30 @@ async function ensureCoverImageInner(
 
 async function downloadImage(url: string): Promise<Uint8Array | null> {
   try {
-    const res = await fetch(url, { headers: { "User-Agent": USER_AGENT } });
+    let current = url;
+    let res: Response | null = null;
+    for (let redirects = 0; redirects <= 4; redirects++) {
+      if (!isPublicImageUrl(current)) return null;
+      res = await fetch(current, {
+        headers: { "User-Agent": USER_AGENT },
+        redirect: "manual",
+      });
+      if (![301, 302, 303, 307, 308].includes(res.status)) break;
+      const location = res.headers.get("location");
+      if (!location) return null;
+      current = new URL(location, current).toString();
+      res = null;
+    }
+    if (!res) return null;
     if (!res.ok || !res.body) return null;
+    const contentType = res.headers.get("content-type")?.split(";")[0]
+      .toLowerCase();
+    if (
+      !contentType ||
+      !["image/jpeg", "image/png", "image/webp", "image/avif"].includes(
+        contentType,
+      )
+    ) return null;
     const contentLength = res.headers.get("content-length");
     if (contentLength && Number(contentLength) > MAX_IMAGE_BYTES) {
       await res.body.cancel().catch(() => {});
@@ -190,6 +314,15 @@ async function downloadImage(url: string): Promise<Uint8Array | null> {
   } catch {
     return null;
   }
+}
+
+async function sha256(bytes: Uint8Array): Promise<string> {
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  const digest = await crypto.subtle.digest("SHA-256", copy.buffer);
+  return Array.from(new Uint8Array(digest)).map((byte) =>
+    byte.toString(16).padStart(2, "0")
+  ).join("");
 }
 
 interface DecodedImage {
@@ -210,12 +343,18 @@ function decodeImage(bytes: Uint8Array): DecodedImage | null {
     const full = ImageMagick.read(bytes, (img) => ({
       width: img.width,
       height: img.height,
-      webpBytes: img.write(MagickFormat.WebP, (data: Uint8Array) => data) as unknown as Uint8Array,
+      webpBytes: img.write(
+        MagickFormat.WebP,
+        (data: Uint8Array) => data,
+      ) as unknown as Uint8Array,
     }));
 
     const thumbnailBytes = ImageMagick.read(bytes, (img) => {
       img.resize(THUMBNAIL_SIZE, THUMBNAIL_SIZE);
-      return img.write(MagickFormat.WebP, (data: Uint8Array) => data) as unknown as Uint8Array;
+      return img.write(
+        MagickFormat.WebP,
+        (data: Uint8Array) => data,
+      ) as unknown as Uint8Array;
     });
 
     const phash = ImageMagick.read(bytes, (img) => {
@@ -227,9 +366,17 @@ function decodeImage(bytes: Uint8Array): DecodedImage | null {
       return computeDctHash(gray, PHASH_IMAGE_SIZE);
     });
 
-    return { width: full.width, height: full.height, webpBytes: full.webpBytes, thumbnailBytes, phash };
+    return {
+      width: full.width,
+      height: full.height,
+      webpBytes: full.webpBytes,
+      thumbnailBytes,
+      phash,
+    };
   } catch (err) {
-    console.error(`decodeImage failed: ${err instanceof Error ? err.message : String(err)}`);
+    console.error(
+      `decodeImage failed: ${err instanceof Error ? err.message : String(err)}`,
+    );
     return null;
   }
 }

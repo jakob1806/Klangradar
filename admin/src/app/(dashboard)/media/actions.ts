@@ -20,6 +20,7 @@ interface ImageRow {
   origin_type: string;
   origin_id: string;
   source_url: string;
+  storage_path: string | null;
 }
 
 /** Schreibt das freigegebene Bild ins tatsächlich von der App ausgespielte
@@ -32,6 +33,9 @@ async function applyToOrigin(
   supabase: Awaited<ReturnType<typeof createClient>>,
   image: ImageRow,
 ) {
+  const publicUrl = image.storage_path
+    ? supabase.storage.from("ingested-images").getPublicUrl(image.storage_path).data.publicUrl
+    : image.source_url;
   if (image.origin_type === "event") {
     const { data: event, error: fetchError } = await supabase
       .from("events")
@@ -43,10 +47,10 @@ async function applyToOrigin(
       return;
     }
     const current: string[] = event.image_urls ?? [];
-    if (current.includes(image.source_url)) return;
+    if (current.includes(publicUrl)) return;
     const { error } = await supabase
       .from("events")
-      .update({ image_urls: [...current, image.source_url] })
+      .update({ image_urls: [...current, publicUrl] })
       .eq("id", image.origin_id);
     if (error) console.error(`applyToOrigin event ${image.origin_id}: ${error.message}`);
     return;
@@ -57,33 +61,44 @@ async function applyToOrigin(
 
   const { error } = await supabase
     .from(table)
-    .update({ photo_url: image.source_url })
-    .eq("id", image.origin_id);
+    .update({ photo_url: publicUrl })
+    .eq("id", image.origin_id)
+    .is("photo_url", null);
   if (error) console.error(`applyToOrigin ${table} ${image.origin_id}: ${error.message}`);
 }
+
+export type LicenseStatus = "confirmed_free" | "confirmed_licensed" | "rejected";
 
 // license_status-Übergänge sind bewusst redaktionelle Entscheidungen, nie
 // automatisch (siehe 20260819000003_images_and_tags.sql) — needs_review
 // wird hier explizit auf false gesetzt, sobald ein Redakteur eine
 // Entscheidung getroffen hat (egal ob frei, lizenziert oder abgelehnt).
-async function setLicenseStatus(imageId: string, status: "confirmed_free" | "confirmed_licensed" | "rejected") {
+async function setLicenseStatus(imageId: string, status: LicenseStatus) {
   const supabase = await createClient();
 
   const { data: image, error: fetchError } = await supabase
     .from("images")
-    .select("origin_type, origin_id, source_url")
+    .select("origin_type, origin_id, source_url, storage_path")
     .eq("id", imageId)
     .maybeSingle<ImageRow>();
   if (fetchError) throw new Error(fetchError.message);
 
   const { error } = await supabase
     .from("images")
-    .update({ license_status: status, needs_review: false })
+    .update({
+      license_status: status,
+      needs_review: false,
+      reviewed_at: new Date().toISOString(),
+      reviewed_by: (await supabase.auth.getUser()).data.user?.id ?? null,
+    })
     .eq("id", imageId);
   if (error) throw new Error(error.message);
 
   if ((status === "confirmed_free" || status === "confirmed_licensed") && image) {
     await applyToOrigin(supabase, image);
+    await supabase.from("images").update({ is_primary: false })
+      .eq("origin_type", image.origin_type).eq("origin_id", image.origin_id);
+    await supabase.from("images").update({ is_primary: true }).eq("id", imageId);
   }
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -97,6 +112,26 @@ async function setLicenseStatus(imageId: string, status: "confirmed_free" | "con
   revalidatePath("/media");
 }
 
+export async function updateImageMetadata(formData: FormData) {
+  const imageId = String(formData.get("imageId") ?? "");
+  if (!imageId) throw new Error("Bild-ID fehlt.");
+  const confidenceRaw = String(formData.get("confidenceScore") ?? "");
+  const confidence = confidenceRaw === "" ? null : Number(confidenceRaw);
+  if (confidence !== null && (!Number.isFinite(confidence) || confidence < 0 || confidence > 1)) {
+    throw new Error("Confidence muss zwischen 0 und 1 liegen.");
+  }
+  const supabase = await createClient();
+  const { error } = await supabase.from("images").update({
+    photographer: String(formData.get("photographer") ?? "").trim() || null,
+    credits: String(formData.get("credits") ?? "").trim() || null,
+    license_name: String(formData.get("licenseName") ?? "").trim() || null,
+    license_url: String(formData.get("licenseUrl") ?? "").trim() || null,
+    confidence_score: confidence,
+  }).eq("id", imageId);
+  if (error) throw new Error(error.message);
+  revalidatePath("/media");
+}
+
 export async function confirmImageFree(imageId: string) {
   await setLicenseStatus(imageId, "confirmed_free");
 }
@@ -107,6 +142,18 @@ export async function confirmImageLicensed(imageId: string) {
 
 export async function rejectImage(imageId: string) {
   await setLicenseStatus(imageId, "rejected");
+}
+
+/** Bulk-Variante für die Mehrfachauswahl im Bilder-Tab — ruft dieselbe
+ * setLicenseStatus()-Logik pro Bild auf (kein separater Bulk-SQL-Update),
+ * damit applyToOrigin()/is_primary/system_logs für jedes Bild exakt wie
+ * bei der Einzelaktion mitlaufen. */
+export async function bulkSetLicenseStatus(imageIds: string[], status: LicenseStatus) {
+  const results = await Promise.allSettled(imageIds.map((id) => setLicenseStatus(id, status)));
+  const failed = results.filter((r) => r.status === "rejected");
+  if (failed.length > 0) {
+    throw new Error(`${failed.length} von ${imageIds.length} fehlgeschlagen.`);
+  }
 }
 
 export interface EnrichImagesResult {
