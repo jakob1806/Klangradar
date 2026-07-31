@@ -233,6 +233,7 @@ Deno.serve(async (req) => {
     minConfidence?: unknown;
     entityIds?: unknown;
     fastFallback?: unknown;
+    manualCandidates?: unknown;
   };
   try {
     body = await req.json();
@@ -257,6 +258,19 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_URL") ?? "",
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
   );
+
+  // Separater, expliziter Modus für vorab extern recherchierte Bilder mit
+  // bereits bekannter Ziel-Entität (z. B. Bulk-Import eines Bildpakets) —
+  // überspringt die komplette Such-/Discovery-Kaskade oben und schreibt
+  // jeden Kandidaten direkt über denselben Download/Dedupe/Review-Pfad wie
+  // die reguläre Suche (persistCandidate/ensureCoverImage), IMMER mit
+  // needsReview=true: eine extern gelieferte URL wurde hier nicht wie beim
+  // eigenen-Website-Pfad verifiziert, gilt also als Fremdbild.
+  if (Array.isArray(body.manualCandidates)) {
+    return jsonResponse(
+      await applyManualCandidates(supabase, body.manualCandidates),
+    );
+  }
 
   const requestedType = typeof body.type === "string" ? body.type : "all";
   const selectedKinds = requestedType === "all"
@@ -466,6 +480,122 @@ async function healthCheckEventImages(
     });
   }
   return { checked, brokenCleared };
+}
+
+interface ManualCandidateInput {
+  originType: "venue" | "person" | "ensemble";
+  originId: string;
+  imageUrl: string;
+  sourcePageUrl?: string;
+  sourceName?: string;
+  photographer?: string;
+  licenseName?: string;
+  licenseUrl?: string;
+  matchReason?: string;
+  confidenceScore?: number;
+}
+
+function parseManualCandidate(raw: unknown): ManualCandidateInput | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const r = raw as Record<string, unknown>;
+  if (
+    typeof r.originType !== "string" ||
+    !["venue", "person", "ensemble"].includes(r.originType) ||
+    typeof r.originId !== "string" ||
+    !/^[0-9a-f-]{36}$/i.test(r.originId) ||
+    typeof r.imageUrl !== "string" || !r.imageUrl
+  ) return null;
+  return {
+    originType: r.originType as ManualCandidateInput["originType"],
+    originId: r.originId,
+    imageUrl: r.imageUrl,
+    sourcePageUrl: typeof r.sourcePageUrl === "string"
+      ? r.sourcePageUrl
+      : undefined,
+    sourceName: typeof r.sourceName === "string" ? r.sourceName : undefined,
+    photographer: typeof r.photographer === "string"
+      ? r.photographer
+      : undefined,
+    licenseName: typeof r.licenseName === "string"
+      ? r.licenseName
+      : undefined,
+    licenseUrl: typeof r.licenseUrl === "string" ? r.licenseUrl : undefined,
+    matchReason: typeof r.matchReason === "string"
+      ? r.matchReason
+      : undefined,
+    confidenceScore: typeof r.confidenceScore === "number"
+      ? r.confidenceScore
+      : undefined,
+  };
+}
+
+async function applyManualCandidates(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  rawCandidates: unknown[],
+): Promise<
+  { applied: number; skipped: number; errors: string[] }
+> {
+  const candidates = rawCandidates.slice(0, 500).map(parseManualCandidate)
+    .filter((c): c is ManualCandidateInput => c !== null);
+  let applied = 0;
+  let skipped = 0;
+  const errors: string[] = [];
+
+  for (const candidate of candidates) {
+    const kind = ENTITY_KINDS.find((k) => k.originType === candidate.originType);
+    if (!kind) {
+      errors.push(`${candidate.originId}: unbekannter originType`);
+      continue;
+    }
+
+    const { data: existing } = await supabase
+      .from("images")
+      .select("id")
+      .eq("origin_type", candidate.originType)
+      .eq("origin_id", candidate.originId)
+      .neq("license_status", "rejected")
+      .limit(1)
+      .maybeSingle();
+    if (existing) {
+      skipped++;
+      continue;
+    }
+
+    if (
+      await isUrlUsedElsewhere(
+        supabase,
+        candidate.imageUrl,
+        kind.table,
+        candidate.originId,
+      )
+    ) {
+      skipped++;
+      continue;
+    }
+
+    const stored = await persistCandidate(supabase, kind, candidate.originId, {
+      imageUrl: candidate.imageUrl,
+      sourcePageUrl: candidate.sourcePageUrl ?? candidate.imageUrl,
+      sourceName: candidate.sourceName ?? "Bildpaket-Import",
+      photographer: candidate.photographer ?? null,
+      licenseName: candidate.licenseName ?? null,
+      licenseUrl: candidate.licenseUrl ?? null,
+      licenseStatus: "unknown",
+      confidenceScore: candidate.confidenceScore ?? 0.7,
+      matchReason: candidate.matchReason ??
+        `Bildpaket-Import, Namens-Match auf „${candidate.originId}“.`,
+      warnings: ["Externe Bildquelle vor Veröffentlichung prüfen (Lizenz/Namensnennung)."],
+      needsReview: true,
+    });
+    if (!stored) {
+      errors.push(`${candidate.originType} ${candidate.originId}: Download/Storage fehlgeschlagen (${candidate.imageUrl})`);
+      continue;
+    }
+    applied++;
+  }
+
+  return { applied, skipped, errors };
 }
 
 /** Prüft, ob dieselbe Bild-URL bereits einer ANDEREN Entität/einem anderen
