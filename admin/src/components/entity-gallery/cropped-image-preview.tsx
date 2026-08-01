@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { GALLERY_CROP_ASPECT, defaultCropRect, type CropRect } from "./crop-math";
 
 /** Rendert ein Bild exakt so zugeschnitten, wie es die App-Detailansicht
@@ -20,6 +21,7 @@ export function CroppedImagePreview({
   naturalHeight?: number;
   className?: string;
 }) {
+  const [failed, setFailed] = useState(false);
   const effectiveCrop =
     crop ?? (naturalWidth && naturalHeight ? defaultCropRect(naturalWidth, naturalHeight) : null);
 
@@ -28,11 +30,19 @@ export function CroppedImagePreview({
       className={`relative overflow-hidden bg-neutral-100 ${className ?? ""}`}
       style={{ aspectRatio: `${GALLERY_CROP_ASPECT}` }}
     >
-      {effectiveCrop ? (
+      {failed ? (
+        // Quelle nicht ladbar (z.B. Hotlink-Rate-Limit/abgelaufene Fremd-
+        // URL) — sichtbarer Hinweis statt einer leeren Fläche, die wie ein
+        // Ladefehler der Seite selbst statt eines kaputten Bildlinks aussieht.
+        <div className="flex h-full w-full items-center justify-center px-1 text-center text-[10px] text-neutral-400">
+          Bild nicht erreichbar
+        </div>
+      ) : effectiveCrop ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={src}
           alt=""
+          onError={() => setFailed(true)}
           className="absolute"
           style={{
             width: `${100 / effectiveCrop.width}%`,
@@ -44,7 +54,7 @@ export function CroppedImagePreview({
         />
       ) : (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={src} alt="" className="h-full w-full object-cover" />
+        <img src={src} alt="" onError={() => setFailed(true)} className="h-full w-full object-cover" />
       )}
     </div>
   );
