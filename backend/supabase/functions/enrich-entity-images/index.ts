@@ -234,6 +234,7 @@ Deno.serve(async (req) => {
     entityIds?: unknown;
     fastFallback?: unknown;
     manualCandidates?: unknown;
+    rehostCandidates?: unknown;
   };
   try {
     body = await req.json();
@@ -269,6 +270,21 @@ Deno.serve(async (req) => {
   if (Array.isArray(body.manualCandidates)) {
     return jsonResponse(
       await applyManualCandidates(supabase, body.manualCandidates),
+    );
+  }
+
+  // Nochmal separater Modus: bereits freigegebene photo_url-Werte, die
+  // direkt auf einen Drittanbieter verlinken (kein storage_path), erneut
+  // über ensureCoverImage laufen lassen und die Entität auf den neuen,
+  // in unserem eigenen Storage liegenden Link umstellen. Anders als
+  // manualCandidates KEIN neuer Review-Fall — das Bild wurde bereits
+  // redaktionell freigegeben, es wird nur die fragile Hotlink-Auslieferung
+  // ersetzt (Nutzerfeedback: direktes Hotlinken v.a. auf Wikimedia Commons
+  // führt bei vielen gleichzeitig geladenen Thumbnails zu HTTP 429, das
+  // Bild bleibt dann in Galerie/App leer).
+  if (Array.isArray(body.rehostCandidates)) {
+    return jsonResponse(
+      await applyRehostCandidates(supabase, body.rehostCandidates),
     );
   }
 
@@ -596,6 +612,120 @@ async function applyManualCandidates(
   }
 
   return { applied, skipped, errors };
+}
+
+interface RehostCandidateInput {
+  originType: "venue" | "person" | "ensemble";
+  originId: string;
+  currentPhotoUrl: string;
+}
+
+function parseRehostCandidate(raw: unknown): RehostCandidateInput | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const r = raw as Record<string, unknown>;
+  if (
+    typeof r.originType !== "string" ||
+    !["venue", "person", "ensemble"].includes(r.originType) ||
+    typeof r.originId !== "string" ||
+    !/^[0-9a-f-]{36}$/i.test(r.originId) ||
+    typeof r.currentPhotoUrl !== "string" || !r.currentPhotoUrl
+  ) return null;
+  return {
+    originType: r.originType as RehostCandidateInput["originType"],
+    originId: r.originId,
+    currentPhotoUrl: r.currentPhotoUrl,
+  };
+}
+
+async function applyRehostCandidates(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  rawCandidates: unknown[],
+): Promise<{ rehosted: number; skipped: number; errors: string[] }> {
+  const candidates = rawCandidates.slice(0, 500).map(parseRehostCandidate)
+    .filter((c): c is RehostCandidateInput => c !== null);
+  let rehosted = 0;
+  let skipped = 0;
+  const errors: string[] = [];
+
+  for (const candidate of candidates) {
+    const kind = ENTITY_KINDS.find((k) => k.originType === candidate.originType);
+    if (!kind) {
+      errors.push(`${candidate.originId}: unbekannter originType`);
+      continue;
+    }
+
+    // Nur umziehen, solange die Entität tatsächlich noch auf genau diese
+    // (fragile) URL zeigt — sonst wurde inzwischen redaktionell etwas
+    // anderes gesetzt, das nicht überschrieben werden soll.
+    const { data: origin } = await supabase
+      .from(kind.table)
+      .select("photo_url")
+      .eq("id", candidate.originId)
+      .maybeSingle();
+    if (!origin || origin.photo_url !== candidate.currentPhotoUrl) {
+      skipped++;
+      continue;
+    }
+
+    // Metadaten der bisherigen images-Zeile (falls vorhanden) übernehmen,
+    // statt sie durch generische Werte zu ersetzen.
+    const { data: existingMeta } = await supabase
+      .from("images")
+      .select("photographer, license_name, license_url, source_page_url, source_name, confidence_score, match_reason")
+      .eq("origin_type", candidate.originType)
+      .eq("origin_id", candidate.originId)
+      .eq("source_url", candidate.currentPhotoUrl)
+      .maybeSingle();
+
+    const imageId = await ensureCoverImage(supabase, {
+      sourceUrl: candidate.currentPhotoUrl,
+      originType: candidate.originType,
+      originId: candidate.originId,
+      sourcePageUrl: existingMeta?.source_page_url ?? null,
+      sourceName: existingMeta?.source_name ?? null,
+      photographer: existingMeta?.photographer ?? null,
+      credits: existingMeta?.photographer ?? null,
+      licenseName: existingMeta?.license_name ?? null,
+      licenseUrl: existingMeta?.license_url ?? null,
+      licenseStatus: "confirmed_free",
+      confidenceScore: existingMeta?.confidence_score ?? null,
+      matchReason: existingMeta?.match_reason ??
+        "Rehost: bereits freigegebenes Bild, fragiler Hotlink durch eigenen Storage-Link ersetzt.",
+      needsReview: false,
+    });
+    if (!imageId) {
+      errors.push(`${candidate.originType} ${candidate.originId}: Rehost fehlgeschlagen (${candidate.currentPhotoUrl})`);
+      continue;
+    }
+
+    const { data: image } = await supabase.from("images").select("storage_path")
+      .eq("id", imageId).maybeSingle();
+    if (!image?.storage_path) {
+      errors.push(`${candidate.originType} ${candidate.originId}: kein storage_path nach Rehost`);
+      continue;
+    }
+    const { data: publicUrlData } = supabase.storage.from("ingested-images")
+      .getPublicUrl(image.storage_path);
+
+    const { error: updateError } = await supabase
+      .from(kind.table)
+      .update({ photo_url: publicUrlData.publicUrl })
+      .eq("id", candidate.originId)
+      .eq("photo_url", candidate.currentPhotoUrl);
+    if (updateError) {
+      errors.push(`${candidate.originType} ${candidate.originId}: ${updateError.message}`);
+      continue;
+    }
+
+    await supabase.from("images").update({ is_primary: false })
+      .eq("origin_type", candidate.originType).eq("origin_id", candidate.originId);
+    await supabase.from("images").update({ is_primary: true }).eq("id", imageId);
+
+    rehosted++;
+  }
+
+  return { rehosted, skipped, errors };
 }
 
 /** Prüft, ob dieselbe Bild-URL bereits einer ANDEREN Entität/einem anderen
