@@ -22,6 +22,36 @@ import { searchWikipediaExtract } from "./wikipedia.ts";
 
 export type BioEntityType = "person" | "ensemble" | "venue";
 
+/** Bekannte Fakten aus der eigenen Datenbank, gegen die ein Wikipedia-Treffer
+ * DETERMINISTISCH geprüft wird — zusätzlich zur (weiterhin bestehenden)
+ * LLM-Selbstauskunft ("confident"). Nutzeranfrage: "Verwende Treffer mit
+ * mittlerer oder niedriger Konfidenz nicht automatisch" / "berücksichtige...
+ * Lebensdaten" — ein Namensvetter-Artikel kann plausiblen Fließtext liefern
+ * und trotzdem confident=true von der KI bekommen; ein klar abweichendes
+ * Geburts-/Sterbejahr ist ein harter, nicht verhandelbarer Widerspruch. */
+export interface KnownFacts {
+  birthYear?: number;
+  deathYear?: number;
+}
+
+const BIRTH_YEAR_PATTERN = /(?:\*|geb\.?|geboren(?:\s+am)?)\s*(?:\d{1,2}\.\s*\w+\s+)?(\d{4})/gi;
+const DEATH_YEAR_PATTERN = /(?:†|gest\.?|gestorben(?:\s+am)?)\s*(?:\d{1,2}\.\s*\w+\s+)?(\d{4})/gi;
+
+function extractYears(text: string, pattern: RegExp): number[] {
+  return [...text.matchAll(pattern)].map((m) => parseInt(m[1], 10));
+}
+
+/** true, wenn der Artikeltext ein Jahr in der erwarteten Rolle (Geburt/Tod)
+ * nennt, das dem bekannten Jahr eindeutig widerspricht. Nennt der Text dazu
+ * GAR KEIN Jahr (z.B. weil das Extract zu kurz ist), gilt das NICHT als
+ * Widerspruch — fehlender Beleg ist etwas anderes als ein Gegenbeleg, hier
+ * geht es nur um klare Widersprüche, keine zusätzliche Ablehnungshürde. */
+function contradictsKnownYear(text: string, knownYear: number | undefined, pattern: RegExp): boolean {
+  if (!knownYear) return false;
+  const mentioned = extractYears(text, pattern);
+  return mentioned.length > 0 && !mentioned.includes(knownYear);
+}
+
 export interface BioResearchResult {
   biography: string;
   sourceUrl: string | null;
@@ -114,16 +144,22 @@ async function researchFromKnowledge(
 
 /** `context` sind zusätzliche bekannte Anhaltspunkte (z.B. Rolle/Instrument
  * bei Personen, Stadtteil bei Venues) — verbessert die Suchtrefferqualität,
- * rein optional. Versucht zuerst Wikipedia (belegbare Quelle); findet sich
- * dort nichts Verlässliches, schreibt die KI ersatzweise aus eigenem
- * Wissen (researchFromKnowledge) — klar als "ai_knowledge" markiert, damit
- * die Redaktion weiß, dass hier nichts gegengeprüft wurde. Gibt nur dann
- * null zurück, wenn auch das nichts liefert; Aufrufer zeigen das als
- * "keine Recherche möglich" an, nie als technischen Fehler. */
+ * rein optional. `knownFacts` sind dieselbe Art Anhaltspunkt, aber für einen
+ * deterministischen Gegencheck NACH der LLM-Zusage genutzt (siehe
+ * contradictsKnownYear oben) — ein Namensvetter-Artikel kann die KI trotzdem
+ * überzeugen, ein klar falsches Geburts-/Sterbejahr aber nicht. Versucht
+ * zuerst Wikipedia (belegbare Quelle); findet sich dort nichts Verlässliches
+ * oder widerspricht der Treffer den bekannten Fakten, schreibt die KI
+ * ersatzweise aus eigenem Wissen (researchFromKnowledge) — klar als
+ * "ai_knowledge" markiert, damit die Redaktion weiß, dass hier nichts
+ * gegengeprüft wurde. Gibt nur dann null zurück, wenn auch das nichts
+ * liefert; Aufrufer zeigen das als "keine Recherche möglich" an, nie als
+ * technischen Fehler. */
 export async function researchBiography(
   entityType: BioEntityType,
   name: string,
   context?: string | null,
+  knownFacts?: KnownFacts,
 ): Promise<BioResearchResult | null> {
   const kind = KIND_LABEL[entityType];
   const hit = await searchWikipediaExtract(context ? `${name} ${context}` : name);
@@ -140,7 +176,10 @@ export async function researchBiography(
     );
     const args = response?.args;
     const biography = typeof args?.biography === "string" ? args.biography.trim() : "";
-    if (args?.confident === true && biography) {
+    const yearContradiction =
+      contradictsKnownYear(hit.extract, knownFacts?.birthYear, BIRTH_YEAR_PATTERN) ||
+      contradictsKnownYear(hit.extract, knownFacts?.deathYear, DEATH_YEAR_PATTERN);
+    if (args?.confident === true && biography && !yearContradiction) {
       return { biography, sourceUrl: hit.url, source: "wikipedia" };
     }
   }

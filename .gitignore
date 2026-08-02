@@ -27,6 +27,14 @@ app/ios/.symlinks/
 app/ios/Pods/
 backend/supabase/.branches/
 backend/supabase/.temp/
+backend/scripts/bio-research/__pycache__/
+backend/scripts/bio-research/_archive/
+backend/scripts/bio-research/outputs/
+backend/scripts/bio-research/node_modules/
+backend/scripts/bio-research/*.jsonl
+backend/scripts/bio-research/*.csv
+backend/scripts/bio-research/*.docx
+backend/scripts/bio-research/*.xlsx
 dist/
 node_modules/
 supabase/.branches/
