@@ -10,6 +10,7 @@
 // Stammdaten (Adresse, Geburtsdatum etc.) — die Ansicht soll zeigen, wo
 // die NEUE Anreicherung noch fehlt, nicht jede denkbare Datenlücke.
 import { createClient } from "@/lib/supabase/server";
+import { computeQualityScore, type QualityBreakdown, type QualityConfidence } from "./quality-score";
 
 const HORIZON_DAYS = 90;
 
@@ -27,6 +28,16 @@ const PERSON_FIELDS = ["biography_de", "education_career_de", "current_roles_de"
 const ENSEMBLE_FIELDS = ["description_de", "leadership_de", "residency_de", "repertoire_de"] as const;
 const WORK_FIELDS = ["instrumentation", "alternative_titles", "movements", "genre", "description_de"] as const;
 
+// Abschnitt 8: kritische Felder stärker gewichten als optionale — hier
+// bewusst als Teilmenge der obigen *_FIELDS-Arrays statt eigener Listen, um
+// die Ansichten nicht auseinanderlaufen zu lassen. Auswahl nach fachlicher
+// Relevanz für die Redaktion: ein fehlender Beschreibungstext wiegt schwerer
+// als eine fehlende Telefonnummer.
+const VENUE_CRITICAL_FIELDS = ["history_de", "district", "venue_type"] as const;
+const PERSON_CRITICAL_FIELDS = ["biography_de"] as const;
+const ENSEMBLE_CRITICAL_FIELDS = ["description_de"] as const;
+const WORK_CRITICAL_FIELDS = ["description_de", "genre"] as const;
+
 export interface CompletenessRow {
   entityType: "venue" | "person" | "ensemble" | "work";
   id: string;
@@ -40,6 +51,7 @@ export interface CompletenessRow {
   sourceCount: number;
   confidenceLabel: string | null;
   nextEventStart: string;
+  quality: QualityBreakdown;
 }
 
 function isEmpty(value: unknown): boolean {
@@ -115,7 +127,7 @@ export async function fetchCompletenessRows(): Promise<{ rows: CompletenessRow[]
   // zusammengesetzt; die "as const"-Arrays bleiben die Instanz der
   // Wahrheit für isEmpty()/missingFields unten, hier nur redundant, aber
   // bewusst synchron zu halten.
-  const [venues, persons, ensembles, works, provenance] = await Promise.all([
+  const [venues, persons, ensembles, works, provenance, images, personDuplicates, workDuplicates] = await Promise.all([
     venueIds.size
       ? supabase
         .from("venues")
@@ -149,16 +161,51 @@ export async function fetchCompletenessRows(): Promise<{ rows: CompletenessRow[]
       .select("entity_type, entity_id, confidence, retrieved_at")
       .in("entity_type", ["venue", "person", "ensemble", "work"])
       .in("entity_id", [...venueIds, ...personIds, ...ensembleIds, ...workIds]),
+    // Für den Bild-Teilscore (Abschnitt 8) — works haben keine eigenen
+    // Bilder, deshalb hier bewusst nur venue/person/ensemble.
+    supabase
+      .from("images")
+      .select("origin_type, origin_id, license_status, needs_review")
+      .in("origin_type", ["venue", "person", "ensemble"])
+      .in("origin_id", [...venueIds, ...personIds, ...ensembleIds]),
+    // Match-Sicherheit (Abschnitt 8/E) — nur für Personen/Werke existiert
+    // aktuell eine Dedup-Review-Queue; Venues/Ensembles folgen erst mit den
+    // neuen Tabellen in dieser Sitzung (siehe duplicates-Sektion). Ungefiltert
+    // abgerufen (wie field_provenance oben) statt einer .or()-Kette über
+    // potenziell viele IDs — die Review-Queue ist klein genug dafür.
+    supabase.from("person_duplicate_candidates").select("person_a_id, person_b_id").eq("status", "pending"),
+    supabase.from("work_duplicate_candidates").select("work_a_id, work_b_id").eq("status", "pending"),
   ]);
 
-  const provenanceByEntity = new Map<string, { count: number; confidences: Set<string>; latest: string | null }>();
+  const provenanceByEntity = new Map<string, { count: number; confidences: QualityConfidence[]; latest: string | null }>();
   for (const row of provenance.data ?? []) {
     const key = `${row.entity_type}:${row.entity_id}`;
-    const entry = provenanceByEntity.get(key) ?? { count: 0, confidences: new Set<string>(), latest: null };
+    const entry = provenanceByEntity.get(key) ?? { count: 0, confidences: [], latest: null };
     entry.count++;
-    if (row.confidence) entry.confidences.add(row.confidence);
+    if (row.confidence) entry.confidences.push(row.confidence as QualityConfidence);
     if (!entry.latest || (row.retrieved_at && row.retrieved_at > entry.latest)) entry.latest = row.retrieved_at;
     provenanceByEntity.set(key, entry);
+  }
+
+  const imagesByEntity = new Map<string, { hasNonRejectedImage: boolean; anyNeedsReview: boolean; anyLicenseConfirmed: boolean }>();
+  for (const row of images.data ?? []) {
+    const key = `${row.origin_type}:${row.origin_id}`;
+    const entry = imagesByEntity.get(key) ?? { hasNonRejectedImage: false, anyNeedsReview: false, anyLicenseConfirmed: false };
+    if (row.license_status !== "rejected") entry.hasNonRejectedImage = true;
+    if (row.needs_review) entry.anyNeedsReview = true;
+    if (row.license_status === "confirmed_free" || row.license_status === "confirmed_licensed") entry.anyLicenseConfirmed = true;
+    imagesByEntity.set(key, entry);
+  }
+
+  const pendingPersonDuplicateIds = new Set<string>();
+  for (const row of personDuplicates.data ?? []) {
+    if (row.person_a_id) pendingPersonDuplicateIds.add(row.person_a_id as string);
+    if (row.person_b_id) pendingPersonDuplicateIds.add(row.person_b_id as string);
+  }
+  const pendingWorkDuplicateIds = new Set<string>();
+  for (const row of workDuplicates.data ?? []) {
+    if (row.work_a_id) pendingWorkDuplicateIds.add(row.work_a_id as string);
+    if (row.work_b_id) pendingWorkDuplicateIds.add(row.work_b_id as string);
   }
 
   const rows: CompletenessRow[] = [];
@@ -167,14 +214,37 @@ export async function fetchCompletenessRows(): Promise<{ rows: CompletenessRow[]
     entityType: CompletenessRow["entityType"],
     items: T[],
     fields: readonly string[],
+    criticalFields: readonly string[],
     nameOf: (item: T) => string,
     editHrefOf: (item: T) => string | null,
+    options: { hasImages: boolean; duplicateIds: Set<string> | null },
   ) {
     for (const item of items) {
       const id = item.id as string;
       const missingFields = fields.filter((f) => isEmpty(item[f]));
       const key = `${entityType}:${id}`;
       const prov = provenanceByEntity.get(key);
+      const profileCheckedAt = (item.profile_checked_at as string | null) ?? null;
+
+      const criticalPresent = criticalFields.filter((f) => !isEmpty(item[f])).length;
+      const optionalTotal = fields.length - criticalFields.length;
+      const optionalPresent = fields.filter((f) => !criticalFields.includes(f) && !isEmpty(item[f])).length;
+
+      const quality = computeQualityScore({
+        fields: {
+          criticalPresent,
+          criticalTotal: criticalFields.length,
+          optionalPresent,
+          optionalTotal,
+        },
+        provenanceConfidences: prov?.confidences ?? [],
+        profileCheckedAt,
+        images: options.hasImages
+          ? imagesByEntity.get(`${entityType}:${id}`) ?? { hasNonRejectedImage: false, anyNeedsReview: false, anyLicenseConfirmed: false }
+          : null,
+        hasPendingDuplicateCandidate: options.duplicateIds ? options.duplicateIds.has(id) : null,
+      });
+
       rows.push({
         entityType,
         id,
@@ -182,18 +252,51 @@ export async function fetchCompletenessRows(): Promise<{ rows: CompletenessRow[]
         editHref: editHrefOf(item),
         missingFields,
         totalFields: fields.length,
-        profileCheckedAt: (item.profile_checked_at as string | null) ?? null,
+        profileCheckedAt,
         sourceCount: prov?.count ?? 0,
-        confidenceLabel: prov ? [...prov.confidences].join(", ") : null,
+        confidenceLabel: prov ? [...new Set(prov.confidences)].join(", ") : null,
         nextEventStart: nextEventFor.get(key) ?? horizon.toISOString(),
+        quality,
       });
     }
   }
 
-  addRows("venue", venues.data ?? [], VENUE_FIELDS, (v) => v.name as string, (v) => `/venues/${v.id}`);
-  addRows("person", persons.data ?? [], PERSON_FIELDS, (p) => p.full_name as string, (p) => `/persons/${p.id}`);
-  addRows("ensemble", ensembles.data ?? [], ENSEMBLE_FIELDS, (e) => e.name as string, (e) => `/ensembles/${e.id}`);
-  addRows("work", works.data ?? [], WORK_FIELDS, (w) => w.title as string, () => null);
+  addRows(
+    "venue",
+    venues.data ?? [],
+    VENUE_FIELDS,
+    VENUE_CRITICAL_FIELDS,
+    (v) => v.name as string,
+    (v) => `/venues/${v.id}`,
+    { hasImages: true, duplicateIds: null },
+  );
+  addRows(
+    "person",
+    persons.data ?? [],
+    PERSON_FIELDS,
+    PERSON_CRITICAL_FIELDS,
+    (p) => p.full_name as string,
+    (p) => `/persons/${p.id}`,
+    { hasImages: true, duplicateIds: pendingPersonDuplicateIds },
+  );
+  addRows(
+    "ensemble",
+    ensembles.data ?? [],
+    ENSEMBLE_FIELDS,
+    ENSEMBLE_CRITICAL_FIELDS,
+    (e) => e.name as string,
+    (e) => `/ensembles/${e.id}`,
+    { hasImages: true, duplicateIds: null },
+  );
+  addRows(
+    "work",
+    works.data ?? [],
+    WORK_FIELDS,
+    WORK_CRITICAL_FIELDS,
+    (w) => w.title as string,
+    () => null,
+    { hasImages: false, duplicateIds: pendingWorkDuplicateIds },
+  );
 
   rows.sort((a, b) => a.nextEventStart.localeCompare(b.nextEventStart));
 

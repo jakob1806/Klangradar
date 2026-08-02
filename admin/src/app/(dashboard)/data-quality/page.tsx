@@ -55,6 +55,12 @@ export default async function DataQualityPage() {
 
   const { rows: completenessRows, error: completenessError } = await fetchCompletenessRows();
   const incompleteRows = completenessRows.filter((r) => r.missingFields.length > 0).slice(0, 50);
+  // Abschnitt 8: priorisierte Arbeitsliste — innerhalb der ohnehin schon auf
+  // die nächsten 90 Tage eingegrenzten (also "high-visibility") Menge nach
+  // schlechtestem Gesamtscore zuerst, statt nur nach Termin.
+  const worstQualityRows = [...completenessRows]
+    .sort((a, b) => a.quality.totalScore - b.quality.totalScore)
+    .slice(0, 15);
 
   const events = data ?? [];
   const missingImages = events.filter((e) => !e.image_urls || e.image_urls.length === 0);
@@ -164,6 +170,66 @@ export default async function DataQualityPage() {
 
           <section className="mt-10">
             <h2 className="text-sm font-semibold text-neutral-700">
+              Priorisierte Arbeitsliste — schlechtester Datenqualitäts-Score zuerst ({worstQualityRows.length})
+            </h2>
+            <p className="mt-1 max-w-2xl text-xs text-neutral-500">
+              Gewichteter Score (Vollständigkeit kritischer Felder, Quellenlage, Aktualität, Bildabdeckung,
+              Match-Sicherheit) statt reiner Feldanzahl — siehe quality-score.ts. &bdquo;Offene
+              Prüfung&ldquo; zeigt Unsicherheit, die der Score allein verdecken könnte.
+            </p>
+            <div className="mt-3 overflow-hidden rounded-lg border border-neutral-200 bg-white">
+              <table className="w-full text-sm">
+                <thead className="bg-neutral-50 text-left text-xs uppercase tracking-wide text-neutral-500">
+                  <tr>
+                    <th className="px-4 py-3 font-medium">Typ</th>
+                    <th className="px-4 py-3 font-medium">Name</th>
+                    <th className="px-4 py-3 font-medium">Score</th>
+                    <th className="px-4 py-3 font-medium">Offene Prüfung</th>
+                    <th className="px-4 py-3" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-100">
+                  {worstQualityRows.map((r) => (
+                    <tr key={`quality-${r.entityType}-${r.id}`} className="hover:bg-neutral-50">
+                      <td className="px-4 py-3 text-neutral-500">{ENTITY_TYPE_LABEL[r.entityType]}</td>
+                      <td className="px-4 py-3 font-medium text-neutral-900">{r.name}</td>
+                      <td className="px-4 py-3 text-neutral-600">
+                        <span
+                          className={
+                            r.quality.totalScore < 40
+                              ? "font-semibold text-red-700"
+                              : r.quality.totalScore < 70
+                                ? "font-semibold text-amber-700"
+                                : "font-semibold text-emerald-700"
+                          }
+                        >
+                          {r.quality.totalScore}
+                        </span>
+                        <span className="ml-1 text-xs text-neutral-400">
+                          ({r.quality.completeness.reason})
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-neutral-600">
+                        {r.quality.openReviewReasons.length ? r.quality.openReviewReasons.join(", ") : "—"}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {r.editHref ? (
+                          <Link href={r.editHref} className="text-sm font-medium text-blue-600 hover:underline">
+                            Bearbeiten
+                          </Link>
+                        ) : (
+                          <span className="text-xs text-neutral-300">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section className="mt-10">
+            <h2 className="text-sm font-semibold text-neutral-700">
               Profil-Vollständigkeit — Venues/Personen/Ensembles/Werke mit Veranstaltungen in den nächsten{" "}
               {HORIZON_DAYS_LABEL} ({incompleteRows.length}
               {completenessRows.length > incompleteRows.length ? ` von ${completenessRows.length}` : ""})
@@ -183,6 +249,7 @@ export default async function DataQualityPage() {
                       <th className="px-4 py-3 font-medium">Typ</th>
                       <th className="px-4 py-3 font-medium">Name</th>
                       <th className="px-4 py-3 font-medium">Fehlende Felder</th>
+                      <th className="px-4 py-3 font-medium">Score</th>
                       <th className="px-4 py-3 font-medium">Letzte Prüfung</th>
                       <th className="px-4 py-3 font-medium">Quellen</th>
                       <th className="px-4 py-3" />
@@ -198,6 +265,7 @@ export default async function DataQualityPage() {
                             {r.missingFields.length}/{r.totalFields}
                             <span className="ml-1 text-xs text-neutral-400">({r.missingFields.join(", ")})</span>
                           </td>
+                          <td className="px-4 py-3 text-neutral-600">{r.quality.totalScore}</td>
                           <td className="px-4 py-3 text-neutral-600">{formatShortDate(r.profileCheckedAt)}</td>
                           <td className="px-4 py-3 text-neutral-600">
                             {r.sourceCount > 0 ? `${r.sourceCount} (${r.confidenceLabel})` : "—"}
@@ -218,7 +286,7 @@ export default async function DataQualityPage() {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={6} className="px-4 py-10 text-center text-neutral-400">
+                        <td colSpan={7} className="px-4 py-10 text-center text-neutral-400">
                           Alle bevorstehenden Einträge sind vollständig.
                         </td>
                       </tr>
