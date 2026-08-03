@@ -169,6 +169,21 @@ def wiki_search(entity: dict) -> tuple[dict, dict]:
         return entity, {}
 
 
+def derive_status(draft_text: str, current_text: str, wiki: dict) -> str:
+    """Reine Funktion, getrennt von main() für test_consolidate_bio_drafts.py.
+    Beruht bewusst auf VORHANDENSEIN von Text, NIE auf Textlänge (der Bugfix
+    dieser Datei gegenüber der Vorversion build_claude_bio_package.py, siehe
+    Modul-Docstring) — draft_text und current_text bleiben immer getrennte
+    Felder im Ergebnis, hier wird nur der Anzeige-Status abgeleitet."""
+    if draft_text:
+        return "KI-Entwurf vorhanden – redaktionell prüfen"
+    if current_text:
+        return "Bestandstext vorhanden – ggf. ergänzen"
+    if wiki.get("wikipedia_url") and wiki.get("match_confidence") != "niedrig":
+        return "Quelle vorhanden – auszuarbeiten"
+    return "Keine Quelle gefunden – manuelle Recherche nötig"
+
+
 def load_latest_drafts(raw_results_path: Path, history_path: Path) -> dict[tuple[str, str], dict]:
     """Liest bio_research_results.jsonl, behält pro Entität NUR den neuesten
     Eintrag (letzte Zeile gewinnt — research_all_bios.py hängt chronologisch
@@ -243,16 +258,7 @@ def main() -> int:
         current_text = entity["current_text"].strip()
         wiki = wiki_results.get(key_tuple, {})
 
-        # Status beruht auf VORHANDENSEIN, nicht auf Textlänge — siehe
-        # Datei-Kommentar zum Bugfix.
-        if draft_text:
-            status = "KI-Entwurf vorhanden – redaktionell prüfen"
-        elif current_text:
-            status = "Bestandstext vorhanden – ggf. ergänzen"
-        elif wiki.get("wikipedia_url") and wiki.get("match_confidence") != "niedrig":
-            status = "Quelle vorhanden – auszuarbeiten"
-        else:
-            status = "Keine Quelle gefunden – manuelle Recherche nötig"
+        status = derive_status(draft_text, current_text, wiki)
 
         records.append({
             "kategorie": labels[entity["entity_type"]],

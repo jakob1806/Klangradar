@@ -69,6 +69,16 @@ alternativ per `--env-file`. Siehe `.env.example`.
    python3 build_missing_images_doc.py
    ```
 
+## Tests
+
+```bash
+python3 -m unittest test_consolidate_bio_drafts.py -v
+```
+
+Deckt die reinen Funktionen aus `consolidate_bio_drafts.py` ab (Status-
+Ableitung ohne Textlängen-Bevorzugung, Jahres-Gegencheck, Historie statt
+stillem Überschreiben) — kein Netzwerk-/DB-Zugriff nötig.
+
 ## Historie / bekannte Einschränkungen
 
 - `verify_bio_workbook.mjs` (PNG-Vorschau-Rendering der Arbeitsmappe) wurde
