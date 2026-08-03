@@ -31,6 +31,25 @@ const PHASH_IMAGE_SIZE = 32;
 const PHASH_HASH_SIZE = 8; // 8x8 niedrigfrequente Koeffizienten -> 64 Bit
 const BUCKET = "ingested-images";
 
+const MIN_WIDTH = 640;
+const MIN_HEIGHT = 480;
+const MIN_ASPECT_RATIO = 0.4;
+const MAX_ASPECT_RATIO = 3.0;
+
+/** Reine Prüf-Funktion, siehe imagePipeline.test.ts — getrennt von
+ * ensureCoverImage(), damit sie ohne Supabase-Client/Storage/ImageMagick
+ * testbar ist. Abschnitt 3 der Gesamtüberarbeitung: "Mindestauflösung/
+ * Seitenverhältnis prüfen". Ohne Seitenverhältnis-Grenze rutschen extrem
+ * breite Banner oder hohe Sidebar-Grafiken durch, die einzeln beide
+ * Mindestmaße noch erfüllen, aber kein brauchbares Foto sind. 0.4–3.0 lässt
+ * normales Hoch-/Querformat durch (typische Presse-/Veranstaltungsfotos
+ * liegen zwischen 3:4 und 16:9). */
+export function isAcceptableImageDimensions(width: number, height: number): boolean {
+  if (width < MIN_WIDTH || height < MIN_HEIGHT) return false;
+  const aspectRatio = width / height;
+  return aspectRatio >= MIN_ASPECT_RATIO && aspectRatio <= MAX_ASPECT_RATIO;
+}
+
 let magickReady: Promise<void> | null = null;
 
 /** Lazy, einmalige Initialisierung pro Isolate — initializeImageMagick() darf
@@ -181,7 +200,7 @@ async function ensureCoverImageInner(
   // lässt die meisten echten Pressefotos/Veranstaltungsbilder durch, sperrt
   // aber reine Listing-Thumbnails aus (dann bleibt der Genre-Platzhalter
   // sichtbar statt eines hochskalierten Kleinstbilds).
-  if (width < 640 || height < 480) return null;
+  if (!isAcceptableImageDimensions(width, height)) return null;
 
   // 2. pHash-Dedupe: dieselbe Bilddatei schon für irgendein Origin
   // gespeichert (z.B. über eine andere source_url oder ein anderes Event
