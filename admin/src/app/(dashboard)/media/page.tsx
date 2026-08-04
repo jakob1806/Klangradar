@@ -55,6 +55,20 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" });
 }
 
+/** Zeigt das bereits heruntergeladene, re-encodierte Thumbnail statt des
+ * rohen externen Hotlinks — bisher rendere diese Seite ausgerechnet in der
+ * Review-Queue selbst denselben Hotlink-Fragilitätsklasse-Fehler (429 bei
+ * Wikimedia-Last o.ä.), den die eigentliche Pipeline längst durch
+ * Herunterladen/Storage vermeidet. Fällt auf source_url zurück, wenn (noch)
+ * kein thumbnail_path existiert (z.B. ältere, nie verarbeitete Zeilen). */
+function thumbnailSrc(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  image: Pick<ImageRow, "thumbnail_path" | "source_url">,
+): string {
+  if (!image.thumbnail_path) return image.source_url;
+  return supabase.storage.from("ingested-images").getPublicUrl(image.thumbnail_path).data.publicUrl;
+}
+
 export default async function MediaPage() {
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -139,7 +153,7 @@ export default async function MediaPage() {
               return (
               <div key={image.id} className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={image.source_url} alt="" className="h-40 w-full object-cover bg-neutral-100" />
+                <img src={thumbnailSrc(supabase, image)} alt="" className="h-40 w-full object-cover bg-neutral-100" />
                 <div className="p-3">
                   <div className="flex items-center gap-2">
                     <MediaRowCheckbox id={image.id} />

@@ -67,6 +67,48 @@ async function applyToOrigin(
   if (error) console.error(`applyToOrigin ${table} ${image.origin_id}: ${error.message}`);
 }
 
+/** `is_primary` (welches Bild eine Entität repräsentiert) und `sort_order`
+ * (welches Bild die Galerie an Position 0 zeigt) liefen bisher auseinander:
+ * diese Funktion setzte nur is_primary, während sowohl die Admin- als auch
+ * die App-Galerie ausschließlich nach sort_order sortieren (siehe
+ * gallery-actions.ts's setPrimaryGalleryImage für dasselbe Muster bei
+ * manueller Galerie-Pflege) — is_primary-Schreibvorgänge waren dadurch für
+ * das, was tatsächlich angezeigt wird, wirkungslos. is_primary bleibt
+ * kanonisch (explizit, indexiert, bereits korrekt gesetzt), sort_order wird
+ * jetzt bei jeder Freigabe mit übernommen: das Bild rückt an Position 0,
+ * alle anderen rutschen nach. */
+async function setPrimaryAndSortOrder(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  originType: string,
+  originId: string,
+  imageId: string,
+) {
+  const { data: images, error } = await supabase
+    .from("images")
+    .select("id, sort_order")
+    .eq("origin_type", originType)
+    .eq("origin_id", originId)
+    .order("sort_order", { ascending: true });
+  if (error) throw new Error(error.message);
+
+  const rows = images ?? [];
+  const target = rows.find((r) => r.id === imageId);
+  const reordered = target ? [target, ...rows.filter((r) => r.id !== imageId)] : rows;
+
+  for (let i = 0; i < reordered.length; i++) {
+    if (reordered[i].sort_order === i) continue;
+    const { error: updateError } = await supabase
+      .from("images")
+      .update({ sort_order: i })
+      .eq("id", reordered[i].id);
+    if (updateError) throw new Error(updateError.message);
+  }
+
+  await supabase.from("images").update({ is_primary: false })
+    .eq("origin_type", originType).eq("origin_id", originId);
+  await supabase.from("images").update({ is_primary: true }).eq("id", imageId);
+}
+
 export type LicenseStatus = "confirmed_free" | "confirmed_licensed" | "rejected";
 
 // license_status-Übergänge sind bewusst redaktionelle Entscheidungen, nie
@@ -96,9 +138,7 @@ async function setLicenseStatus(imageId: string, status: LicenseStatus) {
 
   if ((status === "confirmed_free" || status === "confirmed_licensed") && image) {
     await applyToOrigin(supabase, image);
-    await supabase.from("images").update({ is_primary: false })
-      .eq("origin_type", image.origin_type).eq("origin_id", image.origin_id);
-    await supabase.from("images").update({ is_primary: true }).eq("id", imageId);
+    await setPrimaryAndSortOrder(supabase, image.origin_type, image.origin_id, imageId);
   }
 
   const { data: { user } } = await supabase.auth.getUser();
