@@ -637,6 +637,41 @@ function parseRehostCandidate(raw: unknown): RehostCandidateInput | null {
   };
 }
 
+/** `is_primary` (welches Bild eine Entität repräsentiert) und `sort_order`
+ * (welches Bild die Galerie an Position 0 zeigt) liefen bisher auseinander
+ * — sowohl die Admin- als auch die App-Galerie sortieren ausschließlich
+ * nach sort_order (siehe admin/src/lib/gallery-actions.ts's
+ * setPrimaryGalleryImage für dasselbe Muster), is_primary-Schreibvorgänge
+ * allein waren dadurch für das tatsächlich Angezeigte wirkungslos.
+ * is_primary bleibt kanonisch, sort_order wird hier synchron mitgeführt. */
+async function setPrimaryAndSortOrder(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  originType: string,
+  originId: string,
+  imageId: string,
+): Promise<void> {
+  const { data: images } = await supabase
+    .from("images")
+    .select("id, sort_order")
+    .eq("origin_type", originType)
+    .eq("origin_id", originId)
+    .order("sort_order", { ascending: true });
+
+  const rows = (images ?? []) as Array<{ id: string; sort_order: number }>;
+  const target = rows.find((r) => r.id === imageId);
+  const reordered = target ? [target, ...rows.filter((r) => r.id !== imageId)] : rows;
+
+  for (let i = 0; i < reordered.length; i++) {
+    if (reordered[i].sort_order === i) continue;
+    await supabase.from("images").update({ sort_order: i }).eq("id", reordered[i].id);
+  }
+
+  await supabase.from("images").update({ is_primary: false })
+    .eq("origin_type", originType).eq("origin_id", originId);
+  await supabase.from("images").update({ is_primary: true }).eq("id", imageId);
+}
+
 async function applyRehostCandidates(
   // deno-lint-ignore no-explicit-any
   supabase: any,
@@ -718,9 +753,7 @@ async function applyRehostCandidates(
       continue;
     }
 
-    await supabase.from("images").update({ is_primary: false })
-      .eq("origin_type", candidate.originType).eq("origin_id", candidate.originId);
-    await supabase.from("images").update({ is_primary: true }).eq("id", imageId);
+    await setPrimaryAndSortOrder(supabase, candidate.originType, candidate.originId, imageId);
 
     rehosted++;
   }
