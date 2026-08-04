@@ -56,7 +56,7 @@ let magickReady: Promise<void> | null = null;
  * nur einmal aufgerufen werden, aber Edge-Function-Isolates werden zwischen
  * "warmen" Invocations wiederverwendet, ein modulweiter Singleton-Promise
  * reicht deshalb aus (kein zusätzlicher Caching-Layer nötig). */
-function ensureMagickReady(): Promise<void> {
+export function ensureMagickReady(): Promise<void> {
   if (!magickReady) {
     magickReady = (async () => {
       const wasmBytes = await Deno.readFile(
@@ -357,14 +357,28 @@ interface DecodedImage {
  * der magick-wasm-API, die sich ansonsten schwer verifizieren lassen — jeder
  * read()-Aufruf verwaltet seine Ressourcen vollständig selbst, exakt wie im
  * offiziellen Supabase-Beispiel für Edge-Function-Bildverarbeitung. */
-function decodeImage(bytes: Uint8Array): DecodedImage | null {
+// Exportiert (statt modulintern), damit decodeImage() isoliert getestet
+// werden kann — anders als ensureCoverImage() braucht es nur die WASM-
+// Bibliothek, keinen echten Supabase-Client/Storage. Siehe
+// imagePipeline.decode.test.ts für den Regressionstest zum WASM-Speicher-
+// Aliasing-Bug (siehe Kommentar bei den write()-Aufrufen unten).
+export function decodeImage(bytes: Uint8Array): DecodedImage | null {
   try {
+    // .slice() ist Pflicht, kein Stil: der data-Parameter ist eine reine
+    // Sicht auf WASM-Linearspeicher, die vom NÄCHSTEN ImageMagick-Aufruf
+    // (hier: der thumbnailBytes-read() direkt danach) wiederverwendet/
+    // überschrieben wird. Ohne Kopie enthielten die hochgeladenen "WebP"-
+    // Dateien beim Upload bereits fremde/überschriebene Bytes statt der
+    // tatsächlich kodierten Bilddaten — live bestätigt (falsche Magic
+    // Bytes, Volltreffer-Duplikat zwischen full- und thumbnail-Datei
+    // derselben Entität, weil beide dasselbe zuletzt überschriebene
+    // Speicherstück zurückgaben).
     const full = ImageMagick.read(bytes, (img) => ({
       width: img.width,
       height: img.height,
       webpBytes: img.write(
         MagickFormat.WebP,
-        (data: Uint8Array) => data,
+        (data: Uint8Array) => data.slice(),
       ) as unknown as Uint8Array,
     }));
 
@@ -372,7 +386,7 @@ function decodeImage(bytes: Uint8Array): DecodedImage | null {
       img.resize(THUMBNAIL_SIZE, THUMBNAIL_SIZE);
       return img.write(
         MagickFormat.WebP,
-        (data: Uint8Array) => data,
+        (data: Uint8Array) => data.slice(),
       ) as unknown as Uint8Array;
     });
 
