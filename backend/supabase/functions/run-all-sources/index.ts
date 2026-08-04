@@ -42,7 +42,11 @@ Deno.serve(async (_req) => {
     .from("sources")
     .select("id, last_run_at, crawl_frequency_minutes")
     .eq("status", "active")
-    .in("type", Array.from(SUPPORTED_TYPES));
+    .in("type", Array.from(SUPPORTED_TYPES))
+    // Explizite Obergrenze statt PostgRESTs stillem 1000-Zeilen-Limit —
+    // ansonsten würde der tägliche Cron-Lauf ab Zeile 1001 einfach
+    // Quellen überspringen, ohne dass das irgendwo sichtbar wird.
+    .limit(2000);
 
   if (error) {
     return jsonResponse({ error: `failed to load active sources: ${error.message}` }, 500);

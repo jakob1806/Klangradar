@@ -21,6 +21,7 @@
 import { parseBayernCloud } from "./parsers/bayerncloud.ts";
 import { fetchBrsoConcertsJson, parseBrso } from "./parsers/brso.ts";
 import { isAllowedByRobots, USER_AGENT } from "../_shared/robots.ts";
+import { fetchWithRetry } from "../_shared/http/fetchWithRetry.ts";
 import { parseIcal } from "./parsers/ical.ts";
 import { parseRss } from "./parsers/rss.ts";
 import { extractNextPageUrl, parseScrape } from "./parsers/scrape.ts";
@@ -160,7 +161,13 @@ export async function runIngestion(
     if (source.type === "brso") {
       responseBody = await fetchBrsoConcertsJson(source.url);
     } else {
-      const res = await fetch(source.url, { headers });
+      // Einzige zentrale Netzwerkstelle im Ingestion-Pfad ohne Timeout/
+      // Retry (siehe _shared/http/fetchWithRetry.ts) — ein hängender
+      // Request band sonst einen Worker-Slot in run-all-sources' begrenztem
+      // Pool für die volle Laufzeit. Timeout pro Quelle konfigurierbar
+      // (gleiches Muster wie config.crawlDelayMs), Default 20s.
+      const timeoutMs = typeof source.config?.fetchTimeoutMs === "number" ? source.config.fetchTimeoutMs : undefined;
+      const res = await fetchWithRetry(source.url, { headers }, { timeoutMs });
 
       if (res.status === 304) {
         // Server bestätigt: seit dem letzten Lauf unverändert — Parsen/
@@ -472,7 +479,11 @@ async function flagMissingEvents(
     .from("events")
     .select("id")
     .eq("source_id", sourceId)
-    .eq("status", "scheduled");
+    .eq("status", "scheduled")
+    // Explizite Obergrenze statt PostgRESTs stillem 1000-Zeilen-Limit — bei
+    // Überschreiten würde sonst nur ein Teil der tatsächlich fehlenden
+    // Events erkannt, ohne dass das irgendwo sichtbar wird.
+    .limit(2000);
 
   // .not("id", "in", "()") ist ungültige Syntax bei einer leeren Liste —
   // wenn nichts gesehen wurde (z.B. leerer Feed), einfach alle scheduled
@@ -565,8 +576,8 @@ async function touchSource(supabase: any, sourceId: string, succeeded: boolean) 
 const MIN_CRAWL_FREQUENCY_MINUTES = 60; // 1 Stunde
 const MAX_CRAWL_FREQUENCY_MINUTES = 10080; // 7 Tage
 
-// deno-lint-ignore no-explicit-any
 async function adjustCrawlFrequency(
+  // deno-lint-ignore no-explicit-any
   supabase: any,
   sourceId: string,
   currentMinutes: number | null | undefined,

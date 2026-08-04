@@ -165,6 +165,10 @@ Deno.serve(async (req) => {
   const { data: persons, error: fetchError } = await supabase
     .from("persons")
     .select("id, full_name, birth_date, death_date, biography_de, website_url")
+    // Explizite Obergrenze statt PostgRESTs stillem 1000-Zeilen-Limit —
+    // ansonsten würden Personen ab Zeile 1001 nie mehr auf Duplikate
+    // geprüft, ohne dass das irgendwo sichtbar wird.
+    .limit(5000)
     .returns<PersonRow[]>();
 
   if (fetchError) {
