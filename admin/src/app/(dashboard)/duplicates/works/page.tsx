@@ -49,6 +49,18 @@ export default async function WorkDuplicatesPage() {
       <p className="mt-2 text-sm">
         <Link href="/duplicates" className="text-neutral-500 underline hover:text-neutral-900">
           ← Event-Duplikate
+        </Link>{" "}
+        ·{" "}
+        <Link href="/duplicates/persons" className="text-neutral-500 underline hover:text-neutral-900">
+          Personen-Duplikate
+        </Link>{" "}
+        ·{" "}
+        <Link href="/duplicates/venues" className="text-neutral-500 underline hover:text-neutral-900">
+          Venue-Duplikate
+        </Link>{" "}
+        ·{" "}
+        <Link href="/duplicates/ensembles" className="text-neutral-500 underline hover:text-neutral-900">
+          Ensemble-Duplikate →
         </Link>
       </p>
 

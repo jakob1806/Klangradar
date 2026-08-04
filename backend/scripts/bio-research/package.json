@@ -1,0 +1,13 @@
+{
+  "name": "bio-research-scripts",
+  "private": true,
+  "type": "module",
+  "description": "Legacy Word/Excel-Export-Werkzeuge für die Bio-Recherche (Referenz-Übersichten für die Redaktion). Der aktuelle Live-Workflow ist /bio-research im Admin-Dashboard bzw. research-missing-person-bios.mjs (siehe README.md).",
+  "scripts": {
+    "build-workbook": "node build_bio_workbook.mjs",
+    "research-missing-bios": "node ../research-missing-person-bios.mjs"
+  },
+  "dependencies": {
+    "exceljs": "^4.4.0"
+  }
+}

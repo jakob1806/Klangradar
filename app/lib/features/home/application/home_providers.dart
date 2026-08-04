@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -113,6 +114,23 @@ class HomeData {
 /// Abschnitt 3 vorgesehen) fehlen hier bewusst — beide brauchen laut
 /// Abschnitt 9 noch nicht existierendes Schema (Phase B), nicht Teil
 /// dieser ersten Umsetzung.
+@visibleForTesting
+List<List<HomeEventItem>> orderedModulesForTesting(
+  List<HomeEventItem> heute,
+  List<HomeEventItem> empfehlungen,
+  List<HomeEventItem> entdecken,
+  List<HomeEventItem> ausverkauft,
+  List<HomeEventItem> kostenlos,
+  List<HomeEventItem> beliebt,
+) => _orderedModules(
+  heute,
+  empfehlungen,
+  entdecken,
+  ausverkauft,
+  kostenlos,
+  beliebt,
+);
+
 List<List<HomeEventItem>> _orderedModules(
   List<HomeEventItem> heute,
   List<HomeEventItem> empfehlungen,
@@ -128,6 +146,13 @@ List<List<HomeEventItem>> _orderedModules(
 /// Modul, max. 1 Event desselben Komponisten pro Modul. Reihenfolge
 /// innerhalb eines Moduls bleibt erhalten (schon nach Score/Datum
 /// sortiert) — hier wird nur gefiltert, nicht neu sortiert.
+@visibleForTesting
+List<HomeEventItem> applyDiversityForTesting(
+  List<HomeEventItem> items,
+  Set<String> seenEventIds,
+  Map<String, Set<String>> composerIdsByEvent,
+) => _applyDiversity(items, seenEventIds, composerIdsByEvent);
+
 List<HomeEventItem> _applyDiversity(
   List<HomeEventItem> items,
   Set<String> seenEventIds,

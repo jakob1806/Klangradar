@@ -12,7 +12,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { hasAnyAiProviderConfigured } from "../_shared/ai/router.ts";
-import { researchBiography, type BioEntityType } from "../_shared/bioResearch.ts";
+import { researchBiography, type BioEntityType, type KnownFacts } from "../_shared/bioResearch.ts";
 
 const TABLE_FOR_TYPE: Record<BioEntityType, string> = {
   person: "persons",
@@ -25,6 +25,21 @@ const NAME_COLUMN_FOR_TYPE: Record<BioEntityType, string> = {
   ensemble: "name",
   venue: "name",
 };
+
+// Zusätzliche Spalten je Entitätstyp — verbessern sowohl die Wikipedia-
+// Trefferqualität (als Freitext-Kontext) als auch, für Personen, den
+// deterministischen Lebensdaten-Gegencheck in bioResearch.ts.
+const EXTRA_COLUMNS_FOR_TYPE: Record<BioEntityType, string> = {
+  person: ", roles, instrument, nationality, birth_date, death_date",
+  ensemble: ", type, founded_year",
+  venue: ", venue_type, district",
+};
+
+function yearOf(dateStr: unknown): number | undefined {
+  if (typeof dateStr !== "string") return undefined;
+  const year = parseInt(dateStr.slice(0, 4), 10);
+  return Number.isFinite(year) ? year : undefined;
+}
 
 Deno.serve(async (req) => {
   if (!hasAnyAiProviderConfigured()) {
@@ -53,7 +68,7 @@ Deno.serve(async (req) => {
   const nameColumn = NAME_COLUMN_FOR_TYPE[entityType];
   const { data: entity, error: fetchError } = await supabase
     .from(table)
-    .select(`${nameColumn}${entityType === "person" ? ", roles" : ""}`)
+    .select(`${nameColumn}${EXTRA_COLUMNS_FOR_TYPE[entityType]}`)
     .eq("id", entityId)
     .maybeSingle();
 
@@ -63,10 +78,30 @@ Deno.serve(async (req) => {
 
   const entityRecord = entity as unknown as Record<string, unknown>;
   const name = entityRecord[nameColumn] as string;
-  const roles = entityType === "person" ? (entityRecord.roles as string[] | null) : null;
-  const context = roles && roles.length > 0 ? roles.join(", ") : null;
 
-  const result = await researchBiography(entityType, name, context);
+  // Freitext-Kontext für die Wikipedia-Suche/den LLM-Vergleich — je mehr
+  // bekannte Anhaltspunkte, desto besser kann sowohl die Suche selbst als
+  // auch die "confident"-Einschätzung der KI einen Namensvetter erkennen.
+  const contextParts: string[] = [];
+  if (entityType === "person") {
+    const roles = entityRecord.roles as string[] | null;
+    if (roles?.length) contextParts.push(roles.join(", "));
+    if (entityRecord.instrument) contextParts.push(String(entityRecord.instrument));
+    if (entityRecord.nationality) contextParts.push(String(entityRecord.nationality));
+  } else if (entityType === "ensemble") {
+    if (entityRecord.type) contextParts.push(String(entityRecord.type));
+    if (entityRecord.founded_year) contextParts.push(`gegründet ${entityRecord.founded_year}`);
+  } else {
+    if (entityRecord.venue_type) contextParts.push(String(entityRecord.venue_type));
+    if (entityRecord.district) contextParts.push(String(entityRecord.district));
+  }
+  const context = contextParts.length > 0 ? contextParts.join(", ") : null;
+
+  const knownFacts: KnownFacts | undefined = entityType === "person"
+    ? { birthYear: yearOf(entityRecord.birth_date), deathYear: yearOf(entityRecord.death_date) }
+    : undefined;
+
+  const result = await researchBiography(entityType, name, context, knownFacts);
   if (!result) {
     return jsonResponse({ found: false });
   }
