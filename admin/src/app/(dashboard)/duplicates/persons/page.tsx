@@ -16,6 +16,8 @@ interface CandidatePerson {
 interface CandidateRow {
   id: string;
   created_at: string;
+  ai_recommends_merge: boolean | null;
+  ai_reasoning: string | null;
   person_a: CandidatePerson | null;
   person_b: CandidatePerson | null;
 }
@@ -29,11 +31,14 @@ export default async function PersonDuplicatesPage() {
   const { data, error } = await supabase
     .from("person_duplicate_candidates")
     .select(
-      `id, created_at,
+      `id, created_at, ai_recommends_merge, ai_reasoning,
        person_a:persons!person_duplicate_candidates_person_a_id_fkey(id, full_name, birth_date, death_date, biography_de),
        person_b:persons!person_duplicate_candidates_person_b_id_fkey(id, full_name, birth_date, death_date, biography_de)`,
     )
     .eq("status", "pending")
+    // KI-empfohlene Fälle zuerst — schnelle, eindeutige Bestätigungen sollen
+    // nicht in unsicheren älteren Fällen untergehen.
+    .order("ai_recommends_merge", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false })
     .returns<CandidateRow[]>();
 
@@ -41,9 +46,10 @@ export default async function PersonDuplicatesPage() {
     <div className="p-8">
       <h1 className="text-xl font-semibold tracking-tight">Personen-Duplikate-Review</h1>
       <p className="mt-1 max-w-xl text-sm text-neutral-500">
-        Kandidaten aus der Namensvarianten-Heuristik (resolve-person-duplicates) — eindeutige Fälle (z.&nbsp;B. „J.S.
-        Bach“ → „Johann Sebastian Bach“) werden automatisch zusammengeführt, alles andere landet hier zur manuellen
-        Entscheidung.
+        Kandidaten aus der Namensvarianten-Heuristik (resolve-person-duplicates) — alle landen hier zur redaktionellen
+        Entscheidung, auch eindeutige Fälle (z.&nbsp;B. „J.S. Bach“ → „Johann Sebastian Bach“) werden nicht mehr
+        automatisch zusammengeführt. Diese sind unten mit der KI-Einschätzung markiert und vorsortiert, sodass sie
+        sich weiterhin schnell bestätigen lassen.
       </p>
       <p className="mt-2 text-sm">
         <Link href="/duplicates" className="text-neutral-500 underline hover:text-neutral-900">
@@ -71,6 +77,17 @@ export default async function PersonDuplicatesPage() {
             data.map((candidate) => (
               <div key={candidate.id} className="rounded-lg border border-neutral-200 bg-white p-4">
                 <span className="text-xs text-neutral-400">Gefunden {formatDate(candidate.created_at)}</span>
+                {candidate.ai_recommends_merge && (
+                  <p className="mt-2 rounded bg-emerald-50 px-2 py-1 text-xs text-emerald-800">
+                    ✓ KI empfiehlt Zusammenführen
+                    {candidate.ai_reasoning ? `: ${candidate.ai_reasoning}` : ""}
+                  </p>
+                )}
+                {candidate.ai_recommends_merge === false && candidate.ai_reasoning && (
+                  <p className="mt-2 rounded bg-neutral-50 px-2 py-1 text-xs text-neutral-500">
+                    KI ist sich nicht sicher: {candidate.ai_reasoning}
+                  </p>
+                )}
                 <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <PersonCard
                     person={candidate.person_a}

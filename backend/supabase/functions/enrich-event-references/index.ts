@@ -491,6 +491,23 @@ Deno.serve(async (req) => {
         bio_snippet: enrichment.bioSnippet,
       }, "system (AI-Entscheidung)");
 
+      // Bisher fehlte hier field_provenance — im Unterschied zum Personen-
+      // Merge (siehe resolve-person-duplicates) ist das Anlegen selbst kein
+      // Löschvorgang und die Websuche liefert eine zitierbare Quelle, daher
+      // bewusst nicht in eine Review-Queue verschoben, sondern nur um die
+      // Nachvollziehbarkeit ergänzt — sonst taucht dieser Datensatz in
+      // /data-quality nie mit einer Quelle auf.
+      if (enrichment.websiteUrl) {
+        await recordFieldSource(supabase, {
+          entityType,
+          entityId: data.id,
+          fieldName: "website_url",
+          sourceUrl: enrichment.websiteUrl,
+          sourceName: "Websuche (enrich-event-references, automatisch angelegt)",
+          confidence: "likely",
+        });
+      }
+
       return data.id;
     }
 
