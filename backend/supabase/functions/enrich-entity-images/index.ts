@@ -79,6 +79,11 @@ import { logSystemAction } from "../_shared/systemLog.ts";
 import { nameSearchVariants } from "../_shared/nameVariants.ts";
 import { findLikelySubpages } from "../_shared/subpageDiscovery.ts";
 import { ensureCoverImage } from "../_shared/imagePipeline.ts";
+import {
+  assessImageIdentityMatch,
+  classifyMatch,
+  type ImageIdentitySignals,
+} from "../_shared/imageIdentityMatch.ts";
 
 const DEFAULT_LIMIT = 8;
 const HEALTH_CHECK_LIMIT = 15;
@@ -141,6 +146,71 @@ async function persistCandidate(
   return { imageId, publicUrl: data.publicUrl };
 }
 
+interface IdentityRefinement {
+  confidenceScore: number;
+  matchReason: string;
+  needsReview: boolean;
+  warnings: string[];
+  /** true nur, wenn die Identitäts-Prüfung selbst zur Ablehnung geführt hat
+   * (Score unter REJECT_THRESHOLD, keine Konflikte) — der Aufrufer setzt in
+   * diesem Fall licenseStatus auf "rejected" statt der sonst üblichen
+   * Tier-eigenen Einstufung. */
+  rejected: boolean;
+}
+
+/** Ersetzt den bisherigen hartkodierten Tier-Konfidenzwert durch einen aus
+ * Name/Rolle/Lebensdaten/Kontext berechneten Score (imageIdentityMatch.ts)
+ * — direkte Umsetzung von Abschnitt 6 der Gesamtüberarbeitung ("korrekte
+ * Zuordnung" als höchste Priorität). `tierFloor` ist der bisherige
+ * Literal-Wert dieser Stufe: dient als Vorab-Schwelle (kein AI-Call für
+ * ohnehin schon sehr unsichere Stufen) UND als sicherer Rückfall, wenn die
+ * KI-Prüfung selbst fehlschlägt (kein Provider konfiguriert, Timeout) —
+ * in beiden Fällen bleibt das bisherige Verhalten (Tier-Literal, immer
+ * Review) exakt erhalten, nie schlechter als vorher. */
+async function refineWithIdentityMatch(
+  baseSignals: Omit<ImageIdentitySignals, "sourceContext" | "sourceDomain">,
+  sourceUrl: string,
+  sourceContext: string | null,
+  tierFloor: number,
+  fallbackMatchReason: string,
+  // Manche Stufen liefern grundsätzlich keine gesicherten Nutzungsrechte
+  // (Drittseite ohne bekannte Lizenz — "permission_required"), unabhängig
+  // davon, wie sicher die Identität ist. Für diese darf die Identitäts-
+  // Prüfung höchstens ABLEHNEN, nie automatisch freigeben — sonst würde ein
+  // zweifelsfrei erkanntes Gesicht ein ungeklärtes Nutzungsrecht überspielen.
+  canAutoApprove: boolean,
+): Promise<IdentityRefinement> {
+  const fallback: IdentityRefinement = {
+    confidenceScore: tierFloor,
+    matchReason: fallbackMatchReason,
+    needsReview: true,
+    warnings: [],
+    rejected: false,
+  };
+  if (tierFloor < 0.5) return fallback;
+
+  let sourceDomain: string | null = null;
+  try {
+    sourceDomain = new URL(sourceUrl).hostname;
+  } catch {
+    // ungültige URL — sollte hier nie passieren (der Kandidat wurde bereits
+    // per checkImageUrl erreichbarkeitsgeprüft), sourceDomain bleibt null.
+  }
+
+  const result = await assessImageIdentityMatch({ ...baseSignals, sourceDomain, sourceContext });
+  if (!result) return fallback;
+
+  const classification = classifyMatch(result.matchScore, result.conflicts);
+  const approved = classification === "approved" && canAutoApprove;
+  return {
+    confidenceScore: result.matchScore,
+    matchReason: result.decisionReason,
+    needsReview: !approved,
+    warnings: result.conflicts,
+    rejected: classification === "rejected",
+  };
+}
+
 interface EntityKind {
   table: string;
   originType: "venue" | "person" | "ensemble" | "festival";
@@ -155,6 +225,9 @@ interface EntityKind {
   /** Personen nutzen Wikipedia (präzise) statt Wikimedia Commons (fuzzy)
    * als letzten Rückfall — siehe Datei-Kommentar. */
   useWikipediaFallback?: boolean;
+  /** Zusätzliche Spalten für die Bild-Identitäts-Prüfung (imageIdentityMatch.ts)
+   * — nur Personen haben bislang strukturierte Lebensdaten/Rolle in der DB. */
+  identityContextColumns?: string;
 }
 
 const ENTITY_KINDS: EntityKind[] = [
@@ -170,6 +243,7 @@ const ENTITY_KINDS: EntityKind[] = [
     nameColumn: "full_name",
     participantColumn: "person_id",
     useWikipediaFallback: true,
+    identityContextColumns: "roles, instrument, birth_date, death_date",
   },
   {
     table: "ensembles",
@@ -840,6 +914,7 @@ async function tryWikidataFallback(
   kind: EntityKind,
   id: string,
   name: string,
+  identitySignals: Omit<ImageIdentitySignals, "sourceContext" | "sourceDomain">,
   errors: string[],
 ): Promise<"queued" | "error" | "not_found"> {
   let candidate: Awaited<ReturnType<typeof searchWikidataImage>> = null;
@@ -855,6 +930,16 @@ async function tryWikidataFallback(
     return "not_found";
   }
 
+  const refined = await refineWithIdentityMatch(
+    identitySignals,
+    candidate.url,
+    candidate.artist ? `Künstler/Urheber laut Wikidata/Commons: ${candidate.artist}` : null,
+    0.82,
+    `Strukturiertes Wikidata-P18-Bild für „${name}“, Lizenz über Commons verifiziert.`,
+    true,
+  );
+  if (refined.rejected) return "not_found";
+
   const stored = await persistCandidate(supabase, kind, id, {
     imageUrl: candidate.url,
     sourcePageUrl: candidate.pageUrl,
@@ -862,11 +947,12 @@ async function tryWikidataFallback(
     photographer: candidate.artist,
     licenseName: candidate.license,
     licenseStatus: "confirmed_free",
-    confidenceScore: 0.82,
-    matchReason:
-      `Strukturiertes Wikidata-P18-Bild für „${name}“, Lizenz über Commons verifiziert.`,
-    warnings: ["Identitätszuordnung vor Veröffentlichung redaktionell prüfen."],
-    needsReview: true,
+    confidenceScore: refined.confidenceScore,
+    matchReason: refined.matchReason,
+    warnings: refined.needsReview
+      ? [...refined.warnings, "Identitätszuordnung vor Veröffentlichung redaktionell prüfen."]
+      : refined.warnings,
+    needsReview: refined.needsReview,
   });
   if (!stored) {
     errors.push(`${kind.table} "${name}": Download/Storage fehlgeschlagen`);
@@ -908,7 +994,7 @@ async function enrichEntityKind(
   // (note ist null) immer vor bereits (erfolglos) versuchten Zeilen drankommen.
   let rowQuery = supabase
     .from(kind.table)
-    .select(`id, ${kind.nameColumn}, website_url`)
+    .select(`id, ${kind.nameColumn}, website_url${kind.identityContextColumns ? `, ${kind.identityContextColumns}` : ""}`)
     .is("photo_url", null)
     .order("last_image_search_note", { ascending: true, nullsFirst: true });
   if (entityIds.length > 0) rowQuery = rowQuery.in("id", entityIds);
@@ -939,6 +1025,20 @@ async function enrichEntityKind(
     const name = row[kind.nameColumn] as string;
     const websiteUrl = row.website_url as string | null;
     if (!name?.trim()) continue;
+
+    // Nur bei Personen befüllt (identityContextColumns), sonst bleiben es
+    // die neutralen Defaults aus ImageIdentitySignals — imageIdentityMatch.ts
+    // behandelt "unbekannt" nicht als Widerspruch.
+    const identitySignals: Omit<ImageIdentitySignals, "sourceContext" | "sourceDomain"> = {
+      entityName: name,
+      entityKind: kind.originType,
+      role: Array.isArray(row.roles) && row.roles.length > 0
+        ? (row.roles as string[]).join(", ")
+        : (row.instrument as string | null) ?? null,
+      birthDate: (row.birth_date as string | null) ?? null,
+      deathDate: (row.death_date as string | null) ?? null,
+      officialDomain: websiteUrl,
+    };
 
     try {
       // Ein gezielter manueller Nachlauf ist idempotent: Existiert bereits
@@ -1109,15 +1209,29 @@ async function enrichEntityKind(
               reachable &&
               !(await isUrlUsedElsewhere(supabase, nearImage, kind.table, id))
             ) {
+              const refined = await refineWithIdentityMatch(
+                identitySignals,
+                nearImage,
+                `Bild steht auf einer konkreten Veranstaltungsseite (${eventPageUrl}) in unmittelbarer Nähe zum Namen „${name}“.`,
+                0.78,
+                `Bild steht auf einer konkreten Veranstaltungsseite in unmittelbarer Nähe zum Namen „${name}“.`,
+                // Drittseite ohne bekannte Lizenz — Identität kann diese
+                // Stufe höchstens ablehnen, nie automatisch freigeben.
+                false,
+              );
+              if (refined.rejected) {
+                await setNote(id, "Bild in Namensnähe gefunden, aber Identität nicht plausibel — verworfen.");
+                continue;
+              }
               const stored = await persistCandidate(supabase, kind, id, {
                 imageUrl: nearImage,
                 sourcePageUrl: eventPageUrl,
                 sourceName: new URL(eventPageUrl).hostname,
                 licenseStatus: "permission_required",
-                confidenceScore: 0.78,
-                matchReason:
-                  `Bild steht auf einer konkreten Veranstaltungsseite in unmittelbarer Nähe zum Namen „${name}“.`,
+                confidenceScore: refined.confidenceScore,
+                matchReason: refined.matchReason,
                 warnings: [
+                  ...refined.warnings,
                   "Drittquelle; Nutzungserlaubnis und Credit müssen manuell geklärt werden.",
                 ],
                 needsReview: true,
@@ -1169,15 +1283,29 @@ async function enrichEntityKind(
           );
           continue;
         }
+        const refinedPortrait = await refineWithIdentityMatch(
+          identitySignals,
+          portrait.imageUrl,
+          portrait.description ? `Wikipedia-Kurzbeschreibung: ${portrait.description}` : null,
+          0.86,
+          `Infobox-Bild des eindeutig aufgelösten Wikipedia-Artikels „${name}“.`,
+          // Lizenz der verlinkten Bildseite ist ungeklärt — Identität kann
+          // diese Stufe höchstens ablehnen, nie automatisch freigeben.
+          false,
+        );
+        if (refinedPortrait.rejected) {
+          await setNote(id, "Wikipedia-Artikel gefunden, aber Bild passt nicht plausibel zur Entität — verworfen.");
+          continue;
+        }
         const stored = await persistCandidate(supabase, kind, id, {
           imageUrl: portrait.imageUrl,
           sourcePageUrl: portrait.pageUrl,
           sourceName: "Wikipedia",
           licenseStatus: "unknown",
-          confidenceScore: 0.86,
-          matchReason:
-            `Infobox-Bild des eindeutig aufgelösten Wikipedia-Artikels „${name}“.`,
+          confidenceScore: refinedPortrait.confidenceScore,
+          matchReason: refinedPortrait.matchReason,
           warnings: [
+            ...refinedPortrait.warnings,
             "Wikipedia dient nur der Identifikation; Lizenz auf der verknüpften Bildseite prüfen.",
           ],
           needsReview: true,
@@ -1227,6 +1355,18 @@ async function enrichEntityKind(
             );
             continue;
           }
+          const refinedCommons = await refineWithIdentityMatch(
+            identitySignals,
+            candidate.url,
+            candidate.artist ? `Urheber/Beschreibung laut Commons: ${candidate.artist}` : null,
+            0.72,
+            `Namens- und Kontextsuche nach „${name}“ auf Wikimedia Commons.`,
+            true,
+          );
+          if (refinedCommons.rejected) {
+            await setNote(id, "Commons-Volltextsuche fand einen Treffer, aber Identität nicht plausibel — verworfen.");
+            continue;
+          }
           const stored = await persistCandidate(supabase, kind, id, {
             imageUrl: candidate.url,
             sourcePageUrl: candidate.pageUrl,
@@ -1234,13 +1374,12 @@ async function enrichEntityKind(
             photographer: candidate.artist,
             licenseName: candidate.license,
             licenseStatus: "confirmed_free",
-            confidenceScore: 0.72,
-            matchReason:
-              `Namens- und Kontextsuche nach „${name}“ auf Wikimedia Commons.`,
-            warnings: [
-              "Treffer stammt aus Volltextsuche; Identität redaktionell bestätigen.",
-            ],
-            needsReview: true,
+            confidenceScore: refinedCommons.confidenceScore,
+            matchReason: refinedCommons.matchReason,
+            warnings: refinedCommons.needsReview
+              ? [...refinedCommons.warnings, "Treffer stammt aus Volltextsuche; Identität redaktionell bestätigen."]
+              : refinedCommons.warnings,
+            needsReview: refinedCommons.needsReview,
           });
           if (!stored) {
             errors.push(
@@ -1264,6 +1403,7 @@ async function enrichEntityKind(
         kind,
         id,
         name,
+        identitySignals,
         errors,
       );
       if (wikidataOutcome === "queued") queuedForReview++;
