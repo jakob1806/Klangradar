@@ -36,6 +36,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { hasAnyAiProviderConfigured } from "../_shared/ai/router.ts";
 import { enrichCandidateContext } from "../_shared/entityEnrichment.ts";
 import { logSystemAction } from "../_shared/systemLog.ts";
+import { recordFieldSource } from "../_shared/provenance.ts";
 
 const DEFAULT_LIMIT = 12;
 const CONCURRENCY = 4;
@@ -185,6 +186,20 @@ async function processCandidate(
       bio_snippet: enrichment.bioSnippet,
       batch: true,
     }, "system (AI-Entscheidung, Batch-Nachlauf)");
+
+    // Gleiche Ergänzung wie in enrich-event-references' autoCreateEntity —
+    // sonst taucht dieser automatisch angelegte Datensatz in /data-quality
+    // nie mit einer Quelle auf.
+    if (enrichment.websiteUrl) {
+      await recordFieldSource(supabase, {
+        entityType: candidate.entity_type,
+        entityId: created.id,
+        fieldName: "website_url",
+        sourceUrl: enrichment.websiteUrl,
+        sourceName: "Websuche (resolve-entity-candidates, automatisch angelegt)",
+        confidence: "likely",
+      });
+    }
 
     return { outcome: "approved" };
   } catch (err) {
