@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../l10n/generated/app_localizations.dart';
 import '../theme/app_colors.dart';
 
 const _socialIcons = {
@@ -31,10 +32,12 @@ class ExternalLinksRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    final l10n = AppLocalizations.of(context)!;
     final links = <(IconData, String, String)>[
-      if (websiteUrl != null) (Icons.language_rounded, 'Website', websiteUrl!),
+      if (websiteUrl != null)
+        (Icons.language_rounded, l10n.externalLinkWebsite, websiteUrl!),
       if (wikipediaUrl != null)
-        (Icons.menu_book_rounded, 'Wikipedia', wikipediaUrl!),
+        (Icons.menu_book_rounded, l10n.externalLinkWikipedia, wikipediaUrl!),
       for (final entry in (socialLinks ?? const {}).entries)
         if (entry.value is String && (entry.value as String).isNotEmpty)
           (

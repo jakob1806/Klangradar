@@ -5,33 +5,35 @@ import '../../../core/auth/auth_providers.dart';
 import '../../../core/notifications/notification_preferences_providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../l10n/generated/app_localizations.dart';
 
-const _rows = [
+List<({NotificationPreferenceKey key, String title, String subtitle})> _rows(
+  AppLocalizations l10n,
+) => [
   (
     key: NotificationPreferenceKey.newMatchingEvents,
-    title: 'Neue passende Veranstaltungen',
-    subtitle: 'Basierend auf deinen Interessen (Genres, Komponisten, Venues)',
+    title: l10n.notificationNewMatchingTitle,
+    subtitle: l10n.notificationNewMatchingSubtitle,
   ),
   (
     key: NotificationPreferenceKey.priceChanges,
-    title: 'Preisänderungen',
-    subtitle: 'Bei Veranstaltungen, die du favorisiert hast',
+    title: l10n.notificationPriceChangesTitle,
+    subtitle: l10n.notificationPriceChangesSubtitle,
   ),
   (
     key: NotificationPreferenceKey.almostSoldOut,
-    title: 'Fast ausverkauft',
-    subtitle: 'Letzte Tickets für favorisierte Veranstaltungen',
+    title: l10n.notificationAlmostSoldOutTitle,
+    subtitle: l10n.notificationAlmostSoldOutSubtitle,
   ),
   (
     key: NotificationPreferenceKey.reminderDayBefore,
-    title: 'Erinnerung am Vortag',
-    subtitle: 'Für favorisierte Veranstaltungen, die morgen stattfinden',
+    title: l10n.notificationReminderTitle,
+    subtitle: l10n.notificationReminderSubtitle,
   ),
   (
     key: NotificationPreferenceKey.followedEnsembleNewEvent,
-    title: 'Neue Termine gefolgter Ensembles',
-    subtitle:
-        'Wenn ein Ensemble oder eine Person, die dich interessiert, eine neue Veranstaltung ankündigt',
+    title: l10n.notificationFollowedEnsembleTitle,
+    subtitle: l10n.notificationFollowedEnsembleSubtitle,
   ),
 ];
 
@@ -42,15 +44,16 @@ class NotificationSettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.appColors;
     final user = ref.watch(currentUserProvider);
+    final l10n = AppLocalizations.of(context)!;
 
     if (user == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Benachrichtigungen')),
+        appBar: AppBar(title: Text(l10n.notificationsAppBarTitle)),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(AppSpacing.xl),
             child: Text(
-              'Bitte im Profil-Tab anmelden, um Benachrichtigungen einzustellen.',
+              l10n.notificationsSignInPrompt,
               textAlign: TextAlign.center,
               style: TextStyle(color: colors.textSecondary),
             ),
@@ -62,18 +65,18 @@ class NotificationSettingsScreen extends ConsumerWidget {
     final prefsAsync = ref.watch(notificationPreferencesProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Benachrichtigungen')),
+      appBar: AppBar(title: Text(l10n.notificationsAppBarTitle)),
       body: prefsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(
           child: Text(
-            'Fehler beim Laden: $e',
+            l10n.errorLoadingGeneric(e.toString()),
             style: TextStyle(color: colors.error),
           ),
         ),
         data: (prefs) => ListView(
           children: [
-            for (final row in _rows)
+            for (final row in _rows(l10n))
               SwitchListTile(
                 title: Text(
                   row.title,

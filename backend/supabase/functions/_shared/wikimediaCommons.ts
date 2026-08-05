@@ -15,6 +15,26 @@
 
 const COMMONS_API = "https://commons.wikimedia.org/w/api.php";
 
+// Bug (live in der App gefunden): das volle Wikimedia-Originalbild (oft
+// mehrere Megapixel/mehrere MB) an ImageMagick-WASM zu decodieren hat die
+// Edge Function beim Commit-Schritt zuverlässig mit WORKER_RESOURCE_LIMIT
+// abstürzen lassen (isoliert per Diagnose-Modus in
+// research-entity-image/index.ts). Ein per iiurlwidth angefordertes
+// Thumbnail ist um Größenordnungen kleiner, für ein Profil-/Cover-Bild in
+// der App völlig ausreichend, und liegt sicher über der Mindestauflösung
+// von imagePipeline.ts (640×480).
+//
+// WICHTIG: die naheliegende Alternative — die Thumbnail-URL selbst aus dem
+// bekannten Commons-URL-Schema zusammenbauen (".../thumb/a/ad/Datei.jpg/
+// 700px-Datei.jpg") — scheitert live: Wikimedia lehnt direkte Anfragen an
+// upload.wikimedia.org für noch nie gerenderte Breiten über ca. 500px mit
+// HTTP 400 ab (Anti-Abuse-Schutz gegen "Thumbnail-Bombing", per curl
+// verifiziert, unabhängig vom jeweiligen Bild). Der iiurlwidth-Parameter
+// der offiziellen imageinfo-API umgeht das: die Anfrage läuft serverseitig
+// über MediaWiki selbst, das die Größe validiert/cached, statt direkt beim
+// Bild-Scaler anzuklopfen — liefert zuverlässig auch größere Breiten.
+const THUMBNAIL_WIDTH = 700;
+
 // Lizenz-Werte, wie Commons sie in extmetadata.License.value schreibt
 // (klein geschrieben, Bindestriche/Punkte variieren je nach Lizenz-Template).
 // Bewusst KEIN GFDL: dessen Bedingungen (u. a. vollständiger Lizenztext bei
@@ -35,6 +55,7 @@ interface CommonsQueryPage {
   title?: string;
   imageinfo?: Array<{
     url?: string;
+    thumburl?: string;
     descriptionurl?: string;
     extmetadata?: {
       License?: { value?: string };
@@ -66,7 +87,10 @@ function extractFirstAcceptableCandidate(
     const licenseName = info.extmetadata?.LicenseShortName?.value ?? licenseValue;
     const artistRaw = info.extmetadata?.Artist?.value;
     return {
-      url: info.url,
+      // thumburl kommt von iiurlwidth (siehe THUMBNAIL_WIDTH-Kommentar) —
+      // Fallback auf das Original nur, falls die Anfrage aus irgendeinem
+      // Grund kein Thumbnail liefert (z.B. Datei ist kein Rasterbild).
+      url: info.thumburl ?? info.url,
       pageUrl: info.descriptionurl ?? info.url,
       license: licenseName,
       artist: artistRaw ? stripHtml(artistRaw) || null : null,
@@ -123,6 +147,7 @@ export async function searchCommonsImage(
     gsrlimit: String(limit),
     prop: "imageinfo",
     iiprop: "url|extmetadata",
+    iiurlwidth: String(THUMBNAIL_WIDTH),
   });
   return extractFirstAcceptableCandidate(pages);
 }
@@ -139,6 +164,34 @@ export async function getCommonsFileInfoByTitle(filename: string): Promise<Commo
     titles: title,
     prop: "imageinfo",
     iiprop: "url|extmetadata",
+    iiurlwidth: String(THUMBNAIL_WIDTH),
   });
   return extractFirstAcceptableCandidate(pages);
+}
+
+/** Reines Thumbnail-Lookup für eine bereits bekannte Commons-Datei OHNE
+ * Lizenz-Filter — für wikipediaPortrait.ts, das ein Bild verkleinert, das
+ * Wikipedia selbst schon als Infobox-Bild eines Artikels ausgewählt hat
+ * (die Lizenzprüfung aus extractFirstAcceptableCandidate ist dort nicht
+ * das richtige Werkzeug: die käme aus Commons' extmetadata-Formatierung,
+ * die für dieselbe Datei anders geschrieben sein kann als Commons'
+ * Suchergebnis-Allowlist erwartet — hier zählt nur "kleinere Version
+ * DESSELBEN, von Wikipedia bereits gewählten Bilds"). Gibt null zurück,
+ * wenn die Datei nicht gefunden wird oder kein Bild ist. */
+export async function fetchCommonsThumbnailUrl(filename: string, width = THUMBNAIL_WIDTH): Promise<string | null> {
+  const title = filename.startsWith("File:") || filename.startsWith("Datei:") ? filename : `File:${filename}`;
+  const pages = await fetchCommonsQuery({
+    action: "query",
+    titles: title,
+    prop: "imageinfo",
+    iiprop: "url",
+    iiurlwidth: String(width),
+  });
+  if (!pages) return null;
+  for (const page of Object.values(pages)) {
+    const info = page.imageinfo?.[0];
+    if (info?.thumburl) return info.thumburl;
+    if (info?.url) return info.url;
+  }
+  return null;
 }

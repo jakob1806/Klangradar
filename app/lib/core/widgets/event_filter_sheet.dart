@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../l10n/generated/app_localizations.dart';
 import '../events/event_filters.dart';
 import '../events/filtered_events_providers.dart';
 import '../interests/interests_providers.dart';
@@ -20,17 +21,17 @@ Future<void> showEventFilterSheet(BuildContext context) {
   );
 }
 
-final Map<double?, String> _priceLabels = {
-  null: 'Alle',
-  20.0: 'bis 20 €',
-  50.0: 'bis 50 €',
+Map<double?, String> _priceLabels(AppLocalizations l10n) => {
+  null: l10n.filterSheetPriceAll,
+  20.0: l10n.filterSheetPriceUpTo('20'),
+  50.0: l10n.filterSheetPriceUpTo('50'),
 };
 
-final Map<double?, String> _distanceLabels = {
-  null: 'Egal',
-  1.0: '1 km',
-  5.0: '5 km',
-  10.0: '10 km',
+Map<double?, String> _distanceLabels(AppLocalizations l10n) => {
+  null: l10n.filterSheetDistanceAny,
+  1.0: l10n.filterSheetDistanceKm('1'),
+  5.0: l10n.filterSheetDistanceKm('5'),
+  10.0: l10n.filterSheetDistanceKm('10'),
 };
 
 class _EventFilterSheet extends ConsumerStatefulWidget {
@@ -67,7 +68,7 @@ class _EventFilterSheetState extends ConsumerState<_EventFilterSheet> {
       firstDate: now,
       lastDate: now.add(const Duration(days: 365)),
       initialDateRange: _dateRange,
-      locale: const Locale('de', 'DE'),
+      locale: Localizations.localeOf(context),
     );
     if (picked != null) setState(() => _dateRange = picked);
   }
@@ -98,10 +99,12 @@ class _EventFilterSheetState extends ConsumerState<_EventFilterSheet> {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    final l10n = AppLocalizations.of(context)!;
+    final locale = Localizations.localeOf(context).toString();
     final genres = ref.watch(genreOptionsProvider).valueOrNull ?? const [];
-    final dateFormat = DateFormat('d.M.', 'de_DE');
+    final dateFormat = DateFormat('d.M.', locale);
     final dateLabel = _dateRange == null
-        ? 'Beliebig'
+        ? l10n.filterSheetDateAny
         : '${dateFormat.format(_dateRange!.start)} – ${dateFormat.format(_dateRange!.end)}';
 
     return DraggableScrollableSheet(
@@ -117,15 +120,21 @@ class _EventFilterSheetState extends ConsumerState<_EventFilterSheet> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Filter', style: Theme.of(context).textTheme.titleLarge),
+                Text(
+                  l10n.filterSheetTitle,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
                 TextButton(
                   onPressed: _reset,
-                  child: const Text('Zurücksetzen'),
+                  child: Text(l10n.filterSheetReset),
                 ),
               ],
             ),
             const SizedBox(height: AppSpacing.lg),
-            Text('Datum', style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              l10n.filterSheetDate,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
             const SizedBox(height: AppSpacing.sm),
             OutlinedButton.icon(
               onPressed: _pickDateRange,
@@ -133,7 +142,10 @@ class _EventFilterSheetState extends ConsumerState<_EventFilterSheet> {
               label: Text(dateLabel),
             ),
             const SizedBox(height: AppSpacing.lg),
-            Text('Genre', style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              l10n.filterSheetGenre,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
             const SizedBox(height: AppSpacing.sm),
             Wrap(
               spacing: 8,
@@ -164,12 +176,15 @@ class _EventFilterSheetState extends ConsumerState<_EventFilterSheet> {
               ],
             ),
             const SizedBox(height: AppSpacing.lg),
-            Text('Preis', style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              l10n.filterSheetPrice,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
             const SizedBox(height: AppSpacing.sm),
             Wrap(
               spacing: 8,
               children: [
-                for (final entry in _priceLabels.entries)
+                for (final entry in _priceLabels(l10n).entries)
                   ChoiceChip(
                     label: Text(entry.value),
                     selected: _maxPrice == entry.key,
@@ -178,17 +193,20 @@ class _EventFilterSheetState extends ConsumerState<_EventFilterSheet> {
               ],
             ),
             const SizedBox(height: AppSpacing.lg),
-            Text('Entfernung', style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              l10n.filterSheetDistance,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
             const SizedBox(height: 4),
             Text(
-              'Ab deinem im Profil hinterlegten Standort.',
+              l10n.filterSheetDistanceHint,
               style: TextStyle(color: colors.textTertiary, fontSize: 12),
             ),
             const SizedBox(height: AppSpacing.sm),
             Wrap(
               spacing: 8,
               children: [
-                for (final entry in _distanceLabels.entries)
+                for (final entry in _distanceLabels(l10n).entries)
                   ChoiceChip(
                     label: Text(entry.value),
                     selected: _maxDistanceKm == entry.key,
@@ -200,14 +218,14 @@ class _EventFilterSheetState extends ConsumerState<_EventFilterSheet> {
             const SizedBox(height: AppSpacing.md),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text('Barrierefrei'),
+              title: Text(l10n.filterSheetAccessible),
               value: _accessibleOnly,
               activeThumbColor: colors.accentPrimary,
               onChanged: (v) => setState(() => _accessibleOnly = v),
             ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text('Open Air'),
+              title: Text(l10n.filterSheetOpenAir),
               value: _openAirOnly,
               activeThumbColor: colors.accentPrimary,
               onChanged: (v) => setState(() => _openAirOnly = v),
@@ -217,7 +235,7 @@ class _EventFilterSheetState extends ConsumerState<_EventFilterSheet> {
               width: double.infinity,
               child: FilledButton(
                 onPressed: _apply,
-                child: const Text('Filter anwenden'),
+                child: Text(l10n.filterSheetApply),
               ),
             ),
           ],

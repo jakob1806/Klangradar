@@ -9,12 +9,14 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/config/env.dart';
+import 'core/localization/locale_provider.dart';
 import 'core/onboarding/onboarding_status.dart';
 import 'core/push/push_service.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_mode_provider.dart';
 import 'firebase_options.dart';
+import 'l10n/generated/app_localizations.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -108,9 +110,13 @@ class _KlassikMuenchenAppState extends ConsumerState<KlassikMuenchenApp> {
       darkTheme: AppTheme.dark,
       themeMode: ref.watch(themeModeProvider),
       routerConfig: _router,
-      locale: const Locale('de', 'DE'),
-      supportedLocales: const [Locale('de', 'DE'), Locale('en', 'US')],
+      // null = Systemsprache folgen (nur wenn der Nutzer das im Profil
+      // explizit gewählt hat, siehe locale_provider.dart) — MaterialApp
+      // wählt dann selbst aus supportedLocales anhand des Geräts.
+      locale: ref.watch(localeProvider),
+      supportedLocales: const [Locale('de'), Locale('en')],
       localizationsDelegates: const [
+        AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,

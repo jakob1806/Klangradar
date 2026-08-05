@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -10,11 +9,15 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/detail_card.dart';
 import '../../../core/widgets/detail_hero_background.dart';
+import '../../../core/widgets/entity_event_row.dart';
 import '../../../core/widgets/entity_photo_gallery.dart';
 import '../../../core/widgets/external_links_row.dart';
 import '../../../core/widgets/genre_artwork.dart';
 import '../../../core/widgets/past_events_expansion.dart';
+import '../../../core/widgets/report_content_sheet.dart';
+import '../../../core/widgets/similar_entities_row.dart';
 import '../../../core/widgets/source_hint.dart';
+import '../../../l10n/generated/app_localizations.dart';
 
 final _personProvider = FutureProvider.family<Map<String, dynamic>?, String>((
   ref,
@@ -40,10 +43,42 @@ final _personProvider = FutureProvider.family<Map<String, dynamic>?, String>((
       .eq('entity_type', 'person')
       .eq('entity_id', person['id']);
 
+  // "Ähnliche Künstler" (Phase D.2, docs/09-feature-expansion-plan.md,
+  // Nutzerwunsch Punkt 7) — bewusst einfache Heuristik statt eines eigenen
+  // Empfehlungsdienstes: gleiche Rolle(n) UND (falls vorhanden) dasselbe
+  // Instrument, nie sich selbst. Reicht für "andere Cellist:innen"/"andere
+  // Dirigent:innen" ohne neue Infrastruktur.
+  final roles = (person['roles'] as List?)?.cast<String>() ?? const [];
+  List<dynamic> similar = const [];
+  if (roles.isNotEmpty) {
+    var query = client
+        .from('persons')
+        .select('slug, full_name, photo_url, roles, instrument')
+        .overlaps('roles', roles)
+        .neq('id', person['id']);
+    if (person['instrument'] != null) {
+      query = query.eq('instrument', person['instrument']);
+    }
+    similar = await query.limit(8);
+    // Ohne Instrument-Treffer (oder gar kein Instrument gepflegt) bleibt
+    // die reine Rollen-Überschneidung als Fallback bestehen — leere Liste
+    // wäre für z.B. "Dirigent:in" schade, nur weil kein Instrument gesetzt
+    // ist.
+    if (similar.isEmpty && person['instrument'] != null) {
+      similar = await client
+          .from('persons')
+          .select('slug, full_name, photo_url, roles, instrument')
+          .overlaps('roles', roles)
+          .neq('id', person['id'])
+          .limit(8);
+    }
+  }
+
   return {
     'person': person,
     'events': events,
     'sources': fieldSourcesFromRows(provenance),
+    'similar': similar,
   };
 });
 
@@ -64,14 +99,16 @@ class PersonDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(_personProvider(slug));
     final colors = context.appColors;
+    final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
       body: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Fehler beim Laden: $e')),
+        error: (e, _) =>
+            Center(child: Text(l10n.errorLoadingGeneric(e.toString()))),
         data: (data) {
           if (data == null) {
-            return const Center(child: Text('Person nicht gefunden'));
+            return Center(child: Text(l10n.personNotFound));
           }
           final person = data['person'] as Map<String, dynamic>;
           final gallery = ref.watch(
@@ -82,15 +119,35 @@ class PersonDetailScreen extends ConsumerWidget {
           );
           final events = data['events'] as List;
           final sources = data['sources'] as Map<String, FieldSource>;
+          final similar = data['similar'] as List;
           final roles = (person['roles'] as List?)?.cast<String>() ?? [];
+          // Ein Komponist "kommt" nicht selbst zu einer Aufführung seines
+          // Werks — er ist der "Programmgeber", kein Mitwirkender vor Ort
+          // (Nutzerfeedback: "Komponisten sind ja nur der Programmgeber,
+          // nicht der Mitwirkende"). Deshalb nach der ROLLE je Verknüpfung
+          // trennen, nicht nach Lebensdatum: Verknüpfungen mit Rolle
+          // "komponist" zeigen, wo ihre Werke aufgeführt werden (eigener
+          // Abschnitt weiter unten), nur echte Auftritts-Rollen (Dirigent,
+          // Solist, Chorleiter, Moderator) zählen als "Kommende/Vergangene
+          // Veranstaltungen". Trifft auf verstorbene wie lebende Komponisten
+          // gleichermaßen zu — ein lebender Komponist, der selbst dirigiert,
+          // behält seine "Kommende Veranstaltungen" für genau diese Rolle.
+          final performingRows = events
+              .where((row) => row['role'] != 'komponist')
+              .toList();
+          final composerRows = events
+              .where((row) => row['role'] == 'komponist')
+              .toList();
+          final hasPerformingRole =
+              performingRows.isNotEmpty || roles.any((r) => r != 'komponist');
           final now = DateTime.now();
-          final upcoming = events.where((row) {
+          final upcoming = performingRows.where((row) {
             final start = DateTime.tryParse(
               row['events']?['start_datetime'] ?? '',
             );
             return start != null && start.isAfter(now);
           }).toList();
-          final past = events
+          final past = performingRows
               .where((row) {
                 final start = DateTime.tryParse(
                   row['events']?['start_datetime'] ?? '',
@@ -101,6 +158,12 @@ class PersonDetailScreen extends ConsumerWidget {
               .reversed // jüngste zuerst statt älteste zuerst
               .take(20)
               .toList();
+          final upcomingWorks = composerRows.where((row) {
+            final start = DateTime.tryParse(
+              row['events']?['start_datetime'] ?? '',
+            );
+            return start != null && start.isAfter(now);
+          }).toList();
 
           return CustomScrollView(
             slivers: [
@@ -148,7 +211,7 @@ class PersonDetailScreen extends ConsumerWidget {
                             .map(
                               (r) => Chip(
                                 label: Text(
-                                  personRoleLabel[r] ?? r,
+                                  personRoleLabels(l10n)[r] ?? r,
                                   style: const TextStyle(fontSize: 11),
                                 ),
                                 visualDensity: VisualDensity.compact,
@@ -178,7 +241,7 @@ class PersonDetailScreen extends ConsumerWidget {
                     if (person['biography_de'] != null) ...[
                       const SizedBox(height: AppSpacing.lg),
                       SectionHeaderWithSource(
-                        title: 'Biografie',
+                        title: l10n.personBiography,
                         colors: colors,
                         source: sources['biography_de'],
                       ),
@@ -194,20 +257,28 @@ class PersonDetailScreen extends ConsumerWidget {
                     ],
                     if (person['current_roles_de'] != null) ...[
                       const SizedBox(height: AppSpacing.sm),
-                      Text(
-                        person['current_roles_de'],
-                        style: TextStyle(
-                          color: colors.textSecondary,
-                          fontSize: 13,
-                          height: 1.4,
-                          fontWeight: FontWeight.w600,
-                        ),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              person['current_roles_de'],
+                              style: TextStyle(
+                                color: colors.textSecondary,
+                                fontSize: 13,
+                                height: 1.4,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          SourceHintIcon(source: sources['current_roles_de']),
+                        ],
                       ),
                     ],
                     if (person['education_career_de'] != null) ...[
                       const SizedBox(height: AppSpacing.md),
                       SectionHeaderWithSource(
-                        title: 'Ausbildung & Karriere',
+                        title: l10n.personEducationCareer,
                         colors: colors,
                         source: sources['education_career_de'],
                       ),
@@ -229,18 +300,20 @@ class PersonDetailScreen extends ConsumerWidget {
                           person['social_links'] as Map<String, dynamic>?,
                     ),
                     _BioSection(
-                      title: 'Repertoire-Schwerpunkte',
+                      title: l10n.personRepertoireHighlights,
                       entries: person['repertoire_highlights'] as List?,
                       colors: colors,
+                      source: sources['repertoire_highlights'],
                       lineOf: (e) => [
                         e['title'],
                         e['note'],
                       ].whereType<String>().join(' — '),
                     ),
                     _BioSection(
-                      title: 'Auszeichnungen',
+                      title: l10n.personAwards,
                       entries: person['awards'] as List?,
                       colors: colors,
+                      source: sources['awards'],
                       lineOf: (e) => [
                         [
                           if (e['year'] != null) '${e['year']}',
@@ -250,9 +323,10 @@ class PersonDetailScreen extends ConsumerWidget {
                       ].whereType<String>().join(' — '),
                     ),
                     _BioSection(
-                      title: 'Bekannte Aufnahmen',
+                      title: l10n.personNotableRecordings,
                       entries: person['notable_recordings'] as List?,
                       colors: colors,
+                      source: sources['notable_recordings'],
                       lineOf: (e) => [
                         e['title'],
                         e['label'],
@@ -260,24 +334,62 @@ class PersonDetailScreen extends ConsumerWidget {
                       ].whereType<String>().join(' · '),
                       urlOf: (e) => e['url'] as String?,
                     ),
-                    const SizedBox(height: AppSpacing.xxl),
-                    Text(
-                      'Kommende Veranstaltungen',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    if (upcoming.isEmpty)
+                    if (hasPerformingRole) ...[
+                      const SizedBox(height: AppSpacing.xxl),
                       Text(
-                        'Aktuell nichts geplant.',
-                        style: TextStyle(
-                          color: colors.textTertiary,
-                          fontSize: 13,
+                        l10n.personUpcomingEvents,
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      if (upcoming.isEmpty)
+                        Text(
+                          l10n.personNothingPlanned,
+                          style: TextStyle(
+                            color: colors.textTertiary,
+                            fontSize: 13,
+                          ),
+                        )
+                      else
+                        DetailCard(
+                          children: [
+                            for (final row in upcoming)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: AppSpacing.md,
+                                ),
+                                child: _EventRow(row: row, colors: colors),
+                              ),
+                          ],
                         ),
-                      )
-                    else
+                    ],
+                    if (past.isNotEmpty) ...[
+                      SizedBox(
+                        height: hasPerformingRole
+                            ? AppSpacing.lg
+                            : AppSpacing.xxl,
+                      ),
+                      PastEventsExpansion(
+                        rows: [
+                          for (final row in past)
+                            _EventRow(row: row, colors: colors),
+                        ],
+                      ),
+                    ],
+                    // Eigener Abschnitt für Komponisten-Verknüpfungen — kein
+                    // "kommt selbst", sondern "ihr Werk wird gespielt".
+                    // Bewusst ohne "Aktuell nichts geplant"-Leerzustand
+                    // (anders als oben): das ist hier nur eine Zusatzinfo,
+                    // kein Kernversprechen des Profils.
+                    if (upcomingWorks.isNotEmpty) ...[
+                      const SizedBox(height: AppSpacing.xxl),
+                      Text(
+                        l10n.personWorksInProgram,
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
                       DetailCard(
                         children: [
-                          for (final row in upcoming)
+                          for (final row in upcomingWorks)
                             Padding(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: AppSpacing.md,
@@ -286,15 +398,21 @@ class PersonDetailScreen extends ConsumerWidget {
                             ),
                         ],
                       ),
-                    if (past.isNotEmpty) ...[
-                      const SizedBox(height: AppSpacing.lg),
-                      PastEventsExpansion(
-                        rows: [
-                          for (final row in past)
-                            _EventRow(row: row, colors: colors),
-                        ],
-                      ),
                     ],
+                    if (similar.isNotEmpty) ...[
+                      const SizedBox(height: AppSpacing.xl),
+                      Text(
+                        l10n.personSimilarArtists,
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      SimilarPersonsRow(entries: similar),
+                    ],
+                    const SizedBox(height: AppSpacing.lg),
+                    ReportContentLink(
+                      entityType: 'person',
+                      entityId: person['id'] as String,
+                    ),
                   ],
                 ),
               ),
@@ -317,6 +435,7 @@ class _BioSection extends StatelessWidget {
     required this.colors,
     required this.lineOf,
     this.urlOf,
+    this.source,
   });
 
   final String title;
@@ -324,6 +443,7 @@ class _BioSection extends StatelessWidget {
   final AppColorsExtension colors;
   final String Function(Map<String, dynamic>) lineOf;
   final String? Function(Map<String, dynamic>)? urlOf;
+  final FieldSource? source;
 
   @override
   Widget build(BuildContext context) {
@@ -335,7 +455,7 @@ class _BioSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: Theme.of(context).textTheme.titleSmall),
+          SectionHeaderWithSource(title: title, colors: colors, source: source),
           const SizedBox(height: AppSpacing.xs),
           for (final e in items)
             Padding(
@@ -387,24 +507,11 @@ class _EventRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final event = row['events'] as Map<String, dynamic>?;
     if (event == null) return const SizedBox.shrink();
-    final start = DateTime.tryParse(event['start_datetime'] ?? '');
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      title: Text(
-        event['title'] ?? '',
-        style: TextStyle(
-          fontWeight: FontWeight.w600,
-          color: colors.textPrimary,
-        ),
-      ),
-      subtitle: Text(
-        [
-          if (event['venues']?['name'] != null) event['venues']['name'],
-          if (start != null) '${start.day}.${start.month}.${start.year}',
-        ].join(' · '),
-        style: TextStyle(color: colors.textSecondary, fontSize: 12.5),
-      ),
-      onTap: () => context.push('/event/${event['slug']}'),
+    return EntityEventRow(
+      title: event['title'] ?? '',
+      slug: event['slug'] as String? ?? '',
+      start: DateTime.tryParse(event['start_datetime'] ?? ''),
+      subtitle: event['venues']?['name'] as String?,
     );
   }
 }

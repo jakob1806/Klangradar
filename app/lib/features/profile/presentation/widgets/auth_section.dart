@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/auth/auth_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 
 /// Auf `true` setzen, sobald ein kostenpflichtiges Apple Developer Program
 /// vorhanden und Sign in with Apple im Supabase-Dashboard konfiguriert ist.
@@ -91,13 +92,17 @@ class _AuthSectionState extends ConsumerState<AuthSection> {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    final l10n = AppLocalizations.of(context)!;
     return Column(
       children: [
         CircleAvatar(radius: 32, backgroundColor: colors.accentPrimary),
         const SizedBox(height: AppSpacing.sm),
-        Text('Anmelden', style: Theme.of(context).textTheme.headlineSmall),
         Text(
-          'Für Favoriten, Benachrichtigungen & Empfehlungen',
+          l10n.authSignInTitle,
+          style: Theme.of(context).textTheme.headlineSmall,
+        ),
+        Text(
+          l10n.authSignInSubtitle,
           style: TextStyle(color: colors.textSecondary, fontSize: 12.5),
         ),
         const SizedBox(height: AppSpacing.xl),
@@ -106,9 +111,9 @@ class _AuthSectionState extends ConsumerState<AuthSection> {
             controller: _emailController,
             keyboardType: TextInputType.emailAddress,
             autofillHints: const [AutofillHints.email],
-            decoration: const InputDecoration(
-              hintText: 'E-Mail-Adresse',
-              border: OutlineInputBorder(),
+            decoration: InputDecoration(
+              hintText: l10n.authEmailHint,
+              border: const OutlineInputBorder(),
             ),
           ),
           const SizedBox(height: AppSpacing.sm),
@@ -118,11 +123,11 @@ class _AuthSectionState extends ConsumerState<AuthSection> {
               minimumSize: const Size.fromHeight(46),
               backgroundColor: colors.accentPrimary,
             ),
-            child: Text(_loading ? 'Sende Code…' : 'Anmeldecode senden'),
+            child: Text(_loading ? l10n.authSendingCode : l10n.authSendCode),
           ),
         ] else ...[
           Text(
-            'Code an ${_emailController.text.trim()} gesendet',
+            l10n.authCodeSentTo(_emailController.text.trim()),
             style: TextStyle(color: colors.textSecondary, fontSize: 12.5),
           ),
           const SizedBox(height: AppSpacing.sm),
@@ -145,13 +150,13 @@ class _AuthSectionState extends ConsumerState<AuthSection> {
               minimumSize: const Size.fromHeight(46),
               backgroundColor: colors.accentPrimary,
             ),
-            child: Text(_loading ? 'Prüfe Code…' : 'Bestätigen'),
+            child: Text(_loading ? l10n.authCheckingCode : l10n.authConfirm),
           ),
           TextButton(
             onPressed: _loading
                 ? null
                 : () => setState(() => _step = _Step.email),
-            child: const Text('Andere E-Mail-Adresse verwenden'),
+            child: Text(l10n.authUseOtherEmail),
           ),
         ],
         if (_error != null) ...[
@@ -165,7 +170,7 @@ class _AuthSectionState extends ConsumerState<AuthSection> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Text(
-                'oder',
+                l10n.authOr,
                 style: TextStyle(color: colors.textTertiary, fontSize: 12),
               ),
             ),
@@ -183,7 +188,7 @@ class _AuthSectionState extends ConsumerState<AuthSection> {
                 ? null
                 : () => _oauth(AuthService.signInWithApple, 'Apple'),
             icon: const Icon(Icons.apple, size: 20),
-            label: const Text('Mit Apple anmelden'),
+            label: Text(l10n.authSignInWithApple),
             style: OutlinedButton.styleFrom(
               minimumSize: const Size.fromHeight(46),
             ),
@@ -195,7 +200,7 @@ class _AuthSectionState extends ConsumerState<AuthSection> {
               ? null
               : () => _oauth(AuthService.signInWithGoogle, 'Google'),
           icon: const Icon(Icons.g_mobiledata_rounded, size: 24),
-          label: const Text('Mit Google anmelden'),
+          label: Text(l10n.authSignInWithGoogle),
           style: OutlinedButton.styleFrom(
             minimumSize: const Size.fromHeight(46),
           ),

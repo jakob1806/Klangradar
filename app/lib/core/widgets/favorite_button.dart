@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../l10n/generated/app_localizations.dart';
 import '../auth/auth_providers.dart';
 import '../favorites/favorites_providers.dart';
 import '../theme/app_colors.dart';
@@ -31,14 +32,13 @@ class FavoriteButton extends ConsumerWidget {
     final favorites = ref.watch(favoriteIdsProvider);
     final isFavorited = favorites.valueOrNull?.contains(eventId) ?? false;
     final colors = context.appColors;
+    final l10n = AppLocalizations.of(context)!;
 
     Future<void> handleTap() async {
       if (ref.read(currentUserProvider) == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Zum Favorisieren bitte im Profil-Tab anmelden.'),
-          ),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(l10n.favoriteSignInPrompt)));
         return;
       }
       await FavoritesService.toggle(
@@ -59,7 +59,9 @@ class FavoriteButton extends ConsumerWidget {
           ? (activeColor ?? colors.accentPrimary)
           : (inactiveColor ?? defaultInactive),
     );
-    final label = isFavorited ? 'Favorisiert' : 'Nicht favorisiert';
+    final label = isFavorited
+        ? l10n.favoriteLabelActive
+        : l10n.favoriteLabelInactive;
 
     if (compact) {
       // Sichtbarer Kreis bleibt klein (Overlay auf Kartenbild), die Tap-

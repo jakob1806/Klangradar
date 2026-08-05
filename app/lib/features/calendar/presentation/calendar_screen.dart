@@ -10,6 +10,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/event_card.dart';
 import '../../../core/widgets/favorite_button.dart';
 import '../../../core/widgets/genre_artwork.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../home/application/home_providers.dart';
 import '../application/calendar_providers.dart';
 import 'widgets/calendar_sync_sheet.dart';
@@ -33,6 +34,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    final l10n = AppLocalizations.of(context)!;
     final monthKey = MonthKey(_focusedDay.year, _focusedDay.month);
     final monthAsync = ref.watch(monthEventsProvider(monthKey));
     final eventsByDay = <DateTime, List<HomeEventItem>>{
@@ -89,13 +91,13 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
               children: [
                 Expanded(
                   child: Text(
-                    'Kalender',
+                    l10n.calendarTitle,
                     style: Theme.of(context).textTheme.headlineMedium,
                   ),
                 ),
                 IconButton(
                   icon: Icon(Icons.sync_rounded, color: colors.textSecondary),
-                  tooltip: 'Kalender synchronisieren',
+                  tooltip: l10n.calendarSyncTooltip,
                   onPressed: () => showModalBottomSheet(
                     context: context,
                     builder: (_) => const CalendarSyncSheet(),
@@ -108,24 +110,9 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
             padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.screenPaddingMobile,
             ),
-            child: SegmentedButton<_CalendarViewMode>(
-              segments: const [
-                ButtonSegment(
-                  value: _CalendarViewMode.month,
-                  label: Text('Monat'),
-                ),
-                ButtonSegment(
-                  value: _CalendarViewMode.week,
-                  label: Text('Woche'),
-                ),
-                ButtonSegment(
-                  value: _CalendarViewMode.agenda,
-                  label: Text('Agenda'),
-                ),
-              ],
-              selected: {_mode},
-              onSelectionChanged: (selection) =>
-                  setState(() => _mode = selection.first),
+            child: _ViewModeSwitcher(
+              mode: _mode,
+              onChanged: (mode) => setState(() => _mode = mode),
             ),
           ),
           const SizedBox(height: AppSpacing.sm),
@@ -135,7 +122,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                 horizontal: AppSpacing.screenPaddingMobile,
               ),
               child: TableCalendar(
-                locale: 'de_DE',
+                locale: Localizations.localeOf(context).toString(),
                 firstDay: DateTime.now().subtract(const Duration(days: 365)),
                 lastDay: DateTime.now().add(const Duration(days: 365)),
                 focusedDay: _focusedDay,
@@ -232,6 +219,116 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   }
 }
 
+List<({_CalendarViewMode mode, String label, IconData icon})> _viewModeOptions(
+  AppLocalizations l10n,
+) => [
+  (
+    mode: _CalendarViewMode.month,
+    label: l10n.calendarViewMonth,
+    icon: Icons.calendar_view_month_rounded,
+  ),
+  (
+    mode: _CalendarViewMode.week,
+    label: l10n.calendarViewWeek,
+    icon: Icons.view_week_rounded,
+  ),
+  (
+    mode: _CalendarViewMode.agenda,
+    label: l10n.calendarViewAgenda,
+    icon: Icons.view_agenda_rounded,
+  ),
+];
+
+/// Eigene Pill-Segmentsteuerung statt Material [SegmentedButton] — dessen
+/// Standarddarstellung zeigt für die aktive Option ein Checkmark-Icon neben
+/// dem Label, was hier neben "Monat/Woche/Agenda" seltsam wirkte
+/// (Nutzerfeedback: "Die Gruppierung... ist irgendwie komisch designt").
+/// Stattdessen eine durchgehende Pille mit einem einzigen farbig gefüllten
+/// Segment für die aktive Ansicht, wie iOS-Segmented-Controls.
+class _ViewModeSwitcher extends StatelessWidget {
+  const _ViewModeSwitcher({required this.mode, required this.onChanged});
+
+  final _CalendarViewMode mode;
+  final ValueChanged<_CalendarViewMode> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: colors.backgroundSecondary,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          for (final option in _viewModeOptions(AppLocalizations.of(context)!))
+            Expanded(
+              child: _ViewModeSegment(
+                label: option.label,
+                icon: option.icon,
+                selected: option.mode == mode,
+                onTap: () => onChanged(option.mode),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ViewModeSegment extends StatelessWidget {
+  const _ViewModeSegment({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? colors.accentPrimary : Colors.transparent,
+          borderRadius: BorderRadius.circular(9),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 15,
+              color: selected ? Colors.white : colors.textSecondary,
+            ),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: selected ? Colors.white : colors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _DayAgendaList extends StatelessWidget {
   const _DayAgendaList({
     required this.day,
@@ -250,7 +347,11 @@ class _DayAgendaList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
-    final dayLabel = DateFormat('EEEE, d. MMMM', 'de_DE').format(day);
+    final l10n = AppLocalizations.of(context)!;
+    final dayLabel = DateFormat(
+      'EEEE, d. MMMM',
+      Localizations.localeOf(context).toString(),
+    ).format(day);
 
     if (isLoading) {
       return const Center(child: CircularProgressIndicator());
@@ -258,7 +359,7 @@ class _DayAgendaList extends StatelessWidget {
     if (error != null) {
       return Center(
         child: Text(
-          'Fehler beim Laden: $error',
+          l10n.errorLoadingGeneric(error.toString()),
           style: TextStyle(color: colors.error),
         ),
       );
@@ -274,19 +375,35 @@ class _DayAgendaList extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
             child: Text(
-              'Keine Veranstaltungen am $dayLabel.',
+              l10n.calendarNoEventsOnDay(dayLabel),
               style: TextStyle(color: colors.textSecondary),
             ),
           )
-        else
+        else ...[
+          // Nur ab zwei Terminen sinnvoll — "planen" bei nur einem Konzert
+          // gibt es nichts zu koordinieren (Phase D.3, Nutzerwunsch Punkt
+          // 12: "Sind Überschneidungen vorhanden? ... danach noch eine
+          // passende Veranstaltung?").
+          if (events.length > 1)
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+              child: OutlinedButton.icon(
+                onPressed: () => context.push(
+                  '/evening-plan?date=${day.toIso8601String().split('T').first}',
+                ),
+                icon: const Icon(Icons.event_note_rounded, size: 16),
+                label: Text(l10n.calendarPlanEvening),
+              ),
+            ),
           for (var i = 0; i < events.length; i++) ...[
             if (i > 0) Divider(color: colors.separator, height: 1),
             _EventTile(event: events[i], colors: colors),
           ],
+        ],
         if (weekPreview.isNotEmpty) ...[
           const SizedBox(height: AppSpacing.lg),
           Text(
-            'Mehr diese Woche',
+            l10n.calendarMoreThisWeek,
             style: TextStyle(
               color: colors.textTertiary,
               fontSize: 11,
@@ -330,13 +447,14 @@ class _FullAgendaList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.appColors;
+    final l10n = AppLocalizations.of(context)!;
     final async = ref.watch(agendaEventsProvider);
 
     return async.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(
         child: Text(
-          'Fehler beim Laden: $e',
+          l10n.errorLoadingGeneric(e.toString()),
           style: TextStyle(color: colors.error),
         ),
       ),
@@ -347,7 +465,7 @@ class _FullAgendaList extends ConsumerWidget {
             child: Padding(
               padding: const EdgeInsets.all(AppSpacing.xl),
               child: Text(
-                'Keine anstehenden Veranstaltungen.',
+                l10n.calendarNoEventsUpcoming,
                 textAlign: TextAlign.center,
                 style: TextStyle(color: colors.textSecondary),
               ),
@@ -372,7 +490,7 @@ class _FullAgendaList extends ConsumerWidget {
               return Padding(
                 padding: const EdgeInsets.only(top: AppSpacing.lg),
                 child: Text(
-                  'Weitere Veranstaltungen vorhanden — bitte später erneut prüfen oder die Suche nutzen.',
+                  l10n.calendarMoreEventsHint,
                   textAlign: TextAlign.center,
                   style: TextStyle(color: colors.textTertiary, fontSize: 12.5),
                 ),
@@ -385,7 +503,10 @@ class _FullAgendaList extends ConsumerWidget {
               children: [
                 if (i > 0) const SizedBox(height: AppSpacing.lg),
                 Text(
-                  DateFormat('EEEE, d. MMMM', 'de_DE').format(day),
+                  DateFormat(
+                    'EEEE, d. MMMM',
+                    Localizations.localeOf(context).toString(),
+                  ).format(day),
                   style: TextStyle(
                     color: colors.textSecondary,
                     fontSize: 12.5,

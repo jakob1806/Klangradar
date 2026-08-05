@@ -388,6 +388,30 @@ Deno.serve(async (req) => {
       continue; // kein Mark — bei transientem Providerfehler soll ein späterer Lauf es erneut versuchen
     }
 
+    // Bug (live in der App gefunden): das Modell liefert gelegentlich einen
+    // abgeschnittenen TEIL eines anderen, im selben Aufruf schon erkannten
+    // Werktitels als eigenen, zusätzlichen Eintrag ohne Komponisten (z. B.
+    // "Konzert f" neben "Konzert für Oboe und kleines Orchester", oder
+    // "Tragische" neben "Sinfonie Nr. 4 c-moll 'Tragische'") — vermutlich
+    // ein Parsing-Artefakt bei mehrzeiligen Programmlisten. Ein solcher
+    // Fragment-Eintrag ist erkennbar: sein (normalisierter) Titel ist Teil
+    // eines LÄNGEREN Titels im selben Batch. Kurz genug halten (<= 20
+    // Zeichen), damit ein wirklich eigenständiges kurzes Werk (z. B. "Nänie")
+    // nicht fälschlich verworfen wird, nur weil es zufällig in einem langen
+    // Titel als Substring vorkommt.
+    const normalizeForFragmentCheck = (s: string) =>
+      s.trim().toLowerCase().replace(/[»«"""'']/g, "");
+    const allExtractedTitles = extracted.works.map((w) => w.title).filter((t) => t?.trim());
+    extracted.works = extracted.works.filter((w) => {
+      const norm = normalizeForFragmentCheck(w.title ?? "");
+      if (!norm || norm.length > 20) return true;
+      return !allExtractedTitles.some((other) => {
+        if (other === w.title) return false;
+        const otherNorm = normalizeForFragmentCheck(other);
+        return otherNorm !== norm && otherNorm.includes(norm);
+      });
+    });
+
     // Als geprüft markieren, SOBALD die Extraktion selbst geklappt hat —
     // unabhängig davon, ob am Ende Links entstehen (unbekannte Mitwirkende
     // landen nur als entity_candidates) oder ein einzelner DB-Insert weiter
@@ -660,9 +684,31 @@ Deno.serve(async (req) => {
         .toLowerCase();
     }
 
+    // Bug (live in der App gefunden): ein Modell hat einmal einen Titel
+    // mitten im Wort abgeschnitten ("An der schönen blauen Donau" →
+    // Titel "An der sch", Rest "önen blauen Donau" landete im
+    // key_signature-Feld statt verworfen zu werden) — der Bruch lag genau
+    // vor einem Umlaut, vermutlich ein Encoding-/Streaming-Artefakt beim
+    // Funktions-Aufruf. Echte Tonarten haben ein extrem enges Vokabular
+    // (ein Grundton + optional -is/-es + Dur/Moll, oder Englisch
+    // "E flat major") — alles andere ist mit hoher Sicherheit Fließtext-
+    // Ausschuss wie im beobachteten Fall und wird verworfen statt
+    // gespeichert, statt nur zu hoffen, dass das Modell es nicht nochmal
+    // tut.
+    function isPlausibleKeySignature(value: string): boolean {
+      const t = value.trim();
+      if (t.length === 0 || t.length > 20) return false;
+      if (/^[a-hA-H](is|es)?-(dur|moll)$/i.test(t)) return true;
+      if (/^[a-gA-G]\s?(flat|sharp)?\s*(major|minor)$/i.test(t)) return true;
+      return false;
+    }
+
     try {
       for (const [i, w] of extracted.works.entries()) {
         if (!w.title?.trim()) continue;
+        if (w.keySignature && !isPlausibleKeySignature(w.keySignature)) {
+          w.keySignature = null;
+        }
         const composerId = w.composerName?.trim() ? await getOrCreatePerson(w.composerName.trim()) : null;
 
         const normalizedTitle = normalizeTitleForMatch(w.title);
@@ -708,11 +754,25 @@ Deno.serve(async (req) => {
         // Titel-Vokabular-Überschneidung ("Symphonie Nr. X", "Konzert für
         // ... und Orchester") die Review-Queue mit Dutzenden eindeutig
         // falschen Kandidaten.
-        const composerConflict = fuzzyMatch?.composer_id != null && composerId != null &&
-          fuzzyMatch.composer_id !== composerId;
+        const bothComposersKnown = fuzzyMatch?.composer_id != null && composerId != null;
+        const composerConflict = bothComposersKnown && fuzzyMatch!.composer_id !== composerId;
+        const composersConfirmedEqual = bothComposersKnown && fuzzyMatch!.composer_id === composerId;
+        // Bug (live in der App gefunden): fehlt der Komponist auf einer
+        // Seite (meist die neu extrahierte, weil der Quelltext ihn nicht
+        // nannte), griff bisher derselbe 0.6-Schwellwert wie beim
+        // bestätigten Komponisten-Abgleich — Titel sind dann die EINZIGE
+        // Prüfgröße, und kurze generische Titel ("Konzert f", "Sinfonie
+        // Nr. 4") matchten pg_trgm-Fuzzy dadurch fälschlich auf ein
+        // bereits vorhandenes, aber tatsächlich anderes Werk eines
+        // anderen Komponisten (beobachtet: Schuberts "Tragische" wurde so
+        // mit einem vorhandenen Beethoven-Werk zusammengelegt, und dieses
+        // verfälschte Werk verbreitete sich über weitere Events, die es
+        // per Fuzzy-Match erneut trafen). Ohne bestätigten Komponisten-
+        // Abgleich braucht es einen deutlich höheren Schwellwert, der nur
+        // noch nahezu identische Titel durchlässt.
+        const similarityThreshold = composersConfirmedEqual ? 0.6 : 0.92;
         const fuzzyIsSameWork = fuzzyMatch != null && !composerConflict &&
-          fuzzyMatch.similarity >= 0.6 &&
-          (!fuzzyMatch.composer_id || !composerId || fuzzyMatch.composer_id === composerId);
+          fuzzyMatch.similarity >= similarityThreshold;
 
         let workId: string;
         if (existingWork || fuzzyIsSameWork) {

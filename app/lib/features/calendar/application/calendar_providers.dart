@@ -22,7 +22,7 @@ class MonthKey {
 }
 
 const _calendarEventColumns =
-    'id, slug, title, subtitle, is_free, remaining_tickets_status, start_datetime, image_urls, venues(name), event_genres(genres(slug))';
+    'id, slug, title, subtitle, is_free, remaining_tickets_status, discount_info, start_datetime, image_urls, venues(name), event_genres(genres(slug))';
 
 DateTime _dayKey(DateTime d) => DateTime(d.year, d.month, d.day);
 

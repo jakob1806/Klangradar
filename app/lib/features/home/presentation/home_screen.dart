@@ -5,8 +5,10 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/editorial_collections_section.dart';
 import '../../../core/widgets/event_section.dart';
 import '../../../core/widgets/genre_artwork.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../application/home_providers.dart';
 
 class HomeScreen extends ConsumerWidget {
@@ -14,6 +16,7 @@ class HomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
     final colors = context.appColors;
     final async = ref.watch(homeDataProvider);
 
@@ -34,12 +37,12 @@ class HomeScreen extends ConsumerWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'München',
+                      l10n.homeTitle,
                       style: Theme.of(context).textTheme.headlineMedium,
                     ),
                     Semantics(
                       button: true,
-                      label: 'Profil',
+                      label: l10n.navProfile,
                       onTap: () => context.go('/profile'),
                       child: GestureDetector(
                         onTap: () => context.go('/profile'),
@@ -118,42 +121,44 @@ class HomeScreen extends ConsumerWidget {
                     children: [
                       if (data.heute.isNotEmpty) ...[
                         EventSection(
-                          title: 'Heute in München',
+                          title: l10n.homeSectionToday,
                           events: data.heute,
                         ),
                         const SizedBox(height: AppSpacing.sectionGap),
                       ],
+                      const EditorialCollectionsSection(),
+                      const SizedBox(height: AppSpacing.sectionGap),
                       if (data.empfehlungen.isNotEmpty) ...[
                         EventSection(
-                          title: 'Empfehlungen für dich',
+                          title: l10n.homeSectionRecommendations,
                           events: data.empfehlungen,
                         ),
                         const SizedBox(height: AppSpacing.sectionGap),
                       ],
                       if (data.entdecken.isNotEmpty) ...[
                         EventSection(
-                          title: 'Entdecken',
+                          title: l10n.homeSectionDiscover,
                           events: data.entdecken,
                         ),
                         const SizedBox(height: AppSpacing.sectionGap),
                       ],
                       if (data.ausverkauft.isNotEmpty) ...[
                         EventSection(
-                          title: 'Demnächst ausverkauft',
+                          title: l10n.homeSectionAlmostSoldOut,
                           events: data.ausverkauft,
                         ),
                         const SizedBox(height: AppSpacing.sectionGap),
                       ],
                       if (data.kostenlos.isNotEmpty) ...[
                         EventSection(
-                          title: 'Kostenlose Konzerte',
+                          title: l10n.homeSectionFree,
                           events: data.kostenlos,
                         ),
                         const SizedBox(height: AppSpacing.sectionGap),
                       ],
                       if (data.beliebt.isNotEmpty)
                         EventSection(
-                          title: 'Beliebt gerade in München',
+                          title: l10n.homeSectionPopular,
                           events: data.beliebt,
                         ),
                       if (data.heute.isEmpty &&
@@ -169,7 +174,7 @@ class HomeScreen extends ConsumerWidget {
                           ),
                           child: Center(
                             child: Text(
-                              'Noch keine Veranstaltungen erfasst.',
+                              l10n.homeEmptyState,
                               style: TextStyle(
                                 color: colors.textTertiary,
                                 fontSize: 13,
@@ -197,6 +202,7 @@ class _Hero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final genreSlugs = (event?['event_genres'] as List? ?? [])
         .map((g) => g['genres']?['slug'] as String?)
         .whereType<String>();
@@ -254,7 +260,9 @@ class _Hero extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    event == null ? 'DEMNÄCHST' : 'EMPFEHLUNG DES TAGES',
+                    event == null
+                        ? l10n.homeHeroBadgeUpcoming
+                        : l10n.homeHeroBadgeToday,
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.85),
                       fontSize: 10.5,
@@ -265,7 +273,7 @@ class _Hero extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     event == null
-                        ? 'Noch nichts geplant'
+                        ? l10n.homeHeroNothingPlanned
                         : (event!['title'] as String? ?? ''),
                     style: const TextStyle(
                       color: Colors.white,

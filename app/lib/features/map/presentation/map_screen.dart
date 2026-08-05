@@ -14,6 +14,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/external_maps.dart';
 import '../../../core/widgets/event_filter_sheet.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../application/map_providers.dart';
 
 class MapScreen extends ConsumerStatefulWidget {
@@ -82,6 +83,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    final l10n = AppLocalizations.of(context)!;
     final venuesAsync = ref.watch(mapVenuesProvider);
     final filters = ref.watch(eventFiltersProvider);
     final allVenues = venuesAsync.valueOrNull ?? const <MapVenue>[];
@@ -154,7 +156,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             RichAttributionWidget(
               attributions: [
                 TextSourceAttribution(
-                  '© OpenStreetMap-Mitwirkende',
+                  l10n.mapAttribution,
                   onTap: () => launchUrl(
                     Uri.parse('https://www.openstreetmap.org/copyright'),
                   ),
@@ -337,6 +339,7 @@ class _FilterBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
     final genres = ref.watch(genreOptionsProvider).valueOrNull ?? const [];
     final genreLabels = {for (final g in genres) g.id: g.label};
 
@@ -357,8 +360,8 @@ class _FilterBar extends ConsumerWidget {
         children: [
           _BarChip(
             label: filters.activeCount > 0
-                ? 'Filter (${filters.activeCount})'
-                : 'Filter',
+                ? l10n.mapFilterLabelCount(filters.activeCount)
+                : l10n.mapFilterLabel,
             icon: Icons.tune_rounded,
             active: filters.activeCount > 0,
             onTap: () => showEventFilterSheet(context),
@@ -373,7 +376,7 @@ class _FilterBar extends ConsumerWidget {
           if (filters.isActive) ...[
             const SizedBox(width: 8),
             _BarChip(
-              label: 'Zurücksetzen',
+              label: l10n.mapFilterReset,
               icon: Icons.close_rounded,
               active: false,
               onTap: () => ref.read(eventFiltersProvider.notifier).state =
@@ -529,7 +532,7 @@ class _ErrorBanner extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.sm),
         child: Text(
-          'Karte konnte nicht geladen werden: $message',
+          AppLocalizations.of(context)!.mapLoadError(message),
           style: TextStyle(color: colors.error, fontSize: 12.5),
         ),
       ),
@@ -545,6 +548,7 @@ class _VenuePreviewSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.appColors;
+    final l10n = AppLocalizations.of(context)!;
     final eventsAsync = ref.watch(venueUpcomingEventsProvider(venue.id));
     return SafeArea(
       child: ConstrainedBox(
@@ -573,8 +577,8 @@ class _VenuePreviewSheet extends ConsumerWidget {
               const SizedBox(height: AppSpacing.sm),
               Text(
                 venue.upcomingEventCount > 0
-                    ? '${venue.upcomingEventCount} kommende Veranstaltung${venue.upcomingEventCount == 1 ? '' : 'en'}'
-                    : 'Keine kommenden Veranstaltungen',
+                    ? l10n.mapVenueUpcomingCount(venue.upcomingEventCount)
+                    : l10n.mapVenueNoUpcoming,
                 style: TextStyle(color: colors.textTertiary, fontSize: 13),
               ),
               if (venue.upcomingEventCount > 0)
@@ -614,7 +618,7 @@ class _VenuePreviewSheet extends ConsumerWidget {
                         name: venue.name,
                       ),
                       icon: const Icon(Icons.directions_rounded),
-                      label: const Text('Route'),
+                      label: Text(l10n.venueRoute),
                     ),
                   ),
                   const SizedBox(width: AppSpacing.sm),
@@ -624,7 +628,7 @@ class _VenuePreviewSheet extends ConsumerWidget {
                         Navigator.of(context).pop();
                         context.push('/venue/${venue.slug}');
                       },
-                      child: const Text('Details ansehen'),
+                      child: Text(l10n.mapViewDetails),
                     ),
                   ),
                 ],

@@ -1,6 +1,8 @@
 import 'package:device_calendar/device_calendar.dart';
 import 'package:timezone/data/latest.dart' as tz_data;
 
+import '../../l10n/generated/app_localizations.dart';
+
 class CalendarSyncEvent {
   const CalendarSyncEvent({
     required this.title,
@@ -53,8 +55,9 @@ class CalendarSyncService {
   static bool _timeZonesInitialized = false;
 
   static Future<CalendarSyncResult> syncEvents(
-    List<CalendarSyncEvent> events,
-  ) async {
+    List<CalendarSyncEvent> events, {
+    required AppLocalizations l10n,
+  }) async {
     await _ensureTimeZones();
 
     final plugin = DeviceCalendarPlugin();
@@ -72,8 +75,9 @@ class CalendarSyncService {
       return CalendarSyncResult(
         CalendarSyncOutcome.error,
         0,
-        'Kalenderliste konnte nicht gelesen werden: '
-        '${calendarsResult.errors.map((e) => e.errorMessage).join('; ')}',
+        l10n.calendarSyncCalendarListError(
+          calendarsResult.errors.map((e) => e.errorMessage).join('; '),
+        ),
       );
     }
     Calendar? calendar;
@@ -106,9 +110,9 @@ class CalendarSyncService {
       return CalendarSyncResult(
         CalendarSyncOutcome.error,
         0,
-        'Bestehende Kalendereinträge konnten nicht gelesen werden — '
-        'Abbruch, um keine Duplikate zu erzeugen: '
-        '${existing.errors.map((e) => e.errorMessage).join('; ')}',
+        l10n.calendarSyncExistingEventsError(
+          existing.errors.map((e) => e.errorMessage).join('; '),
+        ),
       );
     }
     for (final e in existing.data ?? const <Event>[]) {
@@ -118,9 +122,9 @@ class CalendarSyncService {
         return CalendarSyncResult(
           CalendarSyncOutcome.error,
           0,
-          'Alter Kalendereintrag konnte nicht entfernt werden — Abbruch, '
-          'um keine Duplikate zu erzeugen: '
-          '${deleted.errors.map((e) => e.errorMessage).join('; ')}',
+          l10n.calendarSyncDeleteOldEventError(
+            deleted.errors.map((e) => e.errorMessage).join('; '),
+          ),
         );
       }
     }
@@ -148,19 +152,17 @@ class CalendarSyncService {
     }
 
     if (synced == 0 && events.isNotEmpty) {
-      return const CalendarSyncResult(
+      return CalendarSyncResult(
         CalendarSyncOutcome.error,
         0,
-        'Keine Veranstaltung konnte eingetragen werden.',
+        l10n.calendarSyncNoneCreated,
       );
     }
 
     return CalendarSyncResult(
       CalendarSyncOutcome.success,
       synced,
-      failed > 0
-          ? '$failed Veranstaltung(en) konnten nicht eingetragen werden.'
-          : null,
+      failed > 0 ? l10n.calendarSyncSomeFailed(failed) : null,
     );
   }
 }

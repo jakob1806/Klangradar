@@ -8,6 +8,7 @@ import '../../../../core/calendar/calendar_sync_service.dart';
 import '../../../../core/calendar/ics_export.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../application/calendar_providers.dart';
 
 /// docs/05-navigation-structure.md, Kalender-Tab: "Sync-Optionen (Sheet):
@@ -27,6 +28,7 @@ class _CalendarSyncSheetState extends ConsumerState<CalendarSyncSheet> {
 
   Future<void> _syncToDeviceCalendar(List<SyncableEvent> events) async {
     setState(() => _busy = true);
+    final l10n = AppLocalizations.of(context)!;
     try {
       final result = await CalendarSyncService.syncEvents([
         for (final e in events)
@@ -38,17 +40,19 @@ class _CalendarSyncSheetState extends ConsumerState<CalendarSyncSheet> {
             location: e.location,
             url: e.url,
           ),
-      ]);
+      ], l10n: l10n);
       if (!mounted) return;
 
       final message = switch (result.outcome) {
         CalendarSyncOutcome.success =>
-          '${result.syncedCount} Veranstaltung${result.syncedCount == 1 ? '' : 'en'} synchronisiert.'
+          '${l10n.calendarSyncSynced(result.syncedCount)}'
               '${result.message != null ? ' ${result.message}' : ''}',
         CalendarSyncOutcome.permissionDenied =>
-          'Kalenderzugriff verweigert. Bitte in den Systemeinstellungen erlauben.',
+          l10n.calendarSyncPermissionDenied,
         CalendarSyncOutcome.error =>
-          'Synchronisierung fehlgeschlagen${result.message != null ? ': ${result.message}' : '.'}',
+          result.message != null
+              ? l10n.calendarSyncFailed(result.message!)
+              : l10n.calendarSyncFailedGeneric,
       };
       ScaffoldMessenger.of(
         context,
@@ -58,9 +62,9 @@ class _CalendarSyncSheetState extends ConsumerState<CalendarSyncSheet> {
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Synchronisierung fehlgeschlagen: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.calendarSyncFailed('$e'))));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -68,6 +72,7 @@ class _CalendarSyncSheetState extends ConsumerState<CalendarSyncSheet> {
 
   Future<void> _exportIcs(List<SyncableEvent> events) async {
     setState(() => _busy = true);
+    final l10n = AppLocalizations.of(context)!;
     try {
       await IcsExport.shareMultiple(
         context: context,
@@ -83,8 +88,8 @@ class _CalendarSyncSheetState extends ConsumerState<CalendarSyncSheet> {
               url: e.url,
             ),
         ],
-        fileName: 'klassik-muenchen-favoriten.ics',
-        subject: 'Meine Klassik München Favoriten',
+        fileName: l10n.calendarExportFileName,
+        subject: l10n.calendarExportSubject,
       );
       if (!mounted) return;
       Navigator.of(context).pop();
@@ -92,7 +97,7 @@ class _CalendarSyncSheetState extends ConsumerState<CalendarSyncSheet> {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Export fehlgeschlagen: $e')));
+      ).showSnackBar(SnackBar(content: Text(l10n.calendarExportFailed('$e'))));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -101,6 +106,7 @@ class _CalendarSyncSheetState extends ConsumerState<CalendarSyncSheet> {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    final l10n = AppLocalizations.of(context)!;
     final async = ref.watch(upcomingFavoriteEventsProvider);
     final isIOS = !kIsWeb && Platform.isIOS;
     final isAndroid = !kIsWeb && Platform.isAndroid;
@@ -118,7 +124,7 @@ class _CalendarSyncSheetState extends ConsumerState<CalendarSyncSheet> {
               4,
             ),
             child: Text(
-              'Kalender synchronisieren',
+              l10n.calendarSyncSheetTitle,
               style: Theme.of(context).textTheme.titleLarge,
             ),
           ),
@@ -130,7 +136,7 @@ class _CalendarSyncSheetState extends ConsumerState<CalendarSyncSheet> {
               AppSpacing.sm,
             ),
             child: Text(
-              'Trägt deine anstehenden Favoriten in deinen Kalender ein.',
+              l10n.calendarSyncSheetSubtitle,
               style: TextStyle(color: colors.textSecondary, fontSize: 13),
             ),
           ),
@@ -142,7 +148,7 @@ class _CalendarSyncSheetState extends ConsumerState<CalendarSyncSheet> {
             error: (e, _) => Padding(
               padding: const EdgeInsets.all(AppSpacing.xl),
               child: Text(
-                'Fehler beim Laden: $e',
+                l10n.errorLoadingGeneric(e.toString()),
                 style: TextStyle(color: colors.error),
               ),
             ),
@@ -156,7 +162,7 @@ class _CalendarSyncSheetState extends ConsumerState<CalendarSyncSheet> {
                     AppSpacing.xl,
                   ),
                   child: Text(
-                    'Noch keine anstehenden Favoriten. Favorisiere Veranstaltungen, um sie hier zu synchronisieren.',
+                    l10n.calendarSyncNoFavorites,
                     style: TextStyle(color: colors.textTertiary, fontSize: 13),
                   ),
                 );
@@ -171,11 +177,13 @@ class _CalendarSyncSheetState extends ConsumerState<CalendarSyncSheet> {
                         color: colors.textSecondary,
                       ),
                       title: Text(
-                        isIOS ? 'Apple Kalender' : 'Google Kalender',
+                        isIOS
+                            ? l10n.calendarSyncAppleCalendar
+                            : l10n.calendarSyncGoogleCalendar,
                         style: TextStyle(color: colors.textPrimary),
                       ),
                       subtitle: Text(
-                        'Direkt in deinen Gerätekalender eintragen',
+                        l10n.calendarSyncDeviceHint,
                         style: TextStyle(
                           color: colors.textTertiary,
                           fontSize: 12,
@@ -190,11 +198,11 @@ class _CalendarSyncSheetState extends ConsumerState<CalendarSyncSheet> {
                       color: colors.textSecondary,
                     ),
                     title: Text(
-                      'ICS-Export',
+                      l10n.calendarSyncIcsExport,
                       style: TextStyle(color: colors.textPrimary),
                     ),
                     subtitle: Text(
-                      'Als Datei teilen oder speichern',
+                      l10n.calendarSyncIcsHint,
                       style: TextStyle(
                         color: colors.textTertiary,
                         fontSize: 12,

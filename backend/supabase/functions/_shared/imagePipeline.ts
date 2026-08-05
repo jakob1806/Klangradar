@@ -83,6 +83,12 @@ export interface CoverImageInput {
   sourceUrl: string;
   originType: ImageOriginType;
   originId: string;
+  /** Wenn gesetzt, wird NICHT von sourceUrl heruntergeladen — für manuelle
+   * Admin-Uploads (research-entity-image/index.ts), wo die Bilddatei schon
+   * lokal vorliegt. sourceUrl dient in diesem Fall nur noch als
+   * Anzeige-/Dedupe-Schlüssel (z.B. "manual-upload:<random>"), nicht als
+   * abrufbare URL. */
+  sourceBytes?: Uint8Array;
   credits?: string | null;
   sourcePageUrl?: string | null;
   sourceName?: string | null;
@@ -138,10 +144,16 @@ async function ensureCoverImageInner(
     .maybeSingle();
   if (existingByUrl?.storage_path) return existingByUrl.id;
 
-  const check = await checkImageUrl(sourceUrl);
-  if (!check.reachable) return null;
-
-  const bytes = await downloadImage(sourceUrl);
+  let bytes: Uint8Array | null;
+  let mimeTypeHint: string | null = null;
+  if (input.sourceBytes) {
+    bytes = input.sourceBytes;
+  } else {
+    const check = await checkImageUrl(sourceUrl);
+    if (!check.reachable) return null;
+    mimeTypeHint = check.contentType ?? null;
+    bytes = await downloadImage(sourceUrl);
+  }
   if (!bytes) return null;
   const contentHash = await sha256(bytes);
 
@@ -263,7 +275,7 @@ async function ensureCoverImageInner(
       thumbnail_path: storedThumbnailPath,
       width,
       height,
-      mime_type: check.contentType ?? "image/webp",
+      mime_type: mimeTypeHint ?? "image/webp",
       phash,
       content_hash: contentHash,
       credits: input.credits ?? null,

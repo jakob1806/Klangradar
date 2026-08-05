@@ -44,7 +44,15 @@ export async function researchBio(entityType: BioEntityType, entityId: string): 
         Authorization: `Bearer ${anonKey ?? ""}`,
       },
       body: JSON.stringify({ entityType, entityId }),
-      signal: AbortSignal.timeout(30_000),
+      // 30s war zu knapp: researchBiography() kann bis zu ZWEI KI-Aufrufe
+      // sequenziell brauchen (erst Wikipedia-Zusammenfassung, bei nicht
+      // ausreichender Konfidenz zusätzlich der Eigenwissen-Fallback), jeder
+      // einzelne mit einer bis zu 3-stufigen Provider-Fallback-Kette à 20s
+      // Timeout (_shared/ai/router.ts) — im ungünstigen Fall (mehrere
+      // Provider gerade langsam/ausgefallen) reichen 30s oft nicht, obwohl
+      // das Backend kurz danach noch ein Ergebnis geliefert hätte. Live
+      // gemessen: ein einzelner Lauf brauchte bereits ~19s im Normalfall.
+      signal: AbortSignal.timeout(90_000),
     });
   } catch (err) {
     return { found: false, error: err instanceof Error ? err.message : String(err) };

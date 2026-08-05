@@ -5,6 +5,7 @@ import '../../../core/auth/auth_providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/interest_picker.dart';
+import '../../../l10n/generated/app_localizations.dart';
 
 class InterestsScreen extends ConsumerWidget {
   const InterestsScreen({super.key});
@@ -13,15 +14,16 @@ class InterestsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.appColors;
     final user = ref.watch(currentUserProvider);
+    final l10n = AppLocalizations.of(context)!;
 
     if (user == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Interessen')),
+        appBar: AppBar(title: Text(l10n.interestsAppBarTitle)),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(AppSpacing.xl),
             child: Text(
-              'Bitte im Profil-Tab anmelden, um Interessen auszuwählen.',
+              l10n.interestsSignInPrompt,
               textAlign: TextAlign.center,
               style: TextStyle(color: colors.textSecondary),
             ),
@@ -31,12 +33,12 @@ class InterestsScreen extends ConsumerWidget {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Interessen')),
+      appBar: AppBar(title: Text(l10n.interestsAppBarTitle)),
       body: ListView(
         padding: const EdgeInsets.all(AppSpacing.screenPaddingMobile),
         children: [
           Text(
-            'Wähle aus, was dich interessiert — das hilft uns, dir passende Veranstaltungen zu zeigen.',
+            l10n.interestsIntro,
             style: TextStyle(color: colors.textSecondary, fontSize: 13),
           ),
           const SizedBox(height: AppSpacing.lg),
