@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../l10n/generated/app_localizations.dart';
 import '../interests/interests_providers.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
@@ -20,34 +21,35 @@ class InterestPicker extends ConsumerWidget {
     final venues = ref.watch(venueOptionsProvider).valueOrNull ?? const [];
     final selected =
         ref.watch(userInterestsProvider).valueOrNull ?? UserInterests.empty;
+    final l10n = AppLocalizations.of(context)!;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
         InterestSection(
-          title: 'Genres',
+          title: l10n.interestCategoryGenres,
           options: genres,
           selectedIds: selected.genreIds,
           category: InterestCategory.genre,
         ),
         const SizedBox(height: AppSpacing.lg),
         InterestSection(
-          title: 'Komponisten',
+          title: l10n.interestCategoryComposers,
           options: composers,
           selectedIds: selected.personIds,
           category: InterestCategory.person,
         ),
         const SizedBox(height: AppSpacing.lg),
         InterestSection(
-          title: 'Ensembles',
+          title: l10n.interestCategoryEnsembles,
           options: ensembles,
           selectedIds: selected.ensembleIds,
           category: InterestCategory.ensemble,
         ),
         const SizedBox(height: AppSpacing.lg),
         InterestSection(
-          title: 'Venues',
+          title: l10n.interestCategoryVenues,
           options: venues,
           selectedIds: selected.venueIds,
           category: InterestCategory.venue,

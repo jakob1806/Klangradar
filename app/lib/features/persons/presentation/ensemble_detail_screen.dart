@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/gallery/entity_gallery_providers.dart';
@@ -8,11 +7,16 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/detail_card.dart';
 import '../../../core/widgets/detail_hero_background.dart';
+import '../../../core/widgets/entity_event_row.dart';
 import '../../../core/widgets/entity_photo_gallery.dart';
 import '../../../core/widgets/external_links_row.dart';
 import '../../../core/widgets/genre_artwork.dart';
 import '../../../core/widgets/past_events_expansion.dart';
+import '../../../core/widgets/report_content_sheet.dart';
+import '../../../core/constants/role_labels.dart';
+import '../../../core/widgets/similar_entities_row.dart';
 import '../../../core/widgets/source_hint.dart';
+import '../../../l10n/generated/app_localizations.dart';
 
 final _ensembleProvider = FutureProvider.family<Map<String, dynamic>?, String>((
   ref,
@@ -38,20 +42,26 @@ final _ensembleProvider = FutureProvider.family<Map<String, dynamic>?, String>((
       .eq('entity_type', 'ensemble')
       .eq('entity_id', ensemble['id']);
 
+  // "Ähnliche Ensembles" (Phase D.2) — gleicher Ensemble-Typ (Chor/
+  // Orchester/Kammerensemble/...), nie sich selbst. Einfache Heuristik wie
+  // bei Personen, kein eigener Empfehlungsdienst nötig.
+  List<dynamic> similar = const [];
+  if (ensemble['type'] != null) {
+    similar = await client
+        .from('ensembles')
+        .select('slug, name, photo_url, type')
+        .eq('type', ensemble['type'])
+        .neq('id', ensemble['id'])
+        .limit(8);
+  }
+
   return {
     'ensemble': ensemble,
     'events': events,
     'sources': fieldSourcesFromRows(provenance),
+    'similar': similar,
   };
 });
-
-const _typeLabel = {
-  'chor': 'Chor',
-  'orchester': 'Orchester',
-  'kammerensemble': 'Kammerensemble',
-  'big_band': 'Big Band',
-  'sonstiges': 'Ensemble',
-};
 
 class EnsembleDetailScreen extends ConsumerWidget {
   const EnsembleDetailScreen({required this.slug, super.key});
@@ -62,14 +72,16 @@ class EnsembleDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(_ensembleProvider(slug));
     final colors = context.appColors;
+    final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
       body: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Fehler beim Laden: $e')),
+        error: (e, _) =>
+            Center(child: Text(l10n.errorLoadingGeneric(e.toString()))),
         data: (data) {
           if (data == null) {
-            return const Center(child: Text('Ensemble nicht gefunden'));
+            return Center(child: Text(l10n.ensembleNotFound));
           }
           final ensemble = data['ensemble'] as Map<String, dynamic>;
           final gallery = ref.watch(
@@ -80,6 +92,7 @@ class EnsembleDetailScreen extends ConsumerWidget {
           );
           final events = data['events'] as List;
           final sources = data['sources'] as Map<String, FieldSource>;
+          final similar = data['similar'] as List;
           final now = DateTime.now();
           final upcoming = events.where((row) {
             final start = DateTime.tryParse(
@@ -140,11 +153,16 @@ class EnsembleDetailScreen extends ConsumerWidget {
                     const SizedBox(height: 4),
                     Text(
                       [
-                        _typeLabel[ensemble['type']] ?? ensemble['type'],
+                        ensembleTypeLabels(l10n)[ensemble['type']] ??
+                            ensemble['type'],
                         if (ensemble['founded_year'] != null)
-                          'seit ${ensemble['founded_year']}',
+                          l10n.ensembleFoundedYear(
+                            '${ensemble['founded_year']}',
+                          ),
                         if (ensemble['member_count'] != null)
-                          '${ensemble['member_count']} Mitglieder',
+                          l10n.ensembleMemberCount(
+                            ensemble['member_count'] as int,
+                          ),
                         if (ensemble['home_venue']?['name'] != null)
                           ensemble['home_venue']['name'],
                       ].join(' · '),
@@ -156,7 +174,7 @@ class EnsembleDetailScreen extends ConsumerWidget {
                     if (ensemble['description_de'] != null) ...[
                       const SizedBox(height: AppSpacing.lg),
                       SectionHeaderWithSource(
-                        title: 'Über das Ensemble',
+                        title: l10n.ensembleAbout,
                         colors: colors,
                         source: sources['description_de'],
                       ),
@@ -172,31 +190,47 @@ class EnsembleDetailScreen extends ConsumerWidget {
                     ],
                     if (ensemble['leadership_de'] != null) ...[
                       const SizedBox(height: AppSpacing.sm),
-                      Text(
-                        ensemble['leadership_de'],
-                        style: TextStyle(
-                          color: colors.textSecondary,
-                          fontSize: 13,
-                          height: 1.4,
-                          fontWeight: FontWeight.w600,
-                        ),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              ensemble['leadership_de'],
+                              style: TextStyle(
+                                color: colors.textSecondary,
+                                fontSize: 13,
+                                height: 1.4,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          SourceHintIcon(source: sources['leadership_de']),
+                        ],
                       ),
                     ],
                     if (ensemble['residency_de'] != null) ...[
                       const SizedBox(height: AppSpacing.sm),
-                      Text(
-                        ensemble['residency_de'],
-                        style: TextStyle(
-                          color: colors.textSecondary,
-                          fontSize: 13,
-                          height: 1.4,
-                        ),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              ensemble['residency_de'],
+                              style: TextStyle(
+                                color: colors.textSecondary,
+                                fontSize: 13,
+                                height: 1.4,
+                              ),
+                            ),
+                          ),
+                          SourceHintIcon(source: sources['residency_de']),
+                        ],
                       ),
                     ],
                     if (ensemble['repertoire_de'] != null) ...[
                       const SizedBox(height: AppSpacing.md),
                       SectionHeaderWithSource(
-                        title: 'Repertoire',
+                        title: l10n.ensembleRepertoire,
                         colors: colors,
                         source: sources['repertoire_de'],
                       ),
@@ -218,13 +252,13 @@ class EnsembleDetailScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: AppSpacing.xxl),
                     Text(
-                      'Kommende Veranstaltungen',
+                      l10n.ensembleUpcomingEvents,
                       style: Theme.of(context).textTheme.headlineSmall,
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     if (upcoming.isEmpty)
                       Text(
-                        'Aktuell nichts geplant.',
+                        l10n.ensembleNothingPlanned,
                         style: TextStyle(
                           color: colors.textTertiary,
                           fontSize: 13,
@@ -254,6 +288,20 @@ class EnsembleDetailScreen extends ConsumerWidget {
                         ],
                       ),
                     ],
+                    if (similar.isNotEmpty) ...[
+                      const SizedBox(height: AppSpacing.xl),
+                      Text(
+                        l10n.ensembleSimilar,
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      SimilarEnsemblesRow(entries: similar),
+                    ],
+                    const SizedBox(height: AppSpacing.lg),
+                    ReportContentLink(
+                      entityType: 'ensemble',
+                      entityId: ensemble['id'] as String,
+                    ),
                   ],
                 ),
               ),
@@ -274,24 +322,11 @@ class _EnsembleEventRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final event = row['events'] as Map<String, dynamic>?;
     if (event == null) return const SizedBox.shrink();
-    final start = DateTime.tryParse(event['start_datetime'] ?? '');
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      title: Text(
-        event['title'] ?? '',
-        style: TextStyle(
-          fontWeight: FontWeight.w600,
-          color: colors.textPrimary,
-        ),
-      ),
-      subtitle: Text(
-        [
-          if (event['venues']?['name'] != null) event['venues']['name'],
-          if (start != null) '${start.day}.${start.month}.${start.year}',
-        ].join(' · '),
-        style: TextStyle(color: colors.textSecondary, fontSize: 12.5),
-      ),
-      onTap: () => context.push('/event/${event['slug']}'),
+    return EntityEventRow(
+      title: event['title'] ?? '',
+      slug: event['slug'] as String? ?? '',
+      start: DateTime.tryParse(event['start_datetime'] ?? ''),
+      subtitle: event['venues']?['name'] as String?,
     );
   }
 }

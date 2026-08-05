@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../l10n/generated/app_localizations.dart';
+
 /// Root-Tab-Shell — hält den Navigation-State pro Tab (siehe
 /// docs/05-navigation-structure.md, §1: 5 Tabs, Favoriten bewusst kein
 /// eigener Tab, sondern über Profil erreichbar).
@@ -9,36 +11,37 @@ class AppShell extends StatelessWidget {
 
   final StatefulNavigationShell navigationShell;
 
-  static const _destinations = [
-    _TabDestination(
-      label: 'Home',
-      icon: Icons.home_rounded,
-      outlineIcon: Icons.home_outlined,
-    ),
-    _TabDestination(
-      label: 'Suche',
-      icon: Icons.search_rounded,
-      outlineIcon: Icons.search_outlined,
-    ),
-    _TabDestination(
-      label: 'Karte',
-      icon: Icons.map_rounded,
-      outlineIcon: Icons.map_outlined,
-    ),
-    _TabDestination(
-      label: 'Kalender',
-      icon: Icons.calendar_month_rounded,
-      outlineIcon: Icons.calendar_month_outlined,
-    ),
-    _TabDestination(
-      label: 'Profil',
-      icon: Icons.person_rounded,
-      outlineIcon: Icons.person_outline_rounded,
-    ),
-  ];
-
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final destinations = [
+      _TabDestination(
+        label: l10n.navHome,
+        icon: Icons.home_rounded,
+        outlineIcon: Icons.home_outlined,
+      ),
+      _TabDestination(
+        label: l10n.navSearch,
+        icon: Icons.search_rounded,
+        outlineIcon: Icons.search_outlined,
+      ),
+      _TabDestination(
+        label: l10n.navMap,
+        icon: Icons.map_rounded,
+        outlineIcon: Icons.map_outlined,
+      ),
+      _TabDestination(
+        label: l10n.navCalendar,
+        icon: Icons.calendar_month_rounded,
+        outlineIcon: Icons.calendar_month_outlined,
+      ),
+      _TabDestination(
+        label: l10n.navProfile,
+        icon: Icons.person_rounded,
+        outlineIcon: Icons.person_outline_rounded,
+      ),
+    ];
+
     return Scaffold(
       extendBody: true,
       body: navigationShell,
@@ -49,11 +52,11 @@ class AppShell extends StatelessWidget {
           initialLocation: index == navigationShell.currentIndex,
         ),
         destinations: [
-          for (var i = 0; i < _destinations.length; i++)
+          for (final d in destinations)
             NavigationDestination(
-              icon: Icon(_destinations[i].outlineIcon),
-              selectedIcon: Icon(_destinations[i].icon),
-              label: _destinations[i].label,
+              icon: Icon(d.outlineIcon),
+              selectedIcon: Icon(d.icon),
+              label: d.label,
             ),
         ],
       ),
@@ -67,6 +70,7 @@ class _TabDestination {
     required this.icon,
     required this.outlineIcon,
   });
+
   final String label;
   final IconData icon;
   final IconData outlineIcon;

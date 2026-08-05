@@ -15,10 +15,13 @@ const NAV_ITEMS = [
   { href: "/persons", label: "Personen" },
   { href: "/ensembles", label: "Ensembles" },
   { href: "/festivals", label: "Festivals" },
+  { href: "/editorial-collections", label: "Redaktionelle Sammlungen" },
   { href: "/media", label: "Bilder" },
+  { href: "/image-research", label: "Bilder recherchieren" },
   { href: "/tags", label: "Tags" },
   { href: "/regions", label: "Regionen" },
   { href: "/users", label: "Benutzer" },
+  { href: "/content-reports", label: "Nutzer-Meldungen" },
   { href: "/reports", label: "Fehlerberichte" },
 ];
 

@@ -109,6 +109,10 @@ dev_dependencies:
 
 # The following section is specific to Flutter packages.
 flutter:
+  # Aktiviert die Codegenerierung für lib/l10n/*.arb -> AppLocalizations
+  # (Phase D.4, docs/09-feature-expansion-plan.md) — braucht zusätzlich
+  # l10n.yaml im Projekt-Root.
+  generate: true
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in

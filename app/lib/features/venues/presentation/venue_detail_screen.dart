@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/gallery/entity_gallery_providers.dart';
@@ -9,10 +8,13 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/external_maps.dart';
 import '../../../core/widgets/detail_card.dart';
 import '../../../core/widgets/detail_hero_background.dart';
+import '../../../core/widgets/entity_event_row.dart';
 import '../../../core/widgets/entity_photo_gallery.dart';
 import '../../../core/widgets/external_links_row.dart';
 import '../../../core/widgets/genre_artwork.dart';
+import '../../../core/widgets/report_content_sheet.dart';
 import '../../../core/widgets/source_hint.dart';
+import '../../../l10n/generated/app_localizations.dart';
 
 final _venueProvider = FutureProvider.family<Map<String, dynamic>?, String>((
   ref,
@@ -66,14 +68,16 @@ class VenueDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(_venueProvider(slug));
     final colors = context.appColors;
+    final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
       body: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Fehler beim Laden: $e')),
+        error: (e, _) =>
+            Center(child: Text(l10n.errorLoadingGeneric(e.toString()))),
         data: (data) {
           if (data == null) {
-            return const Center(child: Text('Venue nicht gefunden'));
+            return Center(child: Text(l10n.venueNotFound));
           }
           final venue = data['venue'] as Map<String, dynamic>;
           final gallery = ref.watch(
@@ -167,9 +171,9 @@ class VenueDetailScreen extends ConsumerWidget {
                       const SizedBox(height: 4),
                       Text(
                         [
-                          _venueTypeLabel(venue['venue_type'] as String?),
+                          _venueTypeLabel(l10n, venue['venue_type'] as String?),
                           if (venue['capacity'] != null)
-                            '${venue['capacity']} Plätze',
+                            l10n.venueSeats(venue['capacity'] as int),
                         ].whereType<String>().join(' · '),
                         style: TextStyle(
                           color: colors.textTertiary,
@@ -196,7 +200,7 @@ class VenueDetailScreen extends ConsumerWidget {
                     if (venue['history_de'] != null) ...[
                       const SizedBox(height: AppSpacing.lg),
                       SectionHeaderWithSource(
-                        title: 'Geschichte',
+                        title: l10n.venueHistory,
                         colors: colors,
                         source: sources['history_de'],
                       ),
@@ -230,7 +234,7 @@ class VenueDetailScreen extends ConsumerWidget {
                     if (accessibility.values.any((v) => v == true)) ...[
                       const SizedBox(height: AppSpacing.xl),
                       Text(
-                        'Barrierefreiheit',
+                        l10n.venueAccessibilityTitle,
                         style: Theme.of(context).textTheme.headlineSmall,
                       ),
                       const SizedBox(height: AppSpacing.sm),
@@ -238,17 +242,23 @@ class VenueDetailScreen extends ConsumerWidget {
                         spacing: 8,
                         children: [
                           if (accessibility['wheelchair'] == true)
-                            const Chip(label: Text('Rollstuhlgerecht')),
+                            Chip(
+                              label: Text(l10n.venueAccessibilityWheelchair),
+                            ),
                           if (accessibility['hearing_loop'] == true)
-                            const Chip(label: Text('Induktionsschleife')),
+                            Chip(
+                              label: Text(l10n.venueAccessibilityHearingLoop),
+                            ),
                           if (accessibility['sign_language'] == true)
-                            const Chip(label: Text('Gebärdensprache')),
+                            Chip(
+                              label: Text(l10n.venueAccessibilitySignLanguage),
+                            ),
                           if (accessibility['step_free'] == true)
-                            const Chip(label: Text('Stufenloser Zugang')),
+                            Chip(label: Text(l10n.venueAccessibilityStepFree)),
                           if (accessibility['elevator'] == true)
-                            const Chip(label: Text('Aufzug')),
+                            Chip(label: Text(l10n.venueAccessibilityElevator)),
                           if (accessibility['accessible_toilet'] == true)
-                            const Chip(label: Text('Barrierefreies WC')),
+                            Chip(label: Text(l10n.venueAccessibilityToilet)),
                         ],
                       ),
                     ],
@@ -256,9 +266,10 @@ class VenueDetailScreen extends ConsumerWidget {
                         (venue['mvv_stops'] as List?)?.isNotEmpty == true ||
                         venue['arrival_info_de'] != null) ...[
                       const SizedBox(height: AppSpacing.xl),
-                      Text(
-                        'Anreise',
-                        style: Theme.of(context).textTheme.headlineSmall,
+                      SectionHeaderWithSource(
+                        title: l10n.venueArrival,
+                        colors: colors,
+                        source: sources['arrival_info_de'],
                       ),
                       const SizedBox(height: AppSpacing.sm),
                       DetailCard(
@@ -308,7 +319,7 @@ class VenueDetailScreen extends ConsumerWidget {
                         venue['catering_info_de'] != null) ...[
                       const SizedBox(height: AppSpacing.xl),
                       SectionHeaderWithSource(
-                        title: 'Praktische Hinweise',
+                        title: l10n.venuePracticalInfo,
                         colors: colors,
                         source:
                             sources['doors_info_de'] ??
@@ -336,13 +347,13 @@ class VenueDetailScreen extends ConsumerWidget {
                     ],
                     const SizedBox(height: AppSpacing.xxl),
                     Text(
-                      'Kommende Veranstaltungen',
+                      l10n.venueUpcomingEvents,
                       style: Theme.of(context).textTheme.headlineSmall,
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     if (upcoming.isEmpty)
                       Text(
-                        'Aktuell nichts geplant.',
+                        l10n.venueNothingPlanned,
                         style: TextStyle(
                           color: colors.textTertiary,
                           fontSize: 13,
@@ -356,13 +367,21 @@ class VenueDetailScreen extends ConsumerWidget {
                               padding: const EdgeInsets.symmetric(
                                 horizontal: AppSpacing.md,
                               ),
-                              child: _VenueEventRow(
-                                event: event,
-                                colors: colors,
+                              child: EntityEventRow(
+                                title: event['title'] ?? '',
+                                slug: event['slug'] as String? ?? '',
+                                start: DateTime.tryParse(
+                                  event['start_datetime'] ?? '',
+                                ),
                               ),
                             ),
                         ],
                       ),
+                    const SizedBox(height: AppSpacing.lg),
+                    ReportContentLink(
+                      entityType: 'venue',
+                      entityId: venue['id'] as String,
+                    ),
                   ],
                 ),
               ),
@@ -375,13 +394,13 @@ class VenueDetailScreen extends ConsumerWidget {
 }
 
 /// Muss zu den venue_type-Werten in enrich-venue-details/index.ts passen.
-String? _venueTypeLabel(String? type) => switch (type) {
-  'konzertsaal' => 'Konzertsaal',
-  'kirche' => 'Kirche',
-  'theater' => 'Theater',
-  'museum' => 'Museum',
-  'schloss' => 'Schloss',
-  'kulturzentrum' => 'Kulturzentrum',
+String? _venueTypeLabel(AppLocalizations l10n, String? type) => switch (type) {
+  'konzertsaal' => l10n.venueTypeConcertHall,
+  'kirche' => l10n.venueTypeChurch,
+  'theater' => l10n.venueTypeTheater,
+  'museum' => l10n.venueTypeMuseum,
+  'schloss' => l10n.venueTypeCastle,
+  'kulturzentrum' => l10n.venueTypeCulturalCenter,
   'sonstiges' => null,
   _ => null,
 };
@@ -394,6 +413,7 @@ class _MvvStopRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final lines =
         (stop['lines'] as List?)?.whereType<String>().toList() ?? const [];
     final walkMinutes = stop['walk_minutes'] as int?;
@@ -416,7 +436,9 @@ class _MvvStopRow extends StatelessWidget {
                 Text(
                   [
                     stop['name'] as String?,
-                    walkMinutes != null ? '$walkMinutes Min. zu Fuß' : null,
+                    walkMinutes != null
+                        ? l10n.venueWalkMinutes(walkMinutes)
+                        : null,
                   ].whereType<String>().join(' · '),
                   style: TextStyle(
                     color: colors.textPrimary,
@@ -494,7 +516,7 @@ class _RouteButton extends StatelessWidget {
               ),
               const SizedBox(width: 6),
               Text(
-                'Route',
+                AppLocalizations.of(context)!.venueRoute,
                 style: TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 13,
@@ -505,34 +527,6 @@ class _RouteButton extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _VenueEventRow extends StatelessWidget {
-  const _VenueEventRow({required this.event, required this.colors});
-  final dynamic event;
-  final AppColorsExtension colors;
-
-  @override
-  Widget build(BuildContext context) {
-    final start = DateTime.tryParse(event['start_datetime'] ?? '');
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      title: Text(
-        event['title'] ?? '',
-        style: TextStyle(
-          fontWeight: FontWeight.w600,
-          color: colors.textPrimary,
-        ),
-      ),
-      subtitle: start != null
-          ? Text(
-              '${start.day}.${start.month}.${start.year}',
-              style: TextStyle(color: colors.textSecondary, fontSize: 12.5),
-            )
-          : null,
-      onTap: () => context.push('/event/${event['slug']}'),
     );
   }
 }

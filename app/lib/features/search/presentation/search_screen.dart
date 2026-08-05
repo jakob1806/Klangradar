@@ -13,32 +13,77 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/event_filter_sheet.dart';
 import '../../../core/widgets/genre_artwork.dart';
 import '../../../core/constants/role_labels.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../home/application/home_providers.dart';
 import '../application/directory_providers.dart';
+import '../application/natural_query_parser.dart';
 
 final _queryProvider = StateProvider<String>((ref) => '');
 
+/// Aus dem aktuellen Suchtext erkannte Preis-/Datumsfilter (Nutzerwunsch:
+/// "Klavierkonzerte dieses Wochenende", "Mahler unter 50 Euro") — separater
+/// Provider statt nur ein Feld in _searchResultsProvider, damit die UI den
+/// erkannten Filter auch anzeigen kann, ohne auf den (async) Ergebnis-Future
+/// zu warten.
+final _parsedQueryProvider = Provider.autoDispose<ParsedSearchQuery>((ref) {
+  return parseNaturalSearchQuery(ref.watch(_queryProvider));
+});
+
 final _searchResultsProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
-      final query = ref.watch(_queryProvider).trim();
-      if (query.length < 2) return [];
+      final rawQuery = ref.watch(_queryProvider).trim();
+      if (rawQuery.length < 2) return [];
+
+      final parsed = ref.watch(_parsedQueryProvider);
+      // Leerer Rest nach dem Herausfiltern von Preis-/Datumsphrasen (z.B.
+      // Suchtext war nur "dieses Wochenende") — fällt auf den rohen
+      // Suchtext zurück statt search_all mit einem leeren Muster
+      // (matcht dann ausnahmslos alles) aufzurufen.
+      final searchTerm = parsed.coreQuery.isEmpty ? rawQuery : parsed.coreQuery;
 
       final results = await Supabase.instance.client.rpc(
         'search_all',
-        params: {'q': query, 'result_limit': 8},
+        params: {'q': searchTerm, 'result_limit': 8},
       );
+
+      var rows = (results as List).cast<Map<String, dynamic>>();
+      if (parsed.hasFilters) {
+        rows = rows.where((r) {
+          // Preis-/Datumsfilter gelten nur für Events — Personen/Ensembles/
+          // Orte haben kein eigenes Datum/Preis, bleiben unangetastet in
+          // den Ergebnissen.
+          if (r['result_type'] != 'event') return true;
+          if (parsed.freeOnly && r['is_free'] != true) return false;
+          if (parsed.maxPrice != null) {
+            final price = r['price_min'] as num?;
+            final isFree = r['is_free'] == true;
+            if (!isFree && (price == null || price > parsed.maxPrice!)) {
+              return false;
+            }
+          }
+          if (parsed.dateFrom != null) {
+            final start = DateTime.tryParse(r['start_datetime'] ?? '');
+            if (start == null ||
+                start.isBefore(parsed.dateFrom!) ||
+                !start.isBefore(parsed.dateTo!)) {
+              return false;
+            }
+          }
+          return true;
+        }).toList();
+      }
 
       final user = ref.read(currentUserProvider);
       if (user != null) {
         unawaited(
           Supabase.instance.client.from('search_history').insert({
             'user_id': user.id,
-            'query': query,
+            'query': rawQuery,
           }),
         );
       }
 
-      return (results as List).cast<Map<String, dynamic>>();
+      return rows;
     });
 
 final _searchHistoryProvider = FutureProvider.autoDispose<List<String>>((
@@ -74,11 +119,14 @@ final _trendingSearchesProvider = FutureProvider.autoDispose<List<String>>((
   return (rows as List).map((r) => r['query'] as String).toList();
 });
 
-const _typeLabel = {
-  'event': 'Veranstaltungen',
-  'person': 'Personen',
-  'ensemble': 'Ensembles',
-  'venue': 'Orte',
+const _typeKeys = ['event', 'person', 'ensemble', 'venue'];
+
+String _typeLabel(AppLocalizations l10n, String type) => switch (type) {
+  'event' => l10n.entityTypeEvents,
+  'person' => l10n.entityTypePersons,
+  'ensemble' => l10n.entityTypeEnsembles,
+  'venue' => l10n.entityTypeVenues,
+  _ => type,
 };
 
 const _typeIcon = {
@@ -137,6 +185,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    final l10n = AppLocalizations.of(context)!;
     final query = ref.watch(_queryProvider);
     final resultsAsync = ref.watch(_searchResultsProvider);
     final filters = ref.watch(eventFiltersProvider);
@@ -179,7 +228,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                           color: colors.textTertiary,
                           size: 20,
                         ),
-                        hintText: 'Werk, Komponist, Ensemble, Ort …',
+                        hintText: l10n.searchHint,
                         hintStyle: TextStyle(
                           color: colors.textTertiary,
                           fontSize: 14,
@@ -192,7 +241,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                   color: colors.textTertiary,
                                   size: 18,
                                 ),
-                                tooltip: 'Suche löschen',
+                                tooltip: l10n.searchClearTooltip,
                                 onPressed: () {
                                   _controller.clear();
                                   ref.read(_queryProvider.notifier).state = '';
@@ -209,6 +258,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 ),
               ],
             ),
+            if (!filters.isActive && query.trim().length >= 2)
+              _DetectedFilterHint(
+                parsed: ref.watch(_parsedQueryProvider),
+                colors: colors,
+              ),
             const SizedBox(height: AppSpacing.xl),
             Expanded(
               child: filters.isActive
@@ -250,6 +304,51 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 }
 
+/// Zeigt, welche Preis-/Datumsfilter aus dem Freitext erkannt wurden
+/// (Nutzerwunsch: "Klavierkonzerte dieses Wochenende", "Mahler unter 50
+/// Euro") — reine Transparenz, kein eigenes UI zum Ändern (dafür gibt es
+/// bereits den Filter-Button/EventFilterSheet).
+class _DetectedFilterHint extends StatelessWidget {
+  const _DetectedFilterHint({required this.parsed, required this.colors});
+
+  final ParsedSearchQuery parsed;
+  final AppColorsExtension colors;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!parsed.hasFilters) return const SizedBox.shrink();
+    final l10n = AppLocalizations.of(context)!;
+
+    final labels = [
+      if (parsed.freeOnly) l10n.searchFilterFree,
+      if (parsed.maxPrice != null)
+        l10n.searchFilterUpTo(parsed.maxPrice!.toStringAsFixed(0)),
+      if (parsed.dateFrom != null)
+        '${parsed.dateFrom!.day}.${parsed.dateFrom!.month}.–${parsed.dateTo!.subtract(const Duration(days: 1)).day}.${parsed.dateTo!.subtract(const Duration(days: 1)).month}.',
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.sm),
+      child: Row(
+        children: [
+          Icon(
+            Icons.auto_awesome_rounded,
+            size: 14,
+            color: colors.accentPrimary,
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              l10n.searchDetectedFilters(labels.join(' · ')),
+              style: TextStyle(color: colors.accentPrimary, fontSize: 12),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _FilterButton extends StatelessWidget {
   const _FilterButton({required this.activeCount, required this.onTap});
 
@@ -259,10 +358,13 @@ class _FilterButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    final l10n = AppLocalizations.of(context)!;
     final active = activeCount > 0;
     return Semantics(
       button: true,
-      label: active ? 'Filter, $activeCount aktiv' : 'Filter',
+      label: active
+          ? l10n.searchFilterLabelActive(activeCount)
+          : l10n.searchFilterLabel,
       onTap: onTap,
       child: InkWell(
         onTap: onTap,
@@ -330,7 +432,7 @@ class _FilteredResultsList extends StatelessWidget {
     if (events.isEmpty) {
       return Center(
         child: Text(
-          'Keine Veranstaltungen für diese Filter.',
+          AppLocalizations.of(context)!.searchNoFilterResults,
           textAlign: TextAlign.center,
           style: TextStyle(color: colors.textTertiary, fontSize: 13),
         ),
@@ -397,6 +499,7 @@ class _EmptyState extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
     final historyAsync = ref.watch(_searchHistoryProvider);
     final trending =
         ref.watch(_trendingSearchesProvider).valueOrNull ?? const [];
@@ -414,7 +517,7 @@ class _EmptyState extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Suchverlauf',
+                        l10n.searchHistoryTitle,
                         style: Theme.of(
                           context,
                         ).textTheme.labelSmall?.copyWith(letterSpacing: 1),
@@ -443,7 +546,7 @@ class _EmptyState extends ConsumerWidget {
           orElse: () => const SizedBox.shrink(),
         ),
         Text(
-          'Beliebte Suchen',
+          l10n.searchTrendingTitle,
           style: Theme.of(
             context,
           ).textTheme.labelSmall?.copyWith(letterSpacing: 1),
@@ -460,17 +563,20 @@ class _EmptyState extends ConsumerWidget {
         ),
         const SizedBox(height: AppSpacing.xl),
         Text(
-          'Durchstöbern',
+          l10n.searchBrowseTitle,
           style: Theme.of(
             context,
           ).textTheme.labelSmall?.copyWith(letterSpacing: 1),
         ),
         const SizedBox(height: AppSpacing.sm),
         SegmentedButton<String>(
-          segments: const [
-            ButtonSegment(value: 'person', label: Text('Künstler')),
-            ButtonSegment(value: 'ensemble', label: Text('Ensembles')),
-            ButtonSegment(value: 'venue', label: Text('Orte')),
+          segments: [
+            ButtonSegment(value: 'person', label: Text(l10n.entityTypeArtists)),
+            ButtonSegment(
+              value: 'ensemble',
+              label: Text(l10n.entityTypeEnsembles),
+            ),
+            ButtonSegment(value: 'venue', label: Text(l10n.entityTypeVenues)),
           ],
           selected: {directoryTab},
           onSelectionChanged: (selection) =>
@@ -505,7 +611,7 @@ class _DirectoryEntries extends ConsumerWidget {
       error: (e, _) => Padding(
         padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
         child: Text(
-          'Laden fehlgeschlagen: $e',
+          AppLocalizations.of(context)!.loadingFailed(e.toString()),
           style: TextStyle(color: colors.error),
         ),
       ),
@@ -582,27 +688,29 @@ class _DirectoryList extends StatelessWidget {
     _ => r['full_name'] as String? ?? '',
   };
 
-  String? _subtitle(Map<String, dynamic> r) {
+  String? _subtitle(AppLocalizations l10n, Map<String, dynamic> r) {
     switch (type) {
       case 'ensemble':
         final t = r['type'] as String?;
-        return t == null ? null : (ensembleTypeLabel[t] ?? t);
+        return t == null ? null : (ensembleTypeLabels(l10n)[t] ?? t);
       case 'venue':
         return r['address_city'] as String?;
       default:
         final roles = (r['roles'] as List?)?.cast<String>() ?? [];
         if (roles.isEmpty) return null;
-        return roles.map((role) => personRoleLabel[role] ?? role).join(' · ');
+        final labels = personRoleLabels(l10n);
+        return roles.map((role) => labels[role] ?? role).join(' · ');
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     if (rows.isEmpty) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
         child: Text(
-          'Keine Einträge.',
+          l10n.searchDirectoryEmpty,
           style: TextStyle(color: colors.textTertiary, fontSize: 13),
         ),
       );
@@ -625,9 +733,9 @@ class _DirectoryList extends StatelessWidget {
                 color: colors.textPrimary,
               ),
             ),
-            subtitle: _subtitle(r) != null
+            subtitle: _subtitle(l10n, r) != null
                 ? Text(
-                    _subtitle(r)!,
+                    _subtitle(l10n, r)!,
                     style: TextStyle(
                       color: colors.textSecondary,
                       fontSize: 12.5,
@@ -648,10 +756,11 @@ class _ResultsList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     if (results.isEmpty) {
       return Center(
         child: Text(
-          'Keine Treffer.',
+          l10n.searchNoResults,
           style: TextStyle(color: colors.textTertiary, fontSize: 13),
         ),
       );
@@ -664,10 +773,10 @@ class _ResultsList extends StatelessWidget {
 
     return ListView(
       children: [
-        for (final type in _typeLabel.keys)
+        for (final type in _typeKeys)
           if (grouped[type] != null) ...[
             Text(
-              '${_typeLabel[type]}',
+              _typeLabel(l10n, type),
               style: Theme.of(
                 context,
               ).textTheme.labelSmall?.copyWith(letterSpacing: 1),

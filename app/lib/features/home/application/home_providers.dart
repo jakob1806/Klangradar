@@ -10,7 +10,7 @@ import '../../../core/widgets/genre_artwork.dart';
 // das Event eins hat). Eine Quelle für die Spaltenliste statt zwei, die
 // auseinanderlaufen können.
 const homeEventColumns =
-    'id, slug, title, subtitle, is_free, remaining_tickets_status, start_datetime, image_urls, venues(name), event_genres(genres(slug))';
+    'id, slug, title, subtitle, is_free, remaining_tickets_status, discount_info, start_datetime, image_urls, venues(name), event_genres(genres(slug))';
 
 String _formatDateTime(DateTime d) {
   final time =
@@ -53,8 +53,12 @@ class HomeEventItem {
         .whereType<String>();
     final imageUrls = row['image_urls'] as List?;
 
-    // Ticket-Status hat Vorrang vor "Kostenlos" — ein ausverkauftes Gratis-
-    // Event soll das auch als Badge zeigen, nicht "Kostenlos" vortäuschen.
+    // Ticket-Status hat Vorrang vor "Kostenlos"/"Ermäßigt" — ein
+    // ausverkauftes Gratis- oder ermäßigtes Event soll das auch als Badge
+    // zeigen, nicht die weniger dringliche Info vortäuschen. "Ermäßigt" ist
+    // die niedrigste Priorität (Phase A.3-Nachtrag) — nur ein Badge-Slot in
+    // der Karte, kein Grund für ein zweites nebenan, wenn eh nur eine
+    // dieser Angaben je Karte wirklich relevant ist.
     String? badge;
     switch (row['remaining_tickets_status'] as String?) {
       case 'sold_out':
@@ -64,7 +68,12 @@ class HomeEventItem {
       case 'box_office_only':
         badge = 'Nur Abendkasse';
       default:
-        if (row['is_free'] == true) badge = 'Kostenlos';
+        if (row['is_free'] == true) {
+          badge = 'Kostenlos';
+        } else if ((row['discount_info'] as String?)?.trim().isNotEmpty ==
+            true) {
+          badge = 'Ermäßigt';
+        }
     }
 
     return HomeEventItem(

@@ -18,6 +18,19 @@ final favoriteIdsProvider = FutureProvider.autoDispose<Set<String>>((
   return (rows as List).map((r) => r['event_id'] as String).toSet();
 });
 
+enum FavoriteStatus {
+  interested('interested'),
+  attending('attending');
+
+  const FavoriteStatus(this.value);
+
+  final String value;
+
+  static FavoriteStatus fromValue(String? value) => value == 'attending'
+      ? FavoriteStatus.attending
+      : FavoriteStatus.interested;
+}
+
 class FavoritesService {
   const FavoritesService._();
 
@@ -41,6 +54,25 @@ class FavoritesService {
         'event_id': eventId,
       });
     }
+    ref.invalidate(favoriteIdsProvider);
+  }
+
+  /// "Interessiert" ↔ "Besuche ich" umschalten (Nutzerwunsch: "als
+  /// 'interessiert' oder 'besuche ich' markieren") — unabhängig vom
+  /// Favorisieren selbst, das bleibt weiterhin ein einfaches Herz-Tippen.
+  static Future<void> setStatus(
+    WidgetRef ref, {
+    required String eventId,
+    required FavoriteStatus status,
+  }) async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+
+    await Supabase.instance.client
+        .from('favorites')
+        .update({'status': status.value})
+        .eq('user_id', user.id)
+        .eq('event_id', eventId);
     ref.invalidate(favoriteIdsProvider);
   }
 }

@@ -4,10 +4,13 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/auth/auth_service.dart';
+import '../../../core/localization/locale_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/theme_mode_provider.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import 'widgets/auth_section.dart';
+import 'widgets/language_sheet.dart';
 import 'widgets/theme_mode_sheet.dart';
 
 class ProfileScreen extends ConsumerWidget {
@@ -21,6 +24,7 @@ class ProfileScreen extends ConsumerWidget {
     // "angemeldet" — sonst sähe jeder Neuinstall sofort wie eingeloggt aus,
     // ohne dass je eine E-Mail oder Apple/Google-Login stattgefunden hätte.
     final isSignedIn = user != null && !user.isAnonymous;
+    final l10n = AppLocalizations.of(context)!;
 
     return SafeArea(
       child: ListView(
@@ -32,41 +36,48 @@ class ProfileScreen extends ConsumerWidget {
           if (!isSignedIn)
             const AuthSection()
           else
-            _SignedInHeader(email: user.email ?? 'Angemeldet', colors: colors),
+            _SignedInHeader(
+              email: user.email ?? l10n.profileSignedIn,
+              colors: colors,
+            ),
           const SizedBox(height: AppSpacing.xxl),
           _ProfileRow(
-            label: 'Meine Favoriten',
+            label: l10n.profileMyFavorites,
             colors: colors,
             onTap: () => context.push('/favorites'),
           ),
           _ProfileRow(
-            label: 'Interessen',
+            label: l10n.profileInterests,
             colors: colors,
             onTap: () => context.push('/interests'),
           ),
           _ProfileRow(
-            label: 'Benachrichtigungen',
+            label: l10n.profileNotifications,
             colors: colors,
             onTap: () => context.push('/notification-settings'),
           ),
           _ProfileRow(
-            label: 'Meine Listen',
+            label: l10n.profileMyLists,
             colors: colors,
             onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  '„Meine Listen" folgt in einer der nächsten Phasen.',
-                ),
-              ),
+              SnackBar(content: Text(l10n.profileMyListsComingSoon)),
             ),
           ),
           _ProfileRow(
-            label: 'Darstellung',
+            label: l10n.profileAppearance,
             colors: colors,
             onTap: () => showModalBottomSheet(
               context: context,
               builder: (_) =>
                   ThemeModeSheet(current: ref.read(themeModeProvider)),
+            ),
+          ),
+          _ProfileRow(
+            label: AppLocalizations.of(context)!.profileLanguage,
+            colors: colors,
+            onTap: () => showModalBottomSheet(
+              context: context,
+              builder: (_) => LanguageSheet(current: ref.read(localeProvider)),
             ),
           ),
         ],
@@ -102,7 +113,10 @@ class _SignedInHeader extends StatelessWidget {
         const SizedBox(height: AppSpacing.sm),
         TextButton(
           onPressed: AuthService.signOut,
-          child: Text('Abmelden', style: TextStyle(color: colors.error)),
+          child: Text(
+            AppLocalizations.of(context)!.profileSignOut,
+            style: TextStyle(color: colors.error),
+          ),
         ),
       ],
     );

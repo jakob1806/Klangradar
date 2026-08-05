@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../l10n/generated/app_localizations.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 
@@ -16,13 +17,13 @@ class FieldSource {
     this.confidence,
   });
 
-  final String sourceName;
+  final String? sourceName;
   final String? sourceUrl;
   final DateTime? retrievedAt;
   final String? confidence;
 
   factory FieldSource.fromRow(Map<String, dynamic> row) => FieldSource(
-    sourceName: row['source_name'] as String? ?? 'Unbekannte Quelle',
+    sourceName: row['source_name'] as String?,
     sourceUrl: row['source_url'] as String?,
     retrievedAt: DateTime.tryParse(row['retrieved_at'] as String? ?? ''),
     confidence: row['confidence'] as String?,
@@ -42,10 +43,10 @@ Map<String, FieldSource> fieldSourcesFromRows(List<dynamic>? rows) {
   return map;
 }
 
-const _confidenceLabel = {
-  'confirmed': 'Bestätigt',
-  'likely': 'Wahrscheinlich zutreffend',
-  'uncertain': 'Unsicher',
+Map<String, String> _confidenceLabels(AppLocalizations l10n) => {
+  'confirmed': l10n.sourceConfidenceConfirmed,
+  'likely': l10n.sourceConfidenceLikely,
+  'uncertain': l10n.sourceConfidenceUncertain,
 };
 
 /// Kleines, dezentes "ⓘ"-Icon neben einem automatisiert recherchierten
@@ -84,20 +85,24 @@ void _showSourceSheet(
   FieldSource s,
   AppColorsExtension colors,
 ) {
+  final l10n = AppLocalizations.of(context)!;
   showModalBottomSheet(
     context: context,
     isScrollControlled: true,
-    builder: (_) => SafeArea(
+    builder: (context) => SafeArea(
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.lg),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Quelle', style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              l10n.sourceSheetTitle,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
             const SizedBox(height: AppSpacing.sm),
             Text(
-              s.sourceName,
+              s.sourceName ?? l10n.sourceUnknown,
               style: TextStyle(color: colors.textPrimary, fontSize: 14),
             ),
             if (s.sourceUrl != null) ...[
@@ -120,21 +125,23 @@ void _showSourceSheet(
               children: [
                 if (s.retrievedAt != null)
                   _MetaChip(
-                    label:
-                        'Recherchiert am ${s.retrievedAt!.day.toString().padLeft(2, '0')}.'
-                        '${s.retrievedAt!.month.toString().padLeft(2, '0')}.${s.retrievedAt!.year}',
+                    label: l10n.sourceRetrievedOn(
+                      '${s.retrievedAt!.day.toString().padLeft(2, '0')}.'
+                      '${s.retrievedAt!.month.toString().padLeft(2, '0')}.${s.retrievedAt!.year}',
+                    ),
                     colors: colors,
                   ),
                 if (s.confidence != null)
                   _MetaChip(
-                    label: _confidenceLabel[s.confidence] ?? s.confidence!,
+                    label:
+                        _confidenceLabels(l10n)[s.confidence] ?? s.confidence!,
                     colors: colors,
                   ),
               ],
             ),
             const SizedBox(height: AppSpacing.sm),
             Text(
-              'Automatisiert recherchiert — bitte bei Zweifeln an der Quelle prüfen.',
+              l10n.sourceAutomatedNotice,
               style: TextStyle(color: colors.textTertiary, fontSize: 11.5),
             ),
           ],

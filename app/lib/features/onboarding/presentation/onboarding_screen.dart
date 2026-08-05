@@ -10,6 +10,7 @@ import '../../../core/push/push_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/interest_picker.dart';
+import '../../../l10n/generated/app_localizations.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -63,6 +64,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
       body: SafeArea(
@@ -108,7 +110,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     child: FilledButton(
                       onPressed: _next,
                       child: Text(
-                        _page == _pageCount - 1 ? 'Los geht\'s' : 'Weiter',
+                        _page == _pageCount - 1
+                            ? l10n.onboardingGetStarted
+                            : l10n.onboardingNext,
                       ),
                     ),
                   ),
@@ -116,7 +120,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     TextButton(
                       onPressed: _finish,
                       child: Text(
-                        'Überspringen',
+                        l10n.onboardingSkip,
                         style: TextStyle(color: colors.textSecondary),
                       ),
                     ),
@@ -136,6 +140,7 @@ class _WelcomeStep extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    final l10n = AppLocalizations.of(context)!;
     return Padding(
       padding: const EdgeInsets.all(AppSpacing.xl),
       child: Column(
@@ -144,13 +149,13 @@ class _WelcomeStep extends StatelessWidget {
           Icon(Icons.piano_rounded, size: 72, color: colors.accentPrimary),
           const SizedBox(height: AppSpacing.lg),
           Text(
-            'Willkommen bei\nKlassik München',
+            l10n.onboardingWelcomeTitle,
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.headlineMedium,
           ),
           const SizedBox(height: AppSpacing.md),
           Text(
-            'Alle klassischen Konzerte, Opern und Kirchenmusik-Veranstaltungen Münchens an einem Ort — immer aktuell.',
+            l10n.onboardingWelcomeSubtitle,
             textAlign: TextAlign.center,
             style: TextStyle(color: colors.textSecondary),
           ),
@@ -166,18 +171,19 @@ class _InterestsStep extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    final l10n = AppLocalizations.of(context)!;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppSpacing.xl),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Was interessiert dich?',
+            l10n.onboardingInterestsTitle,
             style: Theme.of(context).textTheme.headlineSmall,
           ),
           const SizedBox(height: AppSpacing.sm),
           Text(
-            'Optional — hilft uns, dir passende Veranstaltungen zu zeigen. Du kannst das jederzeit im Profil ändern.',
+            l10n.onboardingInterestsSubtitle,
             style: TextStyle(color: colors.textSecondary, fontSize: 13),
           ),
           const SizedBox(height: AppSpacing.lg),
@@ -200,6 +206,7 @@ class _LocationStepState extends State<_LocationStep> {
   String? _status;
 
   Future<void> _requestLocation() async {
+    final l10n = AppLocalizations.of(context)!;
     setState(() {
       _requesting = true;
       _status = null;
@@ -211,15 +218,13 @@ class _LocationStepState extends State<_LocationStep> {
       }
       if (permission == LocationPermission.denied ||
           permission == LocationPermission.deniedForever) {
-        setState(() => _status = 'Standortzugriff wurde nicht erlaubt.');
+        setState(() => _status = l10n.onboardingLocationDenied);
         return;
       }
 
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        setState(
-          () => _status = 'Ortungsdienste sind auf diesem Gerät deaktiviert.',
-        );
+        setState(() => _status = l10n.onboardingLocationServiceDisabled);
         return;
       }
 
@@ -228,9 +233,9 @@ class _LocationStepState extends State<_LocationStep> {
         'update_home_location',
         params: {'p_lat': position.latitude, 'p_lng': position.longitude},
       );
-      setState(() => _status = 'Standort gespeichert.');
+      setState(() => _status = l10n.onboardingLocationSaved);
     } catch (_) {
-      setState(() => _status = 'Standort konnte nicht ermittelt werden.');
+      setState(() => _status = l10n.onboardingLocationFailed);
     } finally {
       if (mounted) setState(() => _requesting = false);
     }
@@ -239,6 +244,7 @@ class _LocationStepState extends State<_LocationStep> {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    final l10n = AppLocalizations.of(context)!;
     return Padding(
       padding: const EdgeInsets.all(AppSpacing.xl),
       child: Column(
@@ -252,13 +258,13 @@ class _LocationStepState extends State<_LocationStep> {
           ),
           const SizedBox(height: AppSpacing.lg),
           Text(
-            'Veranstaltungen in deiner Nähe',
+            l10n.onboardingLocationTitle,
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.headlineSmall,
           ),
           const SizedBox(height: AppSpacing.sm),
           Text(
-            'Mit deinem Standort können wir dir zeigen, was in deiner Nähe stattfindet, und die Karte danach sortieren.',
+            l10n.onboardingLocationSubtitle,
             textAlign: TextAlign.center,
             style: TextStyle(color: colors.textSecondary),
           ),
@@ -266,7 +272,11 @@ class _LocationStepState extends State<_LocationStep> {
           OutlinedButton.icon(
             onPressed: _requesting ? null : _requestLocation,
             icon: const Icon(Icons.my_location_rounded),
-            label: Text(_requesting ? 'Wird ermittelt…' : 'Standort teilen'),
+            label: Text(
+              _requesting
+                  ? l10n.onboardingLocationRequesting
+                  : l10n.onboardingLocationShare,
+            ),
           ),
           if (_status != null) ...[
             const SizedBox(height: AppSpacing.sm),
@@ -307,6 +317,7 @@ class _NotificationsStepState extends State<_NotificationsStep> {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    final l10n = AppLocalizations.of(context)!;
     return Padding(
       padding: const EdgeInsets.all(AppSpacing.xl),
       child: Column(
@@ -320,13 +331,13 @@ class _NotificationsStepState extends State<_NotificationsStep> {
           ),
           const SizedBox(height: AppSpacing.lg),
           Text(
-            'Nichts mehr verpassen',
+            l10n.onboardingNotificationsTitle,
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.headlineSmall,
           ),
           const SizedBox(height: AppSpacing.sm),
           Text(
-            'Wir benachrichtigen dich bei neuen passenden Veranstaltungen, Preisänderungen und bevor Tickets ausverkauft sind.',
+            l10n.onboardingNotificationsSubtitle,
             textAlign: TextAlign.center,
             style: TextStyle(color: colors.textSecondary),
           ),
@@ -338,10 +349,10 @@ class _NotificationsStepState extends State<_NotificationsStep> {
             ),
             label: Text(
               _done
-                  ? 'Aktiviert'
+                  ? l10n.onboardingNotificationsDone
                   : (_requesting
-                        ? 'Wird angefragt…'
-                        : 'Benachrichtigungen aktivieren'),
+                        ? l10n.onboardingNotificationsRequesting
+                        : l10n.onboardingNotificationsEnable),
             ),
           ),
         ],

@@ -21,7 +21,9 @@ import '../../../core/widgets/event_section.dart';
 import '../../../core/widgets/favorite_button.dart';
 import '../../../core/widgets/genre_artwork.dart';
 import '../../../core/utils/share_position.dart';
+import '../../../core/widgets/report_content_sheet.dart';
 import '../../../core/widgets/source_hint.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../home/application/home_providers.dart';
 
 /// Öffnet die native "Neuer Termin"-Vorlage des Betriebssystems (auf iOS:
@@ -44,6 +46,7 @@ Future<void> _addEventToDeviceCalendar({
   String? url,
 }) async {
   final messenger = ScaffoldMessenger.of(context);
+  final l10n = AppLocalizations.of(context)!;
   final added = await add2cal.Add2Calendar.addEvent2Cal(
     add2cal.Event(
       title: title,
@@ -55,9 +58,7 @@ Future<void> _addEventToDeviceCalendar({
     ),
   );
   if (!context.mounted || added) return;
-  messenger.showSnackBar(
-    const SnackBar(content: Text('Kalender konnte nicht geöffnet werden.')),
-  );
+  messenger.showSnackBar(SnackBar(content: Text(l10n.eventCalendarAddFailed)));
 }
 
 final _eventProvider = FutureProvider.family<Map<String, dynamic>?, String>((
@@ -121,7 +122,18 @@ final _eventProvider = FutureProvider.family<Map<String, dynamic>?, String>((
     }
   }
 
-  return {...event, '_workSources': workSources};
+  // Änderungstransparenz (Phase A.2, docs/09-feature-expansion-plan.md) —
+  // der events_log_changes-Trigger (Migration 20261002000011) protokolliert
+  // Beginn-/Orts-/Status-Änderungen unabhängig davon, welcher Pfad sie
+  // geschrieben hat (Ingestion, Admin-Dashboard, Enrichment-Functions).
+  final changes = await Supabase.instance.client
+      .from('event_changes')
+      .select('field_name, old_value, new_value, changed_at')
+      .eq('event_id', event['id'])
+      .order('changed_at', ascending: false)
+      .limit(5);
+
+  return {...event, '_workSources': workSources, '_changes': changes};
 });
 
 typedef _SimilarEventsKey = ({
@@ -173,19 +185,19 @@ final _otherDatesProvider =
 String _formatVerifiedDate(DateTime d) =>
     '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
 
-const _statusLabel = {
+Map<String, String?> _statusLabels(AppLocalizations l10n) => {
   'scheduled': null,
-  'sold_out': 'Ausverkauft',
-  'cancelled': 'Abgesagt',
-  'postponed': 'Verschoben',
+  'sold_out': l10n.eventStatusSoldOut,
+  'cancelled': l10n.eventStatusCancelled,
+  'postponed': l10n.eventStatusPostponed,
 };
 
-const _roleLabel = {
-  'komponist': 'Komponist:in',
-  'dirigent': 'Dirigent:in',
-  'solist': 'Solist:in',
-  'chorleiter': 'Chorleiter:in',
-  'moderator': 'Moderator:in',
+Map<String, String> _roleLabels(AppLocalizations l10n) => {
+  'komponist': l10n.roleComposer,
+  'dirigent': l10n.roleConductor,
+  'solist': l10n.roleSoloist,
+  'chorleiter': l10n.roleChoirmaster,
+  'moderator': l10n.roleModerator,
 };
 
 class EventDetailScreen extends ConsumerWidget {
@@ -197,16 +209,18 @@ class EventDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(_eventProvider(slug));
     final colors = context.appColors;
+    final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
       body: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Fehler beim Laden: $e')),
+        error: (e, _) =>
+            Center(child: Text(l10n.errorLoadingGeneric(e.toString()))),
         data: (event) {
           if (event == null) {
             return Center(
               child: Text(
-                'Veranstaltung nicht gefunden',
+                l10n.eventNotFound,
                 style: TextStyle(color: colors.textSecondary),
               ),
             );
@@ -251,7 +265,7 @@ class EventDetailScreen extends ConsumerWidget {
           final participants = event['event_participants'] as List;
           final accessibility =
               (event['accessibility'] as Map<String, dynamic>?) ?? {};
-          final statusBadge = _statusLabel[event['status']];
+          final statusBadge = _statusLabels(l10n)[event['status']];
           final imageUrls = event['image_urls'] as List?;
           final photoUrl = (imageUrls != null && imageUrls.isNotEmpty)
               ? imageUrls.first as String?
@@ -282,7 +296,7 @@ class EventDetailScreen extends ConsumerWidget {
                       color: Colors.white,
                       size: 20,
                     ),
-                    tooltip: 'Zum Kalender hinzufügen',
+                    tooltip: l10n.eventAddToCalendarTooltip,
                     onPressed: start == null
                         ? null
                         : () => _addEventToDeviceCalendar(
@@ -303,7 +317,7 @@ class EventDetailScreen extends ConsumerWidget {
                       color: Colors.white,
                       size: 20,
                     ),
-                    tooltip: 'Teilen',
+                    tooltip: l10n.eventShareTooltip,
                     onPressed: () => Share.share(
                       '${event['title']}${venue != null ? ' · ${venue['name']}' : ''}'
                       '${event['website_url'] != null ? '\n${event['website_url']}' : ''}',
@@ -425,9 +439,9 @@ class EventDetailScreen extends ConsumerWidget {
                           ),
                         if (event['is_free'] == true)
                           Chip(
-                            label: const Text(
-                              'Kostenlos',
-                              style: TextStyle(fontSize: 11),
+                            label: Text(
+                              l10n.eventFree,
+                              style: const TextStyle(fontSize: 11),
                             ),
                             backgroundColor: colors.success.withValues(
                               alpha: 0.15,
@@ -440,9 +454,13 @@ class EventDetailScreen extends ConsumerWidget {
                     Text(
                       [
                         if (start != null)
-                          '${_weekday(start)}, ${start.day}.${start.month}.${start.year} · ${_time(start)} Uhr',
+                          l10n.eventDateTimeLine(
+                            _weekday(l10n, start),
+                            '${start.day}.${start.month}.${start.year}',
+                            _time(start),
+                          ),
                         if (event['duration_minutes'] != null)
-                          '${event['duration_minutes']} Min.${event['has_intermission'] == true ? ' inkl. Pause' : ''}',
+                          '${l10n.eventMinutes(event['duration_minutes'])}${event['has_intermission'] == true ? l10n.eventIncludingIntermission : ''}',
                       ].join(' — '),
                       style: TextStyle(
                         color: colors.textSecondary,
@@ -463,6 +481,10 @@ class EventDetailScreen extends ConsumerWidget {
                         ),
                       ),
                     ],
+                    _ChangesNotice(
+                      changes: (event['_changes'] as List?) ?? const [],
+                      colors: colors,
+                    ),
                     _TicketInfoSection(event: event, colors: colors),
                     // description_de kommt bei vielen Quellen als reine
                     // Komma-Aufzählung der Werke/Komponisten (die
@@ -492,7 +514,7 @@ class EventDetailScreen extends ConsumerWidget {
                     if (works.isNotEmpty) ...[
                       const SizedBox(height: AppSpacing.xl),
                       Text(
-                        'Programm',
+                        l10n.eventProgramTitle,
                         style: Theme.of(context).textTheme.headlineSmall,
                       ),
                       const SizedBox(height: AppSpacing.sm),
@@ -514,23 +536,21 @@ class EventDetailScreen extends ConsumerWidget {
                     if (participants.isNotEmpty) ...[
                       const SizedBox(height: AppSpacing.xl),
                       Text(
-                        'Mitwirkende',
+                        l10n.eventParticipantsTitle,
                         style: Theme.of(context).textTheme.headlineSmall,
                       ),
                       const SizedBox(height: AppSpacing.sm),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
+                      DetailCard(
                         children: [
                           for (final p in participants)
-                            _ParticipantChip(participant: p, colors: colors),
+                            _ParticipantRow(participant: p, colors: colors),
                         ],
                       ),
                     ],
                     if (accessibility.values.any((v) => v == true)) ...[
                       const SizedBox(height: AppSpacing.xl),
                       Text(
-                        'Barrierefreiheit',
+                        l10n.eventAccessibilityTitle,
                         style: Theme.of(context).textTheme.headlineSmall,
                       ),
                       const SizedBox(height: AppSpacing.sm),
@@ -538,11 +558,17 @@ class EventDetailScreen extends ConsumerWidget {
                         spacing: 8,
                         children: [
                           if (accessibility['wheelchair'] == true)
-                            const Chip(label: Text('Rollstuhlgerecht')),
+                            Chip(
+                              label: Text(l10n.eventAccessibilityWheelchair),
+                            ),
                           if (accessibility['hearing_loop'] == true)
-                            const Chip(label: Text('Induktionsschleife')),
+                            Chip(
+                              label: Text(l10n.eventAccessibilityHearingLoop),
+                            ),
                           if (accessibility['sign_language'] == true)
-                            const Chip(label: Text('Gebärdensprache')),
+                            Chip(
+                              label: Text(l10n.eventAccessibilitySignLanguage),
+                            ),
                         ],
                       ),
                     ],
@@ -560,8 +586,13 @@ class EventDetailScreen extends ConsumerWidget {
                         if (event['attribution_notice'] != null)
                           const SizedBox(height: 2),
                         Text(
-                          'Zuletzt geprüft: '
-                          '${_formatVerifiedDate(DateTime.parse(event['last_verified_at'] as String))}',
+                          l10n.eventLastVerified(
+                            _formatVerifiedDate(
+                              DateTime.parse(
+                                event['last_verified_at'] as String,
+                              ),
+                            ),
+                          ),
                           style: TextStyle(
                             color: colors.textTertiary,
                             fontSize: 11,
@@ -569,6 +600,11 @@ class EventDetailScreen extends ConsumerWidget {
                         ),
                       ],
                     ],
+                    const SizedBox(height: AppSpacing.sm),
+                    ReportContentLink(
+                      entityType: 'event',
+                      entityId: event['id'] as String,
+                    ),
                   ],
                 ),
               ),
@@ -589,7 +625,7 @@ class EventDetailScreen extends ConsumerWidget {
                   padding: const EdgeInsets.only(top: AppSpacing.xl),
                   sliver: SliverToBoxAdapter(
                     child: EventSection(
-                      title: 'Ähnliche Veranstaltungen',
+                      title: l10n.eventSimilarEvents,
                       events: similarEvents,
                     ),
                   ),
@@ -615,35 +651,42 @@ class EventDetailScreen extends ConsumerWidget {
     );
   }
 
-  String _weekday(DateTime d) =>
-      const ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'][d.weekday - 1];
+  String _weekday(AppLocalizations l10n, DateTime d) => [
+    l10n.weekdayMonShort,
+    l10n.weekdayTueShort,
+    l10n.weekdayWedShort,
+    l10n.weekdayThuShort,
+    l10n.weekdayFriShort,
+    l10n.weekdaySatShort,
+    l10n.weekdaySunShort,
+  ][d.weekday - 1];
   String _time(DateTime d) =>
       '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
 }
 
-const _fullWeekdayNames = [
-  'Montag',
-  'Dienstag',
-  'Mittwoch',
-  'Donnerstag',
-  'Freitag',
-  'Samstag',
-  'Sonntag',
+List<String> _fullWeekdayNames(AppLocalizations l10n) => [
+  l10n.weekdayMonday,
+  l10n.weekdayTuesday,
+  l10n.weekdayWednesday,
+  l10n.weekdayThursday,
+  l10n.weekdayFriday,
+  l10n.weekdaySaturday,
+  l10n.weekdaySunday,
 ];
 
-const _fullMonthNames = [
-  'Januar',
-  'Februar',
-  'März',
-  'April',
-  'Mai',
-  'Juni',
-  'Juli',
-  'August',
-  'September',
-  'Oktober',
-  'November',
-  'Dezember',
+List<String> _fullMonthNames(AppLocalizations l10n) => [
+  l10n.monthJanuary,
+  l10n.monthFebruary,
+  l10n.monthMarch,
+  l10n.monthApril,
+  l10n.monthMay,
+  l10n.monthJune,
+  l10n.monthJuly,
+  l10n.monthAugust,
+  l10n.monthSeptember,
+  l10n.monthOctober,
+  l10n.monthNovember,
+  l10n.monthDecember,
 ];
 
 /// "Weitere Termine": andere Aufführungen desselben Konzerts (gleiches
@@ -675,6 +718,7 @@ class _OtherDatesSection extends ConsumerWidget {
     );
     final dates = async.valueOrNull ?? const [];
     if (dates.isEmpty) return const SizedBox.shrink();
+    final l10n = AppLocalizations.of(context)!;
 
     return Padding(
       padding: const EdgeInsets.only(top: AppSpacing.xl),
@@ -682,7 +726,7 @@ class _OtherDatesSection extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Weitere Termine',
+            l10n.eventOtherDates,
             style: Theme.of(context).textTheme.headlineSmall,
           ),
           const SizedBox(height: AppSpacing.sm),
@@ -707,16 +751,18 @@ class _OtherDateRow extends StatelessWidget {
     final start = DateTime.tryParse(row['start_datetime'] as String? ?? '');
     final slug = row['slug'] as String?;
     if (start == null || slug == null) return const SizedBox.shrink();
+    final l10n = AppLocalizations.of(context)!;
 
-    final weekday = _fullWeekdayNames[start.weekday - 1];
+    final weekday = _fullWeekdayNames(l10n)[start.weekday - 1];
     final date =
-        '${start.day}. ${_fullMonthNames[start.month - 1]} ${start.year}';
-    final time =
-        '${start.hour.toString().padLeft(2, '0')}:${start.minute.toString().padLeft(2, '0')} Uhr';
+        '${start.day}. ${_fullMonthNames(l10n)[start.month - 1]} ${start.year}';
+    final time = l10n.eventOtherDateTime(
+      '${start.hour.toString().padLeft(2, '0')}:${start.minute.toString().padLeft(2, '0')}',
+    );
 
     return Semantics(
       button: true,
-      label: '$weekday, $date, $time',
+      label: l10n.eventOtherDateSemanticsLabel(weekday, date, time),
       onTap: () => context.push('/event/$slug'),
       child: Material(
         color: colors.backgroundPrimary,
@@ -795,12 +841,13 @@ class _VenueSection extends StatelessWidget {
     final cardRadius = BorderRadius.circular(AppRadius.cardImage);
     final address =
         '${venue['address_street']}, ${venue['address_zip']} ${venue['address_city']}';
+    final l10n = AppLocalizations.of(context)!;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Veranstaltungsort',
+          l10n.eventVenueSectionTitle,
           style: Theme.of(context).textTheme.headlineSmall,
         ),
         const SizedBox(height: AppSpacing.sm),
@@ -903,8 +950,9 @@ class _AttributionNotice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final text = Text(
-      'Datenquelle: $notice',
+      l10n.eventDataSource(notice),
       style: TextStyle(color: colors.textTertiary, fontSize: 11),
     );
     if (licenseUrl == null) return text;
@@ -932,6 +980,7 @@ class _ProgramRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final w = work['works'] as Map<String, dynamic>?;
     if (w == null) return const SizedBox.shrink();
+    final l10n = AppLocalizations.of(context)!;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Column(
@@ -941,7 +990,7 @@ class _ProgramRow extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 6),
               child: Text(
-                '— PAUSE —',
+                l10n.eventIntermission,
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: colors.accentSecondary,
@@ -974,49 +1023,50 @@ class _ProgramRow extends StatelessWidget {
                 ),
               Expanded(
                 flex: 3,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      w['title'] ?? '',
-                      style: TextStyle(
-                        color: colors.textPrimary,
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    // Opus-/Werkverzeichnisnummer + Tonart nur, wenn
-                    // recherchiert (siehe enrich-event-references) — rein
-                    // optional, keine leere Zeile wenn nicht vorhanden.
-                    if ((w['catalog_number'] as String?)?.isNotEmpty == true ||
-                        (w['key_signature'] as String?)?.isNotEmpty == true)
+                child: GestureDetector(
+                  // Zum Programm-Explorer (Phase C.1) — alle Aufführungen
+                  // dieses Werks, nicht nur diese eine.
+                  onTap: w['id'] != null
+                      ? () => context.push('/work/${w['id']}')
+                      : null,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       Text(
-                        [w['catalog_number'], w['key_signature']]
-                            .whereType<String>()
-                            .where((s) => s.isNotEmpty)
-                            .join(' · '),
+                        w['title'] ?? '',
                         style: TextStyle(
-                          color: colors.textTertiary,
-                          fontSize: 11,
+                          color: colors.textPrimary,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          decoration: TextDecoration.underline,
+                          decorationColor: colors.textTertiary,
                         ),
                       ),
-                    // Instrumentierung (SATB/Bläserbesetzung/etc.) wird bewusst
-                    // NICHT angezeigt — auf Nutzerwunsch: reines
-                    // Rohbesetzungs-Detail ohne Mehrwert für Konzertbesucher,
-                    // nicht das, was unter "Programm" erwartet wird. Das Feld
-                    // wird weiterhin von enrich-work-profile befüllt (siehe
-                    // dort), nur die Anzeige hier wurde entfernt.
-                    if ((w['movements'] as List?)?.isNotEmpty == true)
-                      Text(
-                        (w['movements'] as List).whereType<String>().join(
-                          ' · ',
+                      // Opus-/Werkverzeichnisnummer + Tonart nur, wenn
+                      // recherchiert (siehe enrich-event-references) — rein
+                      // optional, keine leere Zeile wenn nicht vorhanden.
+                      if ((w['catalog_number'] as String?)?.isNotEmpty ==
+                              true ||
+                          (w['key_signature'] as String?)?.isNotEmpty == true)
+                        Text(
+                          [w['catalog_number'], w['key_signature']]
+                              .whereType<String>()
+                              .where((s) => s.isNotEmpty)
+                              .join(' · '),
+                          style: TextStyle(
+                            color: colors.textTertiary,
+                            fontSize: 11,
+                          ),
                         ),
-                        style: TextStyle(
-                          color: colors.textTertiary,
-                          fontSize: 11,
-                        ),
-                      ),
-                  ],
+                      // Instrumentierung (SATB/Bläserbesetzung/etc.) und die
+                      // Satzfolge (movements) werden bewusst NICHT angezeigt —
+                      // auf Nutzerwunsch: reines Rohbesetzungs-/Werkanalyse-
+                      // Detail ohne Mehrwert für Konzertbesucher, nicht das,
+                      // was unter "Programm" erwartet wird. Die Felder werden
+                      // weiterhin von enrich-work-profile befüllt (siehe
+                      // dort), nur die Anzeige hier wurde entfernt.
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -1027,8 +1077,12 @@ class _ProgramRow extends StatelessWidget {
   }
 }
 
-class _ParticipantChip extends StatelessWidget {
-  const _ParticipantChip({required this.participant, required this.colors});
+/// Eine Zeile je Mitwirkendem — untereinander statt als eingekreiste Pills
+/// (Nutzerwunsch: "Mitwirkende sollen immer untereinander stehen, zwar
+/// anklickbar aber nicht so eingekreist"), gleiche Zeilensprache wie
+/// _ProgramRow/_OtherDateRow: Name links, Rolle rechts, ganze Zeile tappbar.
+class _ParticipantRow extends StatelessWidget {
+  const _ParticipantRow({required this.participant, required this.colors});
   final dynamic participant;
   final AppColorsExtension colors;
 
@@ -1038,28 +1092,53 @@ class _ParticipantChip extends StatelessWidget {
     final ensemble = participant['ensembles'] as Map<String, dynamic>?;
     final name = person?['full_name'] ?? ensemble?['name'];
     if (name == null) return const SizedBox.shrink();
-    final role = _roleLabel[participant['role']];
+    final l10n = AppLocalizations.of(context)!;
+    final role = _roleLabels(l10n)[participant['role']];
+    final slug = person?['slug'] ?? ensemble?['slug'];
 
-    return GestureDetector(
-      onTap: () {
-        if (person != null) {
-          context.push('/person/${person['slug']}');
-        } else if (ensemble != null) {
-          context.push('/ensemble/${ensemble['slug']}');
-        }
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          border: Border.all(color: colors.separator),
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Text(
-          role != null ? '$name · $role' : name,
-          style: TextStyle(
-            fontSize: 12.5,
-            color: colors.textPrimary,
-            fontWeight: FontWeight.w600,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: slug == null
+            ? null
+            : () => context.push(
+                person != null ? '/person/$slug' : '/ensemble/$slug',
+              ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.sm + 2,
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  name,
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    color: slug != null
+                        ? colors.accentPrimary
+                        : colors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              if (role != null) ...[
+                const SizedBox(width: AppSpacing.sm),
+                Text(
+                  role,
+                  style: TextStyle(fontSize: 12.5, color: colors.textSecondary),
+                ),
+              ],
+              if (slug != null) ...[
+                const SizedBox(width: 4),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 18,
+                  color: colors.textTertiary,
+                ),
+              ],
+            ],
           ),
         ),
       ),
@@ -1073,12 +1152,13 @@ class _ParticipantChip extends StatelessWidget {
 ({String label, Color color})? _ticketStatusInfo(
   String? status,
   AppColorsExtension colors,
+  AppLocalizations l10n,
 ) => switch (status) {
-  'available' => (label: 'Tickets verfügbar', color: colors.success),
-  'few_left' => (label: 'Nur noch wenige Tickets', color: colors.warning),
-  'sold_out' => (label: 'Ausverkauft', color: colors.error),
+  'available' => (label: l10n.ticketStatusAvailable, color: colors.success),
+  'few_left' => (label: l10n.ticketStatusFewLeft, color: colors.warning),
+  'sold_out' => (label: l10n.ticketStatusSoldOut, color: colors.error),
   'box_office_only' => (
-    label: 'Nur an der Abendkasse',
+    label: l10n.ticketStatusBoxOfficeOnly,
     color: colors.textSecondary,
   ),
   _ => null,
@@ -1087,6 +1167,91 @@ class _ParticipantChip extends StatelessWidget {
 String _formatPrice(dynamic value) {
   final d = (value as num).toDouble();
   return d == d.roundToDouble() ? d.toInt().toString() : d.toStringAsFixed(2);
+}
+
+Map<String, String> _changeFieldLabels(AppLocalizations l10n) => {
+  'start_datetime': l10n.eventChangeStartDatetime,
+  'venue_id': l10n.eventChangeVenue,
+  'status': l10n.eventChangeStatus,
+};
+
+String _formatChangeValue(AppLocalizations l10n, String field, String? value) {
+  if (value == null) return '–';
+  switch (field) {
+    case 'start_datetime':
+      final d = DateTime.tryParse(value);
+      if (d == null) return value;
+      return l10n.eventDateTimeShort(
+        '${d.day}.${d.month}.${d.year}',
+        '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}',
+      );
+    case 'status':
+      return _statusLabels(l10n)[value] ?? value;
+    default:
+      return value;
+  }
+}
+
+/// "Was hat sich geändert" (Phase A.2, docs/09-feature-expansion-plan.md) —
+/// speist sich aus event_changes, das der events_log_changes-Trigger
+/// unabhängig vom Schreibpfad befüllt (Ingestion, Admin-Dashboard,
+/// Enrichment-Functions). Zeigt nur die letzten 5 Änderungen, verschwindet
+/// komplett ohne protokollierte Änderungen — bewusst warnend eingefärbt
+/// (nicht neutral), damit ein verschobener/abgesagter Termin nicht in der
+/// üblichen Textfarbe untergeht.
+class _ChangesNotice extends StatelessWidget {
+  const _ChangesNotice({required this.changes, required this.colors});
+
+  final List changes;
+  final AppColorsExtension colors;
+
+  @override
+  Widget build(BuildContext context) {
+    if (changes.isEmpty) return const SizedBox.shrink();
+    final l10n = AppLocalizations.of(context)!;
+    final changeFieldLabels = _changeFieldLabels(l10n);
+
+    return Container(
+      margin: const EdgeInsets.only(top: AppSpacing.sm),
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: colors.warning.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(AppSpacing.sm),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.info_outline_rounded, size: 16, color: colors.warning),
+              const SizedBox(width: 6),
+              Text(
+                l10n.eventRecentlyChanged,
+                style: TextStyle(
+                  color: colors.warning,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          for (final c in changes) ...[
+            const SizedBox(height: 6),
+            Text(
+              // venue_id zeigt nur das Label, keine rohen UUIDs — der neue
+              // Ortsname steht ohnehin bereits weiter oben auf der Seite.
+              c['field_name'] == 'venue_id'
+                  ? changeFieldLabels['venue_id']!
+                  : '${changeFieldLabels[c['field_name']] ?? c['field_name']}: '
+                        '${_formatChangeValue(l10n, c['field_name'] as String, c['old_value'] as String?)} → '
+                        '${_formatChangeValue(l10n, c['field_name'] as String, c['new_value'] as String?)}',
+              style: TextStyle(color: colors.textPrimary, fontSize: 12.5),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 }
 
 /// Zusätzliche Ticket-Hinweise (Einlass, Altersbeschränkung, Ermäßigung,
@@ -1103,9 +1268,11 @@ class _TicketInfoSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final statusInfo = _ticketStatusInfo(
       event['remaining_tickets_status'] as String?,
       colors,
+      l10n,
     );
     final hints = [
       event['doors_info'],
@@ -1166,6 +1333,7 @@ class _TicketBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final priceMin = event['price_min'];
     final priceMax = event['price_max'];
     final isFree = event['is_free'] == true;
@@ -1182,22 +1350,25 @@ class _TicketBar extends StatelessWidget {
 
     String priceText;
     if (isFree) {
-      priceText = 'Kostenlos';
+      priceText = l10n.eventPriceFree;
     } else if (priceMin != null && priceMax != null && priceMin != priceMax) {
-      priceText = '${_formatPrice(priceMin)}–${_formatPrice(priceMax)} €';
+      priceText = l10n.eventPriceRange(
+        _formatPrice(priceMin),
+        _formatPrice(priceMax),
+      );
     } else if (priceMin != null) {
-      priceText = 'ab ${_formatPrice(priceMin)} €';
+      priceText = l10n.eventPriceFrom(_formatPrice(priceMin));
     } else {
-      priceText = 'Preis auf Anfrage';
+      priceText = l10n.eventPriceOnRequest;
     }
 
-    final statusInfo = _ticketStatusInfo(status, colors);
+    final statusInfo = _ticketStatusInfo(status, colors, l10n);
     // "Tickets kaufen" nur, wenn ein Kauf über den Link plausibel ist —
     // bei ausverkauft/nur Abendkasse wäre das irreführend, der Link bleibt
     // aber (führt oft trotzdem zu Restkarten-/Wartelisten-Infos).
     final buttonLabel = soldOut || boxOfficeOnly
-        ? 'Zur Veranstaltungsseite'
-        : 'Tickets kaufen';
+        ? l10n.eventGoToPage
+        : l10n.eventBuyTickets;
 
     return Container(
       padding: EdgeInsets.fromLTRB(

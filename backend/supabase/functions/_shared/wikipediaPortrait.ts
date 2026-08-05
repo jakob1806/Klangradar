@@ -16,6 +16,8 @@
 // echten Artikels) wird explizit verworfen statt geraten — z. B. würde
 // "Fazil Say" als Titel eindeutig sein, ein häufigerer Name aber nicht.
 
+import { fetchCommonsThumbnailUrl } from "./wikimediaCommons.ts";
+
 export interface WikipediaPortrait {
   imageUrl: string;
   pageUrl: string;
@@ -115,8 +117,15 @@ export async function fetchWikipediaPortrait(name: string): Promise<WikipediaPor
     }
     if (!summary || summary.type === "disambiguation") continue;
 
-    const imageUrl = summary.originalimage?.source ?? summary.thumbnail?.source;
-    if (!imageUrl) continue;
+    const rawImageUrl = summary.originalimage?.source ?? summary.thumbnail?.source;
+    if (!rawImageUrl) continue;
+    // Kleineres Thumbnail statt Original anfordern — siehe
+    // fetchCommonsThumbnailUrl-Kommentar (WORKER_RESOURCE_LIMIT beim
+    // WASM-Decodieren großer Originalbilder, live in der App gefunden).
+    // Fällt auf die Original-URL zurück, falls der Dateiname sich nicht
+    // extrahieren lässt oder Commons kein Thumbnail liefert.
+    const filename = rawImageUrl.split("/").pop();
+    const imageUrl = (filename ? await fetchCommonsThumbnailUrl(filename) : null) ?? rawImageUrl;
 
     const pageUrl = summary.content_urls?.desktop?.page ??
       `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(resolvedTitle)}`;
