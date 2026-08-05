@@ -135,18 +135,22 @@ class WorkDetailScreen extends ConsumerWidget {
               ],
               const SizedBox(height: AppSpacing.sm),
               if (composer?['full_name'] != null)
-                GestureDetector(
-                  onTap: composer?['slug'] != null
-                      ? () => context.push('/person/${composer!['slug']}')
-                      : null,
-                  child: Text(
-                    composer!['full_name'],
-                    style: TextStyle(
-                      color: composer['slug'] != null
-                          ? colors.accentPrimary
-                          : colors.textPrimary,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
+                Semantics(
+                  button: composer?['slug'] != null,
+                  link: composer?['slug'] != null,
+                  child: GestureDetector(
+                    onTap: composer?['slug'] != null
+                        ? () => context.push('/person/${composer!['slug']}')
+                        : null,
+                    child: Text(
+                      composer!['full_name'],
+                      style: TextStyle(
+                        color: composer['slug'] != null
+                            ? colors.accentPrimary
+                            : colors.textPrimary,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ),

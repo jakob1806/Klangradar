@@ -501,16 +501,26 @@ class _RecenterButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: color,
-      shape: const CircleBorder(),
-      elevation: 3,
-      child: InkWell(
-        onTap: onTap,
-        customBorder: const CircleBorder(),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Icon(Icons.my_location_rounded, size: 22, color: iconColor),
+    return Semantics(
+      button: true,
+      label: AppLocalizations.of(context)!.mapRecenter,
+      child: Material(
+        color: color,
+        shape: const CircleBorder(),
+        elevation: 3,
+        child: InkWell(
+          onTap: onTap,
+          customBorder: const CircleBorder(),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: ExcludeSemantics(
+              child: Icon(
+                Icons.my_location_rounded,
+                size: 22,
+                color: iconColor,
+              ),
+            ),
+          ),
         ),
       ),
     );

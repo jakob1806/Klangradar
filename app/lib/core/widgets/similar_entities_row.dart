@@ -80,38 +80,48 @@ class _EntityAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
-    return GestureDetector(
+    return Semantics(
+      button: true,
+      label: name,
       onTap: () => context.push('$route/$slug'),
-      child: SizedBox(
-        width: 72,
-        child: Column(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(36),
-              child: SizedBox(
-                width: 56,
-                height: 56,
-                child: photoUrl != null
-                    ? CachedNetworkImage(
-                        imageUrl: photoUrl!,
-                        fit: BoxFit.cover,
-                        errorWidget: (context, url, error) =>
-                            const GenreArtwork(genre: EventGenre.kammermusik),
-                        placeholder: (context, url) =>
-                            const GenreArtwork(genre: EventGenre.kammermusik),
-                      )
-                    : const GenreArtwork(genre: EventGenre.kammermusik),
-              ),
+      child: GestureDetector(
+        onTap: () => context.push('$route/$slug'),
+        child: ExcludeSemantics(
+          child: SizedBox(
+            width: 72,
+            child: Column(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(36),
+                  child: SizedBox(
+                    width: 56,
+                    height: 56,
+                    child: photoUrl != null
+                        ? CachedNetworkImage(
+                            imageUrl: photoUrl!,
+                            fit: BoxFit.cover,
+                            errorWidget: (context, url, error) =>
+                                const GenreArtwork(
+                                  genre: EventGenre.kammermusik,
+                                ),
+                            placeholder: (context, url) => const GenreArtwork(
+                              genre: EventGenre.kammermusik,
+                            ),
+                          )
+                        : const GenreArtwork(genre: EventGenre.kammermusik),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  name,
+                  maxLines: 2,
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: colors.textPrimary, fontSize: 11.5),
+                ),
+              ],
             ),
-            const SizedBox(height: 6),
-            Text(
-              name,
-              maxLines: 2,
-              textAlign: TextAlign.center,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: colors.textPrimary, fontSize: 11.5),
-            ),
-          ],
+          ),
         ),
       ),
     );

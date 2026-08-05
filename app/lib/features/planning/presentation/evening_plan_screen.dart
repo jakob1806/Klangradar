@@ -149,14 +149,19 @@ class EveningPlanScreen extends ConsumerWidget {
                           ),
                           const SizedBox(width: AppSpacing.sm),
                           Expanded(
-                            child: GestureDetector(
-                              onTap: () => context.push('/event/${event.slug}'),
-                              child: Text(
-                                event.title,
-                                style: TextStyle(
-                                  color: colors.textPrimary,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 15,
+                            child: Semantics(
+                              button: true,
+                              link: true,
+                              child: GestureDetector(
+                                onTap: () =>
+                                    context.push('/event/${event.slug}'),
+                                child: Text(
+                                  event.title,
+                                  style: TextStyle(
+                                    color: colors.textPrimary,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 15,
+                                  ),
                                 ),
                               ),
                             ),
@@ -217,13 +222,17 @@ class EveningPlanScreen extends ConsumerWidget {
                         for (final a in after)
                           Padding(
                             padding: const EdgeInsets.only(top: 2),
-                            child: GestureDetector(
-                              onTap: () => context.push('/event/${a.slug}'),
-                              child: Text(
-                                '${_time(a.start)} · ${a.title}${a.venueName != null ? ' (${a.venueName})' : ''}',
-                                style: TextStyle(
-                                  color: colors.accentPrimary,
-                                  fontSize: 12.5,
+                            child: Semantics(
+                              button: true,
+                              link: true,
+                              child: GestureDetector(
+                                onTap: () => context.push('/event/${a.slug}'),
+                                child: Text(
+                                  '${_time(a.start)} · ${a.title}${a.venueName != null ? ' (${a.venueName})' : ''}',
+                                  style: TextStyle(
+                                    color: colors.accentPrimary,
+                                    fontSize: 12.5,
+                                  ),
                                 ),
                               ),
                             ),
