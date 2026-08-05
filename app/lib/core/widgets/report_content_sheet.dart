@@ -69,14 +69,25 @@ class ReportContentLink extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
-    return GestureDetector(
-      onTap: () => _showReportSheet(context, entityType, entityId),
-      child: Text(
-        AppLocalizations.of(context)!.reportLinkText,
-        style: TextStyle(
-          color: colors.textTertiary,
-          fontSize: 11,
-          decoration: TextDecoration.underline,
+    return Semantics(
+      button: true,
+      link: true,
+      child: GestureDetector(
+        onTap: () => _showReportSheet(context, entityType, entityId),
+        behavior: HitTestBehavior.opaque,
+        // Sichtbarer Text bleibt klein, die Tap-Fläche wird unsichtbar auf
+        // die 44x44pt-Mindestgröße aufgeweitet (siehe Barrierefreiheits-
+        // Audit, PR #67 — gleiches Muster wie FavoriteButton.compact).
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+          child: Text(
+            AppLocalizations.of(context)!.reportLinkText,
+            style: TextStyle(
+              color: colors.textTertiary,
+              fontSize: 11,
+              decoration: TextDecoration.underline,
+            ),
+          ),
         ),
       ),
     );

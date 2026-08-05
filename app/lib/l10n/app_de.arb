@@ -405,6 +405,7 @@
 
   "externalLinkWebsite": "Website",
   "externalLinkWikipedia": "Wikipedia",
+  "mapRecenter": "Karte auf München-Zentrum zurücksetzen",
 
   "calendarSyncCalendarListError": "Kalenderliste konnte nicht gelesen werden: {errors}",
   "@calendarSyncCalendarListError": {"placeholders": {"errors": {"type": "String"}}},

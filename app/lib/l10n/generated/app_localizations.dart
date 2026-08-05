@@ -2084,6 +2084,12 @@ abstract class AppLocalizations {
   /// **'Wikipedia'**
   String get externalLinkWikipedia;
 
+  /// No description provided for @mapRecenter.
+  ///
+  /// In de, this message translates to:
+  /// **'Karte auf München-Zentrum zurücksetzen'**
+  String get mapRecenter;
+
   /// No description provided for @calendarSyncCalendarListError.
   ///
   /// In de, this message translates to:

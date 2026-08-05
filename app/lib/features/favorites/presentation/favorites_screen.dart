@@ -212,6 +212,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                                         Icons.close_rounded,
                                         size: 18,
                                       ),
+                                      tooltip: l10n.searchClearTooltip,
                                       onPressed: () => setState(() {
                                         _searchController.clear();
                                         _query = '';

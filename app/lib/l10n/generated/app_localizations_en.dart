@@ -1121,6 +1121,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get externalLinkWikipedia => 'Wikipedia';
 
   @override
+  String get mapRecenter => 'Reset map to Munich center';
+
+  @override
   String calendarSyncCalendarListError(String errors) {
     return 'Could not read calendar list: $errors';
   }

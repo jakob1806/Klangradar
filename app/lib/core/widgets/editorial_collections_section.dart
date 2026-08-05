@@ -75,65 +75,76 @@ class _CollectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final coverUrl = collection['cover_image_url'] as String?;
+    final title = collection['title'] as String? ?? '';
+    final subtitle = collection['subtitle'] as String?;
 
-    return GestureDetector(
+    return Semantics(
+      button: true,
+      label: subtitle != null ? '$title, $subtitle' : title,
       onTap: () => context.push('/collection/${collection['slug']}'),
-      child: Container(
-        width: 260,
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(AppRadius.card),
-          color: colors.backgroundSecondary,
-        ),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            if (coverUrl != null)
-              CachedNetworkImage(imageUrl: coverUrl, fit: BoxFit.cover)
-            else
-              Container(color: colors.accentPrimary.withValues(alpha: 0.15)),
-            Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Colors.transparent, Color(0xB3000000)],
-                  stops: [0.3, 1.0],
-                ),
-              ),
+      child: GestureDetector(
+        onTap: () => context.push('/collection/${collection['slug']}'),
+        child: ExcludeSemantics(
+          child: Container(
+            width: 260,
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(AppRadius.card),
+              color: colors.backgroundSecondary,
             ),
-            Positioned(
-              left: 12,
-              right: 12,
-              bottom: 10,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    collection['title'] ?? '',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (coverUrl != null)
+                  CachedNetworkImage(imageUrl: coverUrl, fit: BoxFit.cover)
+                else
+                  Container(
+                    color: colors.accentPrimary.withValues(alpha: 0.15),
+                  ),
+                Container(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Colors.transparent, Color(0xB3000000)],
+                      stops: [0.3, 1.0],
                     ),
                   ),
-                  if (collection['subtitle'] != null)
-                    Text(
-                      collection['subtitle'],
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 11,
+                ),
+                Positioned(
+                  left: 12,
+                  right: 12,
+                  bottom: 10,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                    ),
-                ],
-              ),
+                      if (subtitle != null)
+                        Text(
+                          subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 11,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

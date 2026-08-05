@@ -361,6 +361,7 @@
 
   "externalLinkWebsite": "Website",
   "externalLinkWikipedia": "Wikipedia",
+  "mapRecenter": "Reset map to Munich center",
 
   "calendarSyncCalendarListError": "Could not read calendar list: {errors}",
   "calendarSyncExistingEventsError": "Could not read existing calendar entries — aborting to avoid duplicates: {errors}",
