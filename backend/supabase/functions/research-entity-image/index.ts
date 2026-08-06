@@ -17,14 +17,19 @@
 //
 // mode="search" ohne sourceUrl: automatische Recherche nach Entitätstyp.
 // Erster Schritt ist bei Personen/Venues/Ensembles/Werken/Events (ohne
-// eigenes og:image) eine breite KI-Websuche über Geminis "Grounding with
-// Google Search" (searchImageViaGroundedWeb, GEMINI_SEARCH_API_KEY) — auf
-// Nutzerfeedback: "wikipedia commons ist so ungenau und hat oft keine
-// bilder", das ganze offene Web statt nur kuratierter Wikimedia-Quellen.
-// Findet die Websuche nichts, fällt die Kette auf die bisherigen, engeren
-// Quellen zurück: Wikipedia-Portrait/Wikimedia Commons/Wikidata für
-// Personen/Venues/Ensembles/Werke, og:image der eigenen/Ticket-Seite bzw.
-// das Venue-Foto für Events.
+// eigenes og:image) eine breite Websuche über das GANZE offene Web statt
+// nur kuratierter Wikimedia-Quellen (Nutzerfeedback: "wikipedia commons
+// ist so ungenau und hat oft keine bilder") — zuerst über DuckDuckGos
+// HTML-Suche (searchImageViaWebSearch, kein Account/API-Key nötig, siehe
+// _shared/duckDuckGoSearch.ts), optional ergänzt um Geminis "Grounding
+// with Google Search" (GEMINI_IMAGE_SEARCH_API_KEY), falls gesetzt UND
+// DuckDuckGo nichts liefert — auf Nutzerwunsch bewusst NICHT die primäre
+// Quelle, da sie ein (kontingentiertes) Google-Konto voraussetzt, während
+// DuckDuckGo ohne Anmeldung auskommt. Findet keine der beiden Websuchen
+// etwas, fällt die Kette auf die bisherigen, engeren Quellen zurück:
+// Wikipedia-Portrait/Wikimedia Commons/Wikidata für Personen/Venues/
+// Ensembles/Werke, og:image der eigenen/Ticket-Seite bzw. das Venue-Foto
+// für Events.
 // mode="search" MIT sourceUrl: extrahiert nur das og:image der angegebenen
 // Seite (Nutzerwunsch: "man... schickt einen Link dazu, wo ein Bild sein
 // könnte und die KI das Bild heraussucht").
@@ -38,6 +43,7 @@ import { fetchWikipediaPortrait } from "../_shared/wikipediaPortrait.ts";
 import { searchCommonsImage } from "../_shared/wikimediaCommons.ts";
 import { searchWikidataImage } from "../_shared/wikidataImage.ts";
 import { searchViaGeminiGrounding } from "../_shared/geminiGroundedSearch.ts";
+import { searchDuckDuckGo } from "../_shared/duckDuckGoSearch.ts";
 import { ensureCoverImage, ensureMagickReady, decodeImage, type ImageOriginType } from "../_shared/imagePipeline.ts";
 import { checkImageUrl, isPublicImageUrl } from "../_shared/imageValidation.ts";
 import { USER_AGENT } from "../_shared/robots.ts";
@@ -174,6 +180,26 @@ async function searchForEntity(
   // trotzdem stehen, der Browser zeigt dann nur den direkten Hotlink.
   const preview = await downloadForPreview(result.imageUrl);
   if (preview) {
+    // Live beobachtet: ein Venue-Foto mit nur 225×225px (11,5 KB) wurde als
+    // "gefunden" angezeigt (im Browser hochskaliert, sah brauchbar aus),
+    // scheiterte dann aber beim Übernehmen an der 640×480-Mindestauflösung
+    // der Bildpipeline (ensureCoverImage/isAcceptableImageDimensions) —
+    // verwirrender Fehlschlag NACH der Vorschau statt vorher erkannt.
+    // Echte Dimensionen ohne vollen ImageMagick-Decode zu ermitteln würde
+    // dieselbe teure Initialisierung schon im Suchschritt fällig machen
+    // (siehe die frühere WORKER_RESOURCE_LIMIT-Untersuchung) — als
+    // günstiger Kompromiss: eine derart kleine Datei ist praktisch nie ein
+    // Foto ≥640×480 (selbst stark komprimiertes JPEG dieser Größe liegt
+    // deutlich über diesem Schwellenwert), daher schon hier als "nicht
+    // gefunden" behandeln statt einen zum Scheitern verurteilten Fund zu
+    // zeigen.
+    const MIN_PLAUSIBLE_PHOTO_BYTES = 20_000;
+    if (preview.bytes.byteLength < MIN_PLAUSIBLE_PHOTO_BYTES) {
+      return {
+        found: false,
+        error: `Gefundenes Bild ist zu klein (nur ${Math.round(preview.bytes.byteLength / 1024)} KB) — vermutlich ein Thumbnail unter der Mindestauflösung.`,
+      };
+    }
     result.imagePreviewBase64 = bytesToBase64(preview.bytes);
     result.imagePreviewMimeType = preview.mimeType;
   }
@@ -233,52 +259,87 @@ async function loadWorkComposerName(
 
 /** Breite KI-Websuche statt der bisher einzigen, engen Quellen (Wikipedia/
  * Commons/Wikidata — auf Nutzerfeedback: "wikipedia commons ist so
- * ungenau und hat oft keine bilder"). Nutzt dasselbe Gemini-"Grounding
- * with Google Search" wie schon die Website-URL-Recherche in
- * enrich-entity-images (GEMINI_SEARCH_API_KEY, eigenes Kontingent) — statt
- * nur eine Website-URL zu finden, wird hier direkt ein Bild GESUCHT: die
- * echten, von Google zitierten Quellen-URLs (Presse, Agentur-/Künstler-
- * seiten, Konzerthaus-Galerien, News-Artikel, ...) werden der Reihe nach
- * auf ein og:image geprüft, bis eins erreichbar ist. Deutlich breiter als
- * die kuratierten Wikimedia-Quellen, weil es das GESAMTE offene Web
- * einbezieht, nicht nur Artikel mit Wikipedia-/Wikidata-Eintrag — die
- * meisten Münchner Ensembles/Venues und viele (noch) lebende Musiker:innen
- * haben genau das nicht.
+ * ungenau und hat oft keine bilder"). Nutzt Geminis "Grounding with Google
+ * Search" — statt nur eine Website-URL zu finden (wie schon in
+ * enrich-entity-images), wird hier direkt ein Bild GESUCHT: die echten,
+ * von Google zitierten Quellen-URLs (Presse, Agentur-/Künstlerseiten,
+ * Konzerthaus-Galerien, News-Artikel, ...) werden der Reihe nach auf ein
+ * og:image geprüft, bis eins erreichbar ist. Deutlich breiter als die
+ * kuratierten Wikimedia-Quellen, weil es das GESAMTE offene Web einbezieht,
+ * nicht nur Artikel mit Wikipedia-/Wikidata-Eintrag — die meisten
+ * Münchner Ensembles/Venues und viele (noch) lebende Musiker:innen haben
+ * genau das nicht.
  *
- * null, wenn kein GEMINI_SEARCH_API_KEY gesetzt ist, die Suche fehlschlägt,
- * oder keine der zitierten Seiten ein nutzbares Bild liefert — Aufrufer
- * fallen dann auf die bisherige Wikimedia-Kaskade zurück (bleibt als
- * Sicherheitsnetz bestehen, gerade für gemeinfreie historische Komponisten-
- * Porträts oft die zuverlässigste Quelle). */
-async function searchImageViaGroundedWeb(
-  query: string,
+ * Eigenes Secret GEMINI_IMAGE_SEARCH_API_KEY statt des in
+ * enrich-entity-images für Website-URL-Discovery genutzten
+ * GEMINI_SEARCH_API_KEY — bewusst getrennt, sonst konkurriert die
+ * interaktive Bilder-Recherche mit dem alle 15 Minuten laufenden Cronjob
+ * um dasselbe Tageskontingent (live beobachtet: 429 RESOURCE_EXHAUSTED
+ * beim ersten Testaufruf, weil der Cronjob das gemeinsame Kontingent schon
+ * ausgeschöpft hatte). Gleiches Prinzip wie schon die Trennung von
+ * GEMINI_API_KEY vs. GEMINI_SEARCH_API_KEY, siehe geminiGroundedSearch.ts.
+ *
+ * null, wenn kein Key gesetzt ist, die Suche fehlschlägt, oder keine der
+ * zitierten Seiten ein nutzbares Bild liefert — Aufrufer fallen dann auf
+ * die bisherige Wikimedia-Kaskade zurück (bleibt als Sicherheitsnetz
+ * bestehen, gerade für gemeinfreie historische Komponisten-Porträts oft
+ * die zuverlässigste Quelle). */
+/** Probiert bis zu 4 Kandidaten-Seiten-URLs der Reihe nach auf ein
+ * erreichbares og:image, erste gewinnt — geteilte Auswertungslogik für
+ * beide Websuch-Quellen unten (bewusst mehrere statt nur die erste, da
+ * nicht jede zitierte Seite selbst ein Bild setzt, z.B. reine
+ * Textquellen/PDFs). */
+async function firstImageFromCandidates(
+  candidates: { url: string; title: string | null }[],
   sourceLabel: string,
 ): Promise<SearchResult | null> {
-  const apiKey = Deno.env.get("GEMINI_SEARCH_API_KEY");
-  if (!apiKey) return null;
-
-  const results = await searchViaGeminiGrounding(apiKey, query);
-  if (!results || results.length === 0) return null;
-
-  // Bis zu 4 der von Google tatsächlich zitierten Quellen probieren, erste
-  // mit einem erreichbaren og:image gewinnt — bewusst mehrere statt nur
-  // die erste, da nicht jede zitierte Seite selbst ein Bild setzt (z.B.
-  // reine Textquellen/PDFs).
-  for (const result of results.slice(0, 4)) {
-    if (!isPublicImageUrl(result.url)) continue;
-    const imageUrl = await extractOgImage(result.url);
+  for (const candidate of candidates.slice(0, 4)) {
+    if (!isPublicImageUrl(candidate.url)) continue;
+    const imageUrl = await extractOgImage(candidate.url);
     if (!imageUrl) continue;
     const { reachable } = await checkImageUrl(imageUrl);
     if (!reachable) continue;
     return {
       found: true,
       imageUrl,
-      sourcePageUrl: result.url,
-      sourceName: new URL(result.url).hostname,
-      matchReason: `KI-Websuche (${sourceLabel})${result.title ? ` — „${result.title}“` : ""}`,
+      sourcePageUrl: candidate.url,
+      sourceName: new URL(candidate.url).hostname,
+      matchReason: `${sourceLabel}${candidate.title ? ` — „${candidate.title}“` : ""}`,
     };
   }
   return null;
+}
+
+async function searchImageViaGroundedWeb(
+  query: string,
+  sourceLabel: string,
+): Promise<SearchResult | null> {
+  // DuckDuckGo zuerst — braucht kein Konto/API-Key/Kontingent (auf
+  // Nutzerwunsch: "brauchen wir hierfür echt ein google konto? geht das
+  // nicht auch mit scrapern"), im Gegensatz zu Gemini-Grounding sofort und
+  // ohne jede Voraussetzung nutzbar. War bisher nur ein selten wirksamer
+  // Notnagel für die reine URL-Suche (siehe enrich-entity-images), aber
+  // dieselbe Quelle funktioniert für die Bildersuche genauso gut/schlecht
+  // wie für die URL-Suche — hier als GLEICHWERTIGE erste Quelle, nicht nur
+  // Fallback.
+  const ddgResults = await searchDuckDuckGo(query, 4);
+  if (ddgResults && ddgResults.length > 0) {
+    const found = await firstImageFromCandidates(
+      ddgResults.map((r) => ({ url: r.url, title: null })),
+      `Websuche (${sourceLabel})`,
+    );
+    if (found) return found;
+  }
+
+  // Gemini-Grounding als optionale Ergänzung, NUR wenn ein eigener Key
+  // gesetzt ist (GEMINI_IMAGE_SEARCH_API_KEY, getrennt vom Cronjob-
+  // Kontingent, siehe Kommentar bei Deno.env.get unten) — bewusst NICHT
+  // Voraussetzung fürs Funktionieren dieser Funktion.
+  const apiKey = Deno.env.get("GEMINI_IMAGE_SEARCH_API_KEY");
+  if (!apiKey) return null;
+  const groundedResults = await searchViaGeminiGrounding(apiKey, query);
+  if (!groundedResults || groundedResults.length === 0) return null;
+  return firstImageFromCandidates(groundedResults, `KI-Websuche (${sourceLabel})`);
 }
 
 async function searchWithoutPreview(
