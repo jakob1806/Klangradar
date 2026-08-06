@@ -15,9 +15,16 @@
 // beim Commit immer false (ein Mensch hat es gerade live geprüft, anders
 // als beim automatischen Cron-Fund).
 //
-// mode="search" ohne sourceUrl: automatische Recherche nach Entitätstyp
-// (Wikipedia-Portrait für Personen, Wikimedia Commons für Venues/
-// Ensembles, og:image der eigenen/Ticket-Seite für Events).
+// mode="search" ohne sourceUrl: automatische Recherche nach Entitätstyp.
+// Erster Schritt ist bei Personen/Venues/Ensembles/Werken/Events (ohne
+// eigenes og:image) eine breite KI-Websuche über Geminis "Grounding with
+// Google Search" (searchImageViaGroundedWeb, GEMINI_SEARCH_API_KEY) — auf
+// Nutzerfeedback: "wikipedia commons ist so ungenau und hat oft keine
+// bilder", das ganze offene Web statt nur kuratierter Wikimedia-Quellen.
+// Findet die Websuche nichts, fällt die Kette auf die bisherigen, engeren
+// Quellen zurück: Wikipedia-Portrait/Wikimedia Commons/Wikidata für
+// Personen/Venues/Ensembles/Werke, og:image der eigenen/Ticket-Seite bzw.
+// das Venue-Foto für Events.
 // mode="search" MIT sourceUrl: extrahiert nur das og:image der angegebenen
 // Seite (Nutzerwunsch: "man... schickt einen Link dazu, wo ein Bild sein
 // könnte und die KI das Bild heraussucht").
@@ -30,8 +37,9 @@ import { extractOgImage } from "../_shared/ogImage.ts";
 import { fetchWikipediaPortrait } from "../_shared/wikipediaPortrait.ts";
 import { searchCommonsImage } from "../_shared/wikimediaCommons.ts";
 import { searchWikidataImage } from "../_shared/wikidataImage.ts";
+import { searchViaGeminiGrounding } from "../_shared/geminiGroundedSearch.ts";
 import { ensureCoverImage, ensureMagickReady, decodeImage, type ImageOriginType } from "../_shared/imagePipeline.ts";
-import { isPublicImageUrl } from "../_shared/imageValidation.ts";
+import { checkImageUrl, isPublicImageUrl } from "../_shared/imageValidation.ts";
 import { USER_AGENT } from "../_shared/robots.ts";
 
 type EntityType = "person" | "venue" | "ensemble" | "event" | "work" | "editorial_collection";
@@ -194,6 +202,85 @@ async function venuePhotoFallback(
   };
 }
 
+/** Venue-Name für eine bessere Websuche-Anfrage bei Events — null bei
+ * jedem Fehler/fehlendem Venue, dann läuft die Suche nur mit dem
+ * Event-Titel. */
+async function loadEventVenueName(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  eventId: string,
+): Promise<string | null> {
+  const { data: event } = await supabase.from("events").select("venue_id").eq("id", eventId).maybeSingle();
+  if (!event?.venue_id) return null;
+  const { data: venue } = await supabase.from("venues").select("name").eq("id", event.venue_id).maybeSingle();
+  return (venue?.name as string | undefined) ?? null;
+}
+
+/** Komponisten-Name für eine bessere Websuche-Anfrage bei Werken — reiner
+ * Werktitel ist oft zu mehrdeutig ("Symphonie Nr. 5"), mit Komponist
+ * deutlich treffsicherer. null bei jedem Fehler/fehlendem Komponisten. */
+async function loadWorkComposerName(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  workId: string,
+): Promise<string | null> {
+  const { data: work } = await supabase.from("works").select("composer:persons(full_name)").eq("id", workId)
+    .maybeSingle();
+  const composer = work?.composer as { full_name?: string } | { full_name?: string }[] | null;
+  if (!composer) return null;
+  return (Array.isArray(composer) ? composer[0]?.full_name : composer.full_name) ?? null;
+}
+
+/** Breite KI-Websuche statt der bisher einzigen, engen Quellen (Wikipedia/
+ * Commons/Wikidata — auf Nutzerfeedback: "wikipedia commons ist so
+ * ungenau und hat oft keine bilder"). Nutzt dasselbe Gemini-"Grounding
+ * with Google Search" wie schon die Website-URL-Recherche in
+ * enrich-entity-images (GEMINI_SEARCH_API_KEY, eigenes Kontingent) — statt
+ * nur eine Website-URL zu finden, wird hier direkt ein Bild GESUCHT: die
+ * echten, von Google zitierten Quellen-URLs (Presse, Agentur-/Künstler-
+ * seiten, Konzerthaus-Galerien, News-Artikel, ...) werden der Reihe nach
+ * auf ein og:image geprüft, bis eins erreichbar ist. Deutlich breiter als
+ * die kuratierten Wikimedia-Quellen, weil es das GESAMTE offene Web
+ * einbezieht, nicht nur Artikel mit Wikipedia-/Wikidata-Eintrag — die
+ * meisten Münchner Ensembles/Venues und viele (noch) lebende Musiker:innen
+ * haben genau das nicht.
+ *
+ * null, wenn kein GEMINI_SEARCH_API_KEY gesetzt ist, die Suche fehlschlägt,
+ * oder keine der zitierten Seiten ein nutzbares Bild liefert — Aufrufer
+ * fallen dann auf die bisherige Wikimedia-Kaskade zurück (bleibt als
+ * Sicherheitsnetz bestehen, gerade für gemeinfreie historische Komponisten-
+ * Porträts oft die zuverlässigste Quelle). */
+async function searchImageViaGroundedWeb(
+  query: string,
+  sourceLabel: string,
+): Promise<SearchResult | null> {
+  const apiKey = Deno.env.get("GEMINI_SEARCH_API_KEY");
+  if (!apiKey) return null;
+
+  const results = await searchViaGeminiGrounding(apiKey, query);
+  if (!results || results.length === 0) return null;
+
+  // Bis zu 4 der von Google tatsächlich zitierten Quellen probieren, erste
+  // mit einem erreichbaren og:image gewinnt — bewusst mehrere statt nur
+  // die erste, da nicht jede zitierte Seite selbst ein Bild setzt (z.B.
+  // reine Textquellen/PDFs).
+  for (const result of results.slice(0, 4)) {
+    if (!isPublicImageUrl(result.url)) continue;
+    const imageUrl = await extractOgImage(result.url);
+    if (!imageUrl) continue;
+    const { reachable } = await checkImageUrl(imageUrl);
+    if (!reachable) continue;
+    return {
+      found: true,
+      imageUrl,
+      sourcePageUrl: result.url,
+      sourceName: new URL(result.url).hostname,
+      matchReason: `KI-Websuche (${sourceLabel})${result.title ? ` — „${result.title}“` : ""}`,
+    };
+  }
+  return null;
+}
+
 async function searchWithoutPreview(
   // deno-lint-ignore no-explicit-any
   supabase: any,
@@ -220,6 +307,16 @@ async function searchWithoutPreview(
 
   switch (entityType) {
     case "person": {
+      // Breite KI-Websuche zuerst (Nutzerfeedback, siehe Kommentar bei
+      // searchImageViaGroundedWeb) — findet auch Musiker:innen ohne
+      // Wikipedia-/Wikidata-Eintrag (Agentur-/Orchester-Bio-Seiten, Presse-
+      // fotos, Konzertankündigungen mit Porträt).
+      const grounded = await searchImageViaGroundedWeb(
+        `${entity.name} Foto Porträt Musiker Klassik`,
+        "Presse/Künstlerseite",
+      );
+      if (grounded) return grounded;
+
       const portrait = await fetchWikipediaPortrait(entity.name);
       if (portrait) {
         return {
@@ -231,14 +328,14 @@ async function searchWithoutPreview(
           suggestedLicenseStatus: "confirmed_licensed",
         };
       }
-      // Wikidata als dritte, unabhängige Quelle (Nutzerfeedback: "es soll
-      // nicht immer nur bei wikipedia oder commons gesucht werden") —
-      // manche Personen haben kein eigenständiges Wikipedia-Infobox-Bild,
-      // aber ein strukturiert verknüpftes Wikidata-P18-Bild (über Commons
-      // lizenzgeprüft, siehe searchWikidataImage). Bereits produktiv im
-      // Cron-Pfad (enrich-entity-images) im Einsatz, hier bisher gefehlt.
+      // Wikidata als weitere, unabhängige Quelle — manche Personen haben
+      // kein eigenständiges Wikipedia-Infobox-Bild, aber ein strukturiert
+      // verknüpftes Wikidata-P18-Bild (über Commons lizenzgeprüft, siehe
+      // searchWikidataImage).
       const wikidata = await searchWikidataImage(entity.name);
-      if (!wikidata) return { found: false, error: "Weder Wikipedia noch Wikidata liefern ein Bild." };
+      if (!wikidata) {
+        return { found: false, error: "Weder Websuche, Wikipedia noch Wikidata liefern ein Bild." };
+      }
       return {
         found: true,
         imageUrl: wikidata.url,
@@ -250,6 +347,12 @@ async function searchWithoutPreview(
     }
     case "venue":
     case "ensemble": {
+      const grounded = await searchImageViaGroundedWeb(
+        `${entity.name} München Foto`,
+        entityType === "venue" ? "Veranstaltungsort-Presse" : "Ensemble-Presse",
+      );
+      if (grounded) return grounded;
+
       const candidate = await searchCommonsImage(entity.name);
       if (candidate) {
         return {
@@ -299,6 +402,14 @@ async function searchWithoutPreview(
           matchReason: "og:image der Veranstaltungsseite",
         };
       }
+
+      const venueName = await loadEventVenueName(supabase, entityId);
+      const grounded = await searchImageViaGroundedWeb(
+        `${entity.name}${venueName ? ` ${venueName}` : ""} München Konzert`,
+        "Presse/Ankündigung",
+      );
+      if (grounded) return grounded;
+
       // Fallback auf das Venue-Foto (Nutzerfeedback: mehr als nur eine
       // Quelle probieren) — nur wenn das Venue selbst schon ein
       // freigegebenes Bild hat; klar als Venue-, nicht Event-Foto
@@ -307,14 +418,19 @@ async function searchWithoutPreview(
       if (venueFallback) return venueFallback;
       return {
         found: false,
-        error: pageUrl
-          ? "Weder auf der Veranstaltungsseite noch beim Veranstaltungsort wurde ein Bild gefunden."
-          : "Weder Website- noch Ticket-URL hinterlegt, und der Veranstaltungsort hat kein Bild.",
+        error: "Weder Veranstaltungsseite, Websuche noch der Veranstaltungsort liefern ein Bild.",
       };
     }
     case "work": {
+      const composerName = await loadWorkComposerName(supabase, entityId);
+      const grounded = await searchImageViaGroundedWeb(
+        `${entity.name}${composerName ? ` ${composerName}` : ""} Aufführung Foto`,
+        "Aufführung/Programmheft",
+      );
+      if (grounded) return grounded;
+
       // Werke haben oft keinen eigenständigen, exakt betitelten Wikipedia-
-      // Artikel (viele Titel sind mehrdeutig/uneindeutig) — Wikipedia zuerst
+      // Artikel (viele Titel sind mehrdeutig/uneindeutig) — Wikipedia
       // (funktioniert gut für bekannte Einzelwerke mit eigenem Artikel,
       // z. B. Opern/Oratorien), sonst Commons-Volltextsuche als breiterer
       // Fallback (Aufführungsfotos, Partitur-/Notenblatt-Scans, Plakate).
@@ -342,7 +458,7 @@ async function searchWithoutPreview(
       }
       const wikidata = await searchWikidataImage(entity.name);
       if (!wikidata) {
-        return { found: false, error: "Weder Wikipedia, Wikimedia Commons noch Wikidata liefern ein Bild." };
+        return { found: false, error: "Weder Websuche, Wikipedia, Wikimedia Commons noch Wikidata liefern ein Bild." };
       }
       return {
         found: true,
