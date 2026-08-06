@@ -2,11 +2,18 @@
 
 import { revalidatePath } from "next/cache";
 
-export type ImageEntityType = "person" | "venue" | "ensemble" | "event";
+export type ImageEntityType = "person" | "venue" | "ensemble" | "event" | "work" | "editorial_collection";
 
 export interface ImageSearchResult {
   found: boolean;
   imageUrl?: string;
+  /** Server-seitig heruntergeladene Vorschau-Kopie (ohne "data:...;base64,"
+   * Präfix) — siehe research-entity-image/index.ts downloadForPreview().
+   * Bevorzugt fürs <img>-Preview nutzen statt imageUrl direkt zu hotlinken:
+   * einige Quellseiten blocken das per Referer-Check, die Vorschau blieb
+   * dann leer, obwohl die Recherche selbst erfolgreich war. */
+  imagePreviewBase64?: string;
+  imagePreviewMimeType?: string;
   sourcePageUrl?: string;
   sourceName?: string;
   matchReason?: string;

@@ -5,13 +5,19 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { logSystemAction } from "@/lib/system-log";
 
+// cover_image_url wird bewusst NICHT hier gelesen/geschrieben — das Titelbild
+// läuft jetzt über die Bilder-Pipeline (siehe cover-image-picker.tsx +
+// research-entity-image/index.ts, das die Spalte direkt setzt). Würde
+// dieses Formular die Spalte weiter mitschreiben, würde JEDES Speichern
+// (auch nur Titel/Untertitel ändern) das per Recherche/Upload gesetzte
+// Titelbild wieder auf null zurücksetzen, weil das Feld nicht mehr im
+// Formular existiert.
 function readCollectionFields(formData: FormData) {
   return {
     title: String(formData.get("title") ?? "").trim(),
     slug: String(formData.get("slug") ?? "").trim(),
     subtitle: String(formData.get("subtitle") ?? "").trim() || null,
     description_de: String(formData.get("description_de") ?? "").trim() || null,
-    cover_image_url: String(formData.get("cover_image_url") ?? "").trim() || null,
     is_published: formData.get("is_published") === "on",
     sort_order: Number(formData.get("sort_order") ?? 0) || 0,
   };

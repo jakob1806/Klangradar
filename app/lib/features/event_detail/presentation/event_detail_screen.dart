@@ -79,7 +79,7 @@ final _eventProvider = FutureProvider.family<Map<String, dynamic>?, String>((
         organizers(name),
         event_genres(genres(id, slug, label_de)),
         event_works(position, after_intermission, works(id, title, catalog_number, key_signature, instrumentation, movements, composer:persons(slug, full_name))),
-        event_participants(role, persons(slug, full_name), ensembles(slug, name))
+        event_participants(role, persons(id, slug, full_name), ensembles(id, slug, name))
       ''')
       .eq('slug', slug)
       .neq('status', 'draft')
@@ -276,6 +276,36 @@ class EventDetailScreen extends ConsumerWidget {
               originId: event['id'] as String,
             )),
           );
+          // Nutzerwunsch: wenn eine Veranstaltung KEIN eigenes Bild hat,
+          // aber nur EIN(E) Mitwirkende(r) (Person/Ensemble, Komponisten
+          // zählen nicht als "beteiligt vor Ort") oder — falls das auch
+          // nicht eindeutig ist — nur EIN Werk im Programm steht, wird
+          // deren dauerhaft gepflegtes Bild/Slideshow gezeigt statt des
+          // generischen Genre-Platzhalters. Wichtig: NUR bei genau einem
+          // eindeutigen Treffer — bei mehreren Mitwirkenden/Werken wäre es
+          // irreführend, das Bild von nur einem/einer davon zu zeigen.
+          final performerIds = <String>{};
+          for (final p in participants) {
+            if (p['role'] == 'komponist') continue;
+            final personId = p['persons']?['id'] as String?;
+            final ensembleId = p['ensembles']?['id'] as String?;
+            if (personId != null) performerIds.add('person:$personId');
+            if (ensembleId != null) performerIds.add('ensemble:$ensembleId');
+          }
+          final workIds = works
+              .map((w) => w['works']?['id'] as String?)
+              .whereType<String>()
+              .toSet();
+          ({String originType, String originId})? fallbackGalleryKey;
+          if (performerIds.length == 1) {
+            final parts = performerIds.first.split(':');
+            fallbackGalleryKey = (originType: parts[0], originId: parts[1]);
+          } else if (workIds.length == 1) {
+            fallbackGalleryKey = (originType: 'work', originId: workIds.first);
+          }
+          final fallbackGallery = fallbackGalleryKey != null
+              ? ref.watch(entityGalleryProvider(fallbackGalleryKey))
+              : null;
 
           return CustomScrollView(
             slivers: [
@@ -330,23 +360,31 @@ class EventDetailScreen extends ConsumerWidget {
                   background: Stack(
                     fit: StackFit.expand,
                     children: [
-                      gallery.maybeWhen(
-                        data: (images) => images.isNotEmpty
-                            ? EntityPhotoGallery(
-                                images: images,
-                                fallbackGenre: primaryGenre,
-                                showGradient: false,
-                              )
-                            : DetailHeroBackground(
-                                photoUrl: photoUrl,
-                                fallbackGenre: primaryGenre,
-                                showGradient: false,
-                              ),
-                        orElse: () => DetailHeroBackground(
-                          photoUrl: photoUrl,
-                          fallbackGenre: primaryGenre,
-                          showGradient: false,
-                        ),
+                      Builder(
+                        builder: (context) {
+                          final ownImages = gallery.valueOrNull ?? const [];
+                          if (ownImages.isNotEmpty) {
+                            return EntityPhotoGallery(
+                              images: ownImages,
+                              fallbackGenre: primaryGenre,
+                              showGradient: false,
+                            );
+                          }
+                          final fallbackImages =
+                              fallbackGallery?.valueOrNull ?? const [];
+                          if (fallbackImages.isNotEmpty) {
+                            return EntityPhotoGallery(
+                              images: fallbackImages,
+                              fallbackGenre: primaryGenre,
+                              showGradient: false,
+                            );
+                          }
+                          return DetailHeroBackground(
+                            photoUrl: photoUrl,
+                            fallbackGenre: primaryGenre,
+                            showGradient: false,
+                          );
+                        },
                       ),
                       Container(
                         decoration: const BoxDecoration(
@@ -1000,77 +1038,76 @@ class _ProgramRow extends StatelessWidget {
                 ),
               ),
             ),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (w['composer']?['full_name'] != null)
-                Expanded(
-                  flex: 2,
-                  child: GestureDetector(
-                    onTap: w['composer']?['slug'] != null
-                        ? () => context.push('/person/${w['composer']['slug']}')
-                        : null,
-                    child: Text(
-                      w['composer']['full_name'],
-                      style: TextStyle(
-                        color: w['composer']?['slug'] != null
-                            ? colors.accentPrimary
-                            : colors.textSecondary,
-                        fontSize: 12.5,
-                      ),
-                    ),
-                  ),
-                ),
-              Expanded(
-                flex: 3,
-                child: GestureDetector(
-                  // Zum Programm-Explorer (Phase C.1) — alle Aufführungen
-                  // dieses Werks, nicht nur diese eine.
-                  onTap: w['id'] != null
-                      ? () => context.push('/work/${w['id']}')
-                      : null,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        w['title'] ?? '',
-                        style: TextStyle(
-                          color: colors.textPrimary,
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w600,
-                          decoration: TextDecoration.underline,
-                          decorationColor: colors.textTertiary,
-                        ),
-                      ),
-                      // Opus-/Werkverzeichnisnummer + Tonart nur, wenn
-                      // recherchiert (siehe enrich-event-references) — rein
-                      // optional, keine leere Zeile wenn nicht vorhanden.
-                      if ((w['catalog_number'] as String?)?.isNotEmpty ==
-                              true ||
-                          (w['key_signature'] as String?)?.isNotEmpty == true)
-                        Text(
-                          [w['catalog_number'], w['key_signature']]
-                              .whereType<String>()
-                              .where((s) => s.isNotEmpty)
-                              .join(' · '),
-                          style: TextStyle(
-                            color: colors.textTertiary,
-                            fontSize: 11,
-                          ),
-                        ),
-                      // Instrumentierung (SATB/Bläserbesetzung/etc.) und die
-                      // Satzfolge (movements) werden bewusst NICHT angezeigt —
-                      // auf Nutzerwunsch: reines Rohbesetzungs-/Werkanalyse-
-                      // Detail ohne Mehrwert für Konzertbesucher, nicht das,
-                      // was unter "Programm" erwartet wird. Die Felder werden
-                      // weiterhin von enrich-work-profile befüllt (siehe
-                      // dort), nur die Anzeige hier wurde entfernt.
-                    ],
+          // Untereinander statt nebeneinander (Nutzerfeedback: die
+          // Zwei-Spalten-Anordnung wirkte bei längeren Komponisten-/
+          // Werktiteln chaotisch/verrutscht) — folgt der aus gedruckten
+          // Konzertprogrammen gewohnten Lesereihenfolge: Komponist zuerst,
+          // Werktitel darunter, Zusatzinfos (Opus/Tonart) ganz unten klein.
+          if (w['composer']?['full_name'] != null)
+            Semantics(
+              button: w['composer']?['slug'] != null,
+              link: w['composer']?['slug'] != null,
+              child: GestureDetector(
+                onTap: w['composer']?['slug'] != null
+                    ? () => context.push('/person/${w['composer']['slug']}')
+                    : null,
+                child: Text(
+                  w['composer']['full_name'],
+                  style: TextStyle(
+                    color: w['composer']?['slug'] != null
+                        ? colors.accentPrimary
+                        : colors.textSecondary,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
-            ],
+            ),
+          Semantics(
+            button: w['id'] != null,
+            link: w['id'] != null,
+            child: GestureDetector(
+              // Zum Programm-Explorer (Phase C.1) — alle Aufführungen
+              // dieses Werks, nicht nur diese eine.
+              onTap: w['id'] != null
+                  ? () => context.push('/work/${w['id']}')
+                  : null,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 1),
+                child: Text(
+                  w['title'] ?? '',
+                  style: TextStyle(
+                    color: colors.textPrimary,
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                    decoration: TextDecoration.underline,
+                    decorationColor: colors.textTertiary,
+                  ),
+                ),
+              ),
+            ),
           ),
+          // Opus-/Werkverzeichnisnummer + Tonart nur, wenn recherchiert
+          // (siehe enrich-event-references) — rein optional, keine leere
+          // Zeile wenn nicht vorhanden.
+          if ((w['catalog_number'] as String?)?.isNotEmpty == true ||
+              (w['key_signature'] as String?)?.isNotEmpty == true)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                [
+                  w['catalog_number'],
+                  w['key_signature'],
+                ].whereType<String>().where((s) => s.isNotEmpty).join(' · '),
+                style: TextStyle(color: colors.textTertiary, fontSize: 11),
+              ),
+            ),
+          // Instrumentierung (SATB/Bläserbesetzung/etc.) und die Satzfolge
+          // (movements) werden bewusst NICHT angezeigt — auf Nutzerwunsch:
+          // reines Rohbesetzungs-/Werkanalyse-Detail ohne Mehrwert für
+          // Konzertbesucher, nicht das, was unter "Programm" erwartet wird.
+          // Die Felder werden weiterhin von enrich-work-profile befüllt
+          // (siehe dort), nur die Anzeige hier wurde entfernt.
         ],
       ),
     );

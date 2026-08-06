@@ -30,25 +30,43 @@ import { extractOgImage } from "../_shared/ogImage.ts";
 import { fetchWikipediaPortrait } from "../_shared/wikipediaPortrait.ts";
 import { searchCommonsImage } from "../_shared/wikimediaCommons.ts";
 import { ensureCoverImage, ensureMagickReady, decodeImage, type ImageOriginType } from "../_shared/imagePipeline.ts";
+import { isPublicImageUrl } from "../_shared/imageValidation.ts";
+import { USER_AGENT } from "../_shared/robots.ts";
 
-type EntityType = "person" | "venue" | "ensemble" | "event";
+type EntityType = "person" | "venue" | "ensemble" | "event" | "work" | "editorial_collection";
 
 const TABLE_FOR_TYPE: Record<EntityType, string> = {
   person: "persons",
   venue: "venues",
   ensemble: "ensembles",
   event: "events",
+  work: "works",
+  editorial_collection: "editorial_collections",
 };
 const NAME_COLUMN_FOR_TYPE: Record<EntityType, string> = {
   person: "full_name",
   venue: "name",
   ensemble: "name",
   event: "title",
+  work: "title",
+  editorial_collection: "title",
 };
 
 interface SearchResult {
   found: boolean;
   imageUrl?: string;
+  /** Base64 (ohne "data:...;base64,"-Präfix) einer server-seitig
+   * heruntergeladenen Vorschau-Kopie von imageUrl — siehe
+   * downloadForPreview(). Der Browser rendert bevorzugt diese Kopie statt
+   * imageUrl direkt zu hotlinken, weil viele Quellseiten Hotlinking per
+   * Referer-Check blocken (Bild im <img>-Tag lud dann einfach nicht,
+   * obwohl die Recherche selbst erfolgreich war — Nutzerfeedback: "Bild
+   * aus dem angegebenen Link funktioniert auch nicht"). Rein fürs Preview,
+   * der spätere Commit-Schritt lädt weiterhin frisch von imageUrl (siehe
+   * ensureCoverImage) — unverändertes, bereits funktionierendes Verhalten.
+   */
+  imagePreviewBase64?: string;
+  imagePreviewMimeType?: string;
   sourcePageUrl?: string;
   sourceName?: string;
   matchReason?: string;
@@ -56,15 +74,66 @@ interface SearchResult {
   error?: string;
 }
 
+const PREVIEW_MAX_BYTES = 8_000_000;
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const chunkSize = 8192;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+
+/** Best-effort Server-seitiger Download für die Browser-Vorschau — mit
+ * echtem User-Agent statt Browser-Referer, dadurch von vielen
+ * Hotlink-Schutz-Regeln nicht betroffen (dieselbe Fetch-Strategie, die
+ * checkImageUrl/downloadImage in imagePipeline.ts für den eigentlichen
+ * Commit schon nutzen). Gibt null bei jedem Fehler zurück, nie eine
+ * Exception — Aufrufer fällt dann auf den direkten Hotlink zurück. */
+async function downloadForPreview(url: string): Promise<{ bytes: Uint8Array; mimeType: string } | null> {
+  if (!isPublicImageUrl(url)) return null;
+  try {
+    const res = await fetch(url, { headers: { "User-Agent": USER_AGENT } });
+    if (!res.ok || !res.body) return null;
+    const contentType = res.headers.get("content-type")?.split(";")[0].toLowerCase();
+    if (!contentType?.startsWith("image/")) return null;
+    const contentLength = res.headers.get("content-length");
+    if (contentLength && Number(contentLength) > PREVIEW_MAX_BYTES) {
+      await res.body.cancel().catch(() => {});
+      return null;
+    }
+    const buf = new Uint8Array(await res.arrayBuffer());
+    if (buf.byteLength > PREVIEW_MAX_BYTES) return null;
+    return { bytes: buf, mimeType: contentType };
+  } catch {
+    return null;
+  }
+}
+
+// Nicht jede Tabelle hat eine website_url-Spalte (works/editorial_collections
+// nicht) — nur für die Typen abfragen, die sie wirklich haben, sonst wirft
+// PostgREST einen "column does not exist"-Fehler.
+const HAS_WEBSITE_URL: Record<EntityType, boolean> = {
+  person: true,
+  venue: true,
+  ensemble: true,
+  event: true,
+  work: false,
+  editorial_collection: false,
+};
+
 async function loadEntityName(
   // deno-lint-ignore no-explicit-any
   supabase: any,
   entityType: EntityType,
   entityId: string,
 ): Promise<{ name: string; websiteUrl: string | null; ticketUrl: string | null } | null> {
-  const columns = entityType === "event"
-    ? "title, website_url, ticket_url"
-    : `${NAME_COLUMN_FOR_TYPE[entityType]}, website_url`;
+  const columns = [
+    NAME_COLUMN_FOR_TYPE[entityType],
+    ...(HAS_WEBSITE_URL[entityType] ? ["website_url"] : []),
+    ...(entityType === "event" ? ["ticket_url"] : []),
+  ].join(", ");
   const { data } = await supabase
     .from(TABLE_FOR_TYPE[entityType])
     .select(columns)
@@ -88,6 +157,25 @@ async function searchForEntity(
   const entity = await loadEntityName(supabase, entityType, entityId);
   if (!entity) return { found: false, error: "Eintrag nicht gefunden." };
 
+  const result = await searchWithoutPreview(entity, entityType, sourceUrlOverride);
+  if (!result.found || !result.imageUrl) return result;
+
+  // Server-seitig heruntergeladene Vorschau-Kopie ergänzen (siehe
+  // downloadForPreview()) — best effort, ein Fehlschlag hier lässt den Fund
+  // trotzdem stehen, der Browser zeigt dann nur den direkten Hotlink.
+  const preview = await downloadForPreview(result.imageUrl);
+  if (preview) {
+    result.imagePreviewBase64 = bytesToBase64(preview.bytes);
+    result.imagePreviewMimeType = preview.mimeType;
+  }
+  return result;
+}
+
+async function searchWithoutPreview(
+  entity: { name: string; websiteUrl: string | null; ticketUrl: string | null },
+  entityType: EntityType,
+  sourceUrlOverride: string | undefined,
+): Promise<SearchResult> {
   // Admin hat einen konkreten Link gegeben — nur DIESE Seite auswerten,
   // keine eigenständige Recherche.
   if (sourceUrlOverride) {
@@ -142,6 +230,42 @@ async function searchForEntity(
         sourceName: new URL(pageUrl).hostname,
         matchReason: "og:image der Veranstaltungsseite",
       };
+    }
+    case "work": {
+      // Werke haben oft keinen eigenständigen, exakt betitelten Wikipedia-
+      // Artikel (viele Titel sind mehrdeutig/uneindeutig) — Wikipedia zuerst
+      // (funktioniert gut für bekannte Einzelwerke mit eigenem Artikel,
+      // z. B. Opern/Oratorien), sonst Commons-Volltextsuche als breiterer
+      // Fallback (Aufführungsfotos, Partitur-/Notenblatt-Scans, Plakate).
+      const portrait = await fetchWikipediaPortrait(entity.name);
+      if (portrait) {
+        return {
+          found: true,
+          imageUrl: portrait.imageUrl,
+          sourcePageUrl: portrait.pageUrl,
+          sourceName: "Wikipedia",
+          matchReason: portrait.description ?? "Wikipedia-Infobox-Bild",
+          suggestedLicenseStatus: "confirmed_licensed",
+        };
+      }
+      const candidate = await searchCommonsImage(entity.name);
+      if (!candidate) {
+        return { found: false, error: "Kein passendes Bild auf Wikipedia/Wikimedia Commons gefunden." };
+      }
+      return {
+        found: true,
+        imageUrl: candidate.url,
+        sourcePageUrl: candidate.pageUrl,
+        sourceName: "Wikimedia Commons",
+        matchReason: `Lizenz: ${candidate.license}${candidate.artist ? ` · ${candidate.artist}` : ""}`,
+        suggestedLicenseStatus: "confirmed_free",
+      };
+    }
+    case "editorial_collection": {
+      // Eine redaktionelle Sammlung ("Höhepunkte der Woche") ist kein
+      // öffentlich bekanntes, recherchierbares Objekt — keine automatische
+      // KI-Suche, nur Link (sourceUrlOverride, siehe oben) oder Upload.
+      return { found: false, error: "Kein automatischer Bildvorschlag für Sammlungen — Link angeben oder Datei hochladen." };
     }
   }
 }
@@ -258,6 +382,22 @@ Deno.serve(async (req) => {
         { status: 422 },
       );
     }
+
+    // editorial_collections.cover_image_url ist (anders als bei Personen/
+    // Venues/Ensembles/Events, die über die images-Tabelle/entityGallery
+    // in der App gelesen werden) noch eine direkte URL-Spalte — dieselbe
+    // öffentliche Storage-URL hier zusätzlich zurückschreiben, statt die
+    // Flutter-Seite zusätzlich umzustellen (Nutzerwunsch war nur: Titelbild
+    // soll über dieselbe recherchierte/hochgeladene Pipeline laufen statt
+    // eines von Hand eingetippten Links).
+    if (entityType === "editorial_collection") {
+      const { data: image } = await supabase.from("images").select("storage_path").eq("id", imageId).maybeSingle();
+      if (image?.storage_path) {
+        const { data: publicUrlData } = supabase.storage.from("ingested-images").getPublicUrl(image.storage_path);
+        await supabase.from("editorial_collections").update({ cover_image_url: publicUrlData.publicUrl }).eq("id", entityId);
+      }
+    }
+
     return new Response(JSON.stringify({ committed: true, imageId }));
   }
 

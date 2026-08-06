@@ -25,10 +25,18 @@ final _collectionProvider =
           .eq('collection_id', collection['id'])
           .order('position', ascending: true);
 
+      final now = DateTime.now();
+      // Vergangene Veranstaltungen bleiben in der Admin-Zuordnung bestehen
+      // (Redaktion kann sie dort weiter verwalten/entfernen), fallen aber
+      // aus der App-Anzeige raus — eine "Höhepunkte der Woche"-Sammlung
+      // soll nicht von Hand aktuell gehalten werden müssen (Nutzerwunsch).
       final events = (rows as List)
           .map((r) => r['events'] as Map<String, dynamic>?)
           .whereType<Map<String, dynamic>>()
           .map(HomeEventItem.fromRow)
+          .where(
+            (e) => e.startDateTime == null || e.startDateTime!.isAfter(now),
+          )
           .toList();
 
       return {'collection': collection, 'events': events};
