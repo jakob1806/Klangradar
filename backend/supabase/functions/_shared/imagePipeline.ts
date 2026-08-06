@@ -159,17 +159,95 @@ async function ensureCoverImageInner(
   if (!bytes) return null;
   const contentHash = await sha256(bytes);
 
+  // Schon eine Zeile für GENAU dieses Origin mit exakt diesem Bildinhalt
+  // vorhanden (nur eine andere source_url, z.B. weil eine Quelle bei jedem
+  // Abruf einen neuen Cache-Busting-Dateinamen für dasselbe Bild liefert)?
+  // Dann NICHTS Neues anlegen — live beobachtet: eine oft re-ingestete,
+  // authoritative Quelle (raw.imageUrl direkt aus dem Feed, siehe
+  // ingest-source/write.ts attachCoverImage) erzeugte bei jedem Lauf eine
+  // weitere needs_review-Zeile mit identischem Inhalt für dasselbe Event,
+  // weil der exakte-source_url-Vergleich oben (existingByUrl) die
+  // geänderte URL nicht traf. Mehrere fast identische Karten in der
+  // /media-Review-Queue für ein einziges Event waren die Folge.
+  const { data: existingForOrigin } = await supabase
+    .from("images")
+    .select("id, storage_path, thumbnail_path")
+    .eq("origin_type", originType)
+    .eq("origin_id", originId)
+    .eq("content_hash", contentHash)
+    .not("storage_path", "is", null)
+    .limit(1)
+    .maybeSingle();
+  if (existingForOrigin?.storage_path) {
+    if (!existingForOrigin.thumbnail_path) {
+      // Gleiche Selbstheilung wie im Cross-Origin-Dedupe-Pfad unten — die
+      // Bytes liegen hier schon vor, kein zusätzlicher Download nötig.
+      await ensureMagickReady();
+      const decoded = decodeImage(bytes);
+      if (decoded) {
+        const backfillPath = `${originType}/${crypto.randomUUID()}-thumb.webp`;
+        const { error: backfillError } = await supabase.storage
+          .from(BUCKET)
+          .upload(backfillPath, decoded.thumbnailBytes, {
+            contentType: "image/webp",
+            upsert: false,
+          });
+        if (!backfillError) {
+          await supabase.from("images").update({ thumbnail_path: backfillPath }).eq(
+            "id",
+            existingForOrigin.id,
+          );
+        }
+      }
+    }
+    return existingForOrigin.id;
+  }
+
   const { data: existingByContentHash } = await supabase
     .from("images").select(
       "id, storage_path, thumbnail_path, width, height, mime_type, phash",
     ).eq("content_hash", contentHash)
     .not("storage_path", "is", null).limit(1).maybeSingle();
   if (existingByContentHash) {
+    // Selbstheilung: wenn die Ursprungszeile mal ohne Thumbnail gelandet ist
+    // (thumbError-Fall weiter unten — Hauptbild-Upload lief durch, nur die
+    // Thumbnail-Generierung schlug fehl), würde dieser Pfad das kaputte
+    // thumbnail_path=null sonst auf JEDE künftige Wiederverwendung desselben
+    // Bildinhalts weitervererben (live beobachtet: dieselbe og:image-URL
+    // wurde bei jedem Cron-Lauf erneut gefunden, jedes Mal eine neue
+    // needs_review-Zeile mit demselben kaputten null-Thumbnail — mehrere
+    // identische, alle im Review-Queue-Grid als kaputtes Bild-Icon
+    // sichtbare Karten für dasselbe Event). Die Rohbytes liegen hier noch
+    // vor (oben heruntergeladen) — Thumbnail einmalig nachträglich bauen
+    // und auf der Ursprungszeile UND der neuen Zeile hinterlegen, statt den
+    // Fehler stumm weiterzureichen.
+    let thumbnailPath = existingByContentHash.thumbnail_path;
+    if (!thumbnailPath) {
+      await ensureMagickReady();
+      const decoded = decodeImage(bytes);
+      if (decoded) {
+        const backfillPath = `${originType}/${crypto.randomUUID()}-thumb.webp`;
+        const { error: backfillError } = await supabase.storage
+          .from(BUCKET)
+          .upload(backfillPath, decoded.thumbnailBytes, {
+            contentType: "image/webp",
+            upsert: false,
+          });
+        if (!backfillError) {
+          thumbnailPath = backfillPath;
+          await supabase.from("images").update({ thumbnail_path: backfillPath }).eq(
+            "id",
+            existingByContentHash.id,
+          );
+        }
+      }
+    }
+
     // Derselbe Blob darf wiederverwendet werden, die Provenienz-Zeile aber
     // nicht: origin_type/origin_id gehören immer zum aktuellen Datensatz.
     const { data: linked } = await supabase.from("images").insert({
       storage_path: existingByContentHash.storage_path,
-      thumbnail_path: existingByContentHash.thumbnail_path,
+      thumbnail_path: thumbnailPath,
       width: existingByContentHash.width,
       height: existingByContentHash.height,
       mime_type: existingByContentHash.mime_type,

@@ -48,6 +48,7 @@ interface ImageRow {
   match_reason: string | null;
   warnings: string[];
   thumbnail_path: string | null;
+  storage_path: string | null;
   imported_at: string;
 }
 
@@ -59,21 +60,29 @@ function formatDate(iso: string) {
  * rohen externen Hotlinks — bisher rendere diese Seite ausgerechnet in der
  * Review-Queue selbst denselben Hotlink-Fragilitätsklasse-Fehler (429 bei
  * Wikimedia-Last o.ä.), den die eigentliche Pipeline längst durch
- * Herunterladen/Storage vermeidet. Fällt auf source_url zurück, wenn (noch)
- * kein thumbnail_path existiert (z.B. ältere, nie verarbeitete Zeilen). */
+ * Herunterladen/Storage vermeidet.
+ *
+ * Reihenfolge: thumbnail_path (klein, schnell) -> storage_path (unser
+ * eigenes Vollbild — greift, wenn NUR die Thumbnail-Generierung fehlschlug,
+ * das Hauptbild aber im Storage liegt; kam bei mehreren og:image-Funden
+ * live vor, siehe pHash-Dedupe-Pfad in ensureCoverImageInner, der
+ * thumbnail_path der Ursprungszeile 1:1 mitkopiert, auch wenn der dort
+ * null war) -> source_url als letzter, unzuverlässigster Rückfall (z.B.
+ * ältere, nie verarbeitete Zeilen ganz ohne Storage-Kopie). */
 function thumbnailSrc(
   supabase: Awaited<ReturnType<typeof createClient>>,
-  image: Pick<ImageRow, "thumbnail_path" | "source_url">,
+  image: Pick<ImageRow, "thumbnail_path" | "storage_path" | "source_url">,
 ): string {
-  if (!image.thumbnail_path) return image.source_url;
-  return supabase.storage.from("ingested-images").getPublicUrl(image.thumbnail_path).data.publicUrl;
+  const path = image.thumbnail_path ?? image.storage_path;
+  if (!path) return image.source_url;
+  return supabase.storage.from("ingested-images").getPublicUrl(path).data.publicUrl;
 }
 
 export default async function MediaPage() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("images")
-    .select("id, source_url, origin_type, origin_id, photographer, copyright_notice, license_notes, imported_at, source_page_url, source_name, credits, license_name, license_url, license_status, confidence_score, match_reason, warnings, thumbnail_path")
+    .select("id, source_url, origin_type, origin_id, photographer, copyright_notice, license_notes, imported_at, source_page_url, source_name, credits, license_name, license_url, license_status, confidence_score, match_reason, warnings, thumbnail_path, storage_path")
     .eq("needs_review", true)
     .order("imported_at", { ascending: false })
     .returns<ImageRow[]>();

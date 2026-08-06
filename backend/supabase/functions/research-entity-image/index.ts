@@ -29,6 +29,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { extractOgImage } from "../_shared/ogImage.ts";
 import { fetchWikipediaPortrait } from "../_shared/wikipediaPortrait.ts";
 import { searchCommonsImage } from "../_shared/wikimediaCommons.ts";
+import { searchWikidataImage } from "../_shared/wikidataImage.ts";
 import { ensureCoverImage, ensureMagickReady, decodeImage, type ImageOriginType } from "../_shared/imagePipeline.ts";
 import { isPublicImageUrl } from "../_shared/imageValidation.ts";
 import { USER_AGENT } from "../_shared/robots.ts";
@@ -157,7 +158,7 @@ async function searchForEntity(
   const entity = await loadEntityName(supabase, entityType, entityId);
   if (!entity) return { found: false, error: "Eintrag nicht gefunden." };
 
-  const result = await searchWithoutPreview(entity, entityType, sourceUrlOverride);
+  const result = await searchWithoutPreview(supabase, entity, entityType, entityId, sourceUrlOverride);
   if (!result.found || !result.imageUrl) return result;
 
   // Server-seitig heruntergeladene Vorschau-Kopie ergänzen (siehe
@@ -171,9 +172,34 @@ async function searchForEntity(
   return result;
 }
 
+/** Letzter Rückfall für Events ohne eigenes og:image: das (bereits
+ * freigegebene) Foto des Veranstaltungsorts, klar als solches markiert.
+ * null, wenn das Event keinen Venue hat oder der Venue selbst kein Foto. */
+async function venuePhotoFallback(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  eventId: string,
+): Promise<SearchResult | null> {
+  const { data: event } = await supabase.from("events").select("venue_id").eq("id", eventId).maybeSingle();
+  if (!event?.venue_id) return null;
+  const { data: venue } = await supabase.from("venues").select("name, photo_url").eq("id", event.venue_id)
+    .maybeSingle();
+  if (!venue?.photo_url) return null;
+  return {
+    found: true,
+    imageUrl: venue.photo_url,
+    sourceName: `Foto des Veranstaltungsorts (${venue.name})`,
+    matchReason: "Kein eigenes Bild gefunden — Rückfall auf das Venue-Foto.",
+    suggestedLicenseStatus: "confirmed_licensed",
+  };
+}
+
 async function searchWithoutPreview(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
   entity: { name: string; websiteUrl: string | null; ticketUrl: string | null },
   entityType: EntityType,
+  entityId: string,
   sourceUrlOverride: string | undefined,
 ): Promise<SearchResult> {
   // Admin hat einen konkreten Link gegeben — nur DIESE Seite auswerten,
@@ -195,40 +221,95 @@ async function searchWithoutPreview(
   switch (entityType) {
     case "person": {
       const portrait = await fetchWikipediaPortrait(entity.name);
-      if (!portrait) return { found: false, error: "Kein Wikipedia-Artikel mit Bild gefunden." };
+      if (portrait) {
+        return {
+          found: true,
+          imageUrl: portrait.imageUrl,
+          sourcePageUrl: portrait.pageUrl,
+          sourceName: "Wikipedia",
+          matchReason: portrait.description ?? "Wikipedia-Infobox-Bild",
+          suggestedLicenseStatus: "confirmed_licensed",
+        };
+      }
+      // Wikidata als dritte, unabhängige Quelle (Nutzerfeedback: "es soll
+      // nicht immer nur bei wikipedia oder commons gesucht werden") —
+      // manche Personen haben kein eigenständiges Wikipedia-Infobox-Bild,
+      // aber ein strukturiert verknüpftes Wikidata-P18-Bild (über Commons
+      // lizenzgeprüft, siehe searchWikidataImage). Bereits produktiv im
+      // Cron-Pfad (enrich-entity-images) im Einsatz, hier bisher gefehlt.
+      const wikidata = await searchWikidataImage(entity.name);
+      if (!wikidata) return { found: false, error: "Weder Wikipedia noch Wikidata liefern ein Bild." };
       return {
         found: true,
-        imageUrl: portrait.imageUrl,
-        sourcePageUrl: portrait.pageUrl,
-        sourceName: "Wikipedia",
-        matchReason: portrait.description ?? "Wikipedia-Infobox-Bild",
-        suggestedLicenseStatus: "confirmed_licensed",
+        imageUrl: wikidata.url,
+        sourcePageUrl: wikidata.pageUrl,
+        sourceName: "Wikidata/Wikimedia Commons",
+        matchReason: `Strukturiertes Wikidata-Bild · Lizenz: ${wikidata.license}${wikidata.artist ? ` · ${wikidata.artist}` : ""}`,
+        suggestedLicenseStatus: "confirmed_free",
       };
     }
     case "venue":
     case "ensemble": {
       const candidate = await searchCommonsImage(entity.name);
-      if (!candidate) return { found: false, error: "Kein passendes Bild auf Wikimedia Commons gefunden." };
-      return {
-        found: true,
-        imageUrl: candidate.url,
-        sourcePageUrl: candidate.pageUrl,
-        sourceName: "Wikimedia Commons",
-        matchReason: `Lizenz: ${candidate.license}${candidate.artist ? ` · ${candidate.artist}` : ""}`,
-        suggestedLicenseStatus: "confirmed_free",
-      };
+      if (candidate) {
+        return {
+          found: true,
+          imageUrl: candidate.url,
+          sourcePageUrl: candidate.pageUrl,
+          sourceName: "Wikimedia Commons",
+          matchReason: `Lizenz: ${candidate.license}${candidate.artist ? ` · ${candidate.artist}` : ""}`,
+          suggestedLicenseStatus: "confirmed_free",
+        };
+      }
+      const wikidata = await searchWikidataImage(entity.name);
+      if (wikidata) {
+        return {
+          found: true,
+          imageUrl: wikidata.url,
+          sourcePageUrl: wikidata.pageUrl,
+          sourceName: "Wikidata/Wikimedia Commons",
+          matchReason: `Strukturiertes Wikidata-Bild · Lizenz: ${wikidata.license}${wikidata.artist ? ` · ${wikidata.artist}` : ""}`,
+          suggestedLicenseStatus: "confirmed_free",
+        };
+      }
+      if (entity.websiteUrl) {
+        const ownSite = await extractOgImage(entity.websiteUrl);
+        if (ownSite) {
+          return {
+            found: true,
+            imageUrl: ownSite,
+            sourcePageUrl: entity.websiteUrl,
+            sourceName: new URL(entity.websiteUrl).hostname,
+            matchReason: "og:image der offiziellen Website",
+            suggestedLicenseStatus: "confirmed_licensed",
+          };
+        }
+      }
+      return { found: false, error: "Weder Wikimedia Commons/Wikidata noch die eigene Website liefern ein Bild." };
     }
     case "event": {
       const pageUrl = entity.websiteUrl ?? entity.ticketUrl;
-      if (!pageUrl) return { found: false, error: "Weder Website- noch Ticket-URL hinterlegt." };
-      const imageUrl = await extractOgImage(pageUrl);
-      if (!imageUrl) return { found: false, error: "Auf der Veranstaltungsseite wurde kein Bild gefunden." };
+      const ownImage = pageUrl ? await extractOgImage(pageUrl) : null;
+      if (ownImage) {
+        return {
+          found: true,
+          imageUrl: ownImage,
+          sourcePageUrl: pageUrl!,
+          sourceName: new URL(pageUrl!).hostname,
+          matchReason: "og:image der Veranstaltungsseite",
+        };
+      }
+      // Fallback auf das Venue-Foto (Nutzerfeedback: mehr als nur eine
+      // Quelle probieren) — nur wenn das Venue selbst schon ein
+      // freigegebenes Bild hat; klar als Venue-, nicht Event-Foto
+      // gekennzeichnet, damit die Redaktion bewusst entscheidet.
+      const venueFallback = await venuePhotoFallback(supabase, entityId);
+      if (venueFallback) return venueFallback;
       return {
-        found: true,
-        imageUrl,
-        sourcePageUrl: pageUrl,
-        sourceName: new URL(pageUrl).hostname,
-        matchReason: "og:image der Veranstaltungsseite",
+        found: false,
+        error: pageUrl
+          ? "Weder auf der Veranstaltungsseite noch beim Veranstaltungsort wurde ein Bild gefunden."
+          : "Weder Website- noch Ticket-URL hinterlegt, und der Veranstaltungsort hat kein Bild.",
       };
     }
     case "work": {
@@ -249,15 +330,26 @@ async function searchWithoutPreview(
         };
       }
       const candidate = await searchCommonsImage(entity.name);
-      if (!candidate) {
-        return { found: false, error: "Kein passendes Bild auf Wikipedia/Wikimedia Commons gefunden." };
+      if (candidate) {
+        return {
+          found: true,
+          imageUrl: candidate.url,
+          sourcePageUrl: candidate.pageUrl,
+          sourceName: "Wikimedia Commons",
+          matchReason: `Lizenz: ${candidate.license}${candidate.artist ? ` · ${candidate.artist}` : ""}`,
+          suggestedLicenseStatus: "confirmed_free",
+        };
+      }
+      const wikidata = await searchWikidataImage(entity.name);
+      if (!wikidata) {
+        return { found: false, error: "Weder Wikipedia, Wikimedia Commons noch Wikidata liefern ein Bild." };
       }
       return {
         found: true,
-        imageUrl: candidate.url,
-        sourcePageUrl: candidate.pageUrl,
-        sourceName: "Wikimedia Commons",
-        matchReason: `Lizenz: ${candidate.license}${candidate.artist ? ` · ${candidate.artist}` : ""}`,
+        imageUrl: wikidata.url,
+        sourcePageUrl: wikidata.pageUrl,
+        sourceName: "Wikidata/Wikimedia Commons",
+        matchReason: `Strukturiertes Wikidata-Bild · Lizenz: ${wikidata.license}${wikidata.artist ? ` · ${wikidata.artist}` : ""}`,
         suggestedLicenseStatus: "confirmed_free",
       };
     }

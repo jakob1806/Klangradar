@@ -11,7 +11,7 @@
 // Ensembles/Werken): das Titelbild ist strukturell ein einzelnes Feld für
 // die Übersichtskarte, kein eigener Profil-Bereich.
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { commitEntityImage, commitManualImage, searchEntityImage, type ImageSearchResult } from "../../image-research/actions";
 
 export function CoverImagePicker({
@@ -26,6 +26,8 @@ export function CoverImagePicker({
   const [preview, setPreview] = useState<ImageSearchResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function handleFetchFromLink() {
     const url = urlInput.trim();
@@ -60,18 +62,20 @@ export function CoverImagePicker({
     }
   }
 
-  async function handleFileUpload(file: File | undefined) {
-    if (!file) return;
+  async function handleFileUpload() {
+    if (!selectedFile) return;
     setBusy(true);
     setError(null);
-    const base64 = await fileToBase64(file);
+    const base64 = await fileToBase64(selectedFile);
     const res = await commitManualImage("editorial_collection", collectionId, base64, "confirmed_licensed");
     setBusy(false);
     if (res.committed) {
       // Best effort: die tatsächlich gespeicherte Storage-URL kommt erst
       // beim nächsten Laden der Seite (Server Component) — bis dahin
       // zeigen wir die lokale Datei direkt als Vorschau.
-      setCoverUrl(URL.createObjectURL(file));
+      setCoverUrl(URL.createObjectURL(selectedFile));
+      setSelectedFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     } else {
       setError(res.error ?? "Upload fehlgeschlagen.");
     }
@@ -132,12 +136,36 @@ export function CoverImagePicker({
       <div className="mt-3">
         <label className="text-xs font-medium uppercase tracking-wide text-neutral-400">Oder: Datei hochladen</label>
         <input
+          ref={fileInputRef}
           type="file"
           accept="image/*"
           disabled={busy}
-          onChange={(e) => handleFileUpload(e.target.files?.[0])}
-          className="mt-1 block text-sm"
+          onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)}
+          className="hidden"
         />
+        <div className="mt-1 flex items-center gap-2">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => fileInputRef.current?.click()}
+            className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-100 disabled:opacity-50"
+          >
+            Datei auswählen…
+          </button>
+          {selectedFile && (
+            <>
+              <span className="truncate text-xs text-neutral-600">{selectedFile.name}</span>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={handleFileUpload}
+                className="rounded-md bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-700 disabled:opacity-50"
+              >
+                {busy ? "Lade hoch…" : "Hochladen"}
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
