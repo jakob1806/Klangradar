@@ -77,7 +77,9 @@ export type ImageOriginType =
   | "ensemble"
   | "person"
   | "organizer"
-  | "festival";
+  | "festival"
+  | "work"
+  | "editorial_collection";
 
 export interface CoverImageInput {
   sourceUrl: string;

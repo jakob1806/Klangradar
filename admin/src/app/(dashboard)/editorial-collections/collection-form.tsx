@@ -8,7 +8,6 @@ export interface CollectionFormValues {
   slug: string;
   subtitle: string | null;
   description_de: string | null;
-  cover_image_url: string | null;
   is_published: boolean;
   sort_order: number;
 }
@@ -46,10 +45,6 @@ export function CollectionForm({
 
       <Field label="Beschreibung">
         <TextArea name="description_de" rows={4} defaultValue={initial?.description_de ?? ""} />
-      </Field>
-
-      <Field label="Titelbild-URL" hint="Wird auf der Übersichtskarte gezeigt.">
-        <TextInput name="cover_image_url" type="url" defaultValue={initial?.cover_image_url ?? ""} placeholder="https://…" />
       </Field>
 
       <Field label="Sortierung" hint="Niedrigere Zahl zuerst.">

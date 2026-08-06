@@ -2,6 +2,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+/// Bucket, in den ensureCoverImage() (backend/supabase/functions/_shared/
+/// imagePipeline.ts) heruntergeladene/hochgeladene Bilder ablegt.
+const _kImagesBucket = 'ingested-images';
+
 /// Ein Galerie-Bild mit optionalem redaktionellem Querformat-Zuschnitt
 /// (siehe Admin-Crop-Tool). `crop` ist bereits in ein [Rect] umgewandelt
 /// (Anteile 0..1), passend zu [CroppedNetworkImage].
@@ -11,6 +15,14 @@ class GalleryImage {
   final String url;
   final Rect? crop;
 
+  /// Bevorzugt die von uns gehostete Storage-Kopie (`storage_path`) statt
+  /// `source_url` direkt zu zeigen (Bugfix: `source_url` ist bei manuellen
+  /// Admin-Uploads nur ein Platzhalter wie "manual-upload:UUID", keine
+  /// abrufbare URL — und auch bei recherchierten Bildern nur die externe
+  /// Herkunfts-URL, die nicht dauerhaft/hotlink-fähig sein muss. Der echte
+  /// Bild-Blob liegt immer im Storage-Bucket, sobald ensureCoverImage()
+  /// erfolgreich war). `source_url` bleibt nur Fallback für Alt-Zeilen ohne
+  /// storage_path.
   factory GalleryImage.fromRow(Map<String, dynamic> row) {
     final x = (row['crop_x'] as num?)?.toDouble();
     final y = (row['crop_y'] as num?)?.toDouble();
@@ -19,7 +31,13 @@ class GalleryImage {
     final crop = (x != null && y != null && width != null && height != null)
         ? Rect.fromLTWH(x, y, width, height)
         : null;
-    return GalleryImage(url: row['source_url'] as String, crop: crop);
+    final storagePath = row['storage_path'] as String?;
+    final url = storagePath != null
+        ? Supabase.instance.client.storage
+              .from(_kImagesBucket)
+              .getPublicUrl(storagePath)
+        : row['source_url'] as String;
+    return GalleryImage(url: url, crop: crop);
   }
 }
 
@@ -36,7 +54,9 @@ final entityGalleryProvider = FutureProvider.autoDispose
     ) async {
       final rows = await Supabase.instance.client
           .from('images')
-          .select('source_url, crop_x, crop_y, crop_width, crop_height')
+          .select(
+            'source_url, storage_path, crop_x, crop_y, crop_width, crop_height',
+          )
           .eq('origin_type', key.originType)
           .eq('origin_id', key.originId)
           .inFilter('license_status', ['confirmed_free', 'confirmed_licensed'])

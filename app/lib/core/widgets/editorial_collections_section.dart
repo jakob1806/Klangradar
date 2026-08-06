@@ -17,9 +17,26 @@ final editorialCollectionsProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
       final rows = await Supabase.instance.client
           .from('editorial_collections')
-          .select('id, slug, title, subtitle, cover_image_url')
+          .select(
+            'id, slug, title, subtitle, cover_image_url, '
+            'editorial_collection_events(events(start_datetime))',
+          )
           .order('sort_order', ascending: true);
-      return (rows as List).cast<Map<String, dynamic>>();
+
+      final now = DateTime.now();
+      // Sammlungen ohne noch anstehende Veranstaltungen werden nicht mehr
+      // gezeigt (Nutzerwunsch: keine manuelle Pflege für "abgelaufene"
+      // Sammlungen nötig) — die Zuordnung selbst bleibt im Admin-Dashboard
+      // erhalten, nur die App-Anzeige blendet sie aus.
+      return (rows as List).cast<Map<String, dynamic>>().where((c) {
+        final links = c['editorial_collection_events'] as List? ?? const [];
+        return links.any((l) {
+          final start = DateTime.tryParse(
+            l['events']?['start_datetime'] as String? ?? '',
+          );
+          return start != null && start.isAfter(now);
+        });
+      }).toList();
     });
 
 class EditorialCollectionsSection extends ConsumerWidget {

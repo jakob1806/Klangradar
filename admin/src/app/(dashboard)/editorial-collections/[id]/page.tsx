@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { DeleteButton } from "@/components/delete-button";
 import { deleteCollection, updateCollection } from "../actions";
 import { CollectionForm, type CollectionFormValues } from "../collection-form";
+import { CoverImagePicker } from "./cover-image-picker";
 import { EventPicker, type CollectionEvent } from "./event-picker";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +21,7 @@ export default async function EditCollectionPage({
       .from("editorial_collections")
       .select("title, slug, subtitle, description_de, cover_image_url, is_published, sort_order")
       .eq("id", id)
-      .maybeSingle<CollectionFormValues>(),
+      .maybeSingle<CollectionFormValues & { cover_image_url: string | null }>(),
     supabase
       .from("editorial_collection_events")
       .select("position, events(id, title, start_datetime, venues(name))")
@@ -53,6 +54,9 @@ export default async function EditCollectionPage({
       </div>
       <div className="mt-6">
         <CollectionForm action={updateCollection.bind(null, id)} initial={data} />
+      </div>
+      <div className="mt-10 border-t border-neutral-200 pt-8">
+        <CoverImagePicker collectionId={id} initialCoverUrl={data.cover_image_url} />
       </div>
       <div className="mt-10 border-t border-neutral-200 pt-8">
         <EventPicker collectionId={id} initialEvents={events} />

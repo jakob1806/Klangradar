@@ -66,6 +66,10 @@ export function ImageResearchClient({
 
   return (
     <div>
+      {/* Nutzerfeedback: der Recherche-Button saß bisher UNTER der ganzen
+          (bis zu 500 Einträge langen) Liste — man musste immer erst ganz
+          runterscrollen. Jetzt oben neben den Auswahl-Controls, bleibt
+          sichtbar ohne die Liste scrollen zu müssen. */}
       <div className="flex flex-wrap items-center gap-3">
         <input
           value={filter}
@@ -98,6 +102,15 @@ export function ImageResearchClient({
             Auswahl leeren
           </button>
         )}
+        {selected.size > 0 && (
+          <button
+            type="button"
+            onClick={() => setPhase("workflow")}
+            className="ml-auto rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700"
+          >
+            {selected.size} ausgewählt — Bilder recherchieren →
+          </button>
+        )}
       </div>
 
       <div className="mt-4 max-h-[60vh] overflow-y-auto rounded-lg border border-neutral-200 bg-white">
@@ -124,16 +137,6 @@ export function ImageResearchClient({
         ))}
         {visible.length === 0 && <p className="px-4 py-6 text-sm text-neutral-400">Keine Treffer.</p>}
       </div>
-
-      {selected.size > 0 && (
-        <button
-          type="button"
-          onClick={() => setPhase("workflow")}
-          className="mt-4 rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700"
-        >
-          {selected.size} ausgewählt — Bilder recherchieren →
-        </button>
-      )}
     </div>
   );
 }
@@ -314,7 +317,11 @@ function ImageStep({
           <div>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={step.result.imageUrl}
+              src={
+                step.result.imagePreviewBase64
+                  ? `data:${step.result.imagePreviewMimeType ?? "image/jpeg"};base64,${step.result.imagePreviewBase64}`
+                  : step.result.imageUrl
+              }
               alt=""
               className="max-h-64 w-full rounded-md border border-neutral-200 object-contain bg-neutral-50"
             />

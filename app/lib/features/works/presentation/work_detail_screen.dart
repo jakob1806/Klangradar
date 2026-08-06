@@ -3,10 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/gallery/entity_gallery_providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/detail_card.dart';
 import '../../../core/widgets/entity_event_row.dart';
+import '../../../core/widgets/entity_photo_gallery.dart';
+import '../../../core/widgets/genre_artwork.dart';
 import '../../../core/widgets/source_hint.dart';
 import '../../../l10n/generated/app_localizations.dart';
 
@@ -109,6 +112,10 @@ class WorkDetailScreen extends ConsumerWidget {
               (work['alternative_titles'] as List?)?.cast<String>() ?? const [];
           final movements =
               (work['movements'] as List?)?.cast<String>() ?? const [];
+          final gallery = ref.watch(
+            entityGalleryProvider((originType: 'work', originId: workId)),
+          );
+          final galleryImages = gallery.valueOrNull ?? const [];
 
           return ListView(
             padding: const EdgeInsets.fromLTRB(
@@ -118,6 +125,20 @@ class WorkDetailScreen extends ConsumerWidget {
               AppSpacing.xxl,
             ),
             children: [
+              if (galleryImages.isNotEmpty) ...[
+                AspectRatio(
+                  aspectRatio: 16 / 9,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(AppRadius.card),
+                    child: EntityPhotoGallery(
+                      images: galleryImages,
+                      fallbackGenre: EventGenre.kammermusik,
+                      showGradient: false,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.lg),
+              ],
               Text(
                 work['title'] ?? '',
                 style: Theme.of(context).textTheme.headlineLarge,
