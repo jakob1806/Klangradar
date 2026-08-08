@@ -94,20 +94,20 @@ export default async function EventsPage({
         <div className="flex items-center gap-3">
           <Link
             href="/events/from-url"
-            className="rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+            className="border-2 border-[#171717] px-4 py-2 type-label !text-[#171717] hover:bg-[#171717] hover:!text-white"
           >
             Von URL hinzufügen
           </Link>
           <Link
             href="/events/new"
-            className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700"
+            className="border-2 border-[#171717] bg-[#171717] px-4 py-2 type-label !text-white hover:bg-white hover:!text-[#171717]"
           >
             Neu anlegen
           </Link>
         </div>
       </div>
 
-      <div className="mb-4 flex items-center gap-1 border-b border-neutral-200">
+      <div className="mb-4 flex items-center gap-1 border-b-2 border-[#171717]">
         {STATUS_TABS.map((tab) => {
           const tabCount = tab.value === "all" ? totalCount : (countByStatus.get(tab.value) ?? 0);
           const isActive = status === tab.value;
@@ -115,9 +115,9 @@ export default async function EventsPage({
             <Link
               key={tab.value}
               href={`/events?status=${tab.value}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
-              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
+              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-0.5 ${
                 isActive
-                  ? "border-neutral-900 text-neutral-900"
+                  ? "border-[#d13c1f] text-neutral-900"
                   : "border-transparent text-neutral-500 hover:text-neutral-700"
               }`}
             >
@@ -134,18 +134,18 @@ export default async function EventsPage({
           name="q"
           defaultValue={q}
           placeholder="Titel durchsuchen…"
-          className="w-full max-w-xs rounded-md border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-neutral-500"
+          className="w-full max-w-xs border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-[#171717]"
         />
         <button
           type="submit"
-          className="rounded-md border border-neutral-300 px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+          className="border border-neutral-300 px-3 py-2 text-sm font-medium text-neutral-700 hover:border-[#171717] hover:text-[#171717]"
         >
           Suchen
         </button>
         {q && (
           <Link
             href={`/events?status=${status}`}
-            className="text-sm font-medium text-neutral-500 hover:text-neutral-800"
+            className="text-sm font-medium text-neutral-500 hover:text-[#d13c1f]"
           >
             Zurücksetzen
           </Link>
@@ -153,7 +153,7 @@ export default async function EventsPage({
       </form>
 
       {error && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <div className="border-2 border-amber-700 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           Konnte Events nicht laden ({error.message}). Prüfe, ob{" "}
           <code className="font-mono">NEXT_PUBLIC_SUPABASE_URL</code> /{" "}
           <code className="font-mono">NEXT_PUBLIC_SUPABASE_ANON_KEY</code> gesetzt sind und das
@@ -164,23 +164,23 @@ export default async function EventsPage({
       {!error && (
         <BulkSelectionProvider>
           <BulkActionBar />
-          <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
+          <div className="overflow-hidden border-2 border-[#171717] bg-white">
             <table className="w-full text-sm">
-              <thead className="bg-neutral-50 text-left text-xs uppercase tracking-wide text-neutral-500">
+              <thead className="border-b-2 border-[#171717] text-left">
                 <tr>
                   <th className="w-10 px-4 py-3">
                     <SelectAllCheckbox ids={data?.map((e) => e.id) ?? []} />
                   </th>
-                  <th className="px-4 py-3 font-medium">Titel</th>
-                  <th className="px-4 py-3 font-medium">Ort</th>
-                  <th className="px-4 py-3 font-medium">Termin</th>
-                  <th className="px-4 py-3 font-medium">Quelle</th>
-                  <th className="px-4 py-3 font-medium">Status</th>
-                  <th className="px-4 py-3 font-medium">Bild</th>
+                  <th className="type-label px-4 py-3">Titel</th>
+                  <th className="type-label px-4 py-3">Ort</th>
+                  <th className="type-label px-4 py-3">Termin</th>
+                  <th className="type-label px-4 py-3">Quelle</th>
+                  <th className="type-label px-4 py-3">Status</th>
+                  <th className="type-label px-4 py-3">Bild</th>
                   <th className="px-4 py-3" />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-100">
+              <tbody className="divide-y divide-neutral-200">
                 {q && !data?.length ? (
                   <tr>
                     <td colSpan={8} className="px-4 py-10 text-center text-neutral-400">
@@ -203,7 +203,7 @@ export default async function EventsPage({
                       </td>
                       <td className="px-4 py-3 text-neutral-500">{event.sources?.name ?? "manuell"}</td>
                       <td className="px-4 py-3">
-                        <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-700">
+                        <span className="type-label border border-neutral-300 px-2 py-1 !text-neutral-700">
                           {STATUS_LABEL[event.status] ?? event.status}
                         </span>
                       </td>
@@ -215,7 +215,7 @@ export default async function EventsPage({
                           {event.status === "draft" && <PublishRowButton eventId={event.id} />}
                           <Link
                             href={`/events/${event.id}`}
-                            className="text-sm font-medium text-neutral-700 hover:text-neutral-900"
+                            className="text-sm font-medium text-neutral-700 hover:text-[#d13c1f]"
                           >
                             Bearbeiten
                           </Link>
@@ -246,7 +246,7 @@ export default async function EventsPage({
                 {page > 1 && (
                   <Link
                     href={`/events?status=${status}&page=${page - 1}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
-                    className="rounded-md border border-neutral-300 px-3 py-1.5 font-medium text-neutral-700 hover:bg-neutral-50"
+                    className="border border-neutral-300 px-3 py-1.5 font-medium text-neutral-700 hover:border-[#171717] hover:text-[#171717]"
                   >
                     Zurück
                   </Link>
@@ -254,7 +254,7 @@ export default async function EventsPage({
                 {page < totalPages && (
                   <Link
                     href={`/events?status=${status}&page=${page + 1}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
-                    className="rounded-md border border-neutral-300 px-3 py-1.5 font-medium text-neutral-700 hover:bg-neutral-50"
+                    className="border border-neutral-300 px-3 py-1.5 font-medium text-neutral-700 hover:border-[#171717] hover:text-[#171717]"
                   >
                     Weiter
                   </Link>
