@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { GalleryEditor } from "@/components/entity-gallery/gallery-editor";
+import { AiEnrichButton } from "@/components/ai-enrich-button";
 import type { GalleryImage } from "@/lib/gallery-actions";
 import { updateVenue } from "../actions";
 import { VenueDeleteControl } from "../venue-delete-control";
@@ -33,6 +34,9 @@ export default async function EditVenuePage({
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold tracking-tight">{data.name} bearbeiten</h1>
         <VenueDeleteControl venueId={id} venueName={data.name} />
+      </div>
+      <div className="mt-4">
+        <AiEnrichButton entityType="venue" entityId={id} />
       </div>
       <div className="mt-6">
         <VenueForm action={updateVenue.bind(null, id)} initial={data} />

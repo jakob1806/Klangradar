@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { GalleryEditor } from "@/components/entity-gallery/gallery-editor";
+import { AiEnrichButton } from "@/components/ai-enrich-button";
 import type { GalleryImage } from "@/lib/gallery-actions";
 import { updatePerson } from "../actions";
 import { PersonDeleteControl } from "../person-delete-control";
@@ -41,6 +42,9 @@ export default async function EditPersonPage({
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold tracking-tight">{data.full_name} bearbeiten</h1>
         <PersonDeleteControl personId={id} personName={data.full_name} />
+      </div>
+      <div className="mt-4">
+        <AiEnrichButton entityType="person" entityId={id} />
       </div>
       <div className="mt-6">
         <PersonForm action={updatePerson.bind(null, id)} initial={data} />
