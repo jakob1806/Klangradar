@@ -2119,6 +2119,48 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'{count} Veranstaltung(en) konnten nicht eingetragen werden.'**
   String calendarSyncSomeFailed(int count);
+
+  /// Eintrag im Profil, öffnet die Passwortabfrage für das Redaktions-Dashboard
+  ///
+  /// In de, this message translates to:
+  /// **'Admin-Portal'**
+  String get profileAdminPortal;
+
+  /// No description provided for @adminPortalTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Admin-Portal öffnen'**
+  String get adminPortalTitle;
+
+  /// No description provided for @adminPortalPasswordHint.
+  ///
+  /// In de, this message translates to:
+  /// **'Passwort'**
+  String get adminPortalPasswordHint;
+
+  /// No description provided for @adminPortalCancel.
+  ///
+  /// In de, this message translates to:
+  /// **'Abbrechen'**
+  String get adminPortalCancel;
+
+  /// No description provided for @adminPortalOpen.
+  ///
+  /// In de, this message translates to:
+  /// **'Öffnen'**
+  String get adminPortalOpen;
+
+  /// No description provided for @adminPortalWrongPassword.
+  ///
+  /// In de, this message translates to:
+  /// **'Falsches Passwort.'**
+  String get adminPortalWrongPassword;
+
+  /// No description provided for @adminPortalError.
+  ///
+  /// In de, this message translates to:
+  /// **'Verbindung fehlgeschlagen. Bitte später erneut versuchen.'**
+  String get adminPortalError;
 }
 
 class _AppLocalizationsDelegate

@@ -1150,4 +1150,26 @@ class AppLocalizationsDe extends AppLocalizations {
   String calendarSyncSomeFailed(int count) {
     return '$count Veranstaltung(en) konnten nicht eingetragen werden.';
   }
+
+  @override
+  String get profileAdminPortal => 'Admin-Portal';
+
+  @override
+  String get adminPortalTitle => 'Admin-Portal öffnen';
+
+  @override
+  String get adminPortalPasswordHint => 'Passwort';
+
+  @override
+  String get adminPortalCancel => 'Abbrechen';
+
+  @override
+  String get adminPortalOpen => 'Öffnen';
+
+  @override
+  String get adminPortalWrongPassword => 'Falsches Passwort.';
+
+  @override
+  String get adminPortalError =>
+      'Verbindung fehlgeschlagen. Bitte später erneut versuchen.';
 }

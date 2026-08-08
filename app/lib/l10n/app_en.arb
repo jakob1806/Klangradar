@@ -367,5 +367,13 @@
   "calendarSyncExistingEventsError": "Could not read existing calendar entries — aborting to avoid duplicates: {errors}",
   "calendarSyncDeleteOldEventError": "Could not remove old calendar entry — aborting to avoid duplicates: {errors}",
   "calendarSyncNoneCreated": "No events could be added.",
-  "calendarSyncSomeFailed": "{count} event(s) could not be added."
+  "calendarSyncSomeFailed": "{count} event(s) could not be added.",
+
+  "profileAdminPortal": "Admin portal",
+  "adminPortalTitle": "Open admin portal",
+  "adminPortalPasswordHint": "Password",
+  "adminPortalCancel": "Cancel",
+  "adminPortalOpen": "Open",
+  "adminPortalWrongPassword": "Wrong password.",
+  "adminPortalError": "Connection failed. Please try again later."
 }
