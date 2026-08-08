@@ -1,45 +1,56 @@
-// Nutzerwunsch: "auch wäre es noch praktisch, wenn ich in der app auch das
-// admin portal auf machen kann. z.b. über die einstellungen mit einem
-// bestimmten passwort." Das eigentliche Admin-Dashboard hat bereits einen
-// vollwertigen Login (E-Mail-Code + Rollenprüfung, siehe admin/src/proxy.ts)
-// — diese Funktion ist bewusst nur eine zusätzliche Hürde in der App, damit
-// der Link nicht direkt für alle App-Nutzer:innen sichtbar ist. Das
-// Passwort liegt deshalb NICHT im App-Code (dort wäre es aus dem Bundle
-// extrahierbar), sondern als Function-Secret hier — die App schickt nur
-// den eingegebenen Text, nie das echte Passwort selbst.
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { parseEmailAllowlist, resolvePortalAccess } from "./access.ts";
+
+// Der Link bleibt für normale App-Konten durch das Server-Passwort geschützt.
+// Explizit freigegebene Konten dürfen ihn ohne zusätzliche Passwortabfrage
+// öffnen. Die Function vertraut dabei nie einer vom Client gesendeten E-Mail:
+// sie validiert das echte Supabase-JWT und liest die E-Mail aus dem dadurch
+// bestätigten User. Passwort und Allowlist liegen ausschließlich als Secrets
+// auf dem Server und damit nicht im auslesbaren App-Bundle.
 Deno.serve(async (req) => {
-  let body: Record<string, unknown>;
+  let body: Record<string, unknown> = {};
   try {
     body = await req.json();
   } catch {
-    return new Response(JSON.stringify({ valid: false }), { status: 400 });
+    // Ein leerer Body ist der beabsichtigte Account-Check vor dem Öffnen der
+    // Passwortabfrage. Ungültiges JSON gewährt dadurch niemals Zugriff.
   }
 
   const submitted = typeof body.password === "string" ? body.password : "";
   const expected = Deno.env.get("ADMIN_PORTAL_PASSWORD") ?? "";
   const portalUrl = Deno.env.get("ADMIN_PORTAL_URL") ?? "";
-
-  // Timing-sicherer Vergleich statt "===" — verhindert, dass die Laufzeit
-  // des Vergleichs selbst (früher Abbruch bei erstem abweichenden Zeichen)
-  // Rückschlüsse auf einzelne Passwort-Zeichen zulässt.
-  const valid = submitted.length > 0 && timingSafeEqual(submitted, expected);
+  const passwordlessEmails = parseEmailAllowlist(
+    Deno.env.get("ADMIN_PORTAL_PASSWORDLESS_EMAILS") ?? "",
+  );
+  const authenticatedEmail = await getAuthenticatedEmail(req);
+  const accessMode = resolvePortalAccess({
+    authenticatedEmail,
+    passwordlessEmails,
+    submittedPassword: submitted,
+    expectedPassword: expected,
+  });
+  const valid = accessMode !== null;
 
   return new Response(
-    JSON.stringify(valid ? { valid: true, portalUrl } : { valid: false }),
+    JSON.stringify(
+      valid
+        ? { valid: true, portalUrl, accessMode }
+        : { valid: false, passwordRequired: true },
+    ),
     { headers: { "Content-Type": "application/json" } },
   );
 });
 
-function timingSafeEqual(a: string, b: string): boolean {
-  const aBytes = new TextEncoder().encode(a);
-  const bBytes = new TextEncoder().encode(b);
-  // Läuft bewusst über die längere der beiden Längen weiter (statt bei
-  // Längen-Mismatch sofort false zurückzugeben) — sonst würde allein die
-  // Antwortzeit schon die korrekte Passwortlänge verraten.
-  const maxLength = Math.max(aBytes.length, bBytes.length);
-  let diff = aBytes.length === bBytes.length ? 0 : 1;
-  for (let i = 0; i < maxLength; i++) {
-    diff |= (aBytes[i] ?? 0) ^ (bBytes[i] ?? 0);
-  }
-  return diff === 0;
+async function getAuthenticatedEmail(req: Request): Promise<string | null> {
+  const authorization = req.headers.get("Authorization");
+  if (!authorization) return null;
+
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL") ?? "",
+    Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+    { global: { headers: { Authorization: authorization } } },
+  );
+  const { data, error } = await supabase.auth.getUser();
+  if (error || !data.user?.email || data.user.is_anonymous) return null;
+  return data.user.email;
 }
