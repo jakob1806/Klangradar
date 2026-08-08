@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { markEventVerified } from "./actions";
 import { fetchCompletenessRows, type CompletenessRow } from "./completeness";
 import { fetchImageCoverageReport } from "./image-coverage";
+import { fetchBiographyCoverageReport } from "./biography-coverage";
 
 const ENTITY_TYPE_LABEL: Record<CompletenessRow["entityType"], string> = {
   venue: "Venue",
@@ -63,6 +64,11 @@ export default async function DataQualityPage() {
     .sort((a, b) => a.quality.totalScore - b.quality.totalScore)
     .slice(0, 15);
   const { report: imageCoverage, error: imageCoverageError } = await fetchImageCoverageReport();
+  const {
+    report: biographyCoverage,
+    missingPersons,
+    error: biographyCoverageError,
+  } = await fetchBiographyCoverageReport();
 
   const events = data ?? [];
   const missingImages = events.filter((e) => !e.image_urls || e.image_urls.length === 0);
@@ -122,8 +128,69 @@ export default async function DataQualityPage() {
         )}
       </section>
 
+      <section className="mt-8">
+        <h2 className="text-sm font-semibold text-neutral-700">Biografie-Abdeckung (gesamter Bestand)</h2>
+        {biographyCoverageError && (
+          <p className="mt-2 text-sm text-amber-700">Konnte Biografie-Abdeckung nicht laden: {biographyCoverageError}</p>
+        )}
+        {biographyCoverage && (
+          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <CoverageTile
+              label="Personen"
+              covered={biographyCoverage.persons.withBiography}
+              total={biographyCoverage.persons.total}
+            />
+            <CoverageTile
+              label="Ensembles"
+              covered={biographyCoverage.ensembles.withDescription}
+              total={biographyCoverage.ensembles.total}
+            />
+            <CoverageTile
+              label="Venues"
+              covered={biographyCoverage.venues.withDescription}
+              total={biographyCoverage.venues.total}
+            />
+          </div>
+        )}
+      </section>
+
       {!error && (
         <>
+          <section className="mt-8">
+            <h2 className="text-sm font-semibold text-neutral-700">
+              Fehlende Biografien — Personen ({missingPersons.length})
+            </h2>
+            <div className="mt-3 flex flex-col gap-2">
+              {missingPersons.length ? (
+                <>
+                  {missingPersons.slice(0, 50).map((p) => (
+                    <div
+                      key={p.id}
+                      className="flex items-center justify-between gap-4 rounded-lg border border-neutral-200 bg-white px-4 py-3"
+                    >
+                      <p className="text-sm font-medium text-neutral-900">{p.full_name}</p>
+                      <Link
+                        href={`/persons/${p.id}`}
+                        className="shrink-0 text-sm font-medium text-blue-600 hover:underline"
+                      >
+                        Bearbeiten
+                      </Link>
+                    </div>
+                  ))}
+                  {missingPersons.length > 50 && (
+                    <p className="text-xs text-neutral-400">
+                      … und {missingPersons.length - 50} weitere.
+                    </p>
+                  )}
+                </>
+              ) : (
+                <div className="rounded-lg border border-dashed border-neutral-300 bg-white px-4 py-8 text-center text-sm text-neutral-400">
+                  Alle Personen haben eine Biografie.
+                </div>
+              )}
+            </div>
+          </section>
+
           <section className="mt-8">
             <h2 className="text-sm font-semibold text-neutral-700">
               Fehlende Bilder ({missingImages.length})
