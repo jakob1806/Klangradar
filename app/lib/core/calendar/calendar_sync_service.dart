@@ -31,7 +31,7 @@ class CalendarSyncResult {
   final String? message;
 }
 
-/// Legt einen dedizierten "Klassik München"-Kalender im Gerätekalender an und
+/// Legt einen dedizierten "Klangradar"-Kalender im Gerätekalender an und
 /// hält ihn im Sync mit den anstehenden Favoriten. Da es der einzige Kalender
 /// ist, den diese App befüllt, wird er vor jedem Sync geleert statt einzelne
 /// Event-IDs zu tracken — einfacher als ein persistentes ID-Mapping und
@@ -39,7 +39,7 @@ class CalendarSyncResult {
 class CalendarSyncService {
   const CalendarSyncService._();
 
-  static const _calendarName = 'Klassik München';
+  static const _calendarName = 'Klangradar';
 
   static Future<void> _ensureTimeZones() async {
     if (_timeZonesInitialized) return;

@@ -91,7 +91,7 @@ class IcsExport {
     final lines = [
       'BEGIN:VCALENDAR',
       'VERSION:2.0',
-      'PRODID:-//Klassik München//DE',
+      'PRODID:-//Klangradar//DE',
     ];
     for (final e in events) {
       lines.addAll([

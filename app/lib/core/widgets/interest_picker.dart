@@ -5,6 +5,7 @@ import '../../l10n/generated/app_localizations.dart';
 import '../interests/interests_providers.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
+import 'detail_card.dart';
 
 /// Die vier Interessen-Kategorien als Chip-Picker — gemeinsam genutzt von
 /// InterestsScreen (Profil-Einstellung) und OnboardingScreen (Erststart).
@@ -59,7 +60,15 @@ class InterestPicker extends ConsumerWidget {
   }
 }
 
-class InterestSection extends ConsumerWidget {
+// Schwelle, ab der ein Suchfeld pro Kategorie eingeblendet wird —
+// Nutzerfeedback: "Tab Interessen ist noch sehr unordentlich" (bei 116
+// Ensembles/66 Venues unsortiert als eine große Chip-Wand ohne jede
+// Filtermöglichkeit war das Auffinden einzelner Einträge unübersichtlich).
+// Kleine Kategorien (Genres/Komponisten, hier meist <20) brauchen keine
+// Suche, die würde nur zusätzliche UI ohne Nutzen hinzufügen.
+const _kSearchThreshold = 12;
+
+class InterestSection extends ConsumerStatefulWidget {
   const InterestSection({
     super.key,
     required this.title,
@@ -74,50 +83,145 @@ class InterestSection extends ConsumerWidget {
   final InterestCategory category;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.appColors;
-    if (options.isEmpty) return const SizedBox.shrink();
+  ConsumerState<InterestSection> createState() => _InterestSectionState();
+}
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+class _InterestSectionState extends ConsumerState<InterestSection> {
+  final _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+    final l10n = AppLocalizations.of(context)!;
+    if (widget.options.isEmpty) return const SizedBox.shrink();
+
+    // Ausgewählte zuerst (Nutzerfeedback: bei vielen Chips war schwer zu
+    // sehen, was schon ausgewählt ist — reine Farbunterscheidung reicht bei
+    // 100+ Chips nicht) — innerhalb beider Gruppen bleibt die vom Provider
+    // gelieferte alphabetische Reihenfolge erhalten.
+    final normalizedQuery = _query.trim().toLowerCase();
+    final filtered = normalizedQuery.isEmpty
+        ? widget.options
+        : widget.options
+              .where((o) => o.label.toLowerCase().contains(normalizedQuery))
+              .toList();
+    final selectedFirst = [
+      ...filtered.where((o) => widget.selectedIds.contains(o.id)),
+      ...filtered.where((o) => !widget.selectedIds.contains(o.id)),
+    ];
+
+    return DetailCard(
+      dividers: false,
       children: [
-        Text(title, style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: AppSpacing.sm),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final option in options)
-              FilterChip(
-                label: Text(option.label),
-                selected: selectedIds.contains(option.id),
-                onSelected: (_) => InterestsService.toggle(
-                  ref,
-                  category: category,
-                  id: option.id,
-                  isSelected: selectedIds.contains(option.id),
-                ),
-                // Checkmark bewusst NICHT unterdrückt (siehe
-                // Barrierefreiheits-Audit): sonst wird "ausgewählt" nur über
-                // Hintergrund-/Rahmen-/Textfarbe signalisiert — für
-                // farbenblinde Nutzer:innen (accentPrimary ist ein Rotton)
-                // kaum von "nicht ausgewählt" zu unterscheiden.
-                selectedColor: colors.accentPrimary.withValues(alpha: 0.16),
-                backgroundColor: colors.backgroundSecondary,
-                side: BorderSide(
-                  color: selectedIds.contains(option.id)
-                      ? colors.accentPrimary
-                      : colors.separator,
-                ),
-                labelStyle: TextStyle(
-                  color: selectedIds.contains(option.id)
-                      ? colors.accentPrimary
-                      : colors.textPrimary,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                ),
+        Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(widget.title, style: Theme.of(context).textTheme.titleMedium),
+                  if (widget.selectedIds.isNotEmpty) ...[
+                    const SizedBox(width: AppSpacing.sm),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: colors.accentPrimary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        l10n.interestsSelectedCount(widget.selectedIds.length),
+                        style: TextStyle(
+                          color: colors.accentPrimary,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               ),
-          ],
+              if (widget.options.length > _kSearchThreshold) ...[
+                const SizedBox(height: AppSpacing.sm),
+                TextField(
+                  controller: _searchController,
+                  onChanged: (v) => setState(() => _query = v),
+                  style: const TextStyle(fontSize: 13),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    hintText: l10n.interestsSearchHint,
+                    hintStyle: TextStyle(color: colors.textTertiary, fontSize: 13),
+                    prefixIcon: Icon(Icons.search_rounded, size: 18, color: colors.textTertiary),
+                    prefixIconConstraints: const BoxConstraints(minWidth: 36),
+                    filled: true,
+                    fillColor: colors.backgroundPrimary,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppSpacing.sm),
+                      borderSide: BorderSide(color: colors.separator),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppSpacing.sm),
+                      borderSide: BorderSide(color: colors.separator),
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(height: AppSpacing.sm),
+              if (selectedFirst.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                  child: Text(
+                    l10n.interestsNoResults,
+                    style: TextStyle(color: colors.textTertiary, fontSize: 13),
+                  ),
+                )
+              else
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final option in selectedFirst)
+                      FilterChip(
+                        label: Text(option.label),
+                        selected: widget.selectedIds.contains(option.id),
+                        onSelected: (_) => InterestsService.toggle(
+                          ref,
+                          category: widget.category,
+                          id: option.id,
+                          isSelected: widget.selectedIds.contains(option.id),
+                        ),
+                        // Checkmark bewusst NICHT unterdrückt (siehe
+                        // Barrierefreiheits-Audit): sonst wird "ausgewählt" nur
+                        // über Hintergrund-/Rahmen-/Textfarbe signalisiert — für
+                        // farbenblinde Nutzer:innen (accentPrimary ist ein
+                        // Rotton) kaum von "nicht ausgewählt" zu unterscheiden.
+                        selectedColor: colors.accentPrimary.withValues(alpha: 0.16),
+                        backgroundColor: colors.backgroundSecondary,
+                        side: BorderSide(
+                          color: widget.selectedIds.contains(option.id)
+                              ? colors.accentPrimary
+                              : colors.separator,
+                        ),
+                        labelStyle: TextStyle(
+                          color: widget.selectedIds.contains(option.id)
+                              ? colors.accentPrimary
+                              : colors.textPrimary,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
+                      ),
+                  ],
+                ),
+            ],
+          ),
         ),
       ],
     );

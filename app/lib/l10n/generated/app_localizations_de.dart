@@ -230,6 +230,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get roleModerator => 'Moderator:in';
 
   @override
+  String get roleEnsemble => 'Ensemble';
+
+  @override
   String get eventFree => 'Kostenlos';
 
   @override
@@ -797,10 +800,10 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get calendarExportFileName => 'klassik-muenchen-favoriten.ics';
+  String get calendarExportFileName => 'klangradar-favoriten.ics';
 
   @override
-  String get calendarExportSubject => 'Meine Klassik München Favoriten';
+  String get calendarExportSubject => 'Meine Klangradar-Favoriten';
 
   @override
   String get calendarSyncSheetTitle => 'Kalender synchronisieren';
@@ -851,6 +854,17 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get interestCategoryVenues => 'Venues';
+
+  @override
+  String get interestsSearchHint => 'Suchen…';
+
+  @override
+  String interestsSelectedCount(int count) {
+    return '$count ausgewählt';
+  }
+
+  @override
+  String get interestsNoResults => 'Keine Treffer.';
 
   @override
   String get mapAttribution => '© OpenStreetMap-Mitwirkende';
@@ -941,7 +955,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get onboardingSkip => 'Überspringen';
 
   @override
-  String get onboardingWelcomeTitle => 'Willkommen bei\nKlassik München';
+  String get onboardingWelcomeTitle => 'Willkommen bei\nKlangradar';
 
   @override
   String get onboardingWelcomeSubtitle =>
