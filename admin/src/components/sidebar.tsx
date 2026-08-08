@@ -18,6 +18,7 @@ const NAV_ITEMS = [
   { href: "/editorial-collections", label: "Redaktionelle Sammlungen" },
   { href: "/media", label: "Bilder" },
   { href: "/image-research", label: "Bilder recherchieren" },
+  { href: "/bio-research", label: "Bio-Recherche" },
   { href: "/tags", label: "Tags" },
   { href: "/regions", label: "Regionen" },
   { href: "/users", label: "Benutzer" },

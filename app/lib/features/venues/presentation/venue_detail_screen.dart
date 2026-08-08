@@ -360,23 +360,7 @@ class VenueDetailScreen extends ConsumerWidget {
                         ),
                       )
                     else
-                      DetailCard(
-                        children: [
-                          for (final event in upcoming)
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: AppSpacing.md,
-                              ),
-                              child: EntityEventRow(
-                                title: event['title'] ?? '',
-                                slug: event['slug'] as String? ?? '',
-                                start: DateTime.tryParse(
-                                  event['start_datetime'] ?? '',
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
+                      _GroupedUpcomingEvents(events: upcoming),
                     const SizedBox(height: AppSpacing.lg),
                     ReportContentLink(
                       entityType: 'venue',
@@ -404,6 +388,164 @@ String? _venueTypeLabel(AppLocalizations l10n, String? type) => switch (type) {
   'sonstiges' => null,
   _ => null,
 };
+
+List<String> _fullMonthNames(AppLocalizations l10n) => [
+  l10n.monthJanuary,
+  l10n.monthFebruary,
+  l10n.monthMarch,
+  l10n.monthApril,
+  l10n.monthMay,
+  l10n.monthJune,
+  l10n.monthJuly,
+  l10n.monthAugust,
+  l10n.monthSeptember,
+  l10n.monthOctober,
+  l10n.monthNovember,
+  l10n.monthDecember,
+];
+
+class _MonthGroup {
+  _MonthGroup({required this.year, required this.month, required this.events});
+
+  final int year;
+  final int month;
+  final List<dynamic> events;
+}
+
+/// Nutzerfeedback: "bei der detailansicht einer venue sind ja die kommenden
+/// konzerte nach wie vor alle in einer langen liste angeordnet" — bei
+/// Sälen mit über 100 kommenden Terminen (live geprüft: Philharmonie,
+/// Herkulessaal) war das eine kaum scrollbare Wand aus Zeilen. Gruppierung
+/// nach Monat statt eines Kalendergrids: bei stark unterschiedlicher
+/// Terminanzahl pro Monat (mancher Monat 1 Termin, mancher 20) bleibt eine
+/// Liste besser scanbar als ein Raster mit vielen leeren Zellen. Nur der
+/// nächste (chronologisch erste) Monat startet aufgeklappt, alle weiteren
+/// eingeklappt mit Anzahl — ein Blick auf "wann geht's als Nächstes los"
+/// bleibt sofort sichtbar, ohne die restlichen Monate zu verstecken.
+class _GroupedUpcomingEvents extends StatefulWidget {
+  const _GroupedUpcomingEvents({required this.events});
+
+  final List<dynamic> events;
+
+  @override
+  State<_GroupedUpcomingEvents> createState() =>
+      _GroupedUpcomingEventsState();
+}
+
+class _GroupedUpcomingEventsState extends State<_GroupedUpcomingEvents> {
+  final Set<int> _expanded = {0};
+
+  List<_MonthGroup> _groupByMonth() {
+    final groups = <_MonthGroup>[];
+    for (final event in widget.events) {
+      final start = DateTime.tryParse(event['start_datetime'] ?? '');
+      if (start == null) continue;
+      if (groups.isEmpty ||
+          groups.last.year != start.year ||
+          groups.last.month != start.month) {
+        groups.add(_MonthGroup(year: start.year, month: start.month, events: []));
+      }
+      groups.last.events.add(event);
+    }
+    return groups;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final colors = context.appColors;
+    final groups = _groupByMonth();
+    final monthNames = _fullMonthNames(l10n);
+
+    return Column(
+      children: [
+        for (var i = 0; i < groups.length; i++) ...[
+          if (i > 0) const SizedBox(height: AppSpacing.sm),
+          _MonthGroupCard(
+            label: '${monthNames[groups[i].month - 1]} ${groups[i].year}',
+            events: groups[i].events,
+            expanded: _expanded.contains(i),
+            colors: colors,
+            onToggle: () => setState(() {
+              if (!_expanded.remove(i)) _expanded.add(i);
+            }),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _MonthGroupCard extends StatelessWidget {
+  const _MonthGroupCard({
+    required this.label,
+    required this.events,
+    required this.expanded,
+    required this.colors,
+    required this.onToggle,
+  });
+
+  final String label;
+  final List<dynamic> events;
+  final bool expanded;
+  final AppColorsExtension colors;
+  final VoidCallback onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    return DetailCard(
+      dividers: false,
+      children: [
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onToggle,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.sm,
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    '$label · ${events.length}',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                  Icon(
+                    expanded
+                        ? Icons.keyboard_arrow_up_rounded
+                        : Icons.keyboard_arrow_down_rounded,
+                    size: 20,
+                    color: colors.textTertiary,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        if (expanded)
+          for (final event in events)
+            Padding(
+              padding: const EdgeInsets.only(
+                left: AppSpacing.md,
+                right: AppSpacing.md,
+                bottom: AppSpacing.xs,
+              ),
+              child: EntityEventRow(
+                title: event['title'] ?? '',
+                slug: event['slug'] as String? ?? '',
+                start: DateTime.tryParse(event['start_datetime'] ?? ''),
+              ),
+            ),
+      ],
+    );
+  }
+}
 
 class _MvvStopRow extends StatelessWidget {
   const _MvvStopRow({required this.stop, required this.colors});

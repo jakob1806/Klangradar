@@ -8,6 +8,7 @@ import {
   BioSelectionProvider,
   BioStatusBadge,
 } from "@/components/bio-select";
+import { ImageStatusBadge } from "@/components/image-status-badge";
 import { TableSearchFilter } from "@/components/table-search-filter";
 import { bulkDeleteEnsembles, bulkSetEnsemblesVerified } from "./actions";
 
@@ -19,6 +20,7 @@ interface EnsembleRow {
   type: string;
   is_verified: boolean;
   description_de: string | null;
+  photo_url: string | null;
 }
 
 const TYPE_LABEL: Record<string, string> = {
@@ -33,7 +35,7 @@ export default async function EnsemblesPage() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("ensembles")
-    .select("id, name, type, is_verified, description_de")
+    .select("id, name, type, is_verified, description_de, photo_url")
     .order("name")
     .returns<EnsembleRow[]>();
 
@@ -86,6 +88,7 @@ export default async function EnsemblesPage() {
                     <th className="px-4 py-3 font-medium">Typ</th>
                     <th className="px-4 py-3 font-medium">Status</th>
                     <th className="px-4 py-3 font-medium">Bio</th>
+                    <th className="px-4 py-3 font-medium">Bild</th>
                     <th className="px-4 py-3" />
                   </tr>
                 </thead>
@@ -118,6 +121,9 @@ export default async function EnsemblesPage() {
                         <td className="px-4 py-3">
                           <BioStatusBadge hasBio={!!ensemble.description_de} />
                         </td>
+                        <td className="px-4 py-3">
+                          <ImageStatusBadge hasImage={!!ensemble.photo_url} />
+                        </td>
                         <td className="px-4 py-3 text-right">
                           <Link
                             href={`/ensembles/${ensemble.id}`}
@@ -130,7 +136,7 @@ export default async function EnsemblesPage() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={6} className="px-4 py-10 text-center text-neutral-400">
+                      <td colSpan={7} className="px-4 py-10 text-center text-neutral-400">
                         Noch keine Ensembles angelegt.
                       </td>
                     </tr>

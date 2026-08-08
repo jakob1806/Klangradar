@@ -506,6 +506,12 @@ abstract class AppLocalizations {
   /// **'Moderator:in'**
   String get roleModerator;
 
+  /// No description provided for @roleEnsemble.
+  ///
+  /// In de, this message translates to:
+  /// **'Ensemble'**
+  String get roleEnsemble;
+
   /// No description provided for @eventFree.
   ///
   /// In de, this message translates to:
@@ -1499,13 +1505,13 @@ abstract class AppLocalizations {
   /// No description provided for @calendarExportFileName.
   ///
   /// In de, this message translates to:
-  /// **'klassik-muenchen-favoriten.ics'**
+  /// **'klangradar-favoriten.ics'**
   String get calendarExportFileName;
 
   /// No description provided for @calendarExportSubject.
   ///
   /// In de, this message translates to:
-  /// **'Meine Klassik München Favoriten'**
+  /// **'Meine Klangradar-Favoriten'**
   String get calendarExportSubject;
 
   /// No description provided for @calendarSyncSheetTitle.
@@ -1597,6 +1603,24 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Venues'**
   String get interestCategoryVenues;
+
+  /// No description provided for @interestsSearchHint.
+  ///
+  /// In de, this message translates to:
+  /// **'Suchen…'**
+  String get interestsSearchHint;
+
+  /// No description provided for @interestsSelectedCount.
+  ///
+  /// In de, this message translates to:
+  /// **'{count} ausgewählt'**
+  String interestsSelectedCount(int count);
+
+  /// No description provided for @interestsNoResults.
+  ///
+  /// In de, this message translates to:
+  /// **'Keine Treffer.'**
+  String get interestsNoResults;
 
   /// No description provided for @mapAttribution.
   ///
@@ -1739,7 +1763,7 @@ abstract class AppLocalizations {
   /// No description provided for @onboardingWelcomeTitle.
   ///
   /// In de, this message translates to:
-  /// **'Willkommen bei\nKlassik München'**
+  /// **'Willkommen bei\nKlangradar'**
   String get onboardingWelcomeTitle;
 
   /// No description provided for @onboardingWelcomeSubtitle.

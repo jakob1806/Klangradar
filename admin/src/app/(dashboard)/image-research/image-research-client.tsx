@@ -231,6 +231,7 @@ function ImageStep({
   const [licenseStatus, setLicenseStatus] = useState<"confirmed_free" | "confirmed_licensed">("confirmed_licensed");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Der Fetch selbst läuft NUR im Effect, ausgelöst über die Dependencies
@@ -285,18 +286,20 @@ function ImageStep({
     else setError(res.error ?? "Übernehmen fehlgeschlagen.");
   }
 
-  async function handleFileUpload(files: FileList | null) {
-    if (!files || files.length === 0) return;
+  async function handleUploadSelected() {
+    if (selectedFiles.length === 0) return;
     setBusy(true);
     setError(null);
     let anySuccess = false;
-    for (const file of Array.from(files)) {
+    for (const file of selectedFiles) {
       const base64 = await fileToBase64(file);
       const res = await commitManualImage(entityType, entity.id, base64, licenseStatus);
       if (res.committed) anySuccess = true;
       else setError(res.error ?? `Upload von "${file.name}" fehlgeschlagen.`);
     }
     setBusy(false);
+    setSelectedFiles([]);
+    if (fileInputRef.current) fileInputRef.current.value = "";
     if (anySuccess) onTakeOver();
   }
 
@@ -389,15 +392,58 @@ function ImageStep({
           <p className="text-xs font-medium uppercase tracking-wide text-neutral-400">
             Oder: eigene Datei(en) hochladen
           </p>
+          {/* Nutzerfeedback: "für eigene datei hochladen fehlt noch ein
+              richtiger button" — der native <input type=file> allein sieht
+              je nach Browser nicht wie ein anklickbarer Button aus.
+              Auswahl und Upload jetzt getrennt: erst Dateien wählen (Namen
+              werden gelistet, abwählbar), dann EIN expliziter "Hochladen"-
+              Button löst den eigentlichen Upload aus. */}
           <input
             ref={fileInputRef}
             type="file"
             accept="image/*"
             multiple
             disabled={busy}
-            onChange={(e) => handleFileUpload(e.target.files)}
-            className="mt-2 text-sm"
+            onChange={(e) => setSelectedFiles(Array.from(e.target.files ?? []))}
+            className="hidden"
           />
+          <div className="mt-2 flex items-center gap-2">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => fileInputRef.current?.click()}
+              className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-100 disabled:opacity-50"
+            >
+              Datei(en) auswählen…
+            </button>
+            {selectedFiles.length > 0 && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={handleUploadSelected}
+                className="rounded-md bg-neutral-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-neutral-700 disabled:opacity-50"
+              >
+                {busy ? "Lade hoch…" : `${selectedFiles.length} Datei(en) hochladen`}
+              </button>
+            )}
+          </div>
+          {selectedFiles.length > 0 && (
+            <ul className="mt-2 flex flex-col gap-1">
+              {selectedFiles.map((file, i) => (
+                <li key={`${file.name}-${i}`} className="flex items-center justify-between text-xs text-neutral-600">
+                  <span className="truncate">{file.name}</span>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => setSelectedFiles((prev) => prev.filter((_, idx) => idx !== i))}
+                    className="ml-2 text-neutral-400 hover:text-red-600 disabled:opacity-50"
+                  >
+                    Entfernen
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         <div className="mt-4 flex items-center gap-3">

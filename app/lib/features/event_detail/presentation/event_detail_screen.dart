@@ -1130,7 +1130,15 @@ class _ParticipantRow extends StatelessWidget {
     final name = person?['full_name'] ?? ensemble?['name'];
     if (name == null) return const SizedBox.shrink();
     final l10n = AppLocalizations.of(context)!;
-    final role = _roleLabels(l10n)[participant['role']];
+    // Ensembles haben in der Datenbank keine eigene role-Ausprägung (das
+    // participant_role-Enum kennt nur komponist/dirigent/solist/
+    // chorleiter/moderator, siehe 20260715000009_events.sql) — ohne diesen
+    // Fallback stand bei Ensemble-Mitwirkenden gar keine Rollenbezeichnung
+    // daneben, nur der bloße Name (Nutzermeldung: "'Ensemble' bei Münchner
+    // Philharmoniker fehlt als Angabe").
+    final role = ensemble != null
+        ? l10n.roleEnsemble
+        : _roleLabels(l10n)[participant['role']];
     final slug = person?['slug'] ?? ensemble?['slug'];
 
     return Material(

@@ -1,9 +1,9 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { DeleteButton } from "@/components/delete-button";
 import { GalleryEditor } from "@/components/entity-gallery/gallery-editor";
 import type { GalleryImage } from "@/lib/gallery-actions";
-import { deletePerson, updatePerson } from "../actions";
+import { updatePerson } from "../actions";
+import { PersonDeleteControl } from "../person-delete-control";
 import { PersonForm, type PersonFormValues } from "../person-form";
 
 export default async function EditPersonPage({
@@ -29,7 +29,7 @@ export default async function EditPersonPage({
   // abgelehntes Bild einsortiert/zugeschnitten werden.
   const { data: images } = await supabase
     .from("images")
-    .select("id, source_url, sort_order, crop_x, crop_y, crop_width, crop_height")
+    .select("id, source_url, sort_order, crop_x, crop_y, crop_width, crop_height, review_status, quality_status, confidence_score, source_name, license_status, last_checked_at, warnings")
     .eq("origin_type", "person")
     .eq("origin_id", id)
     .in("license_status", ["confirmed_free", "confirmed_licensed"])
@@ -40,10 +40,7 @@ export default async function EditPersonPage({
     <div className="p-8">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold tracking-tight">{data.full_name} bearbeiten</h1>
-        <DeleteButton
-          action={deletePerson.bind(null, id)}
-          confirmMessage={`"${data.full_name}" wirklich löschen?`}
-        />
+        <PersonDeleteControl personId={id} personName={data.full_name} />
       </div>
       <div className="mt-6">
         <PersonForm action={updatePerson.bind(null, id)} initial={data} />

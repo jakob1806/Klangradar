@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { BioResearchWorkflow, type BioWorkflowEntity } from "./bio-research-workflow";
+import { BioResearchPicker, EntityTypeTabs, type BioEntityOption } from "./bio-research-picker";
 import type { BioEntityType } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -30,14 +31,59 @@ const BACK_LINK: Record<BioEntityType, string> = {
   venue: "/venues",
 };
 
+/** Lädt ALLE Einträge eines Typs mit hasBio-Status — für den eigenständigen
+ * Auswahl-Picker (kein ids= in der URL, siehe EntityTypeTabs/BioResearchPicker
+ * unten). Getrennt von der ids-basierten Vorauswahl weiter unten, die von
+ * BioResearchBar (Checkbox-Auswahl auf den Listenseiten) kommt und
+ * unverändert bleibt. */
+async function loadEntities(entityType: BioEntityType): Promise<BioEntityOption[]> {
+  const supabase = await createClient();
+  const nameColumn = NAME_COLUMN_FOR_TYPE[entityType];
+  const bioColumn = BIO_COLUMN_FOR_TYPE[entityType];
+  const { data } = await supabase
+    .from(TABLE_FOR_TYPE[entityType])
+    .select(`id, ${nameColumn}, ${bioColumn}`)
+    .order(nameColumn, { ascending: true })
+    .limit(500)
+    .returns<Array<Record<string, unknown>>>();
+  return (data ?? []).map((row) => ({
+    id: row.id as string,
+    name: row[nameColumn] as string,
+    hasBio: Boolean((row[bioColumn] as string | null)?.trim()),
+  }));
+}
+
 export default async function BioResearchPage({
   searchParams,
 }: {
   searchParams: Promise<{ type?: string; ids?: string }>;
 }) {
   const { type, ids } = await searchParams;
+
+  // Kein ids= in der URL: eigenständiger Tab-Einstieg (Sidebar-Link) —
+  // eigene Auswahl direkt hier, statt zwingend über die Personen-/Venues-/
+  // Ensembles-Listenseite gehen zu müssen (Nutzerwunsch: "Bio recherche
+  // soll auch einen eigenen Tab bekommen wie bilder recherchieren").
+  if (!ids) {
+    const entityType = (type && TABLE_FOR_TYPE[type as BioEntityType] ? type : "person") as BioEntityType;
+    const entities = await loadEntities(entityType);
+    return (
+      <div className="p-8">
+        <h1 className="text-xl font-semibold tracking-tight">Bio-Recherche</h1>
+        <p className="mt-1 max-w-xl text-sm text-neutral-500">
+          Personen, Venues oder Ensembles auswählen, dann sucht die KI für jeden Eintrag nacheinander in Wikipedia
+          nach einer Kurzbiografie/-beschreibung — vor dem Übernehmen bearbeitbar, keine automatische Speicherung.
+        </p>
+        <EntityTypeTabs entityType={entityType} />
+        <div className="mt-6">
+          <BioResearchPicker key={entityType} entityType={entityType} entities={entities} />
+        </div>
+      </div>
+    );
+  }
+
   const entityType = type as BioEntityType;
-  if (!entityType || !TABLE_FOR_TYPE[entityType] || !ids) notFound();
+  if (!entityType || !TABLE_FOR_TYPE[entityType]) notFound();
 
   const idList = ids.split(",").filter(Boolean);
   if (idList.length === 0) notFound();

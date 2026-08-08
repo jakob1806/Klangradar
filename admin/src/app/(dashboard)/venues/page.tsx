@@ -8,6 +8,7 @@ import {
   BioSelectionProvider,
   BioStatusBadge,
 } from "@/components/bio-select";
+import { ImageStatusBadge } from "@/components/image-status-badge";
 import { TableSearchFilter } from "@/components/table-search-filter";
 import { bulkDeleteVenues, bulkSetVenuesVerified } from "./actions";
 
@@ -20,13 +21,14 @@ interface VenueRow {
   capacity: number | null;
   is_verified: boolean;
   description_de: string | null;
+  photo_url: string | null;
 }
 
 export default async function VenuesPage() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("venues")
-    .select("id, name, address_city, capacity, is_verified, description_de")
+    .select("id, name, address_city, capacity, is_verified, description_de, photo_url")
     .order("name")
     .returns<VenueRow[]>();
 
@@ -77,6 +79,7 @@ export default async function VenuesPage() {
                     <th className="px-4 py-3 font-medium">Kapazität</th>
                     <th className="px-4 py-3 font-medium">Status</th>
                     <th className="px-4 py-3 font-medium">Bio</th>
+                    <th className="px-4 py-3 font-medium">Bild</th>
                     <th className="px-4 py-3" />
                   </tr>
                 </thead>
@@ -106,6 +109,9 @@ export default async function VenuesPage() {
                         <td className="px-4 py-3">
                           <BioStatusBadge hasBio={!!venue.description_de} />
                         </td>
+                        <td className="px-4 py-3">
+                          <ImageStatusBadge hasImage={!!venue.photo_url} />
+                        </td>
                         <td className="px-4 py-3 text-right">
                           <Link href={`/venues/${venue.id}`} className="text-sm font-medium text-neutral-700 hover:text-neutral-900">
                             Bearbeiten
@@ -115,7 +121,7 @@ export default async function VenuesPage() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={7} className="px-4 py-10 text-center text-neutral-400">
+                      <td colSpan={8} className="px-4 py-10 text-center text-neutral-400">
                         Noch keine Venues angelegt.
                       </td>
                     </tr>

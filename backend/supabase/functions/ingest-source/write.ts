@@ -474,8 +474,21 @@ async function attachCoverImage(
 
     const mayOverwrite = authoritative && trustImage;
 
+    // Bugfix: hier stand vorher `!currentPrimaryImageId` — dieser Pfad
+    // setzt aber NIE primary_image_id (nur image_urls, siehe Kommentar
+    // oben), also blieb currentPrimaryImageId für Events dauerhaft null
+    // und dieses Gate damit praktisch immer wahr. Jeder erneute Ingest-Lauf
+    // (Cron, mehrfach täglich pro Quelle) rief dadurch für JEDES Event mit
+    // erkennbarem Bild erneut ensureCoverImage() auf, obwohl image_urls
+    // schon gesetzt war — jeder Aufruf legte über den content-hash-Dedupe-
+    // Pfad eine weitere needs_review-Zeile mit demselben Bildinhalt an
+    // ("Identischer Bildinhalt war bereits im Storage vorhanden"). Live
+    // beobachtet: mehrere fast identische, teils kaputt angezeigte Karten
+    // für dasselbe Event in der /media-Review-Queue. Die richtige Prüfung
+    // ist "haben wir für DIESES Event schon ein Bild in image_urls", nicht
+    // die nie gesetzte primary_image_id.
     let imageId: string | null = null;
-    if (detected && (mayOverwrite || !currentPrimaryImageId)) {
+    if (detected && (mayOverwrite || currentImageUrls.length === 0)) {
       imageId = await ensureCoverImage(supabase, {
         sourceUrl: detected.url,
         originType: "event",

@@ -93,6 +93,52 @@ function slugify(title: string): string {
   return s || "eintrag";
 }
 
+/** Kollisionssicherer Slug — hängt bei Bedarf "-2", "-3", ... an, statt
+ * blind den rohen slugify()-Wert einzufügen. Bugfix (Nutzerfeedback:
+ * "duplicate key value violates unique constraint persons_slug_key"):
+ * approveEntityCandidate prüfte bisher gar nicht, ob der generierte Slug
+ * schon existiert, bevor eingefügt wurde — ein zweiter Kandidat mit
+ * gleichem/ähnlichem Namen (oder einer, dessen Name bereits als echte
+ * Stammdaten-Zeile existiert, z.B. durch einen parallel laufenden
+ * Anreicherungs-Schritt) ließ den rohen INSERT mit einer für die
+ * Redaktion unverständlichen Postgres-Fehlermeldung scheitern. */
+async function generateUniqueSlug(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  table: "persons" | "ensembles" | "organizers",
+  name: string,
+): Promise<string> {
+  const base = slugify(name);
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const candidate = attempt === 0 ? base : `${base}-${attempt + 1}`;
+    const { data } = await supabase.from(table).select("id").eq("slug", candidate).maybeSingle();
+    if (!data) return candidate;
+  }
+  return `${base}-${crypto.randomUUID().slice(0, 8)}`;
+}
+
+const TABLE_FOR_ENTITY_TYPE = { person: "persons", ensemble: "ensembles", organizer: "organizers" } as const;
+const NAME_COLUMN_FOR_ENTITY_TYPE = { person: "full_name", ensemble: "name", organizer: "name" } as const;
+
+/** Prüft VOR jeder Neuanlage, ob schon eine Stammdaten-Zeile mit exakt
+ * diesem Namen existiert — z.B. weil ein anderer Anreicherungsschritt
+ * (Werk-Programm-Erkennung, ein anderer bereits genehmigter Kandidat mit
+ * gleichem Namen) sie zwischenzeitlich angelegt hat. Statt dann blind
+ * einen zweiten, duplizierten Eintrag zu versuchen (und an der
+ * Slug-Eindeutigkeit zu scheitern), wird der Kandidat wie ein manuelles
+ * "Zusammenführen" mit der bestehenden Zeile verknüpft. */
+async function findExistingByName(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  entityType: "person" | "ensemble" | "organizer",
+  name: string,
+): Promise<string | null> {
+  const { data } = await supabase
+    .from(TABLE_FOR_ENTITY_TYPE[entityType])
+    .select("id")
+    .ilike(NAME_COLUMN_FOR_ENTITY_TYPE[entityType], name)
+    .maybeSingle();
+  return data?.id ?? null;
+}
+
 export async function rejectEntityCandidate(candidateId: string) {
   const supabase = await createClient();
 
@@ -131,37 +177,50 @@ export async function approveEntityCandidate(candidateId: string) {
     throw new Error(fetchError?.message ?? "Kandidat nicht gefunden");
   }
 
-  const slug = slugify(candidate.name);
-  let createdIdColumn: "created_person_id" | "created_ensemble_id" | "created_organizer_id";
-  let newId: string;
+  const entityType = (candidate.entity_type === "person" || candidate.entity_type === "ensemble"
+    ? candidate.entity_type
+    : "organizer") as "person" | "ensemble" | "organizer";
+  const createdIdColumn = ({ person: "created_person_id", ensemble: "created_ensemble_id", organizer: "created_organizer_id" } as const)[
+    entityType
+  ];
 
-  if (candidate.entity_type === "person") {
-    const { data, error } = await supabase
-      .from("persons")
-      .insert({ full_name: candidate.name, slug, is_verified: false })
-      .select("id")
-      .single();
-    if (error || !data) throw new Error(error?.message ?? "persons insert fehlgeschlagen");
-    newId = data.id;
-    createdIdColumn = "created_person_id";
-  } else if (candidate.entity_type === "ensemble") {
-    const { data, error } = await supabase
-      .from("ensembles")
-      .insert({ name: candidate.name, slug, type: "sonstiges", is_verified: false })
-      .select("id")
-      .single();
-    if (error || !data) throw new Error(error?.message ?? "ensembles insert fehlgeschlagen");
-    newId = data.id;
-    createdIdColumn = "created_ensemble_id";
+  // Erst prüfen, ob längst eine Stammdaten-Zeile mit exakt diesem Namen
+  // existiert (siehe generateUniqueSlug-Kommentar oben) — dann verknüpfen
+  // statt einen zweiten, unnötigen Eintrag zu versuchen.
+  const existingId = await findExistingByName(supabase, entityType, candidate.name);
+  let newId: string;
+  let linkedExisting = false;
+
+  if (existingId) {
+    newId = existingId;
+    linkedExisting = true;
   } else {
-    const { data, error } = await supabase
-      .from("organizers")
-      .insert({ name: candidate.name, slug })
-      .select("id")
-      .single();
-    if (error || !data) throw new Error(error?.message ?? "organizers insert fehlgeschlagen");
-    newId = data.id;
-    createdIdColumn = "created_organizer_id";
+    const slug = await generateUniqueSlug(supabase, TABLE_FOR_ENTITY_TYPE[entityType], candidate.name);
+    if (entityType === "person") {
+      const { data, error } = await supabase
+        .from("persons")
+        .insert({ full_name: candidate.name, slug, is_verified: false })
+        .select("id")
+        .single();
+      if (error || !data) throw new Error(error?.message ?? "persons insert fehlgeschlagen");
+      newId = data.id;
+    } else if (entityType === "ensemble") {
+      const { data, error } = await supabase
+        .from("ensembles")
+        .insert({ name: candidate.name, slug, type: "sonstiges", is_verified: false })
+        .select("id")
+        .single();
+      if (error || !data) throw new Error(error?.message ?? "ensembles insert fehlgeschlagen");
+      newId = data.id;
+    } else {
+      const { data, error } = await supabase
+        .from("organizers")
+        .insert({ name: candidate.name, slug })
+        .select("id")
+        .single();
+      if (error || !data) throw new Error(error?.message ?? "organizers insert fehlgeschlagen");
+      newId = data.id;
+    }
   }
 
   const { error: updateError } = await supabase
@@ -174,7 +233,7 @@ export async function approveEntityCandidate(candidateId: string) {
   await logSystemAction(supabase, {
     entityType: "entity_candidate",
     entityId: candidateId,
-    action: "approved_created",
+    action: linkedExisting ? "approved_linked_existing" : "approved_created",
     actor: user?.email ?? user?.id ?? "unknown",
     after: { [createdIdColumn]: newId, name: candidate.name },
   });

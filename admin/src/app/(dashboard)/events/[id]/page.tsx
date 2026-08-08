@@ -59,7 +59,7 @@ export default async function EditEventPage({
     // Nur freigegebene Bilder — siehe Kommentar in persons/[id]/page.tsx.
     supabase
       .from("images")
-      .select("id, source_url, sort_order, crop_x, crop_y, crop_width, crop_height")
+      .select("id, source_url, sort_order, crop_x, crop_y, crop_width, crop_height, review_status, quality_status, confidence_score, source_name, license_status, last_checked_at, warnings")
       .eq("origin_type", "event")
       .eq("origin_id", id)
       .in("license_status", ["confirmed_free", "confirmed_licensed"])

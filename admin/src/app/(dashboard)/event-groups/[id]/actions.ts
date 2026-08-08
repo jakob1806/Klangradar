@@ -182,7 +182,11 @@ export async function addGroupImage(groupId: string, sourceUrl: string) {
       origin_type: "event",
       origin_id: eventId,
       source_url: sourceUrl,
-      storage_path: sourceUrl,
+      // Siehe gallery-actions.ts addGalleryImage für die Begründung: NICHT
+      // storage_path: sourceUrl, sonst baut die App eine kaputte,
+      // doppelt-verschachtelte Storage-URL (sourceUrl ist eine volle
+      // externe/entity-photos-URL, kein relativer ingested-images-Pfad).
+      storage_path: null,
       sort_order: 0,
       license_status: "confirmed_free",
       needs_review: false,

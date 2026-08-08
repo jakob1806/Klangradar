@@ -24,6 +24,15 @@ export interface GalleryCrop {
   height: number;
 }
 
+export type ReviewStatus = "pending" | "approved" | "rejected" | "needs_manual_review";
+export type QualityStatus =
+  | "valid"
+  | "low_resolution"
+  | "unreachable"
+  | "invalid_format"
+  | "duplicate"
+  | "copyright_unclear";
+
 export interface GalleryImage {
   id: string;
   source_url: string;
@@ -32,6 +41,13 @@ export interface GalleryImage {
   crop_y: number | null;
   crop_width: number | null;
   crop_height: number | null;
+  review_status: ReviewStatus;
+  quality_status: QualityStatus;
+  confidence_score: number | null;
+  source_name: string | null;
+  license_status: string | null;
+  last_checked_at: string | null;
+  warnings: string[] | null;
 }
 
 export async function addGalleryImage(
@@ -57,10 +73,26 @@ export async function addGalleryImage(
     origin_type: originType,
     origin_id: originId,
     source_url: sourceUrl,
-    storage_path: sourceUrl,
+    // NICHT storage_path: sourceUrl — storage_path wird von der App
+    // (entity_gallery_providers.dart) als RELATIVER Pfad INNERHALB des
+    // "ingested-images"-Buckets interpretiert (getPublicUrl(storagePath)).
+    // sourceUrl ist hier aber schon eine volle öffentliche URL im Bucket
+    // "entity-photos" (siehe oben, BUCKET-Konstante) — als storage_path
+    // gespeichert entstand daraus eine doppelt verschachtelte, kaputte URL
+    // (".../ingested-images/https://.../entity-photos/..."), die in der App
+    // 404 zurückgab. Bug live bestätigt: Galerie-Bilder aus diesem Upload-
+    // Weg verschwanden auf der Detailseite nach dem ersten Fehlversuch
+    // wieder (CachedNetworkImage.errorWidget → Genre-Platzhalter). null
+    // lässt GalleryImage.fromRow korrekt auf source_url zurückfallen.
+    storage_path: null,
     sort_order: nextSortOrder,
     license_status: "confirmed_free",
     needs_review: false,
+    // Konsistent mit needs_review: false oben (siehe Datei-Kommentar) — ein
+    // manueller Admin-Upload ist bereits redaktionell geprüft, sonst würde
+    // die neue review_status-Spalte hier ihren Default "pending" behalten
+    // und in der Galerie fälschlich ein "Ausstehend"-Badge zeigen.
+    review_status: "approved",
   });
   if (error) throw new Error(error.message);
 
@@ -180,4 +212,108 @@ export async function saveGalleryImageCrop(
   if (error) throw new Error(error.message);
 
   revalidatePath(path);
+}
+
+/** Bestätigen/Ablehnen/Als-zu-klein-markieren/Erneut-prüfen — die vier
+ * Admin-Aktionen aus der Erweiterungsvorgabe für die zentrale Bild-
+ * datenbank (Abschnitt 7: "Bild bestätigen, Bild ablehnen, ... Bild als zu
+ * klein markieren, ... Bild erneut prüfen"). review_status/quality_status
+ * sind bewusst unabhängig voneinander (siehe
+ * 20261006000005_image_review_quality_status.sql) — Ablehnen ändert nur
+ * review_status, nicht license_status oder quality_status, ein technisch
+ * einwandfreies Bild kann trotzdem redaktionell abgelehnt werden (falsches
+ * Motiv, falsche Person) und umgekehrt. */
+export async function confirmGalleryImage(imageId: string, path: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("images").update({ review_status: "approved" }).eq("id", imageId);
+  if (error) throw new Error(error.message);
+  const { data: { user } } = await supabase.auth.getUser();
+  await logSystemAction(supabase, {
+    entityType: "image",
+    entityId: imageId,
+    action: "image_review_confirmed",
+    actor: user?.email ?? user?.id ?? "unknown",
+  });
+  revalidatePath(path);
+}
+
+export async function rejectGalleryImage(imageId: string, path: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("images").update({ review_status: "rejected" }).eq("id", imageId);
+  if (error) throw new Error(error.message);
+  const { data: { user } } = await supabase.auth.getUser();
+  await logSystemAction(supabase, {
+    entityType: "image",
+    entityId: imageId,
+    action: "image_review_rejected",
+    actor: user?.email ?? user?.id ?? "unknown",
+  });
+  // Kein revalidatePath-only-Update: abgelehnte Bilder bleiben in der
+  // Galerie sichtbar (mit rotem Badge), werden nur nicht mehr automatisch
+  // vorgeschlagen (siehe research-entity-image/index.ts, isRejectedImageUrl,
+  // und imagePipeline.ts ensureCoverImage-Dedupe) — bewusst kein Löschen,
+  // die Redaktion soll nachvollziehen können, was schon abgelehnt wurde.
+  revalidatePath(path);
+}
+
+export async function markGalleryImageTooSmall(imageId: string, path: string) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("images")
+    .update({ quality_status: "low_resolution", last_checked_at: new Date().toISOString() })
+    .eq("id", imageId);
+  if (error) throw new Error(error.message);
+  const { data: { user } } = await supabase.auth.getUser();
+  await logSystemAction(supabase, {
+    entityType: "image",
+    entityId: imageId,
+    action: "image_marked_low_resolution",
+    actor: user?.email ?? user?.id ?? "unknown",
+  });
+  revalidatePath(path);
+}
+
+/** Prüft die Bildquelle erneut auf Erreichbarkeit und gleicht quality_status
+ * gegen die schon gespeicherten width/height ab. Lädt das Bild NICHT
+ * erneut komplett herunter/dekodiert es nicht neu (im Admin — anders als
+ * in der Edge-Function-Pipeline — keine Bildverarbeitungs-Bibliothek
+ * verfügbar) — für eine reine Erreichbarkeits-/Mindestauflösungs-Prüfung
+ * reicht das: die tatsächlichen Pixel-Maße wurden schon beim ersten Import
+ * per ImageMagick ermittelt und ändern sich für dieselbe Datei nicht. */
+export async function recheckGalleryImage(imageId: string, path: string): Promise<QualityStatus> {
+  const supabase = await createClient();
+  const { data: image, error: fetchError } = await supabase
+    .from("images")
+    .select("source_url, width, height")
+    .eq("id", imageId)
+    .maybeSingle();
+  if (fetchError) throw new Error(fetchError.message);
+  if (!image) throw new Error("Bild nicht gefunden.");
+
+  let quality: QualityStatus = "valid";
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8_000);
+    let res: Response;
+    try {
+      res = await fetch(image.source_url, { method: "HEAD", signal: controller.signal });
+    } finally {
+      clearTimeout(timeout);
+    }
+    if (!res.ok) quality = "unreachable";
+  } catch {
+    quality = "unreachable";
+  }
+  if (quality === "valid" && image.width != null && image.height != null) {
+    if (image.width < 640 || image.height < 480) quality = "low_resolution";
+  }
+
+  const { error } = await supabase
+    .from("images")
+    .update({ quality_status: quality, last_checked_at: new Date().toISOString() })
+    .eq("id", imageId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath(path);
+  return quality;
 }

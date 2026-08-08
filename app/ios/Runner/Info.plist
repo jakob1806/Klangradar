@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Klassik Muenchen</string>
+	<string>Klangradar</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -38,11 +38,11 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCalendarsFullAccessUsageDescription</key>
-	<string>Klassik München trägt favorisierte Veranstaltungen auf Wunsch in deinen Kalender ein.</string>
+	<string>Klangradar trägt favorisierte Veranstaltungen auf Wunsch in deinen Kalender ein.</string>
 	<key>NSCalendarsUsageDescription</key>
-	<string>Klassik München trägt favorisierte Veranstaltungen auf Wunsch in deinen Kalender ein.</string>
+	<string>Klangradar trägt favorisierte Veranstaltungen auf Wunsch in deinen Kalender ein.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Klassik München nutzt deinen Standort, um Veranstaltungen und Spielstätten in deiner Nähe zu zeigen.</string>
+	<string>Klangradar nutzt deinen Standort, um Veranstaltungen und Spielstätten in deiner Nähe zu zeigen.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

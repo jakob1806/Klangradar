@@ -334,8 +334,20 @@ export async function runIngestion(
 
   const attempted = parsed.events.length;
   const succeeded = created + updated + unchanged + flagged;
+  // "Diagnostic: ..."-Einträge (siehe parsers/bayerncloud.ts) sind bewusst
+  // rein informativ, keine echten Fehler — z.B. "diese Bayern-weite Quelle
+  // lieferte in diesem Lauf zufällig keine Münchner Events" ist ein
+  // normaler, erwartbarer Zustand, kein Zeichen für einen kaputten
+  // Connector. Nutzerfeedback: "BayernCloud Tourismus Events. schlägt
+  // immer fehl" — live geprüft: der Fehlerzähler stieg NUR wegen dieser
+  // rein diagnostischen Meldung, die Filterlogik selbst funktionierte
+  // korrekt (Stichprobe bestätigte echte Nicht-München-Venues wie
+  // "Fischen i. Allgäu"). Bleiben trotzdem im Bericht sichtbar (writeErrors
+  // unten nutzt weiterhin parsed.errors unverändert), zählen nur nicht
+  // gegen den Erfolgsstatus/consecutive_failures.
+  const realErrorCount = parsed.errors.filter((e) => !e.startsWith("Diagnostic (info):")).length;
   const status = attempted === 0
-    ? (parsed.errors.length > 0 ? "failed" : "success")
+    ? (realErrorCount > 0 ? "failed" : "success")
     : succeeded === 0
     ? "failed"
     : succeeded < attempted

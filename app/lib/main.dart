@@ -104,7 +104,7 @@ class _KlassikMuenchenAppState extends ConsumerState<KlassikMuenchenApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: 'Klassik München',
+      title: 'Klangradar',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,

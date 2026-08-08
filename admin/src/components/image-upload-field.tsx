@@ -6,6 +6,31 @@ import { createClient } from "@/lib/supabase/client";
 const BUCKET = "entity-photos";
 const MAX_BYTES = 5 * 1024 * 1024;
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
+// Gleiche Mindestauflösung wie die Bilder-Pipeline (MIN_WIDTH/MIN_HEIGHT in
+// backend/supabase/functions/_shared/imagePipeline.ts) — Bugfix: dieser
+// Upload-Weg prüfte bisher NUR Dateityp/-größe, kein Bildmaß. Live
+// beobachtet: ein 225×225px-Foto (11,5 KB) landete so unbemerkt als
+// venues.photo_url und scheiterte erst später, an ganz anderer Stelle
+// (Bilder-Recherche-Fallback auf dieses Venue-Foto), mit einer für die
+// Redaktion kryptischen Fehlermeldung.
+const MIN_WIDTH = 640;
+const MIN_HEIGHT = 480;
+
+function readImageDimensions(file: File): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve({ width: img.naturalWidth, height: img.naturalHeight });
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Datei konnte nicht als Bild gelesen werden."));
+    };
+    img.src = url;
+  });
+}
 
 /** Datei-Upload für Venue-/Ensemble-/Festival-/Personen-Fotos, direkt aus
  * dem Admin-Formular heraus (statt bisher nur eine externe URL einzutragen).
@@ -48,6 +73,17 @@ export function ImageUploadField({
     }
     if (file.size > MAX_BYTES) {
       setError("Datei zu groß (max. 5 MB).");
+      return;
+    }
+
+    try {
+      const { width, height } = await readImageDimensions(file);
+      if (width < MIN_WIDTH || height < MIN_HEIGHT) {
+        setError(`Bild zu klein (${width}×${height}px) — mindestens ${MIN_WIDTH}×${MIN_HEIGHT}px nötig, sonst wirkt es später hochskaliert unscharf.`);
+        return;
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Bild konnte nicht gelesen werden.");
       return;
     }
 
