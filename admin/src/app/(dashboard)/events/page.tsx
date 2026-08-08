@@ -7,6 +7,7 @@ import {
   RowCheckbox,
   SelectAllCheckbox,
 } from "./bulk-select";
+import { ImageStatusBadge } from "@/components/image-status-badge";
 
 // Event-Daten ändern sich häufig (Preise, Restkarten) — nie statisch cachen.
 export const dynamic = "force-dynamic";
@@ -21,6 +22,7 @@ interface EventRow {
   status: string;
   venues: { name: string } | null;
   sources: { name: string } | null;
+  image_urls: string[] | null;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -61,7 +63,7 @@ export default async function EventsPage({
   // suchen, nicht über alle Events hinweg.
   let query = supabase
     .from("events")
-    .select("id, slug, title, start_datetime, status, venues(name), sources(name)", { count: "exact" });
+    .select("id, slug, title, start_datetime, status, venues(name), sources(name), image_urls", { count: "exact" });
   if (status !== "all") {
     query = query.eq("status", status);
   }
@@ -174,13 +176,14 @@ export default async function EventsPage({
                   <th className="px-4 py-3 font-medium">Termin</th>
                   <th className="px-4 py-3 font-medium">Quelle</th>
                   <th className="px-4 py-3 font-medium">Status</th>
+                  <th className="px-4 py-3 font-medium">Bild</th>
                   <th className="px-4 py-3" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-100">
                 {q && !data?.length ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center text-neutral-400">
+                    <td colSpan={8} className="px-4 py-10 text-center text-neutral-400">
                       Keine Veranstaltungen für „{q}“ gefunden.
                     </td>
                   </tr>
@@ -205,6 +208,9 @@ export default async function EventsPage({
                         </span>
                       </td>
                       <td className="px-4 py-3">
+                        <ImageStatusBadge hasImage={(event.image_urls?.length ?? 0) > 0} />
+                      </td>
+                      <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-4">
                           {event.status === "draft" && <PublishRowButton eventId={event.id} />}
                           <Link
@@ -219,7 +225,7 @@ export default async function EventsPage({
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center text-neutral-400">
+                    <td colSpan={8} className="px-4 py-10 text-center text-neutral-400">
                       {status === "all"
                         ? "Noch keine Veranstaltungen. Seed-Daten via "
                         : `Keine Veranstaltungen mit Status "${STATUS_LABEL[status] ?? status}". Seed-Daten via `}

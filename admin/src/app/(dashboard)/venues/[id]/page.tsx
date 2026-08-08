@@ -1,9 +1,9 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { DeleteButton } from "@/components/delete-button";
 import { GalleryEditor } from "@/components/entity-gallery/gallery-editor";
 import type { GalleryImage } from "@/lib/gallery-actions";
-import { deleteVenue, updateVenue } from "../actions";
+import { updateVenue } from "../actions";
+import { VenueDeleteControl } from "../venue-delete-control";
 import { VenueForm, type VenueFormValues } from "../venue-form";
 
 export default async function EditVenuePage({
@@ -18,7 +18,7 @@ export default async function EditVenuePage({
     // Nur freigegebene Bilder — siehe Kommentar in persons/[id]/page.tsx.
     supabase
       .from("images")
-      .select("id, source_url, sort_order, crop_x, crop_y, crop_width, crop_height")
+      .select("id, source_url, sort_order, crop_x, crop_y, crop_width, crop_height, review_status, quality_status, confidence_score, source_name, license_status, last_checked_at, warnings")
       .eq("origin_type", "venue")
       .eq("origin_id", id)
       .in("license_status", ["confirmed_free", "confirmed_licensed"])
@@ -32,10 +32,7 @@ export default async function EditVenuePage({
     <div className="p-8">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold tracking-tight">{data.name} bearbeiten</h1>
-        <DeleteButton
-          action={deleteVenue.bind(null, id)}
-          confirmMessage={`"${data.name}" wirklich löschen? Events an diesem Ort verlieren die Ortsangabe.`}
-        />
+        <VenueDeleteControl venueId={id} venueName={data.name} />
       </div>
       <div className="mt-6">
         <VenueForm action={updateVenue.bind(null, id)} initial={data} />

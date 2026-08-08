@@ -4,8 +4,12 @@ import { useRef, useState, useTransition } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
   addGalleryImage,
+  confirmGalleryImage,
   deleteGalleryImage,
+  markGalleryImageTooSmall,
   moveGalleryImage,
+  recheckGalleryImage,
+  rejectGalleryImage,
   setPrimaryGalleryImage,
   type GalleryImage,
   type GalleryOriginType,
@@ -16,6 +20,23 @@ import { CroppedImagePreview } from "./cropped-image-preview";
 const BUCKET = "entity-photos";
 const MAX_BYTES = 5 * 1024 * 1024;
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
+// Nur die Fälle mit eigenem Badge — "valid"/"approved" sind der Normalfall
+// und brauchen keine visuelle Warnung (Nutzervorgabe: Qualitäts-/Review-
+// Status sichtbar machen, vor allem die PROBLEMATISCHEN Zustände, allen
+// voran die drei bekannten zu kleinen Bestandsbilder).
+const QUALITY_BADGES: Partial<Record<string, { label: string; className: string }>> = {
+  low_resolution: { label: "Zu klein", className: "bg-red-100 text-red-700" },
+  unreachable: { label: "Nicht erreichbar", className: "bg-red-100 text-red-700" },
+  invalid_format: { label: "Ungültiges Format", className: "bg-red-100 text-red-700" },
+  duplicate: { label: "Duplikat", className: "bg-amber-100 text-amber-800" },
+  copyright_unclear: { label: "Lizenz unklar", className: "bg-amber-100 text-amber-800" },
+};
+const REVIEW_BADGES: Partial<Record<string, { label: string; className: string }>> = {
+  pending: { label: "Ausstehend", className: "bg-neutral-200 text-neutral-700" },
+  rejected: { label: "Abgelehnt", className: "bg-red-100 text-red-700" },
+  needs_manual_review: { label: "Manuelle Prüfung", className: "bg-amber-100 text-amber-800" },
+};
 
 /** Mehrfach-Bilder-Galerie für eine Person/ein Ensemble: Upload, Reihenfolge
  * (= Wisch-Reihenfolge in der App, niedrigster sort_order ist die
@@ -111,6 +132,46 @@ export function GalleryEditor({
     });
   }
 
+  function handleConfirm(imageId: string) {
+    startTransition(async () => {
+      try {
+        await confirmGalleryImage(imageId, path);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Bestätigen fehlgeschlagen.");
+      }
+    });
+  }
+
+  function handleReject(imageId: string) {
+    startTransition(async () => {
+      try {
+        await rejectGalleryImage(imageId, path);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Ablehnen fehlgeschlagen.");
+      }
+    });
+  }
+
+  function handleMarkTooSmall(imageId: string) {
+    startTransition(async () => {
+      try {
+        await markGalleryImageTooSmall(imageId, path);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Markieren fehlgeschlagen.");
+      }
+    });
+  }
+
+  function handleRecheck(imageId: string) {
+    startTransition(async () => {
+      try {
+        await recheckGalleryImage(imageId, path);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Erneute Prüfung fehlgeschlagen.");
+      }
+    });
+  }
+
   const sorted = [...images].sort((a, b) => a.sort_order - b.sort_order);
 
   return (
@@ -157,13 +218,33 @@ export function GalleryEditor({
               image.crop_x != null && image.crop_y != null && image.crop_width != null && image.crop_height != null
                 ? { x: image.crop_x, y: image.crop_y, width: image.crop_width, height: image.crop_height }
                 : null;
+            const qualityBadge = QUALITY_BADGES[image.quality_status];
+            const reviewBadge = REVIEW_BADGES[image.review_status];
             return (
               <div key={image.id} className="flex flex-col gap-1.5 rounded-md border border-neutral-200 p-2">
                 <CroppedImagePreview src={image.source_url} crop={crop} className="rounded" />
-                {index === 0 && (
-                  <span className="w-fit rounded-full bg-neutral-900 px-2 py-0.5 text-[10px] font-medium text-white">
-                    Miniaturansicht
-                  </span>
+                <div className="flex flex-wrap gap-1">
+                  {index === 0 && (
+                    <span className="w-fit rounded-full bg-neutral-900 px-2 py-0.5 text-[10px] font-medium text-white">
+                      Miniaturansicht
+                    </span>
+                  )}
+                  {qualityBadge && (
+                    <span className={`w-fit rounded-full px-2 py-0.5 text-[10px] font-medium ${qualityBadge.className}`}>
+                      {qualityBadge.label}
+                    </span>
+                  )}
+                  {reviewBadge && (
+                    <span className={`w-fit rounded-full px-2 py-0.5 text-[10px] font-medium ${reviewBadge.className}`}>
+                      {reviewBadge.label}
+                    </span>
+                  )}
+                </div>
+                {(image.source_name || image.confidence_score != null) && (
+                  <p className="truncate text-[10px] text-neutral-400" title={image.source_name ?? undefined}>
+                    {image.source_name}
+                    {image.confidence_score != null && ` · Konfidenz ${image.confidence_score.toFixed(1)}`}
+                  </p>
                 )}
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
                   <div className="flex gap-2">
@@ -212,6 +293,51 @@ export function GalleryEditor({
                     Löschen
                   </button>
                 </div>
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-neutral-100 pt-1.5 text-xs">
+                  {image.review_status !== "approved" && (
+                    <button
+                      type="button"
+                      disabled={pending}
+                      onClick={() => handleConfirm(image.id)}
+                      className="text-emerald-700 hover:text-emerald-900 disabled:opacity-50"
+                    >
+                      Bestätigen
+                    </button>
+                  )}
+                  {image.review_status !== "rejected" && (
+                    <button
+                      type="button"
+                      disabled={pending}
+                      onClick={() => handleReject(image.id)}
+                      className="text-red-600 hover:text-red-800 disabled:opacity-50"
+                    >
+                      Ablehnen
+                    </button>
+                  )}
+                  {image.quality_status !== "low_resolution" && (
+                    <button
+                      type="button"
+                      disabled={pending}
+                      onClick={() => handleMarkTooSmall(image.id)}
+                      className="text-neutral-600 hover:text-neutral-900 disabled:opacity-50"
+                    >
+                      Als zu klein markieren
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => handleRecheck(image.id)}
+                    className="text-neutral-600 hover:text-neutral-900 disabled:opacity-50"
+                  >
+                    Erneut prüfen
+                  </button>
+                </div>
+                {image.last_checked_at && (
+                  <p className="text-[10px] text-neutral-400">
+                    Zuletzt geprüft: {new Date(image.last_checked_at).toLocaleString("de-DE")}
+                  </p>
+                )}
               </div>
             );
           })}

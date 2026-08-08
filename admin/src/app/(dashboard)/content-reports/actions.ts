@@ -27,3 +27,60 @@ export async function dismissContentReport(reportId: string) {
   if (error) throw new Error(error.message);
   revalidatePath("/content-reports");
 }
+
+export interface AutoFixResult {
+  status: "fixed" | "needs_manual_review" | "error";
+  diagnosis: string;
+}
+
+function functionsUrl(path: string) {
+  return `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/${path}`;
+}
+
+function authHeaders() {
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+  return {
+    "Content-Type": "application/json",
+    apikey: anonKey,
+    Authorization: `Bearer ${anonKey}`,
+  };
+}
+
+/** Nutzerwunsch: "baue ein, dass von nutzer gemeldete fehler automatisch
+ * (und auf button befehl) gefixxt und behoben werden" — später präzisiert:
+ * "ich möchte, dass alle nutzer meldungen, wenn vom admin so veranlasst
+ * komplett gefixt werden. auch wenn es in deinen augen risky ist." Ruft
+ * die Edge Function auto-fix-content-report gezielt für EINE Meldung auf
+ * mit adminInitiated=true — das schaltet dort auch die riskanteren Fixes
+ * frei (neue Mitwirkende/Werke anlegen), die der unbeaufsichtigte
+ * Cron-Lauf bewusst NICHT macht (siehe dortiger Datei-Kommentar). Übergeht
+ * außerdem die "schon mal versucht"-Sperre, die nur der Cron-Lauf beachtet. */
+export async function autoFixContentReport(reportId: string): Promise<AutoFixResult> {
+  const res = await fetch(functionsUrl("auto-fix-content-report"), {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ reportId, adminInitiated: true }),
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok || !data?.results?.[0]) {
+    throw new Error(data?.error ?? "Automatischer Fix fehlgeschlagen.");
+  }
+  revalidatePath("/content-reports");
+  return { status: data.results[0].status, diagnosis: data.results[0].diagnosis };
+}
+
+/** Sammel-Variante ohne reportId — verarbeitet bis zu `limit` noch nie
+ * versuchte offene Meldungen, ebenfalls mit adminInitiated=true (ein
+ * Klick auf diesen Button ist genauso ein bewusster Admin-Auftrag wie der
+ * Einzel-Fix, nur für mehrere Meldungen auf einmal). */
+export async function autoFixAllPendingReports(limit = 10): Promise<{ processed: number }> {
+  const res = await fetch(functionsUrl("auto-fix-content-report"), {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ limit, adminInitiated: true }),
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(data?.error ?? "Automatischer Fix fehlgeschlagen.");
+  revalidatePath("/content-reports");
+  return { processed: data?.processed ?? 0 };
+}

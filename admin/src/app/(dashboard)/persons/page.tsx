@@ -8,6 +8,7 @@ import {
   BioSelectionProvider,
   BioStatusBadge,
 } from "@/components/bio-select";
+import { ImageStatusBadge } from "@/components/image-status-badge";
 import { TableSearchFilter } from "@/components/table-search-filter";
 import { bulkDeletePersons, bulkSetPersonsVerified } from "./actions";
 
@@ -19,6 +20,7 @@ interface PersonRow {
   roles: string[];
   is_verified: boolean;
   biography_de: string | null;
+  photo_url: string | null;
 }
 
 const ROLE_LABEL: Record<string, string> = {
@@ -33,7 +35,7 @@ export default async function PersonsPage() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("persons")
-    .select("id, full_name, roles, is_verified, biography_de")
+    .select("id, full_name, roles, is_verified, biography_de, photo_url")
     .order("full_name")
     .returns<PersonRow[]>();
 
@@ -86,6 +88,7 @@ export default async function PersonsPage() {
                     <th className="px-4 py-3 font-medium">Rollen</th>
                     <th className="px-4 py-3 font-medium">Status</th>
                     <th className="px-4 py-3 font-medium">Bio</th>
+                    <th className="px-4 py-3 font-medium">Bild</th>
                     <th className="px-4 py-3" />
                   </tr>
                 </thead>
@@ -118,6 +121,9 @@ export default async function PersonsPage() {
                         <td className="px-4 py-3">
                           <BioStatusBadge hasBio={!!person.biography_de} />
                         </td>
+                        <td className="px-4 py-3">
+                          <ImageStatusBadge hasImage={!!person.photo_url} />
+                        </td>
                         <td className="px-4 py-3 text-right">
                           <Link
                             href={`/persons/${person.id}`}
@@ -130,7 +136,7 @@ export default async function PersonsPage() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={6} className="px-4 py-10 text-center text-neutral-400">
+                      <td colSpan={7} className="px-4 py-10 text-center text-neutral-400">
                         Noch keine Personen angelegt.
                       </td>
                     </tr>
