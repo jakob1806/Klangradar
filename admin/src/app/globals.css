@@ -9,10 +9,37 @@
    generelle Kontrastprobleme. color-scheme: light verhindert zusätzlich,
    dass native Formularelemente (Selects, Datepicker) trotzdem dunkel
    gerendert werden. */
+/* Swiss/International-Design (Nutzerwunsch: "ganz neues design für das
+   admin portal. kein standardmäßiges KI design, sondern eher
+   swiss/international") statt der bisherigen generischen abgerundeten
+   Tailwind-Karten-Optik. Prinzipien: strenges Raster, eine einzige knappe
+   Akzentfarbe statt vieler pastelliger Badge-Farben, Trennlinien statt
+   Schatten/Radius, enge, konsequente Typo-Hierarchie mit Versalien-Labels.
+   Signaturrot #d13c1f (klassische Schweizer Grafikdesign-Referenz, z.B.
+   SBB) — nur sparsam für Primäraktionen/aktiven Nav-Punkt, nie flächig.
+   Bewusst als feste Hex-Werte direkt in den Tailwind-Arbiträrklassen
+   (border-[#d13c1f] usw.) statt als CSS-Custom-Property: live geprüft,
+   lightningcss (Tailwind v4s Build-Schritt) verwirft selbst deklarierte
+   :root-Custom-Properties beim Minifizieren project-weit kommentarlos —
+   das kompilierte CSS enthielt die Variable nie, nur var(--accent)-
+   NUTZUNGEN ohne jede Definition. Feste Hex-Werte umgehen das zuverlässig. */
 :root {
   --background: #ffffff;
   --foreground: #171717;
   color-scheme: light;
+}
+
+.type-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8a8a8a;
+}
+
+.type-heading {
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
 @theme inline {

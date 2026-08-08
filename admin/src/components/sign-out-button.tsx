@@ -20,7 +20,7 @@ export function SignOutButton() {
     <button
       onClick={handleSignOut}
       disabled={pending}
-      className="text-sm font-medium text-neutral-500 hover:text-neutral-900 disabled:opacity-50"
+      className="type-label hover:text-[#d13c1f] disabled:opacity-50"
     >
       {pending ? "Abmelden…" : "Abmelden"}
     </button>

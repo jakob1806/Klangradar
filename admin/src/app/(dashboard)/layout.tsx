@@ -27,7 +27,7 @@ export default async function DashboardLayout({
         <SignOutButton />
       </div>
       <main className="flex-1 min-w-0 bg-white text-neutral-900">
-        <div className="hidden justify-end border-b border-neutral-200 bg-white px-8 py-3 md:flex">
+        <div className="hidden justify-end border-b-2 border-[#171717] bg-white px-8 py-3 md:flex">
           <SignOutButton />
         </div>
         <div className="dashboard-content">{children}</div>
