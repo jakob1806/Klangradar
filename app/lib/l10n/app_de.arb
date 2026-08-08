@@ -415,5 +415,14 @@
   "@calendarSyncDeleteOldEventError": {"placeholders": {"errors": {"type": "String"}}},
   "calendarSyncNoneCreated": "Keine Veranstaltung konnte eingetragen werden.",
   "calendarSyncSomeFailed": "{count} Veranstaltung(en) konnten nicht eingetragen werden.",
-  "@calendarSyncSomeFailed": {"placeholders": {"count": {"type": "int"}}}
+  "@calendarSyncSomeFailed": {"placeholders": {"count": {"type": "int"}}},
+
+  "profileAdminPortal": "Admin-Portal",
+  "@profileAdminPortal": {"description": "Eintrag im Profil, öffnet die Passwortabfrage für das Redaktions-Dashboard"},
+  "adminPortalTitle": "Admin-Portal öffnen",
+  "adminPortalPasswordHint": "Passwort",
+  "adminPortalCancel": "Abbrechen",
+  "adminPortalOpen": "Öffnen",
+  "adminPortalWrongPassword": "Falsches Passwort.",
+  "adminPortalError": "Verbindung fehlgeschlagen. Bitte später erneut versuchen."
 }

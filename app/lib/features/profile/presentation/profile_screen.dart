@@ -9,6 +9,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/theme_mode_provider.dart';
 import '../../../l10n/generated/app_localizations.dart';
+import 'widgets/admin_portal_dialog.dart';
 import 'widgets/auth_section.dart';
 import 'widgets/language_sheet.dart';
 import 'widgets/theme_mode_sheet.dart';
@@ -78,6 +79,16 @@ class ProfileScreen extends ConsumerWidget {
             onTap: () => showModalBottomSheet(
               context: context,
               builder: (_) => LanguageSheet(current: ref.read(localeProvider)),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xxl),
+          Center(
+            child: TextButton(
+              onPressed: () => showAdminPortalDialog(context),
+              child: Text(
+                l10n.profileAdminPortal,
+                style: TextStyle(color: colors.textTertiary, fontSize: 12),
+              ),
             ),
           ),
         ],
