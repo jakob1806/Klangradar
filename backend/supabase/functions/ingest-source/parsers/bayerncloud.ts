@@ -113,6 +113,7 @@ export function parseBayernCloud(content: string): ParseResult {
   const nowMs = Date.now();
   let venueExtractedCount = 0;
   let munichCount = 0;
+  const nonMunichSamples: string[] = [];
 
   items.forEach((item, i) => {
     const label = `item ${i + 1}`;
@@ -150,7 +151,12 @@ export function parseBayernCloud(content: string): ParseResult {
     // nur München. Kein Venue-Text = kann nicht beurteilt werden = raus,
     // genau wie ein Venue-Text ohne München-Bezug (nicht als Fehler
     // gewertet, siehe DIFFABLE-Kommentar unten für die Ausnahme).
-    if (!isMunichVenue(venueName, venueAddress)) return;
+    if (!isMunichVenue(venueName, venueAddress)) {
+      if (nonMunichSamples.length < 5) {
+        nonMunichSamples.push(`venueName="${venueName}" venueAddress="${venueAddress}"`);
+      }
+      return;
+    }
     munichCount++;
 
     events.push({
@@ -182,10 +188,17 @@ export function parseBayernCloud(content: string): ParseResult {
         `(see extractVenue() in parsers/bayerncloud.ts), not that no events have a venue. Needs live verification.`,
     );
   } else if (venueExtractedCount > 0 && munichCount === 0) {
+    // "(info)"-Präfix: siehe core.ts realErrorCount — diese Quelle deckt
+    // laut Datei-Kommentar ganz Bayern ab, ein Lauf ohne Münchner Treffer
+    // ist normale Schwankung (live verifiziert: die Beispiel-Venues waren
+    // tatsächlich im Allgäu, ~150km entfernt, keine falsch verworfenen
+    // Münchner Events), kein Zeichen eines kaputten Connectors — sollte
+    // NICHT consecutive_failures hochzählen (Nutzerfeedback: "BayernCloud
+    // Tourismus Events. schlägt immer fehl").
     errors.push(
-      `Diagnostic: ${venueExtractedCount} items had an extractable venue, but none matched a Munich marker ` +
+      `Diagnostic (info): ${venueExtractedCount} items had an extractable venue, but none matched a Munich marker ` +
         `(${MUNICH_MARKERS.join("/")}) — plausible if this run genuinely had no Munich-area events, but worth a ` +
-        `second look if this repeats every run.`,
+        `second look if this repeats every run. Samples: ${nonMunichSamples.join(" | ")}`,
     );
   }
 

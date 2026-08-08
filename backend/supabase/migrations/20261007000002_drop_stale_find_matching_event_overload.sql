@@ -1,0 +1,11 @@
+-- Aufräumen: seit 20260818000002 (Besetzungs-Signal, p_cast_names) existierte
+-- die ALTE 5-Parameter-Signatur von find_matching_event weiterhin parallel
+-- als eigener Overload (create or replace ersetzt nur bei exakt gleicher
+-- Signatur, die neue Version hatte einen zusätzlichen Parameter). Live beim
+-- Testen der Migration 20261007000001 aufgefallen: ein reiner Positions-
+-- Aufruf mit 3 Argumenten ist seitdem mehrdeutig ("is not unique"), weil
+-- beide Overloads über ihre Default-Werte passen. Der eigentliche
+-- Anwendungscode (ingest-source/matching.ts) ruft ausschließlich über
+-- benannte Parameter inkl. p_cast_names auf und war davon nie betroffen —
+-- trotzdem sollte nur eine, eindeutige Signatur existieren.
+drop function if exists find_matching_event(text, uuid, timestamptz, numeric, int);

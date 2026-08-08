@@ -29,7 +29,7 @@ const MAX_IMAGE_BYTES = 15_000_000;
 const THUMBNAIL_SIZE = 400;
 const PHASH_IMAGE_SIZE = 32;
 const PHASH_HASH_SIZE = 8; // 8x8 niedrigfrequente Koeffizienten -> 64 Bit
-const BUCKET = "ingested-images";
+export const BUCKET = "ingested-images";
 
 const MIN_WIDTH = 640;
 const MIN_HEIGHT = 480;
@@ -137,12 +137,21 @@ async function ensureCoverImageInner(
 
   // 1. Exakte source_url für dasselbe Origin schon bekannt? Direkt
   // wiederverwenden, kein erneuter Download/keine erneute Verarbeitung.
+  // review_status=rejected ausgeschlossen: eine Redakteurin hat dieses Bild
+  // für diese Entität bereits explizit abgelehnt — wird dieselbe URL später
+  // erneut gefunden (z.B. dieselbe Wikipedia-Infobox bei einer erneuten
+  // Recherche), darf NICHT stillschweigend dieselbe abgelehnte Zeile
+  // "wiederbelebt" werden (Nutzervorgabe, Testfall 12: "ein Bild wird
+  // abgelehnt und darf nicht automatisch erneut vorgeschlagen werden").
+  // Fällt stattdessen durch zur normalen Verarbeitung weiter unten, die bei
+  // identischem Inhalt regulär eine frische Zeile mit Default-Status anlegt.
   const { data: existingByUrl } = await supabase
     .from("images")
     .select("id, storage_path")
     .eq("origin_type", originType)
     .eq("origin_id", originId)
     .eq("source_url", sourceUrl)
+    .neq("review_status", "rejected")
     .maybeSingle();
   if (existingByUrl?.storage_path) return existingByUrl.id;
 
@@ -169,6 +178,9 @@ async function ensureCoverImageInner(
   // weil der exakte-source_url-Vergleich oben (existingByUrl) die
   // geänderte URL nicht traf. Mehrere fast identische Karten in der
   // /media-Review-Queue für ein einziges Event waren die Folge.
+  // review_status=rejected ausgeschlossen — gleicher Grund wie beim
+  // exakten URL-Dedupe oben, nur hier für den Fall einer leicht
+  // geänderten URL (Cache-Busting) desselben, bereits abgelehnten Inhalts.
   const { data: existingForOrigin } = await supabase
     .from("images")
     .select("id, storage_path, thumbnail_path")
@@ -176,6 +188,7 @@ async function ensureCoverImageInner(
     .eq("origin_id", originId)
     .eq("content_hash", contentHash)
     .not("storage_path", "is", null)
+    .neq("review_status", "rejected")
     .limit(1)
     .maybeSingle();
   if (existingForOrigin?.storage_path) {
@@ -299,11 +312,16 @@ async function ensureCoverImageInner(
   // derselben Quelle)? Dann die bestehende Zeile wiederverwenden statt
   // erneut hochzuladen. Exakter Hash-Vergleich (siehe Migration), kein
   // Hamming-Distanz-Scan über alle Zeilen.
+  // review_status=rejected ausgeschlossen — sonst würde ein perzeptuell
+  // identischer Re-Fund für dieselbe Entität (unterer Zweig: gleicher
+  // origin_type/origin_id) die längst abgelehnte Zeile zurückliefern statt
+  // sie zu ignorieren, gleicher Grund wie bei den beiden Dedupe-Stufen oben.
   const { data: existingByHash } = await supabase
     .from("images")
     .select("id, origin_type, origin_id")
     .eq("phash", phash)
     .not("storage_path", "is", null)
+    .neq("review_status", "rejected")
     .limit(1)
     .maybeSingle();
   if (existingByHash) {
@@ -388,16 +406,33 @@ async function ensureCoverImageInner(
   return inserted.id;
 }
 
-async function downloadImage(url: string): Promise<Uint8Array | null> {
+// Kein Timeout hier bedeutete: ein einzelner langsamer/nie antwortender
+// Server konnte den gesamten Lauf (Batch-Cron oder interaktive Admin-
+// Recherche) auf unbestimmte Zeit blockieren, statt sauber mit "kein
+// Bild" weiterzumachen — SSRF-Härtung (siehe isPublicImageUrl weiter
+// oben) schützt vor ZIEL-Adressen, aber nicht vor einem antwortenden,
+// aber absichtlich/versehentlich extrem langsamen Server. 20s pro
+// Redirect-Hop UND für den finalen Body-Download, insgesamt also weich
+// nach oben begrenzt durch die maximal 5 Hops.
+const DOWNLOAD_TIMEOUT_MS = 20_000;
+
+export async function downloadImage(url: string): Promise<Uint8Array | null> {
   try {
     let current = url;
     let res: Response | null = null;
     for (let redirects = 0; redirects <= 4; redirects++) {
       if (!isPublicImageUrl(current)) return null;
-      res = await fetch(current, {
-        headers: { "User-Agent": USER_AGENT },
-        redirect: "manual",
-      });
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), DOWNLOAD_TIMEOUT_MS);
+      try {
+        res = await fetch(current, {
+          headers: { "User-Agent": USER_AGENT },
+          redirect: "manual",
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeout);
+      }
       if (![301, 302, 303, 307, 308].includes(res.status)) break;
       const location = res.headers.get("location");
       if (!location) return null;
@@ -419,7 +454,24 @@ async function downloadImage(url: string): Promise<Uint8Array | null> {
       await res.body.cancel().catch(() => {});
       return null;
     }
-    const buf = await res.arrayBuffer();
+    const bodyController = new AbortController();
+    const bodyTimeout = setTimeout(() => bodyController.abort(), DOWNLOAD_TIMEOUT_MS);
+    let buf: ArrayBuffer;
+    try {
+      // res.arrayBuffer() nimmt kein eigenes AbortSignal — ein bereits
+      // begonnener, aber hängender Body-Stream wird über res.body.cancel()
+      // abgebrochen, sobald der Timeout feuert.
+      const bodyPromise = res.arrayBuffer();
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        bodyController.signal.addEventListener("abort", () => {
+          res!.body?.cancel().catch(() => {});
+          reject(new Error("download timed out"));
+        });
+      });
+      buf = await Promise.race([bodyPromise, timeoutPromise]);
+    } finally {
+      clearTimeout(bodyTimeout);
+    }
     if (buf.byteLength > MAX_IMAGE_BYTES) return null;
     return new Uint8Array(buf);
   } catch {
@@ -427,7 +479,7 @@ async function downloadImage(url: string): Promise<Uint8Array | null> {
   }
 }
 
-async function sha256(bytes: Uint8Array): Promise<string> {
+export async function sha256(bytes: Uint8Array): Promise<string> {
   const copy = new Uint8Array(bytes.byteLength);
   copy.set(bytes);
   const digest = await crypto.subtle.digest("SHA-256", copy.buffer);
