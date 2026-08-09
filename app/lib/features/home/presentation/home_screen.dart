@@ -8,6 +8,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/editorial_collections_section.dart';
 import '../../../core/widgets/event_section.dart';
 import '../../../core/widgets/genre_artwork.dart';
+import '../../../core/widgets/liquid_glass/liquid_glass.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../application/home_providers.dart';
 
@@ -40,29 +41,10 @@ class HomeScreen extends ConsumerWidget {
                       l10n.homeTitle,
                       style: Theme.of(context).textTheme.headlineMedium,
                     ),
-                    Semantics(
-                      button: true,
-                      label: l10n.navProfile,
-                      onTap: () => context.go('/profile'),
-                      child: GestureDetector(
-                        onTap: () => context.go('/profile'),
-                        behavior: HitTestBehavior.opaque,
-                        child: SizedBox(
-                          width: 44,
-                          height: 44,
-                          child: Center(
-                            child: CircleAvatar(
-                              radius: 16,
-                              backgroundColor: colors.accentPrimary,
-                              child: const Icon(
-                                Icons.person_rounded,
-                                size: 18,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
+                    LiquidGlassIconButton(
+                      icon: Icons.person_rounded,
+                      semanticLabel: l10n.navProfile,
+                      onPressed: () => context.go('/profile'),
                     ),
                   ],
                 ),
@@ -253,50 +235,60 @@ class _Hero extends StatelessWidget {
               ),
             ),
             Positioned(
-              left: 16,
-              right: 16,
-              bottom: 14,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    event == null
-                        ? l10n.homeHeroBadgeUpcoming
-                        : l10n.homeHeroBadgeToday,
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.85),
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.1,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    event == null
-                        ? l10n.homeHeroNothingPlanned
-                        : (event!['title'] as String? ?? ''),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 19,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  if (event != null) ...[
-                    const SizedBox(height: 2),
+              left: 12,
+              right: 12,
+              bottom: 12,
+              child: LiquidGlassSurface(
+                borderRadius: BorderRadius.circular(AppRadius.card),
+                blurSigma: AppGlassDepth.control,
+                onImage: true,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
                     Text(
-                      [
-                        event!['subtitle'],
-                        venueName,
-                        if (start != null)
-                          '${start.day}.${start.month}. · ${start.hour.toString().padLeft(2, '0')}:${start.minute.toString().padLeft(2, '0')}',
-                      ].whereType<String>().join(' · '),
+                      event == null
+                          ? l10n.homeHeroBadgeUpcoming
+                          : l10n.homeHeroBadgeToday,
                       style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.85),
-                        fontSize: 12,
+                        color: Colors.white.withValues(alpha: 0.9),
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.1,
                       ),
                     ),
+                    const SizedBox(height: 4),
+                    Text(
+                      event == null
+                          ? l10n.homeHeroNothingPlanned
+                          : (event!['title'] as String? ?? ''),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 19,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    if (event != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        [
+                          event!['subtitle'],
+                          venueName,
+                          if (start != null)
+                            '${start.day}.${start.month}. · ${start.hour.toString().padLeft(2, '0')}:${start.minute.toString().padLeft(2, '0')}',
+                        ].whereType<String>().join(' · '),
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.85),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ],

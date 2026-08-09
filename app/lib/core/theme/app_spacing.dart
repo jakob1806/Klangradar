@@ -25,4 +25,22 @@ class AppRadius {
   static const button = 14.0;
   static const bottomSheet = 28.0;
   static const cardImage = 16.0;
+
+  // Liquid-Glass-Ergänzungen: eigene, aber an die bestehende Skala
+  // angelehnte Werte statt neuer beliebiger Zahlen (Nutzervorgabe: "nicht
+  // jede Komponente als Pill gestalten", "konsistente Radien").
+  static const glassControl = 16.0;
+  static const glassCapsule = 999.0;
+}
+
+/// Blur-/Tiefen-Stufen für Liquid-Glass-Flächen — je größer die Fläche,
+/// desto stärker Blur/Schatten (Skill-Referenz: "Bigger surfaces read as
+/// thicker: stronger blur + deeper shadow than small chips").
+class AppGlassDepth {
+  const AppGlassDepth._();
+
+  static const chip = 12.0;
+  static const control = 20.0;
+  static const navigation = 28.0;
+  static const sheet = 36.0;
 }

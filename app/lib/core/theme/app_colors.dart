@@ -1,51 +1,54 @@
 import 'package:flutter/material.dart';
 
-/// Design tokens aus docs/04-design-system.md.
-/// Zwei komplette Paletten (Light/Dark) statt automatischer Invertierung,
-/// damit Kontrast und Stimmung in beiden Modi bewusst gestaltet sind.
+/// Design-Tokens — Apple-Liquid-Glass-Umbau (Nutzerauftrag: "Baue das
+/// gesamte UI von Klangradar ... zu einem modernen Apple-Liquid-Glass-Design
+/// um", Referenzen app/design/ui-redesign-mockups/03-apple-liquid-glass.png
+/// + 06-native-apple-ios.png). Löst die bisherige rot-goldene Palette durch
+/// eine kühle Blau/Petrol-Welt ab — beide Modi bewusst eigenständig
+/// gestaltet statt automatisch invertiert, wie schon in der Vorgänger-
+/// Palette. Neue glass*-Felder ergänzen die bestehenden Farbrollen additiv,
+/// damit kein bestehender Aufrufer bricht.
 class AppColors {
   const AppColors._();
 
   static const light = AppColorPalette(
-    backgroundPrimary: Color(0xFFFAFAF8),
+    backgroundPrimary: Color(0xFFF4F7FA), // warmes Eisweiß/helles Blaugrau
     backgroundSecondary: Color(0xFFFFFFFF),
     backgroundElevated: Color(0xFFFFFFFF),
-    textPrimary: Color(0xFF1C1C1E),
-    textSecondary: Color(0xFF6E6E73),
-    // War #A1A1A6 (2.46-2.57:1 gegen die Hintergründe) — Barrierefreiheits-
-    // Audit fand das als real genutzte Fließtextfarbe (Datum/Adresse/Meta-
-    // Text an ~15 Stellen), nicht nur als dekorative Tönung, und damit WCAG
-    // AA-pflichtig (4.5:1). Bei so hellen Hintergründen bleibt praktisch kein
-    // Spielraum für einen dritten, sichtbar helleren Grauton, der noch
-    // besteht — die Hierarchie zu textSecondary kommt jetzt primär über
-    // Schriftgröße/-gewicht, nicht mehr über Kontrast.
-    textTertiary: Color(0xFF727277),
-    accentPrimary: Color(0xFF8B2635),
-    accentSecondary: Color(0xFFC9A961),
-    separator: Color(0xFFE5E5EA),
+    textPrimary: Color(0xFF12161C), // fast schwarz, minimal blau unterlegt
+    textSecondary: Color(0xFF5B6572),
+    textTertiary: Color(0xFF737E8B),
+    accentPrimary: Color(0xFF0A6E8C), // kühles Petrol/Blau
+    accentSecondary: Color(0xFF3B8FA8),
+    separator: Color(0xFFDEE4EA),
     success: Color(0xFF2E7D46),
     warning: Color(0xFFA9700A),
     error: Color(0xFFB23A3A),
-    glass: Color(0xB8FAFAF8),
+    glass: Color(0xB8FAFCFE),
+    glassTint: Color(0x1F0A6E8C),
+    glassBorder: Color(0x33FFFFFF),
+    glassHighlight: Color(0x99FFFFFF),
+    glassShadow: Color(0x1A0A1420),
   );
 
   static const dark = AppColorPalette(
-    backgroundPrimary: Color(0xFF0C0C0E),
-    backgroundSecondary: Color(0xFF1A1A1D),
-    backgroundElevated: Color(0xFF232326),
-    textPrimary: Color(0xFFF5F5F7),
-    textSecondary: Color(0xFF98989D),
-    // War #636366 (3.26:1 gegen den Hintergrund, reicht nur für UI-Komponenten
-    // (3:1), nicht für den echten Fließtext, als der es verwendet wird) —
-    // siehe Kommentar bei AppColors.light.textTertiary.
-    textTertiary: Color(0xFF7D7D82),
-    accentPrimary: Color(0xFFC4566B),
-    accentSecondary: Color(0xFFD9BC7F),
-    separator: Color(0xFF38383A),
+    backgroundPrimary: Color(0xFF080C14), // tiefes Marineblau
+    backgroundSecondary: Color(0xFF11161F),
+    backgroundElevated: Color(0xFF1A2029),
+    textPrimary: Color(0xFFF3F6F9),
+    textSecondary: Color(0xFF9AA6B4),
+    textTertiary: Color(0xFF7E8996),
+    accentPrimary: Color(0xFF3FB8DE), // leuchtendes, nicht neonhaftes Blau
+    accentSecondary: Color(0xFF6FCBE8),
+    separator: Color(0xFF262E3A),
     success: Color(0xFF4FBE71),
     warning: Color(0xFFE8A33D),
     error: Color(0xFFE3685F),
-    glass: Color(0xB80C0C0E),
+    glass: Color(0xB80D131D),
+    glassTint: Color(0x263FB8DE),
+    glassBorder: Color(0x2AFFFFFF),
+    glassHighlight: Color(0x40FFFFFF),
+    glassShadow: Color(0x66000000),
   );
 }
 
@@ -64,6 +67,10 @@ class AppColorPalette {
     required this.warning,
     required this.error,
     required this.glass,
+    required this.glassTint,
+    required this.glassBorder,
+    required this.glassHighlight,
+    required this.glassShadow,
   });
 
   final Color backgroundPrimary;
@@ -78,7 +85,20 @@ class AppColorPalette {
   final Color success;
   final Color warning;
   final Color error;
+
+  /// Halbtransparenter Fond für großflächige Glass-Container (Navigationsleiste).
   final Color glass;
+
+  /// Farbige Tönung dünn über dem Blur, damit das Glas den Hintergrund
+  /// sichtbar aufnimmt statt wie reines Milchglas zu wirken.
+  final Color glassTint;
+
+  /// Feine helle Kontur um Glasflächen (1px).
+  final Color glassBorder;
+
+  /// Kontrollierter Highlight-Akzent (z.B. oberer Rand/Glanzkante).
+  final Color glassHighlight;
+  final Color glassShadow;
 }
 
 /// ThemeExtension, damit die vollen Design-Tokens (nicht nur die von
@@ -110,6 +130,10 @@ class AppColorsExtension extends ThemeExtension<AppColorsExtension> {
   Color get warning => palette.warning;
   Color get error => palette.error;
   Color get glass => palette.glass;
+  Color get glassTint => palette.glassTint;
+  Color get glassBorder => palette.glassBorder;
+  Color get glassHighlight => palette.glassHighlight;
+  Color get glassShadow => palette.glassShadow;
 }
 
 extension AppThemeContext on BuildContext {

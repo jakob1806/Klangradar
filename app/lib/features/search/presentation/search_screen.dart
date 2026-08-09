@@ -12,6 +12,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/event_filter_sheet.dart';
 import '../../../core/widgets/genre_artwork.dart';
+import '../../../core/widgets/liquid_glass/liquid_glass.dart';
 import '../../../core/constants/role_labels.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../home/application/home_providers.dart';
@@ -202,15 +203,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             Row(
               children: [
                 Expanded(
-                  child: Container(
+                  child: LiquidGlassSurface(
+                    borderRadius: BorderRadius.circular(AppRadius.glassCapsule),
+                    blurSigma: AppGlassDepth.control,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 14,
                       vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: colors.backgroundSecondary,
-                      borderRadius: BorderRadius.circular(AppRadius.button),
-                      border: Border.all(color: colors.separator),
                     ),
                     child: TextField(
                       controller: _controller,
