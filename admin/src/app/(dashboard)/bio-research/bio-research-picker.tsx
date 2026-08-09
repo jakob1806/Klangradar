@@ -73,7 +73,7 @@ export function BioResearchPicker({
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           placeholder="Name filtern…"
-          className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm outline-none focus:border-neutral-500"
+          className="border border-neutral-300 px-3 py-1.5 text-sm outline-none focus:border-[#171717]"
         />
         <label className="flex items-center gap-1.5 text-sm text-neutral-600">
           <input
@@ -104,14 +104,14 @@ export function BioResearchPicker({
           <button
             type="button"
             onClick={() => setPhase("workflow")}
-            className="ml-auto rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700"
+            className="ml-auto border-2 border-[#171717] bg-[#171717] px-4 py-2 type-label !text-white hover:bg-white hover:!text-[#171717]"
           >
             {selected.size} ausgewählt — Bios recherchieren →
           </button>
         )}
       </div>
 
-      <div className="mt-4 max-h-[60vh] overflow-y-auto rounded-lg border border-neutral-200 bg-white">
+      <div className="mt-4 max-h-[60vh] overflow-y-auto border-2 border-[#171717] bg-white">
         {visible.map((e) => (
           <label
             key={e.id}
@@ -151,8 +151,10 @@ export function EntityTypeTabs({ entityType }: { entityType: BioEntityType }) {
         <Link
           key={t}
           href={`/bio-research?type=${t}`}
-          className={`rounded-md px-3 py-1.5 text-sm font-medium ${
-            t === entityType ? "bg-neutral-900 text-white" : "border border-neutral-300 text-neutral-700 hover:bg-neutral-100"
+          className={`px-3 py-1.5 type-label ${
+            t === entityType
+              ? "border-2 border-[#171717] bg-[#171717] !text-white"
+              : "border-2 border-transparent !text-neutral-500 hover:!text-[#171717]"
           }`}
         >
           {labels[t]}

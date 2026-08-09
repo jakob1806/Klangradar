@@ -111,8 +111,10 @@ export default async function ImageResearchPage({
           <a
             key={t}
             href={`/image-research?type=${t}`}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium ${
-              t === entityType ? "bg-neutral-900 text-white" : "border border-neutral-300 text-neutral-700 hover:bg-neutral-100"
+            className={`px-3 py-1.5 type-label ${
+              t === entityType
+                ? "border-2 border-[#171717] bg-[#171717] !text-white"
+                : "border-2 border-transparent !text-neutral-500 hover:!text-[#171717]"
             }`}
           >
             {TYPE_LABEL[t]}

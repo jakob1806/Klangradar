@@ -75,7 +75,7 @@ export function ImageResearchClient({
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           placeholder="Name filtern…"
-          className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm outline-none focus:border-neutral-500"
+          className="border border-neutral-300 px-3 py-1.5 text-sm outline-none focus:border-[#171717]"
         />
         <label className="flex items-center gap-1.5 text-sm text-neutral-600">
           <input
@@ -106,14 +106,14 @@ export function ImageResearchClient({
           <button
             type="button"
             onClick={() => setPhase("workflow")}
-            className="ml-auto rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700"
+            className="ml-auto border-2 border-[#171717] bg-[#171717] px-4 py-2 type-label !text-white hover:bg-white hover:!text-[#171717]"
           >
             {selected.size} ausgewählt — Bilder recherchieren →
           </button>
         )}
       </div>
 
-      <div className="mt-4 max-h-[60vh] overflow-y-auto rounded-lg border border-neutral-200 bg-white">
+      <div className="mt-4 max-h-[60vh] overflow-y-auto border-2 border-[#171717] bg-white">
         {visible.map((e) => (
           <label
             key={e.id}
@@ -167,14 +167,14 @@ function ImageWorkflow({
 
   if (done) {
     return (
-      <div className="rounded-lg border border-neutral-200 bg-white p-6">
+      <div className="border-2 border-[#171717] bg-white p-6">
         <p className="text-sm font-medium text-neutral-900">
           Fertig — {results.saved} übernommen, {results.skipped} übersprungen von {entities.length}.
         </p>
         <button
           type="button"
           onClick={onBack}
-          className="mt-4 rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700"
+          className="mt-4 border-2 border-[#171717] bg-[#171717] px-4 py-2 type-label !text-white hover:bg-white hover:!text-[#171717]"
         >
           Zurück zur Auswahl
         </button>
@@ -326,7 +326,7 @@ function ImageStep({
                   : step.result.imageUrl
               }
               alt=""
-              className="max-h-64 w-full rounded-md border border-neutral-200 object-contain bg-neutral-50"
+              className="max-h-64 w-full border border-neutral-300 object-contain bg-neutral-50"
             />
             <p className="mt-2 text-xs text-neutral-500">
               Quelle: {step.result.sourceName ?? "unbekannt"}
@@ -359,7 +359,7 @@ function ImageStep({
               type="button"
               disabled={busy}
               onClick={handleTakeOver}
-              className="mt-3 rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700 disabled:opacity-50"
+              className="mt-3 border-2 border-[#171717] bg-[#171717] px-4 py-2 text-sm font-medium text-white hover:bg-white hover:text-[#171717] disabled:opacity-50"
             >
               {busy ? "Speichere…" : "Übernehmen & weiter"}
             </button>
@@ -375,13 +375,13 @@ function ImageStep({
               value={urlInput}
               onChange={(e) => setUrlInput(e.target.value)}
               placeholder="https://…"
-              className="flex-1 rounded-md border border-neutral-300 px-3 py-1.5 text-sm outline-none focus:border-neutral-500"
+              className="flex-1 border border-neutral-300 px-3 py-1.5 text-sm outline-none focus:border-[#171717]"
             />
             <button
               type="button"
               disabled={!urlInput.trim() || busy}
               onClick={() => runSearch(urlInput.trim())}
-              className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-100 disabled:opacity-50"
+              className="border border-neutral-300 px-3 py-1.5 text-sm font-medium text-neutral-700 hover:border-[#171717] hover:text-[#171717] disabled:opacity-50"
             >
               Bild von Link holen
             </button>
@@ -412,7 +412,7 @@ function ImageStep({
               type="button"
               disabled={busy}
               onClick={() => fileInputRef.current?.click()}
-              className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-100 disabled:opacity-50"
+              className="border border-neutral-300 px-3 py-1.5 text-sm font-medium text-neutral-700 hover:border-[#171717] hover:text-[#171717] disabled:opacity-50"
             >
               Datei(en) auswählen…
             </button>
@@ -421,7 +421,7 @@ function ImageStep({
                 type="button"
                 disabled={busy}
                 onClick={handleUploadSelected}
-                className="rounded-md bg-neutral-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-neutral-700 disabled:opacity-50"
+                className="border-2 border-[#171717] bg-[#171717] px-4 py-1.5 text-sm font-medium text-white hover:bg-white hover:text-[#171717] disabled:opacity-50"
               >
                 {busy ? "Lade hoch…" : `${selectedFiles.length} Datei(en) hochladen`}
               </button>

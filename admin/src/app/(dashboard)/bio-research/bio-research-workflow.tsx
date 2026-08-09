@@ -82,13 +82,13 @@ export function BioResearchWorkflow({
 
   if (done) {
     return (
-      <div className="rounded-lg border border-neutral-200 bg-white p-6">
+      <div className="border-2 border-[#171717] bg-white p-6">
         <p className="text-sm font-medium text-neutral-900">
           Fertig — {results.saved} übernommen, {results.skipped} übersprungen von {entities.length}.
         </p>
         <Link
           href={entityType === "person" ? "/persons" : entityType === "ensemble" ? "/ensembles" : "/venues"}
-          className="mt-4 inline-block rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700"
+          className="mt-4 inline-block border-2 border-[#171717] bg-[#171717] px-4 py-2 type-label !text-white hover:bg-white hover:!text-[#171717]"
         >
           Zurück zur Liste
         </Link>
@@ -185,7 +185,7 @@ function BioStep({
       <h2 className="mt-1 text-lg font-semibold text-neutral-900">{entity.name}</h2>
 
       {entity.currentBio && (
-        <div className="mt-3 rounded-md border border-neutral-100 bg-neutral-50 p-3 text-xs text-neutral-500">
+        <div className="mt-3 border border-neutral-300 bg-neutral-50 p-3 text-xs text-neutral-500">
           <p className="font-medium uppercase tracking-wide">Bisherige Bio</p>
           <p className="mt-1">{entity.currentBio}</p>
         </div>
@@ -226,7 +226,7 @@ function BioStep({
           onChange={(e) => setDraft(e.target.value)}
           rows={8}
           placeholder="Noch kein Text — recherchiert oder manuell eintragen."
-          className="mt-2 w-full rounded-md border border-neutral-300 p-3 text-sm outline-none focus:border-neutral-500"
+          className="mt-2 w-full border border-neutral-300 p-3 text-sm outline-none focus:border-[#171717]"
         />
 
         <div className="mt-3 flex items-center gap-3">
@@ -234,7 +234,7 @@ function BioStep({
             type="button"
             disabled={saving || !draft.trim()}
             onClick={handleTakeOver}
-            className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700 disabled:opacity-50"
+            className="border-2 border-[#171717] bg-[#171717] px-4 py-2 text-sm font-medium text-white hover:bg-white hover:text-[#171717] disabled:opacity-50"
           >
             {saving ? "Speichere…" : "Übernehmen & weiter"}
           </button>

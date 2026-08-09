@@ -134,7 +134,7 @@ export default async function MediaPage() {
         <div className="flex items-center gap-3">
           <Link
             href="/media/gaps"
-            className="rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-100"
+            className="border-2 border-[#171717] px-4 py-2 type-label !text-[#171717] hover:bg-[#171717] hover:!text-white"
           >
             Bildlücken-Bericht
           </Link>
@@ -160,7 +160,7 @@ export default async function MediaPage() {
               const entityName = nameByKey.get(`${image.origin_type}:${image.origin_id}`);
               const entityHref = config?.route ? `${config.route}/${image.origin_id}` : null;
               return (
-              <div key={image.id} className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
+              <div key={image.id} className="overflow-hidden border-2 border-[#171717] bg-white">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={thumbnailSrc(supabase, image)} alt="" className="h-40 w-full object-cover bg-neutral-100" />
                 <div className="p-3">
@@ -210,12 +210,12 @@ export default async function MediaPage() {
                   {image.warnings?.map((warning) => <p key={warning} className="mt-1 text-xs text-amber-700">⚠ {warning}</p>)}
                   <form action={updateImageMetadata} className="mt-3 grid grid-cols-2 gap-2 border-t pt-3">
                     <input type="hidden" name="imageId" value={image.id} />
-                    <input name="photographer" defaultValue={image.photographer ?? ""} placeholder="Fotograf" className="rounded border px-2 py-1 text-xs" />
-                    <input name="credits" defaultValue={image.credits ?? ""} placeholder="Credit-Text" className="rounded border px-2 py-1 text-xs" />
-                    <input name="licenseName" defaultValue={image.license_name ?? ""} placeholder="Lizenz" className="rounded border px-2 py-1 text-xs" />
-                    <input name="licenseUrl" defaultValue={image.license_url ?? ""} placeholder="Lizenz-URL" className="rounded border px-2 py-1 text-xs" />
-                    <input name="confidenceScore" type="number" min="0" max="1" step="0.01" defaultValue={image.confidence_score ?? ""} placeholder="Confidence 0–1" className="rounded border px-2 py-1 text-xs" />
-                    <button type="submit" className="rounded border px-2 py-1 text-xs font-medium hover:bg-neutral-50">Metadaten speichern</button>
+                    <input name="photographer" defaultValue={image.photographer ?? ""} placeholder="Fotograf" className="border border-neutral-300 px-2 py-1 text-xs focus:border-[#171717] outline-none" />
+                    <input name="credits" defaultValue={image.credits ?? ""} placeholder="Credit-Text" className="border border-neutral-300 px-2 py-1 text-xs focus:border-[#171717] outline-none" />
+                    <input name="licenseName" defaultValue={image.license_name ?? ""} placeholder="Lizenz" className="border border-neutral-300 px-2 py-1 text-xs focus:border-[#171717] outline-none" />
+                    <input name="licenseUrl" defaultValue={image.license_url ?? ""} placeholder="Lizenz-URL" className="border border-neutral-300 px-2 py-1 text-xs focus:border-[#171717] outline-none" />
+                    <input name="confidenceScore" type="number" min="0" max="1" step="0.01" defaultValue={image.confidence_score ?? ""} placeholder="Confidence 0–1" className="border border-neutral-300 px-2 py-1 text-xs focus:border-[#171717] outline-none" />
+                    <button type="submit" className="border border-neutral-300 px-2 py-1 text-xs font-medium hover:border-[#171717] hover:text-[#171717]">Metadaten speichern</button>
                   </form>
                   <div className="mt-3 flex flex-wrap gap-3">
                     <ConfirmButton
@@ -245,7 +245,7 @@ export default async function MediaPage() {
               );
             })
           ) : (
-            <div className="col-span-full rounded-lg border border-dashed border-neutral-300 bg-white px-4 py-10 text-center text-sm text-neutral-400">
+            <div className="col-span-full border-2 border-dashed border-neutral-300 bg-white px-4 py-10 text-center text-sm text-neutral-400">
               Keine Bilder zur Prüfung.
             </div>
           )}
