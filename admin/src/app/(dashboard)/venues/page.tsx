@@ -45,7 +45,7 @@ export default async function VenuesPage() {
         </div>
         <Link
           href="/venues/new"
-          className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700"
+          className="border-2 border-[#171717] bg-[#171717] px-4 py-2 type-label !text-white hover:bg-white hover:!text-[#171717]"
         >
           Neu anlegen
         </Link>
@@ -67,23 +67,23 @@ export default async function VenuesPage() {
               bulkDeleteAction={bulkDeleteVenues}
               bulkSetVerifiedAction={bulkSetVenuesVerified}
             />
-            <div id="venues-table" className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
+            <div id="venues-table" className="overflow-hidden border-2 border-[#171717] bg-white">
               <table className="w-full text-sm">
-                <thead className="bg-neutral-50 text-left text-xs uppercase tracking-wide text-neutral-500">
+                <thead className="border-b-2 border-[#171717] text-left">
                   <tr>
                     <th className="w-10 px-4 py-3">
                       <BioSelectAllCheckbox ids={(data ?? []).map((v) => v.id)} />
                     </th>
-                    <th className="px-4 py-3 font-medium">Name</th>
-                    <th className="px-4 py-3 font-medium">Stadt</th>
-                    <th className="px-4 py-3 font-medium">Kapazität</th>
-                    <th className="px-4 py-3 font-medium">Status</th>
-                    <th className="px-4 py-3 font-medium">Bio</th>
-                    <th className="px-4 py-3 font-medium">Bild</th>
+                    <th className="type-label px-4 py-3">Name</th>
+                    <th className="type-label px-4 py-3">Stadt</th>
+                    <th className="type-label px-4 py-3">Kapazität</th>
+                    <th className="type-label px-4 py-3">Status</th>
+                    <th className="type-label px-4 py-3">Bio</th>
+                    <th className="type-label px-4 py-3">Bild</th>
                     <th className="px-4 py-3" />
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-neutral-100">
+                <tbody className="divide-y divide-neutral-200">
                   {data?.length ? (
                     data.map((venue) => (
                       <tr key={venue.id} data-search={venue.name.toLowerCase()} className="hover:bg-neutral-50">
@@ -97,10 +97,10 @@ export default async function VenuesPage() {
                         </td>
                         <td className="px-4 py-3">
                           <span
-                            className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                            className={`type-label border px-2 py-1 ${
                               venue.is_verified
-                                ? "bg-emerald-50 text-emerald-700"
-                                : "bg-neutral-100 text-neutral-600"
+                                ? "border-emerald-700 !text-emerald-700"
+                                : "border-neutral-300 !text-neutral-500"
                             }`}
                           >
                             {venue.is_verified ? "Geprüft" : "Ungeprüft"}
@@ -113,7 +113,7 @@ export default async function VenuesPage() {
                           <ImageStatusBadge hasImage={!!venue.photo_url} />
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <Link href={`/venues/${venue.id}`} className="text-sm font-medium text-neutral-700 hover:text-neutral-900">
+                          <Link href={`/venues/${venue.id}`} className="text-sm font-medium text-neutral-700 hover:text-[#d13c1f]">
                             Bearbeiten
                           </Link>
                         </td>
