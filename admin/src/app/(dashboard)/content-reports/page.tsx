@@ -189,13 +189,13 @@ export default async function ContentReportsPage() {
 
       {!error && data && data.length > 0 && (
         <div className="mt-6 flex gap-3 text-xs">
-          <span className="rounded-md border border-green-200 bg-green-50 px-2.5 py-1.5 font-medium text-green-800">
+          <span className="border border-emerald-700 bg-white px-2.5 py-1.5 type-label !text-emerald-700">
             {counts.fixed} automatisch behoben, wartet auf Bestätigung
           </span>
-          <span className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 font-medium text-amber-800">
+          <span className="border border-amber-700 bg-white px-2.5 py-1.5 type-label !text-amber-700">
             {counts.needsAttention} brauchen manuelle Prüfung
           </span>
-          <span className="rounded-md border border-neutral-200 bg-neutral-50 px-2.5 py-1.5 font-medium text-neutral-600">
+          <span className="border border-neutral-300 bg-white px-2.5 py-1.5 type-label !text-neutral-500">
             {counts.untried} noch nicht versucht
           </span>
         </div>
@@ -210,12 +210,12 @@ export default async function ContentReportsPage() {
               return (
                 <div
                   key={report.id}
-                  className={`rounded-lg border border-neutral-200 bg-white p-4 ${CARD_BORDER_STYLE[lastFix?.status ?? "none"]}`}
+                  className={`border-2 border-[#171717] bg-white p-4 ${CARD_BORDER_STYLE[lastFix?.status ?? "none"]}`}
                 >
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
+                        <span className="border border-amber-700 px-2 py-1 type-label !text-amber-700">
                           {REASON_LABEL[report.reason] ?? report.reason}
                         </span>
                         <span className="text-xs text-neutral-400">{formatDate(report.created_at)}</span>
@@ -239,14 +239,14 @@ export default async function ContentReportsPage() {
                         confirmMessage="Ohne Handlungsbedarf verwerfen?"
                         label="Verwerfen"
                         pendingLabel="…"
-                        className="rounded-md border border-neutral-200 px-2.5 py-1.5 text-xs font-medium text-neutral-600 hover:bg-neutral-50 disabled:opacity-50"
+                        className="border border-neutral-300 px-2.5 py-1.5 text-xs font-medium text-neutral-600 hover:border-[#171717] hover:text-[#171717] disabled:opacity-50"
                       />
                       <ConfirmButton
                         action={resolveContentReport.bind(null, report.id)}
                         confirmMessage="Als erledigt markieren?"
                         label="Erledigt"
                         pendingLabel="…"
-                        className="rounded-md border border-green-200 bg-green-50 px-2.5 py-1.5 text-xs font-medium text-green-800 hover:bg-green-100 disabled:opacity-50"
+                        className="border-2 border-emerald-700 bg-white px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
                       />
                       <AutoFixButton reportId={report.id} alreadyTried={Boolean(lastFix)} />
                     </div>

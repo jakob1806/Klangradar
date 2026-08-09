@@ -32,7 +32,7 @@ export function AutoFixAllButton() {
         type="button"
         disabled={pending}
         onClick={handleClick}
-        className="rounded-md border border-blue-300 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-800 hover:bg-blue-100 disabled:opacity-50"
+        className="border-2 border-[#171717] bg-[#171717] px-3 py-1.5 text-sm font-medium text-white hover:bg-white hover:text-[#171717] disabled:opacity-50"
       >
         {pending ? "Prüfe alle offenen Meldungen…" : "Alle offenen automatisch prüfen"}
       </button>
