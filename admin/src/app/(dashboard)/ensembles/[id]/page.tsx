@@ -19,7 +19,7 @@ export default async function EditEnsemblePage({
     supabase
       .from("ensembles")
       .select(
-        "slug, name, type, description_de, founded_year, member_count, home_venue_id, website_url, photo_url, is_verified",
+        "slug, name, type, description_de, founded_year, member_count, home_venue_id, website_url, photo_url, avatar_crop_x, avatar_crop_y, avatar_crop_width, avatar_crop_height, is_verified",
       )
       .eq("id", id)
       .maybeSingle<EnsembleFormValues>(),
@@ -47,7 +47,7 @@ export default async function EditEnsemblePage({
         <AiEnrichButton entityType="ensemble" entityId={id} />
       </div>
       <div className="mt-6">
-        <EnsembleForm action={updateEnsemble.bind(null, id)} initial={data} venues={venues ?? []} />
+        <EnsembleForm action={updateEnsemble.bind(null, id)} initial={data} venues={venues ?? []} ensembleId={id} />
       </div>
       <div className="mt-8 max-w-xl border-t border-neutral-200 pt-6">
         <GalleryEditor originType="ensemble" originId={id} path={`/ensembles/${id}`} images={images ?? []} />

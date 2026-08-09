@@ -4,10 +4,22 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
+// full_name bleibt die einzige Quelle für Fuzzy-Matching (find_matching_person),
+// Duplikat-Auflösung (resolve-person-duplicates), Volltextsuche (search_vector)
+// und Sortierung in Admin/Flutter-App/nativer App — wird hier aus den drei
+// strukturierten Feldern zusammengesetzt, damit alle bestehenden Lesepfade
+// unverändert weiterfunktionieren, ohne dass irgendwo full_name manuell
+// gepflegt werden muss.
 function readPersonFields(formData: FormData) {
+  const first_name = String(formData.get("first_name") ?? "").trim();
+  const middle_name = String(formData.get("middle_name") ?? "").trim() || null;
+  const last_name = String(formData.get("last_name") ?? "").trim();
   return {
     slug: String(formData.get("slug") ?? "").trim(),
-    full_name: String(formData.get("full_name") ?? "").trim(),
+    first_name,
+    middle_name,
+    last_name,
+    full_name: [first_name, middle_name, last_name].filter(Boolean).join(" "),
     roles: formData.getAll("roles").map(String),
     instrument: String(formData.get("instrument") ?? "").trim() || null,
     nationality: String(formData.get("nationality") ?? "").trim() || null,

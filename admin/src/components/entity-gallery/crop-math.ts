@@ -13,18 +13,25 @@ export interface CropRect {
   height: number;
 }
 
-/** Größter 16:9-Ausschnitt, der komplett innerhalb des Originalbilds liegt
- * und dessen Mittelpunkt mit dem des Originalbilds übereinstimmt — der
- * Default-Zuschnitt, bevor eine Redakteurin ihn anpasst (entspricht dem
- * bisherigen automatischen BoxFit.cover-Verhalten der App). */
-export function defaultCropRect(naturalWidth: number, naturalHeight: number): CropRect {
+/** Größter Ausschnitt im gegebenen Seitenverhältnis (Default: 16:9-Galerie-
+ * Ausschnitt), der komplett innerhalb des Originalbilds liegt und dessen
+ * Mittelpunkt mit dem des Originalbilds übereinstimmt — der Default-
+ * Zuschnitt, bevor eine Redakteurin ihn anpasst (entspricht dem bisherigen
+ * automatischen BoxFit.cover-Verhalten der App). Für den runden Avatar-
+ * Ausschnitt (siehe avatar-crop-actions.ts) wird aspect=1 übergeben — ein
+ * Kreis ist rechnerisch einfach die 1:1-Fläche mit rundem Rahmen. */
+export function defaultCropRect(
+  naturalWidth: number,
+  naturalHeight: number,
+  aspect: number = GALLERY_CROP_ASPECT,
+): CropRect {
   const imageAspect = naturalWidth / naturalHeight;
-  if (imageAspect > GALLERY_CROP_ASPECT) {
-    // Bild ist relativ breiter als 16:9 — links/rechts beschneiden.
-    const width = GALLERY_CROP_ASPECT / imageAspect;
+  if (imageAspect > aspect) {
+    // Bild ist relativ breiter als der Ziel-Ausschnitt — links/rechts beschneiden.
+    const width = aspect / imageAspect;
     return { x: (1 - width) / 2, y: 0, width, height: 1 };
   }
-  // Bild ist relativ höher als 16:9 (oder exakt) — oben/unten beschneiden.
-  const height = imageAspect / GALLERY_CROP_ASPECT;
+  // Bild ist relativ höher als der Ziel-Ausschnitt (oder exakt) — oben/unten beschneiden.
+  const height = imageAspect / aspect;
   return { x: 0, y: (1 - height) / 2, width: 1, height };
 }

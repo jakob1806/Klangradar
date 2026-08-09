@@ -71,6 +71,26 @@ export function ensureMagickReady(): Promise<void> {
   return magickReady;
 }
 
+// Nutzerfeedback: der manuelle Datei-Upload in "Bilder recherchieren"
+// scheitert oft mit der immer gleichen, generischen Meldung ("nicht
+// verarbeitet werden konnte, nicht erreichbar, zu klein, oder ungültiges
+// Format") — ensureCoverImage() gibt bei JEDEM der ~8 unterschiedlichen
+// Fehlschlagsgründe stumm null zurück, die Redaktion kann nie erkennen,
+// welcher der vier genannten Gründe tatsächlich zutraf. reason macht den
+// tatsächlichen Grund für die interaktiven Aufrufer (research-entity-image
+// commit-Pfad) sichtbar, ohne das bisherige "wirft nie, liefert bei jedem
+// Fehlschlag null"-Verhalten der Hintergrund-Aufrufer (ingest-source,
+// enrich-entity-images) zu ändern — ensureCoverImage() bleibt für die
+// unverändert string|null.
+export type CoverImageFailureReason =
+  | "unreachable"
+  | "download_failed"
+  | "decode_failed"
+  | "too_small"
+  | "bad_aspect_ratio"
+  | "storage_error"
+  | "unknown";
+
 export type ImageOriginType =
   | "event"
   | "venue"
@@ -109,13 +129,34 @@ export interface CoverImageInput {
   needsReview?: boolean;
 }
 
+interface CoverImageResult {
+  id: string | null;
+  reason?: CoverImageFailureReason;
+}
+
 /** Liefert die images.id des (ggf. wiederverwendeten) Coverbilds, oder null
- * bei jedem Fehlschlag — nie eine geworfene Exception, siehe Datei-Kommentar. */
+ * bei jedem Fehlschlag — nie eine geworfene Exception, siehe Datei-Kommentar.
+ * Unverändertes Verhalten für die bestehenden Hintergrund-Aufrufer
+ * (ingest-source, enrich-entity-images), die den Grund nie ausgewertet
+ * haben. Für den interaktiven Upload-Pfad siehe ensureCoverImageWithReason. */
 export async function ensureCoverImage(
   // deno-lint-ignore no-explicit-any
   supabase: any,
   input: CoverImageInput,
 ): Promise<string | null> {
+  const result = await ensureCoverImageWithReason(supabase, input);
+  return result.id;
+}
+
+/** Wie ensureCoverImage(), liefert aber zusätzlich den konkreten Grund eines
+ * Fehlschlags — für den interaktiven Kommentar in der Fehlermeldung des
+ * manuellen Upload-Pfads (research-entity-image, mode="commit"), siehe
+ * Datei-Kommentar oben (CoverImageFailureReason). */
+export async function ensureCoverImageWithReason(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  input: CoverImageInput,
+): Promise<CoverImageResult> {
   try {
     return await ensureCoverImageInner(supabase, input);
   } catch (err) {
@@ -124,7 +165,7 @@ export async function ensureCoverImage(
         err instanceof Error ? err.message : String(err)
       }`,
     );
-    return null;
+    return { id: null, reason: "unknown" };
   }
 }
 
@@ -132,7 +173,7 @@ async function ensureCoverImageInner(
   // deno-lint-ignore no-explicit-any
   supabase: any,
   input: CoverImageInput,
-): Promise<string | null> {
+): Promise<CoverImageResult> {
   const { sourceUrl, originType, originId } = input;
 
   // 1. Exakte source_url für dasselbe Origin schon bekannt? Direkt
@@ -153,7 +194,7 @@ async function ensureCoverImageInner(
     .eq("source_url", sourceUrl)
     .neq("review_status", "rejected")
     .maybeSingle();
-  if (existingByUrl?.storage_path) return existingByUrl.id;
+  if (existingByUrl?.storage_path) return { id: existingByUrl.id };
 
   let bytes: Uint8Array | null;
   let mimeTypeHint: string | null = null;
@@ -161,11 +202,11 @@ async function ensureCoverImageInner(
     bytes = input.sourceBytes;
   } else {
     const check = await checkImageUrl(sourceUrl);
-    if (!check.reachable) return null;
+    if (!check.reachable) return { id: null, reason: "unreachable" };
     mimeTypeHint = check.contentType ?? null;
     bytes = await downloadImage(sourceUrl);
   }
-  if (!bytes) return null;
+  if (!bytes) return { id: null, reason: "download_failed" };
   const contentHash = await sha256(bytes);
 
   // Schon eine Zeile für GENAU dieses Origin mit exakt diesem Bildinhalt
@@ -213,7 +254,7 @@ async function ensureCoverImageInner(
         }
       }
     }
-    return existingForOrigin.id;
+    return { id: existingForOrigin.id };
   }
 
   const { data: existingByContentHash } = await supabase
@@ -285,15 +326,15 @@ async function ensureCoverImageInner(
       ],
       needs_review: input.needsReview ?? true,
     }).select("id").single();
-    return linked?.id ?? null;
+    return linked ? { id: linked.id } : { id: null, reason: "storage_error" };
   }
 
   await ensureMagickReady();
 
   const decoded = decodeImage(bytes);
-  if (!decoded) return null;
+  if (!decoded) return { id: null, reason: "decode_failed" };
   const { width, height, webpBytes, thumbnailBytes, phash } = decoded;
-  if (width < 400 || height < 300) return null;
+  if (width < 400 || height < 300) return { id: null, reason: "too_small" };
 
   // Nutzerfeedback: "die Bilder, die in der Detailansicht von einzelnen
   // Veranstaltungen in der App angezeigt werden sind noch etwas unscharf".
@@ -305,7 +346,21 @@ async function ensureCoverImageInner(
   // lässt die meisten echten Pressefotos/Veranstaltungsbilder durch, sperrt
   // aber reine Listing-Thumbnails aus (dann bleibt der Genre-Platzhalter
   // sichtbar statt eines hochskalierten Kleinstbilds).
-  if (!isAcceptableImageDimensions(width, height)) return null;
+  if (!isAcceptableImageDimensions(width, height)) {
+    // isAcceptableImageDimensions() bleibt die alleinige Quelle für die
+    // Schwellwerte (siehe imagePipeline.test.ts) — hier nur zusätzlich
+    // ermitteln, WELCHE der beiden Teilbedingungen zutraf, für eine genaue
+    // Fehlermeldung statt des bisherigen einen kombinierten "zu klein".
+    const aspectRatio = width / height;
+    const reason: CoverImageFailureReason =
+      width < MIN_WIDTH || height < MIN_HEIGHT ? "too_small" : "bad_aspect_ratio";
+    console.error(
+      `ensureCoverImage: rejected ${sourceUrl} (${width}x${height}, aspect ${
+        aspectRatio.toFixed(2)
+      }) — reason ${reason}`,
+    );
+    return { id: null, reason };
+  }
 
   // 2. pHash-Dedupe: dieselbe Bilddatei schon für irgendein Origin
   // gespeichert (z.B. über eine andere source_url oder ein anderes Event
@@ -327,8 +382,8 @@ async function ensureCoverImageInner(
   if (existingByHash) {
     return existingByHash.origin_type === originType &&
         existingByHash.origin_id === originId
-      ? existingByHash.id
-      : null;
+      ? { id: existingByHash.id }
+      : { id: null, reason: "unknown" };
   }
 
   const storagePath = `${originType}/${crypto.randomUUID()}.webp`;
@@ -344,7 +399,7 @@ async function ensureCoverImageInner(
     console.error(
       `ensureCoverImage: upload failed for ${sourceUrl}: ${uploadError.message}`,
     );
-    return null;
+    return { id: null, reason: "storage_error" };
   }
 
   let storedThumbnailPath: string | null = thumbnailPath;
@@ -400,10 +455,10 @@ async function ensureCoverImageInner(
         insertError?.message ?? "unknown"
       }`,
     );
-    return null;
+    return { id: null, reason: "storage_error" };
   }
 
-  return inserted.id;
+  return { id: inserted.id };
 }
 
 // Kein Timeout hier bedeutete: ein einzelner langsamer/nie antwortender

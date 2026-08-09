@@ -292,6 +292,20 @@ function ImageStep({
     setError(null);
     let anySuccess = false;
     for (const file of selectedFiles) {
+      // Nutzerfeedback: Upload scheitert oft mit der immer gleichen,
+      // pauschalen Meldung. Serverseitig gibt es jetzt einen konkreten
+      // Grund (siehe commitFailureMessage in research-entity-image/
+      // index.ts) — hier zusätzlich VOR dem Upload prüfen (gleiche
+      // Schwellwerte: 640×480 min, Seitenverhältnis 0.4–3.0, siehe
+      // imagePipeline.ts isAcceptableImageDimensions), damit die häufigsten
+      // Fälle (zu kleines/falsch zugeschnittenes Foto) sofort und ohne
+      // Upload-Umweg als konkrete Meldung erscheinen statt erst nach dem
+      // vollständigen Base64-Upload zum Server.
+      const dimensionError = await checkClientSideDimensions(file);
+      if (dimensionError) {
+        setError(`"${file.name}": ${dimensionError}`);
+        continue;
+      }
       const base64 = await fileToBase64(file);
       const res = await commitManualImage(entityType, entity.id, base64, licenseStatus);
       if (res.committed) anySuccess = true;
@@ -467,6 +481,44 @@ function ImageStep({
       </div>
     </div>
   );
+}
+
+// Gleiche Schwellwerte wie isAcceptableImageDimensions() in
+// backend/supabase/functions/_shared/imagePipeline.ts — muss synchron
+// gehalten werden, ändert sich dort etwas.
+const MIN_WIDTH = 640;
+const MIN_HEIGHT = 480;
+const MIN_ASPECT_RATIO = 0.4;
+const MAX_ASPECT_RATIO = 3.0;
+
+/** null = Bild ok, sonst die konkrete Fehlermeldung (statt erst nach dem
+ * Upload vom Server zu erfahren, dass das Bild abgelehnt wird). */
+function checkClientSideDimensions(file: File): Promise<string | null> {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const { naturalWidth: width, naturalHeight: height } = img;
+      if (width < MIN_WIDTH || height < MIN_HEIGHT) {
+        resolve(`Bild zu klein (${width}×${height}px) — mindestens ${MIN_WIDTH}×${MIN_HEIGHT}px nötig.`);
+        return;
+      }
+      const aspectRatio = width / height;
+      if (aspectRatio < MIN_ASPECT_RATIO || aspectRatio > MAX_ASPECT_RATIO) {
+        resolve(
+          `Ungewöhnliches Seitenverhältnis (${width}×${height}px) — vermutlich kein normales Foto, sondern z. B. ein Banner oder eine Sidebar-Grafik.`,
+        );
+        return;
+      }
+      resolve(null);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve("Datei konnte nicht als Bild gelesen werden — vermutlich beschädigt oder ein nicht unterstütztes Format.");
+    };
+    img.src = url;
+  });
 }
 
 function fileToBase64(file: File): Promise<string> {

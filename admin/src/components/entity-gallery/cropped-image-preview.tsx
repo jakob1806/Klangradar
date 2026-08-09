@@ -13,22 +13,26 @@ export function CroppedImagePreview({
   crop,
   naturalWidth,
   naturalHeight,
+  aspect = GALLERY_CROP_ASPECT,
+  shape = "rectangle",
   className,
 }: {
   src: string;
   crop: CropRect | null;
   naturalWidth?: number;
   naturalHeight?: number;
+  aspect?: number;
+  shape?: "rectangle" | "circle";
   className?: string;
 }) {
   const [failed, setFailed] = useState(false);
   const effectiveCrop =
-    crop ?? (naturalWidth && naturalHeight ? defaultCropRect(naturalWidth, naturalHeight) : null);
+    crop ?? (naturalWidth && naturalHeight ? defaultCropRect(naturalWidth, naturalHeight, aspect) : null);
 
   return (
     <div
-      className={`relative overflow-hidden bg-neutral-100 ${className ?? ""}`}
-      style={{ aspectRatio: `${GALLERY_CROP_ASPECT}` }}
+      className={`relative overflow-hidden bg-neutral-100 ${shape === "circle" ? "rounded-full" : ""} ${className ?? ""}`}
+      style={{ aspectRatio: `${aspect}` }}
     >
       {failed ? (
         // Quelle nicht ladbar (z.B. Hotlink-Rate-Limit/abgelaufene Fremd-

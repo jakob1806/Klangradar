@@ -17,10 +17,10 @@ export default async function EditPersonPage({
   const { data, error } = await supabase
     .from("persons")
     .select(
-      "slug, full_name, roles, instrument, nationality, birth_date, death_date, biography_de, website_url, photo_url, is_verified",
+      "slug, full_name, first_name, middle_name, last_name, roles, instrument, nationality, birth_date, death_date, biography_de, website_url, photo_url, avatar_crop_x, avatar_crop_y, avatar_crop_width, avatar_crop_height, is_verified",
     )
     .eq("id", id)
-    .maybeSingle<PersonFormValues>();
+    .maybeSingle<PersonFormValues & { full_name: string }>();
 
   if (error || !data) notFound();
 
@@ -47,7 +47,7 @@ export default async function EditPersonPage({
         <AiEnrichButton entityType="person" entityId={id} />
       </div>
       <div className="mt-6">
-        <PersonForm action={updatePerson.bind(null, id)} initial={data} />
+        <PersonForm action={updatePerson.bind(null, id)} initial={data} personId={id} />
       </div>
       <div className="mt-8 max-w-xl border-t border-neutral-200 pt-6">
         <GalleryEditor originType="person" originId={id} path={`/persons/${id}`} images={images ?? []} />

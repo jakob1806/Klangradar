@@ -10,6 +10,7 @@ import {
   moveGalleryImage,
   recheckGalleryImage,
   rejectGalleryImage,
+  saveGalleryImageCrop,
   setPrimaryGalleryImage,
   type GalleryImage,
   type GalleryOriginType,
@@ -346,14 +347,14 @@ export function GalleryEditor({
 
       {cropTarget && (
         <CropTool
-          imageId={cropTarget.id}
           src={cropTarget.source_url}
           initialCrop={
             cropTarget.crop_x != null && cropTarget.crop_y != null && cropTarget.crop_width != null && cropTarget.crop_height != null
               ? { x: cropTarget.crop_x, y: cropTarget.crop_y, width: cropTarget.crop_width, height: cropTarget.crop_height }
               : null
           }
-          path={path}
+          onSave={(crop) => saveGalleryImageCrop(cropTarget.id, crop, path)}
+          onReset={() => saveGalleryImageCrop(cropTarget.id, null, path)}
           onClose={() => setCropTarget(null)}
         />
       )}

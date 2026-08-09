@@ -46,32 +46,63 @@ Future<Map<String, String>> _coverImagesByOriginId(String originType) async {
   return covers;
 }
 
+/// Bevorzugt das Galerie-Titelbild vor der eigenen `photo_url`-Spalte,
+/// sobald eines existiert (siehe Kommentar oben — meist die bessere/
+/// geprüfte Aufnahme). Der redaktionelle Avatar-Ausschnitt
+/// (avatar_crop_x/y/width/height) wurde im Admin gegen die ursprüngliche
+/// `photo_url` gewählt — greift stattdessen das Galeriebild, gehört der
+/// Ausschnitt zu einem ANDEREN Bild und wird deshalb bewusst verworfen
+/// (sonst würde z.B. ein am Kopf zugeschnittener Ausschnitt plötzlich
+/// einen Fuß zeigen).
+List<Map<String, dynamic>> _applyCoverFallback(
+  List<Map<String, dynamic>> rows,
+  Map<String, String> covers,
+) {
+  return rows.map((r) {
+    final coverUrl = covers[r['id']];
+    if (coverUrl == null) return r;
+    return {
+      ...r,
+      'photo_url': coverUrl,
+      'avatar_crop_x': null,
+      'avatar_crop_y': null,
+      'avatar_crop_width': null,
+      'avatar_crop_height': null,
+    };
+  }).toList();
+}
+
 /// Alle Personen alphabetisch nach Name.
-final allPersonsProvider =
-    FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
-      final rawRows = await Supabase.instance.client
-          .from('persons')
-          .select('id, slug, full_name, roles, photo_url')
-          .order('full_name', ascending: true);
-      final covers = await _coverImagesByOriginId('person');
-      final rows = (rawRows as List).cast<Map<String, dynamic>>();
-      return rows
-          .map((r) => {...r, 'photo_url': covers[r['id']] ?? r['photo_url']})
-          .toList();
-    });
+final allPersonsProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((
+  ref,
+) async {
+  final rawRows = await Supabase.instance.client
+      .from('persons')
+      .select(
+        'id, slug, full_name, roles, photo_url, avatar_crop_x, avatar_crop_y, avatar_crop_width, avatar_crop_height',
+      )
+      .order('full_name', ascending: true);
+  final covers = await _coverImagesByOriginId('person');
+  return _applyCoverFallback(
+    (rawRows as List).cast<Map<String, dynamic>>(),
+    covers,
+  );
+});
 
 /// Alle Ensembles alphabetisch nach Name.
 final allEnsemblesProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
       final rawRows = await Supabase.instance.client
           .from('ensembles')
-          .select('id, slug, name, type, photo_url')
+          .select(
+            'id, slug, name, type, photo_url, avatar_crop_x, avatar_crop_y, avatar_crop_width, avatar_crop_height',
+          )
           .order('name', ascending: true);
       final covers = await _coverImagesByOriginId('ensemble');
-      final rows = (rawRows as List).cast<Map<String, dynamic>>();
-      return rows
-          .map((r) => {...r, 'photo_url': covers[r['id']] ?? r['photo_url']})
-          .toList();
+      return _applyCoverFallback(
+        (rawRows as List).cast<Map<String, dynamic>>(),
+        covers,
+      );
     });
 
 /// Alle Orte alphabetisch nach Name.

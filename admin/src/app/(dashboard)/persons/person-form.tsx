@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { Field, TextArea, TextInput } from "@/components/form-fields";
 import { ImageUploadField } from "@/components/image-upload-field";
+import { AvatarCropButton } from "@/components/entity-gallery/avatar-crop-button";
+import type { CropRect } from "@/components/entity-gallery/crop-math";
 import { SubmitButton } from "@/components/submit-button";
 
 function slugify(value: string) {
@@ -26,7 +28,9 @@ const ROLE_OPTIONS = [
 
 export interface PersonFormValues {
   slug: string;
-  full_name: string;
+  first_name: string;
+  middle_name: string | null;
+  last_name: string;
   roles: string[];
   instrument: string | null;
   nationality: string | null;
@@ -35,31 +39,74 @@ export interface PersonFormValues {
   biography_de: string | null;
   website_url: string | null;
   photo_url: string | null;
+  avatar_crop_x: number | null;
+  avatar_crop_y: number | null;
+  avatar_crop_width: number | null;
+  avatar_crop_height: number | null;
   is_verified: boolean;
 }
 
 export function PersonForm({
   action,
   initial,
+  personId,
 }: {
   action: (formData: FormData) => void;
   initial?: PersonFormValues;
+  /** Nur auf der Bearbeiten-Seite gesetzt — der Avatar-Crop-Button
+   * braucht eine bereits existierende Person (siehe AvatarCropButton). */
+  personId?: string;
 }) {
   const [slug, setSlug] = useState(initial?.slug ?? "");
   const [slugTouched, setSlugTouched] = useState(Boolean(initial));
+  const [firstName, setFirstName] = useState(initial?.first_name ?? "");
+  const [middleName, setMiddleName] = useState(initial?.middle_name ?? "");
+  const [lastName, setLastName] = useState(initial?.last_name ?? "");
+
+  // Slug wird weiterhin automatisch aus dem (vollen) Namen abgeleitet,
+  // solange die Redakteurin ihn nicht manuell angefasst hat — jetzt aus
+  // den drei Namensfeldern statt aus einem einzelnen full_name-Input.
+  function updateSlugFrom(first: string, middle: string, last: string) {
+    if (slugTouched) return;
+    setSlug(slugify([first, middle, last].filter(Boolean).join(" ")));
+  }
 
   return (
     <form action={action} className="flex max-w-xl flex-col gap-4">
-      <Field label="Name" required>
-        <TextInput
-          name="full_name"
-          required
-          defaultValue={initial?.full_name}
-          onChange={(e) => {
-            if (!slugTouched) setSlug(slugify(e.target.value));
-          }}
-        />
-      </Field>
+      <div className="grid grid-cols-3 gap-4">
+        <Field label="Vorname" required>
+          <TextInput
+            name="first_name"
+            required
+            value={firstName}
+            onChange={(e) => {
+              setFirstName(e.target.value);
+              updateSlugFrom(e.target.value, middleName, lastName);
+            }}
+          />
+        </Field>
+        <Field label="Zweiter Vorname">
+          <TextInput
+            name="middle_name"
+            value={middleName}
+            onChange={(e) => {
+              setMiddleName(e.target.value);
+              updateSlugFrom(firstName, e.target.value, lastName);
+            }}
+          />
+        </Field>
+        <Field label="Nachname" required>
+          <TextInput
+            name="last_name"
+            required
+            value={lastName}
+            onChange={(e) => {
+              setLastName(e.target.value);
+              updateSlugFrom(firstName, middleName, e.target.value);
+            }}
+          />
+        </Field>
+      </div>
 
       <Field label="Slug (URL)" required>
         <TextInput
@@ -111,6 +158,28 @@ export function PersonForm({
       </Field>
 
       <ImageUploadField name="photo_url" initialUrl={initial?.photo_url} entityType="persons" shape="circle" label="Profilfoto" />
+
+      {personId && initial?.photo_url && (
+        <AvatarCropButton
+          entityType="persons"
+          entityId={personId}
+          photoUrl={initial.photo_url}
+          initialCrop={
+            initial.avatar_crop_x != null &&
+            initial.avatar_crop_y != null &&
+            initial.avatar_crop_width != null &&
+            initial.avatar_crop_height != null
+              ? ({
+                  x: initial.avatar_crop_x,
+                  y: initial.avatar_crop_y,
+                  width: initial.avatar_crop_width,
+                  height: initial.avatar_crop_height,
+                } satisfies CropRect)
+              : null
+          }
+          path={`/persons/${personId}`}
+        />
+      )}
 
       <Field label="Website">
         <TextInput name="website_url" type="url" defaultValue={initial?.website_url ?? ""} />

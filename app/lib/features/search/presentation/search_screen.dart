@@ -10,6 +10,7 @@ import '../../../core/auth/auth_providers.dart';
 import '../../../core/events/filtered_events_providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/cropped_network_image.dart';
 import '../../../core/widgets/event_filter_sheet.dart';
 import '../../../core/widgets/genre_artwork.dart';
 import '../../../core/widgets/liquid_glass/liquid_glass.dart';
@@ -624,16 +625,23 @@ class _DirectoryEntries extends ConsumerWidget {
 /// fehlten komplett). Fällt bei fehlendem/kaputtem Bild auf das bisherige
 /// Icon zurück, ändert also für Typen ohne photo_url (aktuell event/
 /// ensemble/venue in der Ergebnisliste) nichts.
+///
+/// [crop] ist der im Admin redaktionell festgelegte runde Avatar-Ausschnitt
+/// (persons/ensembles.avatar_crop_x/y/width/height) — `null` bedeutet kein
+/// Ausschnitt gewählt, dann bleibt es beim bisherigen zentrierten
+/// BoxFit.cover (siehe CroppedNetworkImage-Fallback).
 class _EntryLeading extends StatelessWidget {
   const _EntryLeading({
     required this.type,
     required this.photoUrl,
     required this.colors,
+    this.crop,
   });
 
   final String type;
   final String? photoUrl;
   final AppColorsExtension colors;
+  final Rect? crop;
 
   static const double _size = 48;
 
@@ -657,17 +665,27 @@ class _EntryLeading extends StatelessWidget {
       width: _size,
       height: _size,
       child: ClipOval(
-        child: CachedNetworkImage(
+        child: CroppedNetworkImage(
           imageUrl: photoUrl!,
-          width: _size,
-          height: _size,
-          fit: BoxFit.cover,
-          placeholder: (context, url) => icon,
-          errorWidget: (context, url, error) => icon,
+          crop: crop,
+          placeholder: (context) => icon,
+          errorWidget: (context) => icon,
         ),
       ),
     );
   }
+}
+
+/// Liest einen [Rect]-Ausschnitt aus den `avatar_crop_x/y/width/height`-
+/// Spalten einer Verzeichniszeile — analog zu `GalleryImage.fromRow`
+/// (entity_gallery_providers.dart) für die 16:9-Galerie-Crops.
+Rect? _avatarCropFromRow(Map<String, dynamic> r) {
+  final x = (r['avatar_crop_x'] as num?)?.toDouble();
+  final y = (r['avatar_crop_y'] as num?)?.toDouble();
+  final width = (r['avatar_crop_width'] as num?)?.toDouble();
+  final height = (r['avatar_crop_height'] as num?)?.toDouble();
+  if (x == null || y == null || width == null || height == null) return null;
+  return Rect.fromLTWH(x, y, width, height);
 }
 
 class _DirectoryList extends StatelessWidget {
@@ -723,6 +741,7 @@ class _DirectoryList extends StatelessWidget {
               type: type,
               photoUrl: r['photo_url'] as String?,
               colors: colors,
+              crop: _avatarCropFromRow(r),
             ),
             title: Text(
               _title(r),

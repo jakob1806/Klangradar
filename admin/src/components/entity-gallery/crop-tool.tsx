@@ -1,32 +1,46 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { saveGalleryImageCrop } from "@/lib/gallery-actions";
 import { CroppedImagePreview } from "./cropped-image-preview";
-import { defaultCropRect, type CropRect } from "./crop-math";
+import { GALLERY_CROP_ASPECT, defaultCropRect, type CropRect } from "./crop-math";
 
 const FRAME_WIDTH = 440;
-const FRAME_HEIGHT = 247.5; // 440 / (16/9)
 
 /** Interaktives Zuschneide-Tool: Zoom-Regler + Ziehen zum Verschieben,
- * berechnet daraus einen normalisierten 16:9-Ausschnitt (Anteile 0..1 des
- * Originalbilds) — dieselbe Zahl, die die App später zum Rendern benutzt
- * (siehe crop-math.ts). Rechts daneben eine Live-Vorschau mit exakt
- * derselben Mathematik wie CroppedNetworkImage in der App, damit die
- * Redakteurin sieht, was sie bekommt, bevor sie speichert. */
+ * berechnet daraus einen normalisierten Ausschnitt (Anteile 0..1 des
+ * Originalbilds) im gegebenen Seitenverhältnis — dieselbe Zahl, die die App
+ * später zum Rendern benutzt (siehe crop-math.ts). Rechts daneben eine
+ * Live-Vorschau mit exakt derselben Mathematik wie CroppedNetworkImage in
+ * der App, damit die Redakteurin sieht, was sie bekommt, bevor sie
+ * speichert.
+ *
+ * `aspect`/`shape` generalisieren das Tool über den ursprünglichen 16:9-
+ * Galerie-Ausschnitt hinaus — der runde Avatar-Fokuspunkt (Personen/
+ * Ensembles, siehe avatar-crop-actions.ts) nutzt aspect=1, shape="circle",
+ * dieselbe Zieh-/Zoom-Mechanik. `onSave`/`onReset` sind austauschbar statt
+ * hart auf saveGalleryImageCrop verdrahtet, damit dieselbe Komponente sowohl
+ * Galeriebilder (images-Tabelle) als auch Avatar-Crops (persons/ensembles)
+ * speichern kann. */
 export function CropTool({
-  imageId,
   src,
   initialCrop,
-  path,
+  aspect = GALLERY_CROP_ASPECT,
+  shape = "rectangle",
+  title = "Querformat-Ausschnitt festlegen",
+  onSave,
+  onReset,
   onClose,
 }: {
-  imageId: string;
   src: string;
   initialCrop: CropRect | null;
-  path: string;
+  aspect?: number;
+  shape?: "rectangle" | "circle";
+  title?: string;
+  onSave: (crop: CropRect) => Promise<void>;
+  onReset: () => Promise<void>;
   onClose: () => void;
 }) {
+  const FRAME_HEIGHT = FRAME_WIDTH / aspect;
   const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
   const [zoom, setZoom] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
@@ -42,7 +56,7 @@ export function CropTool({
   function handleImageLoad(e: React.SyntheticEvent<HTMLImageElement>) {
     const w = e.currentTarget.naturalWidth;
     const h = e.currentTarget.naturalHeight;
-    const crop = initialCrop ?? defaultCropRect(w, h);
+    const crop = initialCrop ?? defaultCropRect(w, h, aspect);
     const baseScale = Math.max(FRAME_WIDTH / w, FRAME_HEIGHT / h);
     const scale = FRAME_WIDTH / crop.width / w;
     setZoom(Math.max(1, scale / baseScale));
@@ -123,7 +137,7 @@ export function CropTool({
     const crop = currentCrop();
     startTransition(async () => {
       try {
-        await saveGalleryImageCrop(imageId, crop, path);
+        await onSave(crop);
         onClose();
       } catch (e) {
         setError(e instanceof Error ? e.message : "Speichern fehlgeschlagen.");
@@ -135,7 +149,7 @@ export function CropTool({
     setError(null);
     startTransition(async () => {
       try {
-        await saveGalleryImageCrop(imageId, null, path);
+        await onReset();
         onClose();
       } catch (e) {
         setError(e instanceof Error ? e.message : "Zurücksetzen fehlgeschlagen.");
@@ -146,13 +160,13 @@ export function CropTool({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="flex max-w-3xl flex-col gap-4 rounded-xl bg-white p-5 shadow-xl">
-        <h2 className="text-sm font-semibold text-neutral-900">Querformat-Ausschnitt festlegen</h2>
+        <h2 className="text-sm font-semibold text-neutral-900">{title}</h2>
 
         <div className="flex flex-wrap gap-6">
           <div className="flex flex-col gap-2">
             <span className="text-xs font-medium text-neutral-500">Ausschnitt wählen (ziehen zum Verschieben)</span>
             <div
-              className="relative touch-none select-none overflow-hidden rounded-md bg-neutral-900"
+              className={`relative touch-none select-none overflow-hidden bg-neutral-900 ${shape === "circle" ? "rounded-full" : "rounded-md"}`}
               style={{ width: FRAME_WIDTH, height: FRAME_HEIGHT, cursor: "grab" }}
               onPointerDown={handlePointerDown}
               onPointerMove={handlePointerMove}
@@ -184,7 +198,13 @@ export function CropTool({
 
           <div className="flex flex-col gap-2">
             <span className="text-xs font-medium text-neutral-500">So sieht es in der App aus</span>
-            <CroppedImagePreview src={src} crop={currentCrop()} className="w-[220px] rounded-md" />
+            <CroppedImagePreview
+              src={src}
+              crop={currentCrop()}
+              aspect={aspect}
+              shape={shape}
+              className={`w-[220px] ${shape === "circle" ? "" : "rounded-md"}`}
+            />
           </div>
         </div>
 

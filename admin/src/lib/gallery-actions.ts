@@ -214,6 +214,38 @@ export async function saveGalleryImageCrop(
   revalidatePath(path);
 }
 
+/** Runder Avatar-Fokuspunkt für den Profilfoto-Ausschnitt (Personen +
+ * Ensembles, Nutzervorgabe) — eigene Spalten direkt auf persons/ensembles
+ * (avatar_crop_x/y/width/height, siehe 20261007000005), unabhängig vom
+ * 16:9-Galerie-Crop derselben images-Tabelle oben: der Avatar-Ausschnitt
+ * gehört zum einzelnen photo_url-Feld, nicht zu einem bestimmten
+ * Galeriebild. */
+export async function saveAvatarCrop(
+  entityType: "persons" | "ensembles",
+  entityId: string,
+  crop: GalleryCrop | null,
+  path: string,
+) {
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from(entityType)
+    .update(
+      crop
+        ? {
+            avatar_crop_x: crop.x,
+            avatar_crop_y: crop.y,
+            avatar_crop_width: crop.width,
+            avatar_crop_height: crop.height,
+          }
+        : { avatar_crop_x: null, avatar_crop_y: null, avatar_crop_width: null, avatar_crop_height: null },
+    )
+    .eq("id", entityId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath(path);
+}
+
 /** Bestätigen/Ablehnen/Als-zu-klein-markieren/Erneut-prüfen — die vier
  * Admin-Aktionen aus der Erweiterungsvorgabe für die zentrale Bild-
  * datenbank (Abschnitt 7: "Bild bestätigen, Bild ablehnen, ... Bild als zu

@@ -45,7 +45,39 @@ import { searchWikidataImage } from "../_shared/wikidataImage.ts";
 import { searchViaGeminiGrounding } from "../_shared/geminiGroundedSearch.ts";
 import { searchDuckDuckGo } from "../_shared/duckDuckGoSearch.ts";
 import { searchOfficialSiteForImages } from "../_shared/officialSiteImageSearch.ts";
-import { ensureCoverImage, ensureMagickReady, decodeImage, type ImageOriginType } from "../_shared/imagePipeline.ts";
+import {
+  ensureCoverImageWithReason,
+  ensureMagickReady,
+  decodeImage,
+  type CoverImageFailureReason,
+  type ImageOriginType,
+} from "../_shared/imagePipeline.ts";
+
+// Nutzerfeedback: der manuelle Datei-Upload scheiterte bisher immer mit
+// derselben pauschalen Meldung ("nicht erreichbar, zu klein, oder
+// ungültiges Format"), egal welcher der vier Gründe tatsächlich zutraf —
+// jetzt eine passende Meldung je nach von ensureCoverImageWithReason()
+// zurückgegebenem Grund. "unreachable"/"download_failed" bleiben trotzdem
+// im Text erwähnt für den (hier seltenen) Fall, dass commit doch mit einer
+// sourceUrl statt imageBase64 aufgerufen wird.
+function commitFailureMessage(reason: CoverImageFailureReason | undefined): string {
+  switch (reason) {
+    case "decode_failed":
+      return "Die Datei konnte nicht als Bild gelesen werden — vermutlich beschädigt oder ein nicht unterstütztes Format (unterstützt: JPEG, PNG, WebP).";
+    case "too_small":
+      return "Bild zu klein — mindestens 640×480px nötig, sonst wirkt es in der App später hochskaliert unscharf.";
+    case "bad_aspect_ratio":
+      return "Ungewöhnliches Seitenverhältnis (nicht zwischen 2:5 und 3:1) — vermutlich kein normales Foto, sondern z. B. ein Banner oder eine Sidebar-Grafik.";
+    case "unreachable":
+      return "Die Bild-URL war nicht erreichbar.";
+    case "download_failed":
+      return "Der Download der Bilddatei ist fehlgeschlagen.";
+    case "storage_error":
+      return "Das Bild konnte nicht gespeichert werden (Storage-/Datenbankfehler) — bitte erneut versuchen.";
+    default:
+      return "Bild konnte nicht verarbeitet werden.";
+  }
+}
 import { checkImageUrl, isPublicImageUrl } from "../_shared/imageValidation.ts";
 import { USER_AGENT } from "../_shared/robots.ts";
 import { logSystemAction } from "../_shared/systemLog.ts";
@@ -874,7 +906,7 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ committed: false, error: "sourceUrl oder imageBase64 erforderlich" }), { status: 400 });
     }
 
-    const imageId = await ensureCoverImage(supabase, {
+    const { id: imageId, reason: failureReason } = await ensureCoverImageWithReason(supabase, {
       sourceUrl: imageBase64 ? `manual-upload:${crypto.randomUUID()}` : sourceUrl!,
       sourceBytes: imageBase64 ? base64ToBytes(imageBase64) : undefined,
       originType,
@@ -891,7 +923,7 @@ Deno.serve(async (req) => {
 
     if (!imageId) {
       return new Response(
-        JSON.stringify({ committed: false, error: "Bild konnte nicht verarbeitet werden (nicht erreichbar, zu klein, oder ungültiges Format)." }),
+        JSON.stringify({ committed: false, error: commitFailureMessage(failureReason) }),
         { status: 422 },
       );
     }

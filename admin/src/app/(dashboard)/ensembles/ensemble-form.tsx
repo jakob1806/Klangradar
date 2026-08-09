@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { Field, Select, TextArea, TextInput } from "@/components/form-fields";
 import { ImageUploadField } from "@/components/image-upload-field";
+import { AvatarCropButton } from "@/components/entity-gallery/avatar-crop-button";
+import type { CropRect } from "@/components/entity-gallery/crop-math";
 import { SubmitButton } from "@/components/submit-button";
 
 function slugify(value: string) {
@@ -34,6 +36,10 @@ export interface EnsembleFormValues {
   home_venue_id: string | null;
   website_url: string | null;
   photo_url: string | null;
+  avatar_crop_x: number | null;
+  avatar_crop_y: number | null;
+  avatar_crop_width: number | null;
+  avatar_crop_height: number | null;
   is_verified: boolean;
 }
 
@@ -41,10 +47,13 @@ export function EnsembleForm({
   action,
   initial,
   venues,
+  ensembleId,
 }: {
   action: (formData: FormData) => void;
   initial?: EnsembleFormValues;
   venues: { id: string; name: string }[];
+  /** Nur auf der Bearbeiten-Seite gesetzt — siehe AvatarCropButton. */
+  ensembleId?: string;
 }) {
   const [slug, setSlug] = useState(initial?.slug ?? "");
   const [slugTouched, setSlugTouched] = useState(Boolean(initial));
@@ -109,6 +118,28 @@ export function EnsembleForm({
       </Field>
 
       <ImageUploadField name="photo_url" initialUrl={initial?.photo_url} entityType="ensembles" shape="rounded" label="Foto" />
+
+      {ensembleId && initial?.photo_url && (
+        <AvatarCropButton
+          entityType="ensembles"
+          entityId={ensembleId}
+          photoUrl={initial.photo_url}
+          initialCrop={
+            initial.avatar_crop_x != null &&
+            initial.avatar_crop_y != null &&
+            initial.avatar_crop_width != null &&
+            initial.avatar_crop_height != null
+              ? ({
+                  x: initial.avatar_crop_x,
+                  y: initial.avatar_crop_y,
+                  width: initial.avatar_crop_width,
+                  height: initial.avatar_crop_height,
+                } satisfies CropRect)
+              : null
+          }
+          path={`/ensembles/${ensembleId}`}
+        />
+      )}
 
       <Field label="Website">
         <TextInput name="website_url" type="url" defaultValue={initial?.website_url ?? ""} />
