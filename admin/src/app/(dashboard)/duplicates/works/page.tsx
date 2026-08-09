@@ -70,7 +70,7 @@ export default async function WorkDuplicatesPage() {
         <div className="mt-6 flex flex-col gap-3">
           {data?.length ? (
             data.map((candidate) => (
-              <div key={candidate.id} className="rounded-lg border border-neutral-200 bg-white p-4">
+              <div key={candidate.id} className="border-2 border-[#171717] bg-white p-4">
                 <div className="flex items-center justify-between gap-4">
                   <span className="text-xs text-neutral-400">
                     Gefunden {formatDate(candidate.created_at)} · Ähnlichkeit{" "}
@@ -113,7 +113,7 @@ export default async function WorkDuplicatesPage() {
               </div>
             ))
           ) : (
-            <div className="rounded-lg border border-dashed border-neutral-300 bg-white px-4 py-10 text-center text-sm text-neutral-400">
+            <div className="border-2 border-dashed border-neutral-300 bg-white px-4 py-10 text-center text-sm text-neutral-400">
               Keine offenen Werk-Duplikate-Kandidaten.
             </div>
           )}
@@ -134,14 +134,14 @@ function WorkCard({
 }) {
   if (!work) {
     return (
-      <div className="rounded-md border border-neutral-100 bg-neutral-50 p-3 text-sm text-neutral-400">
+      <div className="border border-neutral-300 bg-neutral-50 p-3 text-sm text-neutral-400">
         {label}: Werk nicht mehr vorhanden.
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col rounded-md border border-neutral-100 bg-neutral-50 p-3">
+    <div className="flex flex-col border border-neutral-300 bg-neutral-50 p-3">
       <p className="text-xs font-medium uppercase tracking-wide text-neutral-400">{label}</p>
       <p className="mt-1 text-sm font-medium text-neutral-900">{work.title}</p>
       <p className="mt-0.5 text-xs text-neutral-500">
