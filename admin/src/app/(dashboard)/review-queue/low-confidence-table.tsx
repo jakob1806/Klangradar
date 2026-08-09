@@ -68,7 +68,7 @@ export function LowConfidenceTable({ events }: { events: LowConfidenceEvent[] })
   return (
     <div>
       {selected.size > 0 && (
-        <div className="mb-3 flex items-center justify-between border-2 border-[#171717] bg-neutral-50 px-4 py-2 text-sm">
+        <div className="mb-3 flex items-center justify-between rounded-xl border border-black/[0.06] bg-black/[0.02] px-4 py-2 text-sm">
           <span className="text-neutral-600">{selected.size} ausgewählt</span>
           <div className="flex items-center gap-3">
             <button
@@ -83,7 +83,7 @@ export function LowConfidenceTable({ events }: { events: LowConfidenceEvent[] })
               type="button"
               disabled={pending}
               onClick={() => runBulk("clear")}
-              className="border-2 border-[#171717] bg-[#171717] px-3 py-1.5 text-sm font-medium text-white hover:bg-white hover:text-[#171717] disabled:opacity-50"
+              className="rounded-full bg-[#0071e3] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[#0077ed] disabled:opacity-50"
             >
               Als geprüft markieren
             </button>
@@ -92,9 +92,9 @@ export function LowConfidenceTable({ events }: { events: LowConfidenceEvent[] })
       )}
       {message && <p className="mb-3 text-xs text-neutral-500">{message}</p>}
 
-      <div className="overflow-hidden border-2 border-[#171717] bg-white">
+      <div className="overflow-hidden rounded-xl border border-black/[0.06] bg-white shadow-sm">
         <table className="w-full text-sm">
-          <thead className="border-b-2 border-[#171717] text-left">
+          <thead className="border-b border-black/[0.06] text-left">
             <tr>
               <th className="w-10 px-4 py-3">
                 <input

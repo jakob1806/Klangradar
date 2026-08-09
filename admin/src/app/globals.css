@@ -9,37 +9,85 @@
    generelle Kontrastprobleme. color-scheme: light verhindert zusätzlich,
    dass native Formularelemente (Selects, Datepicker) trotzdem dunkel
    gerendert werden. */
-/* Swiss/International-Design (Nutzerwunsch: "ganz neues design für das
-   admin portal. kein standardmäßiges KI design, sondern eher
-   swiss/international") statt der bisherigen generischen abgerundeten
-   Tailwind-Karten-Optik. Prinzipien: strenges Raster, eine einzige knappe
-   Akzentfarbe statt vieler pastelliger Badge-Farben, Trennlinien statt
-   Schatten/Radius, enge, konsequente Typo-Hierarchie mit Versalien-Labels.
-   Signaturrot #d13c1f (klassische Schweizer Grafikdesign-Referenz, z.B.
-   SBB) — nur sparsam für Primäraktionen/aktiven Nav-Punkt, nie flächig.
-   Bewusst als feste Hex-Werte direkt in den Tailwind-Arbiträrklassen
-   (border-[#d13c1f] usw.) statt als CSS-Custom-Property: live geprüft,
-   lightningcss (Tailwind v4s Build-Schritt) verwirft selbst deklarierte
-   :root-Custom-Properties beim Minifizieren project-weit kommentarlos —
-   das kompilierte CSS enthielt die Variable nie, nur var(--accent)-
-   NUTZUNGEN ohne jede Definition. Feste Hex-Werte umgehen das zuverlässig. */
+/* Apple/macOS-Design (Nutzerwunsch: "mache das ganze redaktionsportal im
+   design von apple", mit Verweis auf github.com/emilkowalski/skills/tree/
+   main/skills/apple-design) — löst das vorherige Swiss/International-
+   Design bewusst wieder ab. Aus der Skill-Referenz übernommen, soweit auf
+   ein serverseitig gerendertes CRUD-Dashboard übertragbar (die dortigen
+   Gesten-/Feder-Physik-Regeln sind für Drag/Swipe-Interaktionen gedacht,
+   die es hier nicht gibt — nicht übernommen, siehe Craft-Prinzip "jedes
+   Element muss sich seinen Platz verdienen", ein Feder-System für einen
+   Formular-Button wäre unbegründeter Aufwand):
+   - Systemschrift statt Web-Font (-apple-system-Stack) — WWDC "Details of
+     UI Typography": die Systemschrift bringt bereits optisches Kerning/
+     Tracking-Tabellen mit.
+   - Materialien: helle, leicht getönte Fensterhintergrundfarbe (#f5f5f7,
+     macOS-Systemhintergrund) statt reinem Weiß, Karten in echtem Weiß mit
+     weichem Schatten statt harter schwarzer Linien, Sidebar als
+     durchscheinendes "Material" (backdrop-filter: blur) statt Volltonfarbe.
+   - EINE Akzentfarbe: Apple-Blau #0071e3 (wie auf apple.com-CTAs) für
+     Primäraktionen/aktiven Zustand — sparsam, nie flächig für Fließtext.
+   - Radius-Skala: 12px Karten, 8px Buttons/Inputs, volle Pille für kleine
+     Badges — durchgängig dieselben Werte, nicht pro Komponente neu erfunden
+     (Craft-Prinzip: "nichts ist zufällig").
+   Bewusst weiterhin feste Hex-Arbiträrwerte statt CSS-Custom-Properties:
+   lightningcss (Tailwind v4s Build-Schritt) verwirft eigene :root-Variablen
+   beim Minifizieren kommentarlos, live geprüft in der vorherigen Design-
+   Runde. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f5f5f7;
+  --foreground: #1d1d1f;
   color-scheme: light;
+}
+
+.apple-font {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, "Segoe UI", Roboto, sans-serif;
 }
 
 .type-label {
   font-size: 0.6875rem;
   font-weight: 600;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
-  color: #8a8a8a;
+  color: #86868b;
 }
 
 .type-heading {
-  font-weight: 700;
-  letter-spacing: -0.01em;
+  font-weight: 600;
+  letter-spacing: -0.014em;
+}
+
+/* Liquid-Glass-Annäherung in CSS (Nutzerwunsch mit Verweis auf
+   github.com/haider-nawaz/liquid-glass-skill und github.com/Dimillian/
+   Skills/tree/main/swiftui-liquid-glass) — beide Referenzen sind SwiftUI-
+   APIs (.glassEffect(), GlassEffectContainer) für native iOS/macOS-Apps,
+   live geprüft: keine CSS-Entsprechung vorhanden, das ist eine
+   proprietäre Compositor-Funktion (Echtzeit-Sampling/Verzerrung des
+   Inhalts DAHINTER). Für ein Next.js-Web-Dashboard das nächstmögliche:
+   starker backdrop-blur + halbtransparente Fläche + dünne helle
+   "Lichtkante" oben (simuliert die Specular-Highlight-Linie von echtem
+   Glas) + weicher Schatten für Tiefe. Bewusst NUR auf Chrome/Primär-
+   aktionen (Sidebar, Topbar, primäre Buttons, Dialoge) — nicht auf
+   dichten Datentabellen: die Skill-Referenz zur allgemeinen Apple-
+   Materialsprache warnt selbst "nie mehrere helle durchscheinende Flächen
+   übereinanderstapeln — Lesbarkeit bricht zusammen". */
+.glass-surface {
+  background: rgba(255, 255, 255, 0.72);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.glass-pill {
+  background: rgba(255, 255, 255, 0.55);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  backdrop-filter: blur(16px) saturate(180%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.3),
+    0 1px 3px rgba(0, 0, 0, 0.06);
 }
 
 @theme inline {
@@ -52,7 +100,8 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, "Segoe UI", Roboto, sans-serif;
+  letter-spacing: -0.006em;
 }
 
 .mobile-dashboard-header {

@@ -166,7 +166,7 @@ export default async function DataQualityPage() {
                   {missingPersons.slice(0, 50).map((p) => (
                     <div
                       key={p.id}
-                      className="flex items-center justify-between gap-4 border-2 border-[#171717] bg-white px-4 py-3"
+                      className="flex items-center justify-between gap-4 rounded-xl border border-black/[0.06] bg-white px-4 py-3 shadow-sm"
                     >
                       <p className="text-sm font-medium text-neutral-900">{p.full_name}</p>
                       <Link
@@ -200,7 +200,7 @@ export default async function DataQualityPage() {
                 missingImages.map((e) => (
                   <div
                     key={e.id}
-                    className="flex items-center justify-between gap-4 border-2 border-[#171717] bg-white px-4 py-3"
+                    className="flex items-center justify-between gap-4 rounded-xl border border-black/[0.06] bg-white px-4 py-3 shadow-sm"
                   >
                     <div>
                       <p className="text-sm font-medium text-neutral-900">{e.title}</p>
@@ -233,7 +233,7 @@ export default async function DataQualityPage() {
                 staleEvents.map((e) => (
                   <div
                     key={e.id}
-                    className="flex items-center justify-between gap-4 border-2 border-[#171717] bg-white px-4 py-3"
+                    className="flex items-center justify-between gap-4 rounded-xl border border-black/[0.06] bg-white px-4 py-3 shadow-sm"
                   >
                     <div>
                       <p className="text-sm font-medium text-neutral-900">{e.title}</p>
@@ -280,9 +280,9 @@ export default async function DataQualityPage() {
               Match-Sicherheit) statt reiner Feldanzahl — siehe quality-score.ts. &bdquo;Offene
               Prüfung&ldquo; zeigt Unsicherheit, die der Score allein verdecken könnte.
             </p>
-            <div className="mt-3 overflow-hidden border-2 border-[#171717] bg-white">
+            <div className="mt-3 overflow-hidden rounded-xl border border-black/[0.06] bg-white shadow-sm">
               <table className="w-full text-sm">
-                <thead className="border-b-2 border-[#171717] text-left">
+                <thead className="border-b border-black/[0.06] text-left">
                   <tr>
                     <th className="type-label px-4 py-3">Typ</th>
                     <th className="type-label px-4 py-3">Name</th>
@@ -345,9 +345,9 @@ export default async function DataQualityPage() {
               <p className="mt-4 text-sm text-amber-700">Konnte Vollständigkeit nicht laden: {completenessError}</p>
             )}
             {!completenessError && (
-              <div className="mt-3 overflow-hidden border-2 border-[#171717] bg-white">
+              <div className="mt-3 overflow-hidden rounded-xl border border-black/[0.06] bg-white shadow-sm">
                 <table className="w-full text-sm">
-                  <thead className="border-b-2 border-[#171717] text-left">
+                  <thead className="border-b border-black/[0.06] text-left">
                     <tr>
                       <th className="type-label px-4 py-3">Typ</th>
                       <th className="type-label px-4 py-3">Name</th>
@@ -410,7 +410,7 @@ const HORIZON_DAYS_LABEL = "90 Tagen";
 function CoverageTile({ label, covered, total }: { label: string; covered: number; total: number }) {
   const percent = total > 0 ? Math.round((covered / total) * 100) : 0;
   return (
-    <div className="border-2 border-[#171717] bg-white p-3">
+    <div className="rounded-xl border border-black/[0.06] bg-white p-3 shadow-sm">
       <p className="text-xs font-medium uppercase tracking-wide text-neutral-400">{label}</p>
       <p className="mt-1 text-lg font-semibold text-neutral-900">{percent}%</p>
       <p className="text-xs text-neutral-500">

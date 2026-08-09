@@ -210,7 +210,7 @@ export default async function ContentReportsPage() {
               return (
                 <div
                   key={report.id}
-                  className={`border-2 border-[#171717] bg-white p-4 ${CARD_BORDER_STYLE[lastFix?.status ?? "none"]}`}
+                  className={`rounded-xl border border-black/[0.06] bg-white p-4 shadow-sm ${CARD_BORDER_STYLE[lastFix?.status ?? "none"]}`}
                 >
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="min-w-0 flex-1">
@@ -239,7 +239,7 @@ export default async function ContentReportsPage() {
                         confirmMessage="Ohne Handlungsbedarf verwerfen?"
                         label="Verwerfen"
                         pendingLabel="…"
-                        className="border border-neutral-300 px-2.5 py-1.5 text-xs font-medium text-neutral-600 hover:border-[#171717] hover:text-[#171717] disabled:opacity-50"
+                        className="rounded-lg border border-black/10 px-2.5 py-1.5 text-xs font-medium text-neutral-600 hover:bg-black/[0.04] disabled:opacity-50"
                       />
                       <ConfirmButton
                         action={resolveContentReport.bind(null, report.id)}

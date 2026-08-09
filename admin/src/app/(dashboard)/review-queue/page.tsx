@@ -67,7 +67,7 @@ export default async function ReviewQueuePage() {
           <Link
             key={card.href}
             href={card.href}
-            className="border-2 border-[#171717] bg-white p-5 hover:bg-[#171717] hover:text-white"
+            className="rounded-xl border border-black/[0.06] bg-white p-5 shadow-sm transition-colors hover:bg-black/[0.02]"
           >
             <p className="text-2xl font-semibold">{card.count}</p>
             <p className="type-label mt-1 !text-inherit opacity-70">{card.label}</p>

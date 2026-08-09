@@ -55,7 +55,7 @@ export default async function EnsemblesPage() {
         </div>
         <Link
           href="/ensembles/new"
-          className="border-2 border-[#171717] bg-[#171717] px-4 py-2 type-label !text-white hover:bg-white hover:!text-[#171717]"
+          className="rounded-full bg-[#0071e3] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#0077ed]"
         >
           Neu anlegen
         </Link>
@@ -77,9 +77,9 @@ export default async function EnsemblesPage() {
               bulkDeleteAction={bulkDeleteEnsembles}
               bulkSetVerifiedAction={bulkSetEnsemblesVerified}
             />
-            <div id="ensembles-table" className="overflow-hidden border-2 border-[#171717] bg-white">
+            <div id="ensembles-table" className="overflow-hidden rounded-xl border border-black/[0.06] bg-white shadow-sm">
               <table className="w-full text-sm">
-                <thead className="border-b-2 border-[#171717] text-left">
+                <thead className="border-b border-black/[0.06] text-left">
                   <tr>
                     <th className="w-10 px-4 py-3">
                       <BioSelectAllCheckbox ids={(data ?? []).map((e) => e.id)} />
@@ -127,7 +127,7 @@ export default async function EnsemblesPage() {
                         <td className="px-4 py-3 text-right">
                           <Link
                             href={`/ensembles/${ensemble.id}`}
-                            className="text-sm font-medium text-neutral-700 hover:text-[#d13c1f]"
+                            className="text-sm font-medium text-neutral-700 hover:text-[#0071e3]"
                           >
                             Bearbeiten
                           </Link>

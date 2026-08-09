@@ -82,13 +82,13 @@ export function BioResearchWorkflow({
 
   if (done) {
     return (
-      <div className="border-2 border-[#171717] bg-white p-6">
+      <div className="rounded-xl border border-black/[0.06] bg-white p-6 shadow-sm">
         <p className="text-sm font-medium text-neutral-900">
           Fertig — {results.saved} übernommen, {results.skipped} übersprungen von {entities.length}.
         </p>
         <Link
           href={entityType === "person" ? "/persons" : entityType === "ensemble" ? "/ensembles" : "/venues"}
-          className="mt-4 inline-block border-2 border-[#171717] bg-[#171717] px-4 py-2 type-label !text-white hover:bg-white hover:!text-[#171717]"
+          className="mt-4 inline-block rounded-full bg-[#0071e3] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#0077ed]"
         >
           Zurück zur Liste
         </Link>
@@ -226,7 +226,7 @@ function BioStep({
           onChange={(e) => setDraft(e.target.value)}
           rows={8}
           placeholder="Noch kein Text — recherchiert oder manuell eintragen."
-          className="mt-2 w-full border border-neutral-300 p-3 text-sm outline-none focus:border-[#171717]"
+          className="mt-2 w-full rounded-lg border border-black/10 p-3 text-sm outline-none focus:border-[#0071e3]"
         />
 
         <div className="mt-3 flex items-center gap-3">
@@ -234,7 +234,7 @@ function BioStep({
             type="button"
             disabled={saving || !draft.trim()}
             onClick={handleTakeOver}
-            className="border-2 border-[#171717] bg-[#171717] px-4 py-2 text-sm font-medium text-white hover:bg-white hover:text-[#171717] disabled:opacity-50"
+            className="rounded-full bg-[#0071e3] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#0077ed] disabled:opacity-50"
           >
             {saving ? "Speichere…" : "Übernehmen & weiter"}
           </button>

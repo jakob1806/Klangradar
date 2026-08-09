@@ -36,9 +36,9 @@ export default async function TagsPage() {
       {error && <p className="mt-6 text-sm text-amber-700">Konnte Tags nicht laden: {error.message}</p>}
 
       {!error && (
-        <div className="mt-6 overflow-hidden border-2 border-[#171717] bg-white">
+        <div className="mt-6 overflow-hidden rounded-xl border border-black/[0.06] bg-white shadow-sm">
           <table className="w-full text-sm">
-            <thead className="border-b-2 border-[#171717] text-left">
+            <thead className="border-b border-black/[0.06] text-left">
               <tr>
                 <th className="type-label px-4 py-3">Name</th>
                 <th className="type-label px-4 py-3">Herkunft</th>
