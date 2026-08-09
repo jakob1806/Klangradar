@@ -51,7 +51,7 @@ export default async function RegionsPage() {
               return (
                 <div
                   key={region.id}
-                  className="flex items-center justify-between rounded-lg border border-neutral-200 bg-white p-4"
+                  className="flex items-center justify-between border-2 border-[#171717] bg-white p-4"
                 >
                   <div>
                     <p className="text-sm font-medium text-neutral-900">
@@ -87,7 +87,7 @@ export default async function RegionsPage() {
               );
             })
           ) : (
-            <div className="rounded-lg border border-dashed border-neutral-300 bg-white px-4 py-10 text-center text-sm text-neutral-400">
+            <div className="border-2 border-dashed border-neutral-300 bg-white px-4 py-10 text-center text-sm text-neutral-400">
               Keine Regionen angelegt.
             </div>
           )}

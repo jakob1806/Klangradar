@@ -36,17 +36,17 @@ export default async function TagsPage() {
       {error && <p className="mt-6 text-sm text-amber-700">Konnte Tags nicht laden: {error.message}</p>}
 
       {!error && (
-        <div className="mt-6 overflow-hidden rounded-lg border border-neutral-200 bg-white">
+        <div className="mt-6 overflow-hidden border-2 border-[#171717] bg-white">
           <table className="w-full text-sm">
-            <thead className="bg-neutral-50 text-left text-xs uppercase tracking-wide text-neutral-500">
+            <thead className="border-b-2 border-[#171717] text-left">
               <tr>
-                <th className="px-4 py-3 font-medium">Name</th>
-                <th className="px-4 py-3 font-medium">Herkunft</th>
-                <th className="px-4 py-3 font-medium">Verwendet</th>
+                <th className="type-label px-4 py-3">Name</th>
+                <th className="type-label px-4 py-3">Herkunft</th>
+                <th className="type-label px-4 py-3">Verwendet</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-neutral-100">
+            <tbody className="divide-y divide-neutral-200">
               {rows.length ? (
                 rows
                   .sort((a, b) => b.usage_count - a.usage_count)

@@ -30,7 +30,7 @@ export default async function FestivalsPage() {
         </div>
         <Link
           href="/festivals/new"
-          className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700"
+          className="border-2 border-[#171717] bg-[#171717] px-4 py-2 type-label !text-white hover:bg-white hover:!text-[#171717]"
         >
           Neu anlegen
         </Link>
@@ -41,16 +41,16 @@ export default async function FestivalsPage() {
       {!error && (
         <div className="mt-6">
           <TableSearchFilter containerId="festivals-table" placeholder="Name durchsuchen…" />
-          <div id="festivals-table" className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
+          <div id="festivals-table" className="overflow-hidden border-2 border-[#171717] bg-white">
           <table className="w-full text-sm">
-            <thead className="bg-neutral-50 text-left text-xs uppercase tracking-wide text-neutral-500">
+            <thead className="border-b-2 border-[#171717] text-left">
               <tr>
-                <th className="px-4 py-3 font-medium">Name</th>
-                <th className="px-4 py-3 font-medium">Veranstalter</th>
-                <th className="px-4 py-3 font-medium">Wiederkehrend</th>
+                <th className="type-label px-4 py-3">Name</th>
+                <th className="type-label px-4 py-3">Veranstalter</th>
+                <th className="type-label px-4 py-3">Wiederkehrend</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-neutral-100">
+            <tbody className="divide-y divide-neutral-200">
               {data?.length ? (
                 data.map((f) => (
                   <tr key={f.id} data-search={f.name.toLowerCase()} className="hover:bg-neutral-50">

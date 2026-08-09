@@ -31,7 +31,7 @@ export default async function EditorialCollectionsPage() {
         </div>
         <Link
           href="/editorial-collections/new"
-          className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700"
+          className="border-2 border-[#171717] bg-[#171717] px-4 py-2 type-label !text-white hover:bg-white hover:!text-[#171717]"
         >
           Neu anlegen
         </Link>
@@ -40,16 +40,16 @@ export default async function EditorialCollectionsPage() {
       {error && <p className="mt-6 text-sm text-amber-700">Konnte Sammlungen nicht laden: {error.message}</p>}
 
       {!error && (
-        <div className="mt-6 overflow-hidden rounded-lg border border-neutral-200 bg-white">
+        <div className="mt-6 overflow-hidden border-2 border-[#171717] bg-white">
           <table className="w-full text-sm">
-            <thead className="bg-neutral-50 text-left text-xs uppercase tracking-wide text-neutral-500">
+            <thead className="border-b-2 border-[#171717] text-left">
               <tr>
-                <th className="px-4 py-3 font-medium">Titel</th>
-                <th className="px-4 py-3 font-medium">Events</th>
-                <th className="px-4 py-3 font-medium">Status</th>
+                <th className="type-label px-4 py-3">Titel</th>
+                <th className="type-label px-4 py-3">Events</th>
+                <th className="type-label px-4 py-3">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-neutral-100">
+            <tbody className="divide-y divide-neutral-200">
               {data?.length ? (
                 data.map((c) => (
                   <tr key={c.id} className="hover:bg-neutral-50">
@@ -61,8 +61,8 @@ export default async function EditorialCollectionsPage() {
                     <td className="px-4 py-3 text-neutral-600">{c.editorial_collection_events?.[0]?.count ?? 0}</td>
                     <td className="px-4 py-3">
                       <span
-                        className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                          c.is_published ? "bg-emerald-50 text-emerald-700" : "bg-neutral-100 text-neutral-500"
+                        className={`type-label border px-2 py-1 ${
+                          c.is_published ? "border-emerald-700 !text-emerald-700" : "border-neutral-300 !text-neutral-500"
                         }`}
                       >
                         {c.is_published ? "Veröffentlicht" : "Entwurf"}
