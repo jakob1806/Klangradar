@@ -36,7 +36,7 @@ export default async function ReportsPage() {
         <div className="mt-6 flex flex-col gap-3">
           {data?.length ? (
             data.map((report) => (
-              <div key={report.id} className="rounded-lg border border-neutral-200 bg-white p-4">
+              <div key={report.id} className="border-2 border-[#171717] bg-white p-4">
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <div className="flex items-center gap-2">
@@ -61,7 +61,7 @@ export default async function ReportsPage() {
               </div>
             ))
           ) : (
-            <div className="rounded-lg border border-dashed border-neutral-300 bg-white px-4 py-10 text-center text-sm text-neutral-400">
+            <div className="border-2 border-dashed border-neutral-300 bg-white px-4 py-10 text-center text-sm text-neutral-400">
               Keine Fehlerberichte — alles sauber.
             </div>
           )}

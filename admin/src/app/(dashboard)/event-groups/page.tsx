@@ -47,19 +47,19 @@ export default async function EventGroupsPage() {
         </p>
 
         {suggestions.length === 0 ? (
-          <div className="mt-3 rounded-lg border border-dashed border-neutral-300 bg-white px-4 py-8 text-center text-sm text-neutral-400">
+          <div className="mt-3 border-2 border-dashed border-neutral-300 bg-white px-4 py-8 text-center text-sm text-neutral-400">
             Aktuell keine Vorschläge.
           </div>
         ) : (
           <div className="mt-3 flex flex-col gap-3">
             {suggestions.map((s) => (
-              <div key={s.key} className="rounded-lg border border-neutral-200 bg-white p-4">
+              <div key={s.key} className="border-2 border-[#171717] bg-white p-4">
                 <div className="flex items-center justify-between gap-4">
                   <p className="font-medium text-neutral-900">{s.title}</p>
                   <form action={createEventGroup.bind(null, s.title, s.events.map((e) => e.id))}>
                     <button
                       type="submit"
-                      className="rounded-md bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-700"
+                      className="border-2 border-[#171717] bg-[#171717] px-3 py-1.5 text-sm font-medium text-white hover:bg-white hover:text-[#171717]"
                     >
                       Gruppe anlegen ({s.events.length})
                     </button>
@@ -85,13 +85,13 @@ export default async function EventGroupsPage() {
         </h2>
 
         {!groups || groups.length === 0 ? (
-          <div className="mt-3 rounded-lg border border-dashed border-neutral-300 bg-white px-4 py-8 text-center text-sm text-neutral-400">
+          <div className="mt-3 border-2 border-dashed border-neutral-300 bg-white px-4 py-8 text-center text-sm text-neutral-400">
             Noch keine Gruppen angelegt.
           </div>
         ) : (
           <div className="mt-3 flex flex-col gap-3">
             {groups.map((g) => (
-              <div key={g.id} className="rounded-lg border border-neutral-200 bg-white p-4">
+              <div key={g.id} className="border-2 border-[#171717] bg-white p-4">
                 <div className="flex items-center justify-between gap-4">
                   <Link href={`/event-groups/${g.id}`} className="font-medium text-neutral-900 hover:underline">
                     {g.title}
