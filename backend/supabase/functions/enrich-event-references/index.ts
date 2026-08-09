@@ -41,24 +41,42 @@
 // TAVILY_API_KEY (siehe _shared/tavily.ts) für die Kandidaten-Anreicherung.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { callAiFunction, hasAnyAiProviderConfigured, type AiFunctionDeclaration } from "../_shared/ai/router.ts";
+import {
+  type AiFunctionDeclaration,
+  callAiFunction,
+  hasAnyAiProviderConfigured,
+} from "../_shared/ai/router.ts";
 import { logSystemAction } from "../_shared/systemLog.ts";
 import { enrichCandidateContext } from "../_shared/entityEnrichment.ts";
 import { fetchPageText } from "../_shared/pageText.ts";
 import { recordFieldSource } from "../_shared/provenance.ts";
+import {
+  extractProgramSection,
+  findProgramContextForWork,
+} from "./programSection.ts";
 
 // Muss exakt dem genre_type-Enum entsprechen (20260715000002_enums_and_lookup.sql)
 // — eine feste, kuratierte Liste statt Freitext wie bei tags, damit
 // event_genres ein kontrolliertes Vokabular bleibt.
 const GENRE_SLUGS = [
-  "oper", "konzert", "chormusik", "kirchenmusik", "kammermusik",
-  "liederabend", "orchester", "orgel", "jazz", "neue_musik",
-  "familienkonzert", "kinder",
+  "oper",
+  "konzert",
+  "chormusik",
+  "kirchenmusik",
+  "kammermusik",
+  "liederabend",
+  "orchester",
+  "orgel",
+  "jazz",
+  "neue_musik",
+  "familienkonzert",
+  "kinder",
 ];
 
 const ENRICH_FUNCTION: AiFunctionDeclaration = {
   name: "extract_references",
-  description: "Aus Titel+Beschreibung eines Konzerts erkannte Komponisten, Werke und Mitwirkende.",
+  description:
+    "Aus Titel+Beschreibung eines Konzerts erkannte Komponisten, Werke und Mitwirkende.",
   parameters: {
     type: "object",
     properties: {
@@ -92,7 +110,8 @@ const ENRICH_FUNCTION: AiFunctionDeclaration = {
             },
             composerName: {
               type: "string",
-              description: "Voller Name des Komponisten, falls erkennbar (z. B. 'Johannes Brahms'), sonst weglassen.",
+              description:
+                "Voller Name des Komponisten, falls erkennbar (z. B. 'Johannes Brahms'), sonst weglassen.",
             },
             catalogNumber: {
               type: "string",
@@ -103,7 +122,13 @@ const ENRICH_FUNCTION: AiFunctionDeclaration = {
             },
             keySignature: {
               type: "string",
-              description: "Tonart NUR, wenn wortwörtlich im Text steht (z. B. 'c-Moll'), sonst weglassen.",
+              description:
+                "Tonart NUR, wenn wortwörtlich im Text steht (z. B. 'c-Moll'), sonst weglassen.",
+            },
+            afterIntermission: {
+              type: "boolean",
+              description:
+                "true, wenn dieses Werk im Text NACH einer ausdrücklich genannten Pause steht; sonst false.",
             },
           },
           required: ["title"],
@@ -122,15 +147,31 @@ const ENRICH_FUNCTION: AiFunctionDeclaration = {
             type: { type: "string", enum: ["person", "ensemble"] },
             role: {
               type: "string",
-              enum: ["komponist", "dirigent", "solist", "chorleiter", "moderator"],
-              description: "Nur setzen, wenn im Text erkennbar; sonst weglassen (z. B. ein einfach mitspielendes Orchester).",
+              enum: [
+                "komponist",
+                "dirigent",
+                "solist",
+                "chorleiter",
+                "moderator",
+              ],
+              description:
+                "Nur setzen, wenn im Text erkennbar; sonst weglassen (z. B. ein einfach mitspielendes Orchester).",
             },
             ensembleType: {
               type: "string",
-              enum: ["chor", "orchester", "kammerensemble", "big_band", "sonstiges"],
+              enum: [
+                "chor",
+                "orchester",
+                "kammerensemble",
+                "big_band",
+                "sonstiges",
+              ],
               description: "Nur bei type=ensemble relevant, sonst weglassen.",
             },
-            instrument: { type: "string", description: "Falls im Text erkennbar, sonst weglassen." },
+            instrument: {
+              type: "string",
+              description: "Falls im Text erkennbar, sonst weglassen.",
+            },
           },
           required: ["name", "type"],
         },
@@ -200,6 +241,32 @@ const ENRICH_FUNCTION: AiFunctionDeclaration = {
   },
 };
 
+const PROGRAM_FUNCTION: AiFunctionDeclaration = {
+  name: "extract_concert_program",
+  description:
+    "Extrahiert eine konkrete Werkliste aus einem abgegrenzten offiziellen Programmabschnitt.",
+  parameters: {
+    type: "object",
+    properties: {
+      works: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            title: { type: "string" },
+            composerName: { type: "string" },
+            catalogNumber: { type: "string" },
+            keySignature: { type: "string" },
+            afterIntermission: { type: "boolean" },
+          },
+          required: ["title", "afterIntermission"],
+        },
+      },
+    },
+    required: ["works"],
+  },
+};
+
 interface EventRow {
   id: string;
   title: string;
@@ -211,12 +278,28 @@ interface EventRow {
   has_intermission: boolean | null;
   target_audience: string | null;
   performance_language: string | null;
+  program_id: string | null;
+  program_extraction_status: string;
+  program_check_attempts: number;
+  program_retry_after: string | null;
 }
 
 interface ExtractedReferences {
-  works: Array<{ title: string; composerName: string | null; catalogNumber: string | null; keySignature: string | null }>;
+  works: Array<{
+    title: string;
+    composerName: string | null;
+    catalogNumber: string | null;
+    keySignature: string | null;
+    afterIntermission: boolean;
+  }>;
   participants: Array<
-    { name: string; type: string; role: string | null; ensembleType: string | null; instrument: string | null }
+    {
+      name: string;
+      type: string;
+      role: string | null;
+      ensembleType: string | null;
+      instrument: string | null;
+    }
   >;
   tags: string[];
   genres: string[];
@@ -236,7 +319,10 @@ function isPlaceholderName(name: string): boolean {
   if (!trimmed) return true;
   if (/^n\.?\s*n\.?$/i.test(trimmed)) return true;
   if (/^[a-zà-ÿ]\.?$/i.test(trimmed)) return true;
-  if (/^(tba|tbd|t\.\s*b\.\s*a\.?|t\.\s*b\.\s*d\.?|o\.\s*a\.?|unbekannt|n\/a|k\.\s*a\.?)$/i.test(trimmed)) return true;
+  if (
+    /^(tba|tbd|t\.\s*b\.\s*a\.?|t\.\s*b\.\s*d\.?|o\.\s*a\.?|unbekannt|n\/a|k\.\s*a\.?)$/i
+      .test(trimmed)
+  ) return true;
   return false;
 }
 
@@ -251,8 +337,15 @@ async function extractReferences(
   description: string | null,
   pageText: string | null,
 ): Promise<ExtractedReferences | null> {
-  const text = `Titel: ${title}${description ? `\nBeschreibung: ${description}` : ""}` +
-    (pageText ? `\n\nVolltext der offiziellen Veranstaltungsseite:\n${pageText}` : "");
+  const programSection = extractProgramSection(pageText);
+  const text =
+    `Titel: ${title}${description ? `\nBeschreibung: ${description}` : ""}` +
+    (programSection
+      ? `\n\nAbgegrenzter offizieller Programmabschnitt (besonders beachten):\n${programSection}`
+      : "") +
+    (pageText
+      ? `\n\nVolltext der offiziellen Veranstaltungsseite:\n${pageText}`
+      : "");
 
   const response = await callAiFunction(
     "Du extrahierst Komponisten, Werke, Mitwirkende und praktische Details aus Titel/Beschreibung " +
@@ -273,92 +366,149 @@ async function extractReferences(
   // unkorrigiert zu übernehmen.
   const CATALOG_PATTERN = /^(op\.?|opus|bwv|kv|k\.?v\.?|hob\.?|woo|d\.?)\s?\d/i;
   const KEY_SIGNATURE_PATTERN = /-(dur|moll)\b/i;
-  const works = Array.isArray(args.works)
-    ? args.works.map((w: Record<string, unknown>) => {
-      let catalogNumber = typeof w.catalogNumber === "string" ? w.catalogNumber : null;
-      let keySignature = typeof w.keySignature === "string" ? w.keySignature : null;
-      if (catalogNumber && KEY_SIGNATURE_PATTERN.test(catalogNumber) && !CATALOG_PATTERN.test(catalogNumber)) {
+  let rawWorks = Array.isArray(args.works) ? args.works : [];
+  // Manche Provider liefern beim großen, gemischten Schema trotz einer
+  // eindeutigen offiziellen Programmliste works: []. Dann wird genau der
+  // abgegrenzte Programmblock ein zweites Mal mit einem kleinen, auf Werke
+  // beschränkten Schema ausgewertet.
+  if (programSection) {
+    const focused = await callAiFunction(
+      "Du extrahierst ausschließlich die konkrete Werkliste aus dem offiziellen Programmblock. " +
+        "Ordne einen Komponistennamen den unmittelbar folgenden Werken zu. Die Zeile 'Pause' ist kein Werk; " +
+        "markiere alle danach folgenden Werke mit afterIntermission=true. Übernimm nur vorhandene Angaben " +
+        "und erfinde nichts.",
+      programSection,
+      PROGRAM_FUNCTION,
+    );
+    if (Array.isArray(focused?.args?.works) && focused.args.works.length > 0) {
+      rawWorks = focused.args.works;
+    }
+  }
+
+  const works = Array.isArray(rawWorks)
+    ? rawWorks.map((w: Record<string, unknown>) => {
+      let catalogNumber = typeof w.catalogNumber === "string"
+        ? w.catalogNumber
+        : null;
+      let keySignature = typeof w.keySignature === "string"
+        ? w.keySignature
+        : null;
+      if (
+        catalogNumber && KEY_SIGNATURE_PATTERN.test(catalogNumber) &&
+        !CATALOG_PATTERN.test(catalogNumber)
+      ) {
         [catalogNumber, keySignature] = [keySignature, catalogNumber];
-      } else if (keySignature && CATALOG_PATTERN.test(keySignature) && !KEY_SIGNATURE_PATTERN.test(keySignature)) {
+      } else if (
+        keySignature && CATALOG_PATTERN.test(keySignature) &&
+        !KEY_SIGNATURE_PATTERN.test(keySignature)
+      ) {
         [catalogNumber, keySignature] = [keySignature, catalogNumber];
       }
+      const sourceContext = programSection
+        ? findProgramContextForWork(
+          programSection,
+          typeof w.title === "string" ? w.title : "",
+        )
+        : null;
       return {
         title: typeof w.title === "string" ? w.title : "",
-        composerName: typeof w.composerName === "string" ? w.composerName : null,
+        composerName: typeof w.composerName === "string"
+          ? w.composerName
+          : sourceContext?.composerName ?? null,
         catalogNumber,
         keySignature,
+        afterIntermission: sourceContext?.afterIntermission ??
+          w.afterIntermission === true,
       };
     })
     : [];
-  const participants = Array.isArray(args.participants) ? args.participants : [];
-  const tags = Array.isArray(args.tags) ? args.tags.filter((t: unknown) => typeof t === "string" && t.trim()) : [];
+  const participants = Array.isArray(args.participants)
+    ? args.participants
+    : [];
+  const tags = Array.isArray(args.tags)
+    ? args.tags.filter((t: unknown) => typeof t === "string" && t.trim())
+    : [];
   const genres = Array.isArray(args.genres)
-    ? args.genres.filter((g: unknown) => typeof g === "string" && GENRE_SLUGS.includes(g))
+    ? args.genres.filter((g: unknown) =>
+      typeof g === "string" && GENRE_SLUGS.includes(g)
+    )
     : [];
   return {
     works,
     participants,
     tags,
     genres,
-    doorsInfo: typeof args.doorsInfo === "string" && args.doorsInfo.trim() ? args.doorsInfo.trim() : null,
-    estimatedDurationMinutes: typeof args.estimatedDurationMinutes === "number" ? args.estimatedDurationMinutes : null,
-    hasIntermission: typeof args.hasIntermission === "boolean" ? args.hasIntermission : null,
-    longDescription: typeof args.longDescription === "string" && args.longDescription.trim()
-      ? args.longDescription.trim()
+    doorsInfo: typeof args.doorsInfo === "string" && args.doorsInfo.trim()
+      ? args.doorsInfo.trim()
       : null,
-    targetAudience: typeof args.targetAudience === "string" && args.targetAudience.trim()
-      ? args.targetAudience.trim()
+    estimatedDurationMinutes: typeof args.estimatedDurationMinutes === "number"
+      ? args.estimatedDurationMinutes
       : null,
-    language: typeof args.language === "string" && args.language.trim() ? args.language.trim() : null,
+    hasIntermission: typeof args.hasIntermission === "boolean"
+      ? args.hasIntermission
+      : null,
+    longDescription:
+      typeof args.longDescription === "string" && args.longDescription.trim()
+        ? args.longDescription.trim()
+        : null,
+    targetAudience:
+      typeof args.targetAudience === "string" && args.targetAudience.trim()
+        ? args.targetAudience.trim()
+        : null,
+    language: typeof args.language === "string" && args.language.trim()
+      ? args.language.trim()
+      : null,
   };
 }
 
 Deno.serve(async (req) => {
   if (!hasAnyAiProviderConfigured()) {
     return new Response(
-      JSON.stringify({ error: "Kein AI-Provider-Secret gesetzt (CEREBRAS_API_KEY, NVIDIA_API_KEY oder GEMINI_API_KEY)" }),
+      JSON.stringify({
+        error:
+          "Kein AI-Provider-Secret gesetzt (CEREBRAS_API_KEY, NVIDIA_API_KEY oder GEMINI_API_KEY)",
+      }),
       { status: 500 },
     );
   }
 
-  let body: { limit?: unknown };
+  let body: { limit?: unknown; programOnly?: unknown };
   try {
     body = await req.json();
   } catch {
     body = {};
   }
-  const limit = typeof body.limit === "number" && body.limit > 0 ? Math.min(body.limit, 50) : 20;
+  const limit = typeof body.limit === "number" && body.limit > 0
+    ? Math.min(body.limit, 50)
+    : 20;
+  const programOnly = body.programOnly === true;
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
   );
 
-  // Auswahl über references_checked_at statt "hat noch keine
-  // event_works/event_participants-Zeile" — ein Event mit ausschließlich
-  // unbekannten Mitwirkenden (→ landen als entity_candidates, keine
-  // Verknüpfung) bekäme sonst NIE eine solche Zeile und würde bei jedem Lauf
-  // erneut ausgewählt, was den gesamten Batch-Fortschritt blockiert (siehe
-  // 20260722000001_events_references_checked_at.sql).
-  // order by start_datetime statt id: auf Nutzerwunsch priorisieren bevor-
-  // stehende Events (insbesondere die nächsten 90 Tage) automatisch zuerst,
-  // statt in beliebiger Insert-Reihenfolge verarbeitet zu werden.
-  const { data: candidates, error: fetchError } = await supabase
-    .from("events")
-    .select(
-      "id, title, description_de, website_url, ticket_url, doors_info, duration_minutes, has_intermission, target_audience, performance_language",
-    )
-    .eq("status", "scheduled")
-    .is("references_checked_at", null)
-    .order("start_datetime", { ascending: true })
-    .limit(limit)
-    .returns<EventRow[]>();
+  // Atomar claimen: parallele kleine Batches überschneiden sich nicht; ein
+  // abgebrochener Worker wird von der DB nach 15 Minuten wieder freigegeben.
+  const now = new Date().toISOString();
+  const { data: claimedCandidates, error: fetchError } = await supabase
+    .rpc("claim_event_program_enrichment", { p_limit: limit });
+  const candidates = Array.isArray(claimedCandidates)
+    ? claimedCandidates as EventRow[]
+    : [];
 
   if (fetchError) {
-    return new Response(JSON.stringify({ error: fetchError.message }), { status: 500 });
+    return new Response(JSON.stringify({ error: fetchError.message }), {
+      status: 500,
+    });
   }
   if (!candidates || candidates.length === 0) {
-    return new Response(JSON.stringify({ processed: 0, message: "Keine ungeprüften Events mehr übrig." }));
+    return new Response(
+      JSON.stringify({
+        processed: 0,
+        message: "Keine ungeprüften Events mehr übrig.",
+      }),
+    );
   }
 
   let worksCreated = 0;
@@ -381,11 +531,40 @@ Deno.serve(async (req) => {
       pageText = await fetchPageText(pageUrl);
       if (pageText) break;
     }
+    const hasOfficialProgramSection = extractProgramSection(pageText) !== null;
 
-    const extracted = await extractReferences(event.title, event.description_de, pageText);
+    const extracted = await extractReferences(
+      event.title,
+      event.description_de,
+      pageText,
+    );
     if (!extracted) {
       errors.push(`"${event.title}": AI-Aufruf fehlgeschlagen (alle Provider)`);
+      await supabase.from("events").update({
+        program_extraction_status: "error",
+        program_checked_at: now,
+        program_retry_after: new Date(Date.now() + 15 * 60 * 1000)
+          .toISOString(),
+        program_last_error: "AI-Aufruf fehlgeschlagen (alle Provider)",
+        program_check_attempts: event.program_check_attempts + 1,
+      }).eq("id", event.id);
       continue; // kein Mark — bei transientem Providerfehler soll ein späterer Lauf es erneut versuchen
+    }
+
+    // Für gezielte Produktions-Backfills bereits allgemein geprüfter Events
+    // werden ausschließlich Werke geschrieben. Dadurch entfallen langsame
+    // Web-Recherchen für unbekannte Mitwirkende und die kleinen, stabilen
+    // Edge-Batches können die Programm-Queue deutlich schneller abarbeiten.
+    if (programOnly) {
+      extracted.participants = [];
+      extracted.tags = [];
+      extracted.genres = [];
+      extracted.doorsInfo = null;
+      extracted.estimatedDurationMinutes = null;
+      extracted.hasIntermission = null;
+      extracted.longDescription = null;
+      extracted.targetAudience = null;
+      extracted.language = null;
     }
 
     // Bug (live in der App gefunden): das Modell liefert gelegentlich einen
@@ -401,7 +580,9 @@ Deno.serve(async (req) => {
     // Titel als Substring vorkommt.
     const normalizeForFragmentCheck = (s: string) =>
       s.trim().toLowerCase().replace(/[»«"""'']/g, "");
-    const allExtractedTitles = extracted.works.map((w) => w.title).filter((t) => t?.trim());
+    const allExtractedTitles = extracted.works.map((w) => w.title).filter((t) =>
+      t?.trim()
+    );
     extracted.works = extracted.works.filter((w) => {
       const norm = normalizeForFragmentCheck(w.title ?? "");
       if (!norm || norm.length > 20) return true;
@@ -411,14 +592,6 @@ Deno.serve(async (req) => {
         return otherNorm !== norm && otherNorm.includes(norm);
       });
     });
-
-    // Als geprüft markieren, SOBALD die Extraktion selbst geklappt hat —
-    // unabhängig davon, ob am Ende Links entstehen (unbekannte Mitwirkende
-    // landen nur als entity_candidates) oder ein einzelner DB-Insert weiter
-    // unten fehlschlägt. Sonst würde genau dieses Event beim nächsten Lauf
-    // wieder ausgewählt und der Batch käme nie über die ersten paar Events
-    // hinaus (siehe Migrationskommentar).
-    await supabase.from("events").update({ references_checked_at: new Date().toISOString() }).eq("id", event.id);
 
     // Cache innerhalb dieses Laufs, um nicht pro Event erneut nachzuschlagen,
     // wenn derselbe Name (z. B. ein Hausorchester) mehrfach vorkommt. `null`
@@ -481,7 +654,9 @@ Deno.serve(async (req) => {
         },
         suggested_event_title: event.title,
       });
-      if (error) console.error(`flagEntityCandidate "${name}": ${error.message}`);
+      if (error) {
+        console.error(`flagEntityCandidate "${name}": ${error.message}`);
+      }
       return null;
     }
 
@@ -496,16 +671,32 @@ Deno.serve(async (req) => {
       name: string,
       enrichment: { bioSnippet: string | null; websiteUrl: string | null },
     ): Promise<string | null> {
-      const slug = await generateUniqueSlug(entityType === "person" ? "persons" : "ensembles", name);
+      const slug = await generateUniqueSlug(
+        entityType === "person" ? "persons" : "ensembles",
+        name,
+      );
       const table = entityType === "person" ? "persons" : "ensembles";
-      const payload =
-        entityType === "person"
-          ? { full_name: name, slug, is_verified: false, website_url: enrichment.websiteUrl }
-          : { name, slug, type: "sonstiges", is_verified: false, website_url: enrichment.websiteUrl };
-
-      const { data, error } = await supabase.from(table).insert(payload).select("id").single();
+      const insertResult = entityType === "person"
+        ? await supabase.from("persons").insert({
+          full_name: name,
+          slug,
+          is_verified: false,
+          website_url: enrichment.websiteUrl,
+        }).select("id").single()
+        : await supabase.from("ensembles").insert({
+          name,
+          slug,
+          type: "sonstiges",
+          is_verified: false,
+          website_url: enrichment.websiteUrl,
+        }).select("id").single();
+      const { data, error } = insertResult;
       if (error || !data) {
-        console.error(`autoCreateEntity "${name}" (${entityType}): ${error?.message ?? "kein Ergebnis"}`);
+        console.error(
+          `autoCreateEntity "${name}" (${entityType}): ${
+            error?.message ?? "kein Ergebnis"
+          }`,
+        );
         return null;
       }
 
@@ -527,7 +718,8 @@ Deno.serve(async (req) => {
           entityId: data.id,
           fieldName: "website_url",
           sourceUrl: enrichment.websiteUrl,
-          sourceName: "Websuche (enrich-event-references, automatisch angelegt)",
+          sourceName:
+            "Websuche (enrich-event-references, automatisch angelegt)",
           confidence: "likely",
         });
       }
@@ -538,10 +730,23 @@ Deno.serve(async (req) => {
     /** Slug-Generierung dupliziert aus ingest-source/write.ts (dort
      * slugify()/generateUniqueSlug()) — kein gemeinsamer Modul-Raum
      * zwischen den einzelnen Edge Functions, siehe dortigen Kommentar. */
-    async function generateUniqueSlug(table: "persons" | "ensembles", name: string): Promise<string> {
-      const umlauts: Record<string, string> = { ä: "ae", ö: "oe", ü: "ue", ß: "ss", Ä: "ae", Ö: "oe", Ü: "ue" };
+    async function generateUniqueSlug(
+      table: "persons" | "ensembles",
+      name: string,
+    ): Promise<string> {
+      const umlauts: Record<string, string> = {
+        ä: "ae",
+        ö: "oe",
+        ü: "ue",
+        ß: "ss",
+        Ä: "ae",
+        Ö: "oe",
+        Ü: "ue",
+      };
       let s = name;
-      for (const [from, to] of Object.entries(umlauts)) s = s.split(from).join(to);
+      for (const [from, to] of Object.entries(umlauts)) {
+        s = s.split(from).join(to);
+      }
       const base = s
         .toLowerCase()
         .normalize("NFKD")
@@ -553,7 +758,10 @@ Deno.serve(async (req) => {
 
       for (let attempt = 0; attempt < 20; attempt++) {
         const candidate = attempt === 0 ? base : `${base}-${attempt + 1}`;
-        const { data } = await supabase.from(table).select("id").eq("slug", candidate).maybeSingle();
+        const { data } = await supabase.from(table).select("id").eq(
+          "slug",
+          candidate,
+        ).maybeSingle();
         if (!data) return candidate;
       }
       return `${base}-${crypto.randomUUID().slice(0, 8)}`;
@@ -582,15 +790,28 @@ Deno.serve(async (req) => {
         return existing.id;
       }
 
-      const { data: fuzzyMatches } = await supabase.rpc("find_matching_person", { p_name: name });
-      const bestMatch = fuzzyMatches?.[0] as { id: string; full_name: string; similarity: number } | undefined;
+      const { data: fuzzyMatches } = await supabase.rpc(
+        "find_matching_person",
+        { p_name: name },
+      );
+      const bestMatch = fuzzyMatches?.[0] as {
+        id: string;
+        full_name: string;
+        similarity: number;
+      } | undefined;
       if (bestMatch && bestMatch.similarity >= FUZZY_AUTO_THRESHOLD) {
-        await logSystemAction(supabase, "person", bestMatch.id, "fuzzy_auto_link", {
-          matched_name: name,
-          linked_to: bestMatch.full_name,
-          similarity: bestMatch.similarity,
-          event_id: event.id,
-        });
+        await logSystemAction(
+          supabase,
+          "person",
+          bestMatch.id,
+          "fuzzy_auto_link",
+          {
+            matched_name: name,
+            linked_to: bestMatch.full_name,
+            similarity: bestMatch.similarity,
+            event_id: event.id,
+          },
+        );
         personCache.set(key, bestMatch.id);
         return bestMatch.id;
       }
@@ -599,7 +820,11 @@ Deno.serve(async (req) => {
         "person",
         name,
         bestMatch && bestMatch.similarity >= FUZZY_FLAG_THRESHOLD
-          ? { id: bestMatch.id, name: bestMatch.full_name, similarity: bestMatch.similarity }
+          ? {
+            id: bestMatch.id,
+            name: bestMatch.full_name,
+            similarity: bestMatch.similarity,
+          }
           : undefined,
       );
       if (autoCreatedId) {
@@ -611,7 +836,69 @@ Deno.serve(async (req) => {
       return null;
     }
 
-    async function getOrCreateEnsemble(name: string, _type: string | null): Promise<string | null> {
+    // Ein vollständig ausgeschriebener Komponistenname in einem klar
+    // abgegrenzten offiziellen Programm ist selbst eine belastbare Quelle.
+    // Diese Person darf unbestätigt, aber direkt als Komponist angelegt und
+    // verlinkt werden; sonst bliebe das Werk trotz korrektem Programm ohne
+    // den in der App benötigten Komponisten-Hyperlink.
+    async function getOrCreateOfficialComposer(
+      name: string,
+    ): Promise<string | null> {
+      const trimmed = name.trim().replace(/,+$/, "");
+      if (!hasOfficialProgramSection || isPlaceholderName(trimmed)) {
+        return await getOrCreatePerson(trimmed);
+      }
+      const key = trimmed.toLowerCase();
+      if (personCache.has(key)) return personCache.get(key) ?? null;
+
+      const { data: existing } = await supabase.from("persons").select("id")
+        .ilike("full_name", trimmed).maybeSingle();
+      if (existing) {
+        personCache.set(key, existing.id);
+        return existing.id;
+      }
+
+      // Nur Vor- und Nachname (mindestens zwei Wörter), niemals einen bloßen
+      // Nachnamen automatisch als neue Person anlegen.
+      if (trimmed.split(/\s+/).length < 2) {
+        return await getOrCreatePerson(trimmed);
+      }
+      const slug = await generateUniqueSlug("persons", trimmed);
+      const { data: created, error } = await supabase.from("persons").insert({
+        full_name: trimmed,
+        slug,
+        roles: ["komponist"],
+        is_verified: false,
+      }).select("id").single();
+      if (error || !created) return await getOrCreatePerson(trimmed);
+
+      personCache.set(key, created.id);
+      await logSystemAction(
+        supabase,
+        "person",
+        created.id,
+        "official_program_composer_created",
+        {
+          name: trimmed,
+          event_id: event.id,
+          source_url: event.website_url ?? event.ticket_url,
+        },
+      );
+      await recordFieldSource(supabase, {
+        entityType: "person",
+        entityId: created.id,
+        fieldName: "full_name",
+        sourceUrl: event.website_url ?? event.ticket_url,
+        sourceName: "Offizielles Veranstaltungsprogramm",
+        confidence: "confirmed",
+      });
+      return created.id;
+    }
+
+    async function getOrCreateEnsemble(
+      name: string,
+      _type: string | null,
+    ): Promise<string | null> {
       const key = name.toLowerCase();
       if (ensembleCache.has(key)) return ensembleCache.get(key) ?? null;
       const { data: existing } = await supabase
@@ -624,15 +911,28 @@ Deno.serve(async (req) => {
         return existing.id;
       }
 
-      const { data: fuzzyMatches } = await supabase.rpc("find_matching_ensemble", { p_name: name });
-      const bestMatch = fuzzyMatches?.[0] as { id: string; name: string; similarity: number } | undefined;
+      const { data: fuzzyMatches } = await supabase.rpc(
+        "find_matching_ensemble",
+        { p_name: name },
+      );
+      const bestMatch = fuzzyMatches?.[0] as {
+        id: string;
+        name: string;
+        similarity: number;
+      } | undefined;
       if (bestMatch && bestMatch.similarity >= FUZZY_AUTO_THRESHOLD) {
-        await logSystemAction(supabase, "ensemble", bestMatch.id, "fuzzy_auto_link", {
-          matched_name: name,
-          linked_to: bestMatch.name,
-          similarity: bestMatch.similarity,
-          event_id: event.id,
-        });
+        await logSystemAction(
+          supabase,
+          "ensemble",
+          bestMatch.id,
+          "fuzzy_auto_link",
+          {
+            matched_name: name,
+            linked_to: bestMatch.name,
+            similarity: bestMatch.similarity,
+            event_id: event.id,
+          },
+        );
         ensembleCache.set(key, bestMatch.id);
         return bestMatch.id;
       }
@@ -641,7 +941,11 @@ Deno.serve(async (req) => {
         "ensemble",
         name,
         bestMatch && bestMatch.similarity >= FUZZY_FLAG_THRESHOLD
-          ? { id: bestMatch.id, name: bestMatch.name, similarity: bestMatch.similarity }
+          ? {
+            id: bestMatch.id,
+            name: bestMatch.name,
+            similarity: bestMatch.similarity,
+          }
           : undefined,
       );
       if (autoCreatedId) {
@@ -678,7 +982,10 @@ Deno.serve(async (req) => {
         .replace(/[»«"""'']/g, "")
         .replace(/symphonie/gi, "sinfonie")
         .replace(/\s+[a-h](-dur|-moll)\s*$/i, "")
-        .replace(/\s+(op\.?|opus|bwv|kv|k\.?v\.?|hob\.?|woo|d\.?)\s?\d+[a-z]?\s*$/i, "")
+        .replace(
+          /\s+(op\.?|opus|bwv|kv|k\.?v\.?|hob\.?|woo|d\.?)\s?\d+[a-z]?\s*$/i,
+          "",
+        )
         .replace(/\s+/g, " ")
         .trim()
         .toLowerCase();
@@ -709,7 +1016,9 @@ Deno.serve(async (req) => {
         if (w.keySignature && !isPlausibleKeySignature(w.keySignature)) {
           w.keySignature = null;
         }
-        const composerId = w.composerName?.trim() ? await getOrCreatePerson(w.composerName.trim()) : null;
+        const composerId = w.composerName?.trim()
+          ? await getOrCreateOfficialComposer(w.composerName.trim())
+          : null;
 
         const normalizedTitle = normalizeTitleForMatch(w.title);
         // Vorauswahl über einen Teilstring DES NORMALISIERTEN Titels (nicht
@@ -722,7 +1031,8 @@ Deno.serve(async (req) => {
           .select("id, title, composer_id, catalog_number, key_signature")
           .ilike("title", `%${normalizedTitle.slice(0, 20)}%`);
         const existingWork = (sameNamedWorks ?? []).find(
-          (existing: { title: string }) => normalizeTitleForMatch(existing.title) === normalizedTitle,
+          (existing: { title: string }) =>
+            normalizeTitleForMatch(existing.title) === normalizedTitle,
         );
 
         // Kein exakter Treffer nach Normalisierung — Fuzzy-Fallback über
@@ -737,13 +1047,23 @@ Deno.serve(async (req) => {
         // sonst lieber anlegen und zur redaktionellen Prüfung vormerken
         // (work_duplicate_candidates), nie blind zusammenlegen.
         let fuzzyMatch:
-          | { id: string; title: string; composer_id: string | null; catalog_number: string | null; key_signature: string | null; similarity: number }
+          | {
+            id: string;
+            title: string;
+            composer_id: string | null;
+            catalog_number: string | null;
+            key_signature: string | null;
+            similarity: number;
+          }
           | null = null;
         if (!existingWork) {
-          const { data: similarWorks } = await supabase.rpc("find_similar_works", {
-            p_title: w.title.trim(),
-            p_event_id: event.id,
-          });
+          const { data: similarWorks } = await supabase.rpc(
+            "find_similar_works",
+            {
+              p_title: w.title.trim(),
+              p_event_id: event.id,
+            },
+          );
           fuzzyMatch = (similarWorks ?? [])[0] ?? null;
         }
         // composer_id-Konflikt (beide gesetzt, aber verschieden) ist ein
@@ -754,9 +1074,12 @@ Deno.serve(async (req) => {
         // Titel-Vokabular-Überschneidung ("Symphonie Nr. X", "Konzert für
         // ... und Orchester") die Review-Queue mit Dutzenden eindeutig
         // falschen Kandidaten.
-        const bothComposersKnown = fuzzyMatch?.composer_id != null && composerId != null;
-        const composerConflict = bothComposersKnown && fuzzyMatch!.composer_id !== composerId;
-        const composersConfirmedEqual = bothComposersKnown && fuzzyMatch!.composer_id === composerId;
+        const bothComposersKnown = fuzzyMatch?.composer_id != null &&
+          composerId != null;
+        const composerConflict = bothComposersKnown &&
+          fuzzyMatch!.composer_id !== composerId;
+        const composersConfirmedEqual = bothComposersKnown &&
+          fuzzyMatch!.composer_id === composerId;
         // Bug (live in der App gefunden): fehlt der Komponist auf einer
         // Seite (meist die neu extrahierte, weil der Quelltext ihn nicht
         // nannte), griff bisher derselbe 0.6-Schwellwert wie beim
@@ -788,9 +1111,15 @@ Deno.serve(async (req) => {
           // verschmelzen), konnte den fehlenden Komponisten dadurch nie
           // nachtragen.
           const patch: Record<string, string> = {};
-          if (!matched.composer_id && composerId) patch.composer_id = composerId;
-          if (!matched.catalog_number && w.catalogNumber) patch.catalog_number = w.catalogNumber;
-          if (!matched.key_signature && w.keySignature) patch.key_signature = w.keySignature;
+          if (!matched.composer_id && composerId) {
+            patch.composer_id = composerId;
+          }
+          if (!matched.catalog_number && w.catalogNumber) {
+            patch.catalog_number = w.catalogNumber;
+          }
+          if (!matched.key_signature && w.keySignature) {
+            patch.key_signature = w.keySignature;
+          }
           if (Object.keys(patch).length > 0) {
             await supabase.from("works").update(patch).eq("id", workId);
           }
@@ -805,7 +1134,9 @@ Deno.serve(async (req) => {
             })
             .select("id")
             .single();
-          if (error) throw new Error(`works insert "${w.title}": ${error.message}`);
+          if (error) {
+            throw new Error(`works insert "${w.title}": ${error.message}`);
+          }
           worksCreated++;
           workId = createdWork.id;
 
@@ -815,13 +1146,18 @@ Deno.serve(async (req) => {
           // unterschiedliche Werke sind (composerConflict oben) — das wäre
           // reines Rauschen in der Review-Queue, kein Zweifelsfall.
           if (fuzzyMatch && !composerConflict) {
-            const { error: dupError } = await supabase.from("work_duplicate_candidates").insert({
+            const { error: dupError } = await supabase.from(
+              "work_duplicate_candidates",
+            ).insert({
               work_a_id: fuzzyMatch.id,
               work_b_id: workId,
               similarity_score: fuzzyMatch.similarity,
             });
-            if (dupError) errors.push(`work_duplicate_candidates insert "${w.title}": ${dupError.message}`);
-            else workDuplicatesFlagged++;
+            if (dupError) {
+              errors.push(
+                `work_duplicate_candidates insert "${w.title}": ${dupError.message}`,
+              );
+            } else workDuplicatesFlagged++;
           }
         }
         if (w.catalogNumber || w.keySignature) {
@@ -830,7 +1166,8 @@ Deno.serve(async (req) => {
             entityId: workId,
             fieldName: "catalog_number_key_signature",
             sourceUrl: event.website_url ?? event.ticket_url ?? null,
-            sourceName: "Offizielle Veranstaltungsseite (via enrich-event-references)",
+            sourceName:
+              "Offizielle Veranstaltungsseite (via enrich-event-references)",
             confidence: "likely",
           });
         }
@@ -846,9 +1183,63 @@ Deno.serve(async (req) => {
         if (!existingLink) {
           const { error: linkError } = await supabase
             .from("event_works")
-            .insert({ event_id: event.id, work_id: workId, position: i });
-          if (linkError) throw new Error(`event_works link: ${linkError.message}`);
+            .insert({
+              event_id: event.id,
+              work_id: workId,
+              position: i,
+              after_intermission: w.afterIntermission,
+            });
+          if (linkError) {
+            throw new Error(`event_works link: ${linkError.message}`);
+          }
           linksCreated++;
+        } else if (w.afterIntermission) {
+          await supabase.from("event_works")
+            .update({ after_intermission: true })
+            .eq("event_id", event.id)
+            .eq("work_id", workId);
+        }
+      }
+
+      // Ein Programm kann mehreren Terminen zugeordnet sein. Nach einer
+      // erfolgreichen Extraktion wird es auf alle Geschwistertermine
+      // übertragen, damit SwiftUI, Flutter und Web dieselbe Werkliste lesen.
+      if (event.program_id && extracted.works.length > 0) {
+        const [{ data: siblingEvents }, { data: currentWorks }] = await Promise
+          .all([
+            supabase.from("events").select("id").eq(
+              "program_id",
+              event.program_id,
+            ).neq("id", event.id),
+            supabase.from("event_works").select(
+              "work_id, position, after_intermission",
+            ).eq("event_id", event.id),
+          ]);
+        for (const sibling of siblingEvents ?? []) {
+          const rows = (currentWorks ?? []).map((work) => ({
+            ...work,
+            event_id: sibling.id,
+          }));
+          if (rows.length > 0) {
+            const { error: propagationError } = await supabase.from(
+              "event_works",
+            )
+              .upsert(rows, {
+                onConflict: "event_id,work_id,position",
+                ignoreDuplicates: true,
+              });
+            if (propagationError) {
+              errors.push(`Programm-Vererbung: ${propagationError.message}`);
+            } else {
+              await supabase.from("events").update({
+                program_extraction_status: "complete",
+                program_checked_at: new Date().toISOString(),
+                program_retry_after: null,
+                program_last_error: null,
+                program_source_url: event.website_url ?? event.ticket_url,
+              }).eq("id", sibling.id);
+            }
+          }
         }
       }
 
@@ -888,7 +1279,11 @@ Deno.serve(async (req) => {
             role: p.role ?? null,
             display_order: i,
           });
-        if (linkError) throw new Error(`event_participants link "${p.name}": ${linkError.message}`);
+        if (linkError) {
+          throw new Error(
+            `event_participants link "${p.name}": ${linkError.message}`,
+          );
+        }
         linksCreated++;
       }
 
@@ -915,7 +1310,9 @@ Deno.serve(async (req) => {
             // Race mit einem parallelen Lauf, der denselben Tag gerade
             // angelegt hat (tags.name ist unique) — kein echter Fehler,
             // einfach überspringen statt den ganzen Event-Write abzubrechen.
-            console.error(`tags insert "${trimmed}": ${tagInsertError.message}`);
+            console.error(
+              `tags insert "${trimmed}": ${tagInsertError.message}`,
+            );
             continue;
           }
           tagId = createdTag.id;
@@ -923,21 +1320,35 @@ Deno.serve(async (req) => {
 
         const { error: eventTagError } = await supabase
           .from("event_tags")
-          .upsert({ event_id: event.id, tag_id: tagId }, { onConflict: "event_id,tag_id" });
-        if (eventTagError) console.error(`event_tags link "${trimmed}": ${eventTagError.message}`);
+          .upsert({ event_id: event.id, tag_id: tagId }, {
+            onConflict: "event_id,tag_id",
+          });
+        if (eventTagError) {
+          console.error(
+            `event_tags link "${trimmed}": ${eventTagError.message}`,
+          );
+        }
       }
 
       // genres ist ein kontrolliertes Vokabular (siehe GENRE_SLUGS oben) —
       // im Gegensatz zu tags gibt es nie einen "anlegen"-Zweig, nur
       // Nachschlagen der bereits per Seed-Migration vorhandenen Zeile.
       for (const slug of extracted.genres) {
-        const { data: genre } = await supabase.from("genres").select("id").eq("slug", slug).maybeSingle();
+        const { data: genre } = await supabase.from("genres").select("id").eq(
+          "slug",
+          slug,
+        ).maybeSingle();
         if (!genre) continue; // sollte nicht vorkommen (enum-validiert), sicherheitshalber trotzdem prüfen
         const { error: eventGenreError } = await supabase
           .from("event_genres")
-          .upsert({ event_id: event.id, genre_id: genre.id }, { onConflict: "event_id,genre_id" });
-        if (eventGenreError) console.error(`event_genres link "${slug}": ${eventGenreError.message}`);
-        else genresAssigned++;
+          .upsert({ event_id: event.id, genre_id: genre.id }, {
+            onConflict: "event_id,genre_id",
+          });
+        if (eventGenreError) {
+          console.error(
+            `event_genres link "${slug}": ${eventGenreError.message}`,
+          );
+        } else genresAssigned++;
       }
 
       // Praktische Event-Felder — jedes NUR befüllen, wenn aktuell leer,
@@ -950,7 +1361,9 @@ Deno.serve(async (req) => {
       // ausführlichen Text zu verlieren.
       const eventPatch: Record<string, string | number | boolean> = {};
       const sourceUrl = event.website_url ?? event.ticket_url ?? undefined;
-      const provenanceSources: Array<{ fieldName: string; sourceUrl?: string | null }> = [];
+      const provenanceSources: Array<
+        { fieldName: string; sourceUrl?: string | null }
+      > = [];
 
       if (!event.doors_info && extracted.doorsInfo) {
         eventPatch.doors_info = extracted.doorsInfo;
@@ -972,7 +1385,10 @@ Deno.serve(async (req) => {
         eventPatch.has_intermission = extracted.hasIntermission;
         provenanceSources.push({ fieldName: "has_intermission", sourceUrl });
       }
-      if ((!event.description_de || event.description_de.trim().length < 40) && extracted.longDescription) {
+      if (
+        (!event.description_de || event.description_de.trim().length < 40) &&
+        extracted.longDescription
+      ) {
         eventPatch.description_de = extracted.longDescription;
         provenanceSources.push({ fieldName: "description_de", sourceUrl });
       }
@@ -982,13 +1398,20 @@ Deno.serve(async (req) => {
       }
       if (!event.performance_language && extracted.language) {
         eventPatch.performance_language = extracted.language;
-        provenanceSources.push({ fieldName: "performance_language", sourceUrl });
+        provenanceSources.push({
+          fieldName: "performance_language",
+          sourceUrl,
+        });
       }
 
       if (Object.keys(eventPatch).length > 0) {
-        const { error: patchError } = await supabase.from("events").update(eventPatch).eq("id", event.id);
+        const { error: patchError } = await supabase.from("events").update(
+          eventPatch,
+        ).eq("id", event.id);
         if (patchError) {
-          console.error(`event detail patch "${event.title}": ${patchError.message}`);
+          console.error(
+            `event detail patch "${event.title}": ${patchError.message}`,
+          );
         } else {
           await Promise.all(
             provenanceSources.map((s) =>
@@ -1006,8 +1429,39 @@ Deno.serve(async (req) => {
           );
         }
       }
+
+      const { count: programWorkCount } = await supabase
+        .from("event_works")
+        .select("event_id", { count: "exact", head: true })
+        .eq("event_id", event.id);
+      const programComplete = (programWorkCount ?? 0) > 0;
+      const checkedAt = new Date().toISOString();
+      await supabase.from("events").update({
+        references_checked_at: checkedAt,
+        program_extraction_status: programComplete
+          ? "complete"
+          : "not_published",
+        program_checked_at: checkedAt,
+        program_retry_after: programComplete
+          ? null
+          : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        program_source_url: pageText
+          ? event.website_url ?? event.ticket_url
+          : null,
+        program_last_error: null,
+        program_check_attempts: event.program_check_attempts + 1,
+      }).eq("id", event.id);
     } catch (err) {
-      errors.push(`"${event.title}": ${err instanceof Error ? err.message : String(err)}`);
+      const message = err instanceof Error ? err.message : String(err);
+      errors.push(`"${event.title}": ${message}`);
+      await supabase.from("events").update({
+        program_extraction_status: "error",
+        program_checked_at: new Date().toISOString(),
+        program_retry_after: new Date(Date.now() + 15 * 60 * 1000)
+          .toISOString(),
+        program_last_error: message.slice(0, 1000),
+        program_check_attempts: event.program_check_attempts + 1,
+      }).eq("id", event.id);
     }
   }
 
