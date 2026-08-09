@@ -30,7 +30,7 @@ jobs:
 
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.109.1
 
       - name: Alle Edge Functions deployen
         working-directory: backend

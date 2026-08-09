@@ -11,6 +11,15 @@ struct ConcertEvent: Codable, Identifiable, Hashable, Sendable {
     let venues: VenueSummary?
     let eventParticipants: [EventParticipantImage]?
     let fallbackImageUrls: [String]?
+    let category: String?
+    let genreIDs: [UUID]
+    let genreLabels: [String]
+    let isFree: Bool?
+
+    private enum CodingKeys: String, CodingKey {
+        case id, slug, title, subtitle, startDatetime, imageUrls, status, venues
+        case eventParticipants, fallbackImageUrls, category, genreIDs, genreLabels, isFree
+    }
 
     var startDate: Date? {
         FlexibleDateParser.date(from: startDatetime)
@@ -42,7 +51,11 @@ struct ConcertEvent: Codable, Identifiable, Hashable, Sendable {
         status: String?,
         venues: VenueSummary?,
         eventParticipants: [EventParticipantImage]? = nil,
-        fallbackImageUrls: [String]? = nil
+        fallbackImageUrls: [String]? = nil,
+        category: String? = nil,
+        genreIDs: [UUID] = [],
+        genreLabels: [String] = [],
+        isFree: Bool? = nil
     ) {
         self.id = id
         self.slug = slug
@@ -54,6 +67,10 @@ struct ConcertEvent: Codable, Identifiable, Hashable, Sendable {
         self.venues = venues
         self.eventParticipants = eventParticipants
         self.fallbackImageUrls = fallbackImageUrls
+        self.category = category
+        self.genreIDs = genreIDs
+        self.genreLabels = genreLabels
+        self.isFree = isFree
     }
 
     init?(json: JSONObject) {
@@ -72,6 +89,8 @@ struct ConcertEvent: Codable, Identifiable, Hashable, Sendable {
             return VenueSummary(id: venueID, name: name, photoUrl: value.string("photo_url"))
         }
 
+        let genreRows = json.objects("event_genres").compactMap { $0.object("genres") }
+
         self.init(
             id: id,
             slug: slug,
@@ -82,8 +101,59 @@ struct ConcertEvent: Codable, Identifiable, Hashable, Sendable {
             status: json.string("status"),
             venues: venue,
             eventParticipants: json.objects("event_participants").map(EventParticipantImage.init(json:)),
-            fallbackImageUrls: nil
+            fallbackImageUrls: nil,
+            category: json.string("category"),
+            genreIDs: genreRows.compactMap { $0.string("id").flatMap(UUID.init(uuidString:)) },
+            genreLabels: genreRows.compactMap { $0.string("label_de") ?? $0.string("slug") },
+            isFree: json.bool("is_free")
         )
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            id: try values.decode(UUID.self, forKey: .id),
+            slug: try values.decode(String.self, forKey: .slug),
+            title: try values.decode(String.self, forKey: .title),
+            subtitle: try values.decodeIfPresent(String.self, forKey: .subtitle),
+            startDatetime: try values.decode(String.self, forKey: .startDatetime),
+            imageUrls: try values.decodeIfPresent([String].self, forKey: .imageUrls),
+            status: try values.decodeIfPresent(String.self, forKey: .status),
+            venues: try values.decodeIfPresent(VenueSummary.self, forKey: .venues),
+            eventParticipants: try values.decodeIfPresent([EventParticipantImage].self, forKey: .eventParticipants),
+            fallbackImageUrls: try values.decodeIfPresent([String].self, forKey: .fallbackImageUrls),
+            category: try values.decodeIfPresent(String.self, forKey: .category),
+            genreIDs: try values.decodeIfPresent([UUID].self, forKey: .genreIDs) ?? [],
+            genreLabels: try values.decodeIfPresent([String].self, forKey: .genreLabels) ?? [],
+            isFree: try values.decodeIfPresent(Bool.self, forKey: .isFree)
+        )
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(id, forKey: .id)
+        try values.encode(slug, forKey: .slug)
+        try values.encode(title, forKey: .title)
+        try values.encodeIfPresent(subtitle, forKey: .subtitle)
+        try values.encode(startDatetime, forKey: .startDatetime)
+        try values.encodeIfPresent(imageUrls, forKey: .imageUrls)
+        try values.encodeIfPresent(status, forKey: .status)
+        try values.encodeIfPresent(venues, forKey: .venues)
+        try values.encodeIfPresent(eventParticipants, forKey: .eventParticipants)
+        try values.encodeIfPresent(fallbackImageUrls, forKey: .fallbackImageUrls)
+        try values.encodeIfPresent(category, forKey: .category)
+        try values.encode(genreIDs, forKey: .genreIDs)
+        try values.encode(genreLabels, forKey: .genreLabels)
+        try values.encodeIfPresent(isFree, forKey: .isFree)
+    }
+
+    func matchesFeedTerms(_ terms: [String]) -> Bool {
+        let haystack = ([title, subtitle, category] + genreLabels)
+            .compactMap { $0 }
+            .joined(separator: " ")
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "de_DE"))
+            .lowercased()
+        return terms.contains { haystack.contains($0) }
     }
 }
 

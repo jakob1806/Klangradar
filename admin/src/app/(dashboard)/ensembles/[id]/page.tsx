@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { GalleryEditor } from "@/components/entity-gallery/gallery-editor";
 import { AiEnrichButton } from "@/components/ai-enrich-button";
+import { EntityAuditButton } from "@/components/entity-audit-button";
 import type { GalleryImage } from "@/lib/gallery-actions";
 import { updateEnsemble } from "../actions";
 import { EnsembleDeleteControl } from "../ensemble-delete-control";
@@ -43,8 +44,9 @@ export default async function EditEnsemblePage({
         <h1 className="text-xl font-semibold tracking-tight">{data.name} bearbeiten</h1>
         <EnsembleDeleteControl ensembleId={id} ensembleName={data.name} />
       </div>
-      <div className="mt-4">
+      <div className="mt-4 flex flex-wrap items-start gap-3">
         <AiEnrichButton entityType="ensemble" entityId={id} />
+        <EntityAuditButton entityType="ensemble" entityId={id} />
       </div>
       <div className="mt-6">
         <EnsembleForm action={updateEnsemble.bind(null, id)} initial={data} venues={venues ?? []} ensembleId={id} />

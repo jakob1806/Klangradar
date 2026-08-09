@@ -110,6 +110,28 @@ struct SupabaseRESTClient: Sendable {
         _ = try await perform(request)
     }
 
+    func update(
+        table: String,
+        values: JSONObject,
+        filters: [URLQueryItem],
+        accessToken: String
+    ) async throws {
+        guard var components = URLComponents(
+            url: configuration.supabaseURL
+                .appendingPathComponent("rest/v1")
+                .appendingPathComponent(table),
+            resolvingAgainstBaseURL: false
+        ) else { throw APIError.invalidURL }
+        components.queryItems = filters
+        guard let url = components.url else { throw APIError.invalidURL }
+        var request = authorizedRequest(url: url, accessToken: accessToken)
+        request.httpMethod = "PATCH"
+        request.httpBody = try JSONEncoder().encode(values)
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("return=minimal", forHTTPHeaderField: "Prefer")
+        _ = try await perform(request)
+    }
+
     func delete(
         table: String,
         filters: [URLQueryItem],

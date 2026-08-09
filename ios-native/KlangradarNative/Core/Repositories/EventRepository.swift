@@ -30,7 +30,7 @@ struct LiveEventRepository: EventRepository {
             queryItems: [
                 URLQueryItem(
                     name: "select",
-                    value: "id,slug,title,subtitle,start_datetime,image_urls,status,venues(id,name,photo_url),event_participants(persons(id,photo_url),ensembles(id,photo_url))"
+                    value: "id,slug,title,subtitle,start_datetime,image_urls,status,category,is_free,venues(id,name,photo_url),event_genres(genres(id,slug,label_de)),event_participants(persons(id,photo_url),ensembles(id,photo_url))"
                 ),
                 URLQueryItem(name: "status", value: "eq.scheduled"),
                 URLQueryItem(
@@ -71,7 +71,22 @@ struct LiveEventRepository: EventRepository {
         return events.map { event in
             let candidateIDs = [event.id, event.venues?.id].compactMap { $0 } + (event.eventParticipants ?? []).flatMap { [$0.persons?.id, $0.ensembles?.id].compactMap { $0 } }
             let fallback = candidateIDs.flatMap { galleryURLs[$0.uuidString] ?? [] }
-            return ConcertEvent(id: event.id, slug: event.slug, title: event.title, subtitle: event.subtitle, startDatetime: event.startDatetime, imageUrls: event.imageUrls, status: event.status, venues: event.venues, eventParticipants: event.eventParticipants, fallbackImageUrls: fallback)
+            return ConcertEvent(
+                id: event.id,
+                slug: event.slug,
+                title: event.title,
+                subtitle: event.subtitle,
+                startDatetime: event.startDatetime,
+                imageUrls: event.imageUrls,
+                status: event.status,
+                venues: event.venues,
+                eventParticipants: event.eventParticipants,
+                fallbackImageUrls: fallback,
+                category: event.category,
+                genreIDs: event.genreIDs,
+                genreLabels: event.genreLabels,
+                isFree: event.isFree
+            )
         }
     }
 
@@ -84,13 +99,23 @@ struct LiveEventRepository: EventRepository {
             )
             baseDetail = rows.first
         } catch {
-            // A schema extension must never leave the detail screen spinning.
-            // Fall back to the stable core fields if one optional relation is unavailable.
-            let rows: [JSONObject] = try await client.get(
-                table: "events",
-                queryItems: detailQuery(slug: slug, selection: Self.coreDetailSelection)
-            )
-            baseDetail = rows.first
+            do {
+                // Keep program and participants available while the role_label
+                // migration is still being rolled out to a backend.
+                let rows: [JSONObject] = try await client.get(
+                    table: "events",
+                    queryItems: detailQuery(slug: slug, selection: Self.legacyDetailSelection)
+                )
+                baseDetail = rows.first
+            } catch {
+                // A schema extension must never leave the detail screen spinning.
+                // Fall back to the stable core fields if one optional relation is unavailable.
+                let rows: [JSONObject] = try await client.get(
+                    table: "events",
+                    queryItems: detailQuery(slug: slug, selection: Self.coreDetailSelection)
+                )
+                baseDetail = rows.first
+            }
         }
         guard let baseDetail else { return nil }
         return await enrichingRelatedContent(baseDetail)
@@ -217,12 +242,17 @@ struct LiveEventRepository: EventRepository {
 
     private func optionalGroupContent(programID: String?, excluding eventID: String) async -> JSONObject? {
         guard let programID else { return nil }
-        let rows: [JSONObject]? = try? await client.get(table: "events", queryItems: [
-            URLQueryItem(name: "select", value: "program_notes_de,event_works(position,after_intermission,works(id,title,catalog_number,key_signature,instrumentation,movements,composer:persons(id,slug,full_name,photo_url))),event_participants(role,persons(id,slug,full_name,photo_url),ensembles(id,slug,name,photo_url))"),
+        let queryItems: (String) -> [URLQueryItem] = { selection in [
+            URLQueryItem(name: "select", value: selection),
             URLQueryItem(name: "program_id", value: "eq.\(programID)"),
             URLQueryItem(name: "id", value: "neq.\(eventID)"),
             URLQueryItem(name: "status", value: "neq.draft")
-        ])
+        ] }
+        let selection = "program_notes_de,event_works(position,after_intermission,works(id,title,catalog_number,key_signature,instrumentation,movements,composer:persons(id,slug,full_name,photo_url))),event_participants(role,role_label,persons(id,slug,full_name,photo_url),ensembles(id,slug,name,photo_url))"
+        var rows: [JSONObject]? = try? await client.get(table: "events", queryItems: queryItems(selection))
+        if rows == nil {
+            rows = try? await client.get(table: "events", queryItems: queryItems(selection.replacingOccurrences(of: "role,role_label", with: "role")))
+        }
         return rows?.max { lhs, rhs in
             lhs.objects("event_works").count + lhs.objects("event_participants").count
                 < rhs.objects("event_works").count + rhs.objects("event_participants").count
@@ -240,8 +270,13 @@ struct LiveEventRepository: EventRepository {
     venues(id,slug,name,address_street,address_zip,address_city,photo_url,description_de),
     organizers(name),event_genres(genres(id,slug,label_de)),
     event_works(position,after_intermission,works(id,title,catalog_number,key_signature,instrumentation,movements,composer:persons(id,slug,full_name,photo_url))),
-    event_participants(role,persons(id,slug,full_name,photo_url),ensembles(id,slug,name,photo_url))
+    event_participants(role,role_label,persons(id,slug,full_name,photo_url),ensembles(id,slug,name,photo_url))
     """
+
+    private static let legacyDetailSelection = detailSelection.replacingOccurrences(
+        of: "role,role_label",
+        with: "role"
+    )
 }
 
 struct PreviewEventRepository: EventRepository {

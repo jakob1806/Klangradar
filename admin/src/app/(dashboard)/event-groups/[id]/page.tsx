@@ -54,6 +54,7 @@ interface ParticipantRow {
   person_id: string | null;
   ensemble_id: string | null;
   role: string | null;
+  role_label: string | null;
   persons: { full_name: string } | null;
   ensembles: { name: string } | null;
 }
@@ -94,7 +95,7 @@ export default async function EventGroupDetailPage({
             .returns<ProgramWorkRow[]>(),
           supabase
             .from("event_participants")
-            .select("event_id, person_id, ensemble_id, role, persons(full_name), ensembles(name)")
+            .select("event_id, person_id, ensemble_id, role, role_label, persons(full_name), ensembles(name)")
             .in("event_id", memberIds)
             .returns<ParticipantRow[]>(),
           supabase
@@ -136,6 +137,7 @@ export default async function EventGroupDetailPage({
     {
       label: string;
       role: string | null;
+      roleLabel: string | null;
       personId: string | null;
       ensembleId: string | null;
       eventIds: Set<string>;
@@ -149,6 +151,7 @@ export default async function EventGroupDetailPage({
       participantMap.set(key, {
         label: row.persons?.full_name ?? row.ensembles?.name ?? "?",
         role: row.role,
+        roleLabel: row.role_label,
         personId: row.person_id,
         ensembleId: row.ensemble_id,
         eventIds: new Set([row.event_id]),
@@ -345,7 +348,7 @@ export default async function EventGroupDetailPage({
                   <div className="flex items-center justify-between">
                     <span>
                       <span className="font-medium text-neutral-900">{entry.label}</span>
-                      {entry.role && <span className="text-neutral-500"> — {ROLE_LABEL[entry.role] ?? entry.role}</span>}
+                      {(entry.roleLabel || entry.role) && <span className="text-neutral-500"> — {entry.roleLabel ?? ROLE_LABEL[entry.role!] ?? entry.role}</span>}
                       {entry.eventIds.size < memberCount && (
                         <span className="ml-2 text-[10px] font-medium uppercase text-amber-600">
                           nur {entry.eventIds.size}/{memberCount} Termine
@@ -360,7 +363,7 @@ export default async function EventGroupDetailPage({
                   <MembershipEditor
                     events={checklistEvents}
                     checkedIds={new Set([...entry.eventIds].filter((eid) => allMemberIdsSet.has(eid)))}
-                    onSave={setParticipantEventMembership.bind(null, id, entry.personId, entry.ensembleId)}
+                    onSave={setParticipantEventMembership.bind(null, id, entry.personId, entry.ensembleId, entry.roleLabel, entry.role)}
                   />
                 </li>
               ))
@@ -384,14 +387,7 @@ export default async function EventGroupDetailPage({
                   </option>
                 ))}
               </Select>
-              <Select name="role" defaultValue="">
-                <option value="">Rolle (optional)</option>
-                {Object.entries(ROLE_LABEL).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </Select>
+              <TextInput name="role_label" placeholder="Rolle (frei, z. B. Lady Macbeth oder Basssolist)" maxLength={160} list="group-role-suggestions" />
               <p className="text-xs font-medium text-neutral-500">Bei welchen Terminen?</p>
               <EventChecklist events={checklistEvents} checkedIds={allMemberIdsSet} />
               <SubmitButton>Hinzufügen</SubmitButton>
@@ -402,14 +398,7 @@ export default async function EventGroupDetailPage({
             <form action={boundCreatePerson} className="flex flex-col gap-2">
               <p className="text-xs font-medium text-neutral-600">Neue Person anlegen & hinzufügen</p>
               <TextInput name="full_name" placeholder="Vollständiger Name" required />
-              <Select name="role_new_person" defaultValue="">
-                <option value="">Rolle (optional)</option>
-                {Object.entries(ROLE_LABEL).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </Select>
+              <TextInput name="role_label" placeholder="Rolle (frei, optional)" maxLength={160} list="group-role-suggestions" />
               <p className="text-xs font-medium text-neutral-500">Bei welchen Terminen?</p>
               <EventChecklist events={checklistEvents} checkedIds={allMemberIdsSet} />
               <SubmitButton>Anlegen & hinzufügen</SubmitButton>
@@ -429,6 +418,7 @@ export default async function EventGroupDetailPage({
                   </option>
                 ))}
               </Select>
+              <TextInput name="role_label" placeholder="Rolle/Funktion (frei, optional)" maxLength={160} list="group-role-suggestions" />
               <p className="text-xs font-medium text-neutral-500">Bei welchen Terminen?</p>
               <EventChecklist events={checklistEvents} checkedIds={allMemberIdsSet} />
               <SubmitButton>Hinzufügen</SubmitButton>
@@ -439,10 +429,20 @@ export default async function EventGroupDetailPage({
             <form action={boundCreateEnsemble} className="flex flex-col gap-2">
               <p className="text-xs font-medium text-neutral-600">Neues Ensemble anlegen & hinzufügen</p>
               <TextInput name="name" placeholder="Name" required />
+              <TextInput name="role_label" placeholder="Rolle/Funktion (frei, optional)" maxLength={160} list="group-role-suggestions" />
               <p className="text-xs font-medium text-neutral-500">Bei welchen Terminen?</p>
               <EventChecklist events={checklistEvents} checkedIds={allMemberIdsSet} />
               <SubmitButton>Anlegen & hinzufügen</SubmitButton>
             </form>
+            <datalist id="group-role-suggestions">
+              {Object.values(ROLE_LABEL).map((label) => <option key={label} value={label} />)}
+              <option value="Sopran" />
+              <option value="Tenor" />
+              <option value="Bass" />
+              <option value="Violine" />
+              <option value="Klavier" />
+              <option value="Musikalische Leitung" />
+            </datalist>
           </div>
         </section>
       </div>

@@ -21,6 +21,14 @@ Android app, backend, admin portal and scraping pipeline must remain intact.
   and works, including biography, gallery and linked-event data.
 - Editorial collections, live venue map data, favorite-event reads and live
   notification preferences.
+- Contacts-style A–Z/# scrub navigation is active in person, ensemble, venue
+  and work directories.
+- Event/person/ensemble/venue images open a shared zoomable full-screen viewer;
+  entity headers constrain every source aspect ratio to the available width.
+- Home contains recommendation, popularity, discovery, time-window, genre and
+  free-entry modules. Signed-in interests feed the personalized modules.
+- Signed-in users manage named concert lists backed by the existing
+  `favorite_lists`/`favorite_list_items` tables from Profile → My Lists.
 - The local ignored `Config/Secrets.plist` has been imported from Flutter on
   this machine. Live simulator builds therefore use the shared Supabase data.
 - Event lists bulk-resolve licensed gallery fallbacks from the
@@ -41,11 +49,23 @@ Android app, backend, admin portal and scraping pipeline must remain intact.
   participant/search thumbnails bulk-resolve licensed gallery fallbacks. Never
   restore the synthetic `Preis auf Anfrage` copy: absent price fields mean that
   no price label is rendered.
-- Program audit on 2026-08-09 found 252/386 upcoming events with structured
-  works. The unapplied migration
-  `../backend/supabase/migrations/20261007000003_requeue_missing_event_programs.sql`
-  requeues only source-backed scheduled events without `event_works`; deploy it
-  deliberately, then let the existing enrichment cron drain the batch.
+- Admin participant editing now accepts free event-specific `role_label`
+  values, creates missing persons/ensembles and offers an AI-assisted review
+  flow for pasted cast text. These roles must not overwrite an entity's master
+  category.
+- Admin person, ensemble, venue and event detail pages expose a separate
+  read-only `Unstimmigkeiten prüfen (KI)` audit. Edge Function `audit-entity`
+  combines deterministic plausibility/name rules with constrained AI review,
+  links possible duplicate records and never changes data automatically.
+- Backend migrations `20261007000006_event_participant_role_labels.sql` and
+  `20261007000007_fix_popular_events_native_feed.sql` were applied to production
+  on 2026-08-09. Edge Function `parse-event-participants` v1 is deployed with
+  JWT verification enabled.
+- Admin is linked to Vercel project `ko-kal-x-claude` (Root Directory `admin`).
+  Production deployment `dpl_2qJz4noBwGUGvQi8qhsghRJXbaj5` is live at
+  `https://ko-kal-x-claude.vercel.app`. Direct CLI deployments do not create a
+  git commit; future Git-triggered deployments still require committed/pushed
+  source changes.
 
 ## Non-negotiable constraints
 
@@ -99,9 +119,10 @@ them, run `ruby Scripts/import_flutter_env.rb` and regenerate the project.
 
 Harden and test the completed detail/navigation batch before adding scope:
 
-1. Add UI tests for left-edge swipe dismissal, linked-event navigation and the
+1. Add UI tests for A–Z scrubbing, full-screen images, list creation and the
    persistent ticket action.
-2. Add repository fixtures for repeated dates whose structured program exists
-   only on a sibling event.
+2. Add repository fixtures for recommendation RPCs and personal-list RLS
+   failure states.
 3. Run visual checks on an iPad simulator and with large Dynamic Type.
-4. Then continue event provenance/content reporting and APNs registration.
+4. Add an optional “Zu Liste hinzufügen” action directly to event detail after
+   the Profile-based list workflow has received user feedback.

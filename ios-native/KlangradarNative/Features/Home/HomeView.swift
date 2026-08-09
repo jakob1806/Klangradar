@@ -75,10 +75,60 @@ struct HomeView: View {
                     }
 
                     EventRail(
+                        title: model.hasPersonalizedInterests ? "Für dich" : "Für dich empfohlen",
+                        events: Array(model.recommendedEvents.filter { $0.id != events.first?.id }.prefix(14))
+                    )
+
+                    EventRail(
                         title: "Heute in München",
                         events: events.dropFirst().filter { event in
                             event.startDate.map(Calendar.current.isDateInToday) ?? false
                         }
+                    )
+
+                    EventRail(
+                        title: "In den nächsten 7 Tagen",
+                        events: Array(events.dropFirst().filter(isWithinNextSevenDays).prefix(14))
+                    )
+
+                    EventRail(
+                        title: "Dieses Wochenende",
+                        events: Array(events.filter(isThisWeekend).prefix(14))
+                    )
+
+                    EventRail(
+                        title: "Beliebt in München",
+                        events: Array(model.popularEvents.prefix(14))
+                    )
+
+                    EventRail(
+                        title: "Neu für dich entdecken",
+                        events: Array(model.discoveryEvents.prefix(14))
+                    )
+
+                    EventRail(
+                        title: "Oper & Musiktheater",
+                        events: Array(events.filter { $0.matchesFeedTerms(["oper", "musiktheater", "ballett"]) }.prefix(14))
+                    )
+
+                    EventRail(
+                        title: "Orchester & Sinfonik",
+                        events: Array(events.filter { $0.matchesFeedTerms(["orchester", "sinfoni", "symphoni"]) }.prefix(14))
+                    )
+
+                    EventRail(
+                        title: "Kammermusik & Recitals",
+                        events: Array(events.filter { $0.matchesFeedTerms(["kammer", "recital", "klavierabend", "sonatenabend"]) }.prefix(14))
+                    )
+
+                    EventRail(
+                        title: "Chor & Vokalmusik",
+                        events: Array(events.filter { $0.matchesFeedTerms(["chor", "vokal", "lied", "requiem", "messe"]) }.prefix(14))
+                    )
+
+                    EventRail(
+                        title: "Eintritt frei",
+                        events: Array(events.filter { $0.isFree == true }.prefix(14))
                     )
 
                     EventRail(
@@ -120,6 +170,25 @@ struct HomeView: View {
         .font(.footnote.weight(.medium))
         .foregroundStyle(.secondary)
         .padding(.horizontal, KlangradarTheme.pagePadding)
+    }
+
+    private func isWithinNextSevenDays(_ event: ConcertEvent) -> Bool {
+        guard let date = event.startDate,
+              let end = Calendar.current.date(byAdding: .day, value: 7, to: .now) else { return false }
+        return date >= .now && date <= end && !Calendar.current.isDateInToday(date)
+    }
+
+    private func isThisWeekend(_ event: ConcertEvent) -> Bool {
+        guard let date = event.startDate else { return false }
+        let calendar = Calendar(identifier: .gregorian)
+        let weekday = calendar.component(.weekday, from: date)
+        guard weekday == 1 || weekday == 7 else { return false }
+
+        let today = calendar.startOfDay(for: .now)
+        let daysUntilSaturday = (7 - calendar.component(.weekday, from: today) + 7) % 7
+        guard let saturday = calendar.date(byAdding: .day, value: daysUntilSaturday, to: today),
+              let monday = calendar.date(byAdding: .day, value: 2, to: saturday) else { return false }
+        return date >= saturday && date < monday
     }
 }
 

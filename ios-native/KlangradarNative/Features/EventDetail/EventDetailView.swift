@@ -9,6 +9,7 @@ struct EventDetailView: View {
     @State private var detail: JSONObject?
     @State private var isLoading = true
     @State private var loadError: String?
+    @State private var fullScreenImage: FullScreenImageReference?
     @EnvironmentObject private var favorites: FavoriteStore
     @Environment(\.dismiss) private var dismiss
 
@@ -72,6 +73,7 @@ struct EventDetailView: View {
         .navigationBarBackButtonHidden()
         .toolbar(.hidden, for: .navigationBar)
         .toolbar(.hidden, for: .tabBar)
+        .fullScreenCover(item: $fullScreenImage) { FullScreenImageViewer(image: $0) }
         .navigationDestination(for: EntityRoute.self) {
             EntityDetailView(route: $0, repository: contentRepository)
         }
@@ -87,6 +89,12 @@ struct EventDetailView: View {
             EventHeroArtwork(event: event)
                 .frame(width: proxy.size.width, height: height)
                 .clipped()
+                .contentShape(.rect)
+                .onTapGesture {
+                    if let url = event.primaryImageURL {
+                        fullScreenImage = FullScreenImageReference(url: url, title: event.title)
+                    }
+                }
                 .overlay {
                     LinearGradient(
                         colors: [.black.opacity(0.56), .clear, .black.opacity(0.18)],
@@ -619,6 +627,7 @@ struct EventDetailView: View {
     }
 
     private func participantRole(_ row: JSONObject) -> String {
+        if let roleLabel = row.string("role_label"), !roleLabel.isEmpty { return roleLabel }
         if row.object("ensembles") != nil { return "Ensemble" }
         switch row.string("role") {
         case "dirigent": return "Dirigent:in"

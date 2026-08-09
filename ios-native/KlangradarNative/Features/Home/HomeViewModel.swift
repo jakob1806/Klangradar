@@ -17,6 +17,10 @@ final class HomeViewModel: ObservableObject {
     // Interessen — HomeView fällt dann automatisch auf rein chronologisch
     // zurück (unverändertes bisheriges Verhalten).
     @Published private(set) var personalizedEntityIDs: Set<UUID> = []
+    @Published private(set) var hasPersonalizedInterests = false
+    @Published private(set) var recommendedEvents: [ConcertEvent] = []
+    @Published private(set) var discoveryEvents: [ConcertEvent] = []
+    @Published private(set) var popularEvents: [ConcertEvent] = []
 
     let repository: any EventRepository
     private let auth: AuthStore?
@@ -48,8 +52,15 @@ final class HomeViewModel: ObservableObject {
             state = .loaded(events)
             async let enrichedTask: [ConcertEvent]? = try? repository.enrichingImages(in: events)
             async let personalizedTask = loadPersonalizedEntityIDs()
+            async let modulesTask = loadHomeModules()
             let enriched = await enrichedTask
-            personalizedEntityIDs = await personalizedTask
+            let personalization = await personalizedTask
+            let modules = await modulesTask
+            personalizedEntityIDs = personalization.ids
+            hasPersonalizedInterests = personalization.hasAny
+            recommendedEvents = await enrich(modules.recommended)
+            discoveryEvents = await enrich(modules.discovery)
+            popularEvents = await enrich(modules.popular)
             if let enriched {
                 state = .loaded(enriched)
             }
@@ -58,15 +69,36 @@ final class HomeViewModel: ObservableObject {
         }
     }
 
-    private func loadPersonalizedEntityIDs() async -> Set<UUID> {
+    private func loadPersonalizedEntityIDs() async -> (ids: Set<UUID>, hasAny: Bool) {
         guard let auth, let userRepository, let userID = auth.userID, let token = auth.accessToken else {
-            return []
+            return ([], false)
         }
+        async let genres = try? userRepository.selectedInterests(.genre, userID: userID, token: token)
         async let persons = try? userRepository.selectedInterests(.person, userID: userID, token: token)
         async let ensembles = try? userRepository.selectedInterests(.ensemble, userID: userID, token: token)
         async let venues = try? userRepository.selectedInterests(.venue, userID: userID, token: token)
-        let combined = ((await persons) ?? []).union((await ensembles) ?? []).union((await venues) ?? [])
-        return Set(combined.compactMap(UUID.init(uuidString:)))
+        let genreIDs = (await genres) ?? []
+        let entityIDs = ((await persons) ?? []).union((await ensembles) ?? []).union((await venues) ?? [])
+        return (Set(entityIDs.compactMap(UUID.init(uuidString:))), !genreIDs.isEmpty || !entityIDs.isEmpty)
+    }
+
+    private func loadHomeModules() async -> (recommended: [ConcertEvent], discovery: [ConcertEvent], popular: [ConcertEvent]) {
+        guard let userRepository else { return ([], [], []) }
+        let token = auth?.accessToken
+        async let recommended = try? userRepository.recommendedEvents(limit: 16, token: token)
+        async let popular = try? userRepository.popularEvents(limit: 16, token: token)
+        let discovery: [ConcertEvent]
+        if let token {
+            discovery = (try? await userRepository.discoveryEvents(limit: 16, token: token)) ?? []
+        } else {
+            discovery = []
+        }
+        return ((await recommended) ?? [], discovery, (await popular) ?? [])
+    }
+
+    private func enrich(_ events: [ConcertEvent]) async -> [ConcertEvent] {
+        guard !events.isEmpty else { return [] }
+        return (try? await repository.enrichingImages(in: events)) ?? events
     }
 }
 

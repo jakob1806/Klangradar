@@ -6,6 +6,7 @@
 *.key
 *.pem
 .DS_Store
+~$*
 .claude/settings.local.json
 .env
 .env.*
@@ -39,3 +40,4 @@ dist/
 node_modules/
 supabase/.branches/
 supabase/.temp/
+.vercel

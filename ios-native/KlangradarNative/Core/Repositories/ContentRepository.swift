@@ -280,17 +280,27 @@ struct LiveContentRepository: ContentRepository {
 
         let selection = kind == .work
             ? "position,events(id,slug,title,start_datetime,image_urls,venues(id,name,photo_url))"
-            : "role,events(id,slug,title,start_datetime,image_urls,venues(id,name,photo_url))"
-        let rows: [JSONObject] = try await client.get(
-            table: table,
-            queryItems: [
-                URLQueryItem(name: "select", value: selection),
+            : "role,role_label,events(id,slug,title,start_datetime,image_urls,venues(id,name,photo_url))"
+        let queryItems: (String) -> [URLQueryItem] = { selectedColumns in [
+                URLQueryItem(name: "select", value: selectedColumns),
                 URLQueryItem(name: filter, value: "eq.\(entityID)")
             ]
-        )
+        }
+        let rows: [JSONObject]
+        do {
+            rows = try await client.get(table: table, queryItems: queryItems(selection))
+        } catch where kind != .work {
+            rows = try await client.get(
+                table: table,
+                queryItems: queryItems(selection.replacingOccurrences(of: "role,role_label", with: "role"))
+            )
+        }
         return rows.compactMap { row in
             guard let event = row.object("events") else { return nil }
-            return linkedEvent(from: event, role: row.string("role").map(personRoleLabel))
+            return linkedEvent(
+                from: event,
+                role: row.string("role_label") ?? row.string("role").map(personRoleLabel)
+            )
         }
     }
 

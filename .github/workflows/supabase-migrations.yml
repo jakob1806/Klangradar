@@ -32,7 +32,10 @@ jobs:
 
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          # Ein exakter Stand vermeidet den unauthentifizierten GitHub-API-
+          # Aufruf zur Auflösung von `latest`, der bei Rate Limits bereits
+          # vor dem eigentlichen Migrationstest fehlschlägt.
+          version: 2.109.1
 
       - name: Lokale Supabase-Instanz starten (Docker, im Runner vorinstalliert)
         working-directory: backend
@@ -45,4 +48,7 @@ jobs:
       - name: Supabase-Instanz stoppen
         if: always()
         working-directory: backend
-        run: supabase stop
+        run: |
+          if command -v supabase >/dev/null 2>&1; then
+            supabase stop
+          fi
