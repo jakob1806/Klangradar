@@ -51,7 +51,7 @@ export default async function RegionsPage() {
               return (
                 <div
                   key={region.id}
-                  className="flex items-center justify-between rounded-xl border border-black/[0.06] bg-white p-4 shadow-sm"
+                  className="flex items-center justify-between border-2 border-[#171717] bg-white p-4"
                 >
                   <div>
                     <p className="text-sm font-medium text-neutral-900">

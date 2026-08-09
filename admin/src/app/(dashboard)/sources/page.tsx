@@ -53,19 +53,19 @@ export default async function SourcesPage() {
         <div className="flex gap-3">
           <Link
             href="/sources/discover"
-            className="rounded-full glass-pill px-4 py-2 text-sm font-medium text-[#1d1d1f] transition-colors hover:bg-black/[0.04]"
+            className="border-2 border-[#171717] px-4 py-2 type-label !text-[#171717] hover:bg-[#171717] hover:!text-white"
           >
             Neue Quellen entdecken
           </Link>
           <Link
             href="/sources/onboard"
-            className="rounded-full glass-pill px-4 py-2 text-sm font-medium text-[#1d1d1f] transition-colors hover:bg-black/[0.04]"
+            className="border-2 border-[#171717] px-4 py-2 type-label !text-[#171717] hover:bg-[#171717] hover:!text-white"
           >
             Neue Quelle testen
           </Link>
           <Link
             href="/sources/new"
-            className="rounded-full bg-[#0071e3] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#0077ed]"
+            className="border-2 border-[#171717] bg-[#171717] px-4 py-2 type-label !text-white hover:bg-white hover:!text-[#171717]"
           >
             Neu anlegen
           </Link>
@@ -77,9 +77,9 @@ export default async function SourcesPage() {
       {!error && (
         <div className="mt-6">
         <TableSearchFilter containerId="sources-table" placeholder="Name durchsuchen…" />
-        <div id="sources-table" className="overflow-hidden rounded-xl border border-black/[0.06] bg-white shadow-sm">
+        <div id="sources-table" className="overflow-hidden border-2 border-[#171717] bg-white">
           <table className="w-full text-sm">
-            <thead className="border-b border-black/[0.06] text-left">
+            <thead className="border-b-2 border-[#171717] text-left">
               <tr>
                 <th className="type-label px-4 py-3">Name</th>
                 <th className="type-label px-4 py-3">Typ</th>
@@ -106,7 +106,7 @@ export default async function SourcesPage() {
                         : "—"}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <Link href={`/sources/${source.id}`} className="text-sm font-medium text-neutral-700 hover:text-[#0071e3]">
+                      <Link href={`/sources/${source.id}`} className="text-sm font-medium text-neutral-700 hover:text-[#d13c1f]">
                         Bearbeiten
                       </Link>
                     </td>

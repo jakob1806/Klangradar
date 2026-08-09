@@ -73,7 +73,7 @@ export function BioResearchPicker({
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           placeholder="Name filtern…"
-          className="rounded-lg border border-black/10 px-3 py-1.5 text-sm outline-none focus:border-[#0071e3]"
+          className="border border-neutral-300 px-3 py-1.5 text-sm outline-none focus:border-[#171717]"
         />
         <label className="flex items-center gap-1.5 text-sm text-neutral-600">
           <input
@@ -104,14 +104,14 @@ export function BioResearchPicker({
           <button
             type="button"
             onClick={() => setPhase("workflow")}
-            className="ml-auto rounded-full bg-[#0071e3] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#0077ed]"
+            className="ml-auto border-2 border-[#171717] bg-[#171717] px-4 py-2 type-label !text-white hover:bg-white hover:!text-[#171717]"
           >
             {selected.size} ausgewählt — Bios recherchieren →
           </button>
         )}
       </div>
 
-      <div className="mt-4 max-h-[60vh] overflow-y-auto rounded-xl border border-black/[0.06] bg-white shadow-sm">
+      <div className="mt-4 max-h-[60vh] overflow-y-auto border-2 border-[#171717] bg-white">
         {visible.map((e) => (
           <label
             key={e.id}

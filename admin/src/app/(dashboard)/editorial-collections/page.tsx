@@ -31,7 +31,7 @@ export default async function EditorialCollectionsPage() {
         </div>
         <Link
           href="/editorial-collections/new"
-          className="rounded-full bg-[#0071e3] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#0077ed]"
+          className="border-2 border-[#171717] bg-[#171717] px-4 py-2 type-label !text-white hover:bg-white hover:!text-[#171717]"
         >
           Neu anlegen
         </Link>
@@ -40,9 +40,9 @@ export default async function EditorialCollectionsPage() {
       {error && <p className="mt-6 text-sm text-amber-700">Konnte Sammlungen nicht laden: {error.message}</p>}
 
       {!error && (
-        <div className="mt-6 overflow-hidden rounded-xl border border-black/[0.06] bg-white shadow-sm">
+        <div className="mt-6 overflow-hidden border-2 border-[#171717] bg-white">
           <table className="w-full text-sm">
-            <thead className="border-b border-black/[0.06] text-left">
+            <thead className="border-b-2 border-[#171717] text-left">
               <tr>
                 <th className="type-label px-4 py-3">Titel</th>
                 <th className="type-label px-4 py-3">Events</th>

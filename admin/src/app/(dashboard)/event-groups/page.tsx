@@ -53,13 +53,13 @@ export default async function EventGroupsPage() {
         ) : (
           <div className="mt-3 flex flex-col gap-3">
             {suggestions.map((s) => (
-              <div key={s.key} className="rounded-xl border border-black/[0.06] bg-white p-4 shadow-sm">
+              <div key={s.key} className="border-2 border-[#171717] bg-white p-4">
                 <div className="flex items-center justify-between gap-4">
                   <p className="font-medium text-neutral-900">{s.title}</p>
                   <form action={createEventGroup.bind(null, s.title, s.events.map((e) => e.id))}>
                     <button
                       type="submit"
-                      className="rounded-full bg-[#0071e3] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[#0077ed]"
+                      className="border-2 border-[#171717] bg-[#171717] px-3 py-1.5 text-sm font-medium text-white hover:bg-white hover:text-[#171717]"
                     >
                       Gruppe anlegen ({s.events.length})
                     </button>
@@ -91,7 +91,7 @@ export default async function EventGroupsPage() {
         ) : (
           <div className="mt-3 flex flex-col gap-3">
             {groups.map((g) => (
-              <div key={g.id} className="rounded-xl border border-black/[0.06] bg-white p-4 shadow-sm">
+              <div key={g.id} className="border-2 border-[#171717] bg-white p-4">
                 <div className="flex items-center justify-between gap-4">
                   <Link href={`/event-groups/${g.id}`} className="font-medium text-neutral-900 hover:underline">
                     {g.title}

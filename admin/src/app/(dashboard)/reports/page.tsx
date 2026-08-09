@@ -36,7 +36,7 @@ export default async function ReportsPage() {
         <div className="mt-6 flex flex-col gap-3">
           {data?.length ? (
             data.map((report) => (
-              <div key={report.id} className="rounded-xl border border-black/[0.06] bg-white p-4 shadow-sm">
+              <div key={report.id} className="border-2 border-[#171717] bg-white p-4">
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <div className="flex items-center gap-2">

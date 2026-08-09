@@ -33,7 +33,7 @@ export function TableSearchFilter({
       type="search"
       placeholder={placeholder}
       onChange={(e) => handleChange(e.target.value)}
-      className="mb-4 w-full max-w-xs rounded-lg border border-black/10 px-3 py-2 text-sm outline-none focus:border-[#0071e3]"
+      className="mb-4 w-full max-w-xs border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-[#171717]"
     />
   );
 }

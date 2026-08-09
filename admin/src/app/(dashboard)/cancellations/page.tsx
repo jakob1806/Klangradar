@@ -51,7 +51,7 @@ export default async function CancellationsPage() {
         <div className="mt-6 flex flex-col gap-3">
           {data?.length ? (
             data.map((candidate) => (
-              <div key={candidate.id} className="rounded-xl border border-black/[0.06] bg-white p-4 shadow-sm">
+              <div key={candidate.id} className="border-2 border-[#171717] bg-white p-4">
                 <div className="flex items-center justify-between gap-4">
                   <span className="text-xs text-neutral-400">
                     Gefunden {formatDate(candidate.created_at)} · Quelle: {candidate.source?.name ?? "unbekannt"}

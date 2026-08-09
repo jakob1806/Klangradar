@@ -45,7 +45,7 @@ export default async function VenuesPage() {
         </div>
         <Link
           href="/venues/new"
-          className="rounded-full bg-[#0071e3] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#0077ed]"
+          className="border-2 border-[#171717] bg-[#171717] px-4 py-2 type-label !text-white hover:bg-white hover:!text-[#171717]"
         >
           Neu anlegen
         </Link>
@@ -67,9 +67,9 @@ export default async function VenuesPage() {
               bulkDeleteAction={bulkDeleteVenues}
               bulkSetVerifiedAction={bulkSetVenuesVerified}
             />
-            <div id="venues-table" className="overflow-hidden rounded-xl border border-black/[0.06] bg-white shadow-sm">
+            <div id="venues-table" className="overflow-hidden border-2 border-[#171717] bg-white">
               <table className="w-full text-sm">
-                <thead className="border-b border-black/[0.06] text-left">
+                <thead className="border-b-2 border-[#171717] text-left">
                   <tr>
                     <th className="w-10 px-4 py-3">
                       <BioSelectAllCheckbox ids={(data ?? []).map((v) => v.id)} />
@@ -113,7 +113,7 @@ export default async function VenuesPage() {
                           <ImageStatusBadge hasImage={!!venue.photo_url} />
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <Link href={`/venues/${venue.id}`} className="text-sm font-medium text-neutral-700 hover:text-[#0071e3]">
+                          <Link href={`/venues/${venue.id}`} className="text-sm font-medium text-neutral-700 hover:text-[#d13c1f]">
                             Bearbeiten
                           </Link>
                         </td>
