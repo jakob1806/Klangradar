@@ -1,8 +1,11 @@
 import type { InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes } from "react";
 
-const labelClass = "text-xs font-medium text-neutral-600";
-const controlClass =
-  "rounded-md border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-neutral-500";
+// Swiss/International-Redesign: eckig statt abgerundet, schwarzer statt
+// grauer Fokus-Rand — dieselben zwei Klassen werden von JEDEM Formular im
+// Dashboard über Field/TextInput/TextArea/Select bezogen, ändern hier
+// wirkt daher konsistent auf alle Bearbeiten-Seiten gleichzeitig.
+const labelClass = "type-label !text-neutral-600";
+const controlClass = "border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-[#171717]";
 
 export function Field({
   label,

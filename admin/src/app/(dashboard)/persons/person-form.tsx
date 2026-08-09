@@ -74,7 +74,7 @@ export function PersonForm({
       </Field>
 
       <Field label="Rollen">
-        <div className="flex flex-wrap gap-x-4 gap-y-2 rounded-md border border-neutral-300 px-3 py-2.5">
+        <div className="flex flex-wrap gap-x-4 gap-y-2 border border-neutral-300 px-3 py-2.5">
           {ROLE_OPTIONS.map((r) => (
             <label key={r.value} className="flex items-center gap-1.5 text-sm text-neutral-700">
               <input

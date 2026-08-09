@@ -107,7 +107,7 @@ export function EnsembleDeleteControl({
 
   const { info } = state;
   return (
-    <div className="max-w-sm rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm">
+    <div className="max-w-sm border-2 border-amber-700 bg-amber-50 p-4 text-sm">
       <p className="font-medium text-amber-900">„{ensembleName}“ ist noch verknüpft:</p>
 
       {info.events.length > 0 && (
@@ -171,7 +171,7 @@ export function EnsembleDeleteControl({
           type="button"
           disabled={pending}
           onClick={handleDelete}
-          className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50"
+          className="border-2 border-red-700 bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50"
         >
           {pending ? "Lösche…" : "Trotzdem löschen"}
         </button>

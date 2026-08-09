@@ -109,22 +109,20 @@ export function ImageUploadField({
     }
   }
 
+  // shape="circle" bleibt bewusst rund (Profilfoto-Avatar-Konvention, kein
+  // dekoratives Abrunden) — nur der Rechteck-Fall folgt dem eckigen
+  // Swiss/International-Redesign.
   const previewClass =
-    shape === "circle"
-      ? "h-20 w-20 rounded-full object-cover"
-      : "h-20 w-32 rounded-md object-cover";
-  const placeholderClass =
-    shape === "circle"
-      ? "h-20 w-20 rounded-full"
-      : "h-20 w-32 rounded-md";
+    shape === "circle" ? "h-20 w-20 rounded-full object-cover" : "h-20 w-32 object-cover";
+  const placeholderClass = shape === "circle" ? "h-20 w-20 rounded-full" : "h-20 w-32";
 
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="text-xs font-medium text-neutral-600">{label}</span>
+      <span className="type-label !text-neutral-600">{label}</span>
       <div className="flex items-center gap-3">
         {url ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={url} alt="" className={`${previewClass} border border-neutral-200 bg-neutral-50`} />
+          <img src={url} alt="" className={`${previewClass} border border-neutral-300 bg-neutral-50`} />
         ) : (
           <div className={`${placeholderClass} flex items-center justify-center border border-dashed border-neutral-300 bg-neutral-50 text-xs text-neutral-400`}>
             Kein Foto
@@ -148,7 +146,7 @@ export function ImageUploadField({
             type="button"
             disabled={uploading}
             onClick={() => fileInputRef.current?.click()}
-            className="self-start rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+            className="self-start border border-neutral-300 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:border-[#171717] hover:text-[#171717] disabled:opacity-50"
           >
             {url ? "Foto ersetzen" : "Foto auswählen"}
           </button>
