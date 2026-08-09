@@ -7,12 +7,15 @@ import { DeleteButton } from "@/components/delete-button";
 import {
   addExistingWork,
   addParticipant,
+  createEnsembleAndAdd,
+  createPersonAndAdd,
   createWorkAndAdd,
   moveWork,
   removeParticipant,
   removeWork,
 } from "./actions";
 import { MoveButtons } from "./move-buttons";
+import { ParticipantImporter } from "./participant-importer";
 
 const ROLE_LABEL: Record<string, string> = {
   komponist: "Komponist:in",
@@ -32,6 +35,7 @@ interface ProgramWorkRow {
 interface ParticipantRow {
   id: string;
   role: string | null;
+  role_label: string | null;
   persons: { full_name: string } | null;
   ensembles: { name: string } | null;
 }
@@ -61,7 +65,7 @@ export default async function EventProgramPage({
       .returns<ProgramWorkRow[]>(),
     supabase
       .from("event_participants")
-      .select("id, role, persons(full_name), ensembles(name)")
+      .select("id, role, role_label, persons(full_name), ensembles(name)")
       .eq("event_id", id)
       .returns<ParticipantRow[]>(),
     supabase
@@ -78,6 +82,8 @@ export default async function EventProgramPage({
   const boundAddExistingWork = addExistingWork.bind(null, id);
   const boundCreateWorkAndAdd = createWorkAndAdd.bind(null, id);
   const boundAddParticipant = addParticipant.bind(null, id);
+  const boundCreatePerson = createPersonAndAdd.bind(null, id);
+  const boundCreateEnsemble = createEnsembleAndAdd.bind(null, id);
 
   return (
     <div className="p-8">
@@ -191,8 +197,8 @@ export default async function EventProgramPage({
                     <span className="font-medium text-neutral-900">
                       {p.persons?.full_name ?? p.ensembles?.name}
                     </span>
-                    {p.role && (
-                      <span className="text-neutral-500"> — {ROLE_LABEL[p.role] ?? p.role}</span>
+                    {(p.role_label || p.role) && (
+                      <span className="text-neutral-500"> — {p.role_label ?? ROLE_LABEL[p.role!] ?? p.role}</span>
                     )}
                   </span>
                   <DeleteButton
@@ -208,9 +214,13 @@ export default async function EventProgramPage({
             )}
           </ul>
 
-          <div className="mt-6 flex flex-col gap-4 rounded-lg border border-neutral-200 bg-white p-4">
+          <div className="mt-6">
+            <ParticipantImporter eventId={id} />
+          </div>
+
+          <div className="mt-4 flex flex-col gap-4 rounded-lg border border-neutral-200 bg-white p-4">
             <form action={boundAddParticipant} className="flex flex-col gap-2">
-              <p className="text-xs font-medium text-neutral-600">Person hinzufügen</p>
+              <p className="text-xs font-medium text-neutral-600">Vorhandene Person hinzufügen</p>
               <Select name="person_id" required defaultValue="">
                 <option value="" disabled>
                   Person wählen…
@@ -221,21 +231,26 @@ export default async function EventProgramPage({
                   </option>
                 ))}
               </Select>
-              <Select name="role" defaultValue="">
-                <option value="">Rolle (optional)</option>
-                {Object.entries(ROLE_LABEL).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </Select>
+              <TextInput name="role_label" placeholder="Rolle (frei, z. B. Lady Macbeth oder Basssolist)" maxLength={160} list="manual-role-suggestions" />
               <SubmitButton>Hinzufügen</SubmitButton>
             </form>
 
             <hr className="border-neutral-200" />
 
+            <form action={boundCreatePerson} className="flex flex-col gap-2">
+              <p className="text-xs font-medium text-neutral-600">Neue Person anlegen & hinzufügen</p>
+              <TextInput name="full_name" placeholder="Vollständiger Name" required />
+              <TextInput name="role_label" placeholder="Rolle (frei, optional)" maxLength={160} list="manual-role-suggestions" />
+              <p className="text-xs leading-5 text-neutral-500">
+                Die Rolle gilt nur für dieses Event und verändert nicht die Stammdaten-Kategorie der Person.
+              </p>
+              <SubmitButton>Anlegen & hinzufügen</SubmitButton>
+            </form>
+
+            <hr className="border-neutral-200" />
+
             <form action={boundAddParticipant} className="flex flex-col gap-2">
-              <p className="text-xs font-medium text-neutral-600">Ensemble hinzufügen</p>
+              <p className="text-xs font-medium text-neutral-600">Vorhandenes Ensemble hinzufügen</p>
               <Select name="ensemble_id" required defaultValue="">
                 <option value="" disabled>
                   Ensemble wählen…
@@ -246,8 +261,30 @@ export default async function EventProgramPage({
                   </option>
                 ))}
               </Select>
+              <TextInput name="role_label" placeholder="Rolle/Funktion (frei, optional)" maxLength={160} list="manual-role-suggestions" />
               <SubmitButton>Hinzufügen</SubmitButton>
             </form>
+
+            <hr className="border-neutral-200" />
+
+            <form action={boundCreateEnsemble} className="flex flex-col gap-2">
+              <p className="text-xs font-medium text-neutral-600">Neues Ensemble anlegen & hinzufügen</p>
+              <TextInput name="name" placeholder="Name des Ensembles" required />
+              <TextInput name="role_label" placeholder="Rolle/Funktion (frei, optional)" maxLength={160} list="manual-role-suggestions" />
+              <SubmitButton>Anlegen & hinzufügen</SubmitButton>
+            </form>
+
+            <datalist id="manual-role-suggestions">
+              {Object.values(ROLE_LABEL).map((label) => <option key={label} value={label} />)}
+              <option value="Sopran" />
+              <option value="Mezzosopran" />
+              <option value="Tenor" />
+              <option value="Bariton" />
+              <option value="Bass" />
+              <option value="Violine" />
+              <option value="Klavier" />
+              <option value="Musikalische Leitung" />
+            </datalist>
           </div>
         </section>
       </div>

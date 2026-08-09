@@ -174,30 +174,140 @@ struct DirectoryView: View {
     let repository: any ContentRepository
     @State private var items: [DirectoryItem] = []
 
+    private var sections: [DirectorySection] {
+        let grouped = Dictionary(grouping: items) { DirectorySection.indexTitle(for: $0.title) }
+        return DirectorySection.indexTitles.compactMap { title in
+            guard let values = grouped[title], !values.isEmpty else { return nil }
+            return DirectorySection(
+                title: title,
+                items: values.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+            )
+        }
+    }
+
     var body: some View {
-        List(items) { item in
-            NavigationLink(value: EntityRoute(kind: kind, identifier: item.slug ?? item.id)) {
-                if kind == .work {
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text(item.title.cleanedWorkTitle).font(.headline).fixedSize(horizontal: false, vertical: true)
-                        if let subtitle = item.subtitle, !subtitle.isEmpty {
-                            Text(subtitle).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
+        ScrollViewReader { proxy in
+            List {
+                ForEach(sections) { section in
+                    Section {
+                        ForEach(section.items) { item in
+                            directoryRow(item)
                         }
-                    }
-                    .padding(.vertical, 6)
-                } else {
-                    HStack(spacing: 12) {
-                        CroppedAsyncImage(url: item.imageURL, crop: item.avatarCrop) {
-                            Color.secondary.opacity(0.12).overlay { Image(systemName: kind.systemImage) }
-                        }
-                        .frame(width: 54, height: 54)
-                        .clipShape(kind == .person || kind == .ensemble ? AnyShape(Circle()) : AnyShape(RoundedRectangle(cornerRadius: 14, style: .continuous)))
-                        VStack(alignment: .leading) { Text(item.title).font(.headline); if let subtitle = item.subtitle { Text(subtitle).font(.subheadline).foregroundStyle(.secondary) } }
+                    } header: {
+                        Text(section.title)
+                            .font(.headline)
+                            .foregroundStyle(.secondary)
+                            .id(section.title)
                     }
                 }
+            }
+            .listStyle(.plain)
+            .contentMargins(.trailing, 18, for: .scrollContent)
+            .overlay(alignment: .trailing) {
+                AlphabetIndexRail(
+                    availableTitles: Set(sections.map(\.title)),
+                    onSelect: { requested in
+                        guard let target = sectionTarget(for: requested) else { return }
+                        withAnimation(.snappy(duration: 0.2)) {
+                            proxy.scrollTo(target, anchor: .top)
+                        }
+                    }
+                )
+                .padding(.trailing, 2)
+                .padding(.vertical, 10)
             }
         }
         .navigationTitle(kind.title)
         .task { items = (try? await repository.directory(kind: kind)) ?? [] }
+    }
+
+    @ViewBuilder
+    private func directoryRow(_ item: DirectoryItem) -> some View {
+        NavigationLink(value: EntityRoute(kind: kind, identifier: item.slug ?? item.id)) {
+            if kind == .work {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(item.title.cleanedWorkTitle).font(.headline).fixedSize(horizontal: false, vertical: true)
+                    if let subtitle = item.subtitle, !subtitle.isEmpty {
+                        Text(subtitle).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
+                    }
+                }
+                .padding(.vertical, 6)
+            } else {
+                HStack(spacing: 12) {
+                    CroppedAsyncImage(url: item.imageURL, crop: item.avatarCrop) {
+                        Color.secondary.opacity(0.12).overlay { Image(systemName: kind.systemImage) }
+                    }
+                    .frame(width: 54, height: 54)
+                    .clipShape(kind == .person || kind == .ensemble ? AnyShape(Circle()) : AnyShape(RoundedRectangle(cornerRadius: 14, style: .continuous)))
+                    VStack(alignment: .leading) {
+                        Text(item.title).font(.headline)
+                        if let subtitle = item.subtitle { Text(subtitle).font(.subheadline).foregroundStyle(.secondary) }
+                    }
+                }
+            }
+        }
+    }
+
+    private func sectionTarget(for requested: String) -> String? {
+        let available = sections.map(\.title)
+        guard !available.isEmpty else { return nil }
+        if available.contains(requested) { return requested }
+        guard let requestedIndex = DirectorySection.indexTitles.firstIndex(of: requested) else { return available.first }
+        return DirectorySection.indexTitles.dropFirst(requestedIndex + 1).first(where: available.contains)
+            ?? DirectorySection.indexTitles.prefix(requestedIndex).reversed().first(where: available.contains)
+            ?? available.first
+    }
+}
+
+private struct DirectorySection: Identifiable {
+    static let indexTitles = Array("ABCDEFGHIJKLMNOPQRSTUVWXYZ").map(String.init) + ["#"]
+
+    let title: String
+    let items: [DirectoryItem]
+    var id: String { title }
+
+    static func indexTitle(for value: String) -> String {
+        let folded = value.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "de_DE"))
+        guard let first = folded.first else { return "#" }
+        let candidate = String(first).uppercased()
+        return indexTitles.contains(candidate) ? candidate : "#"
+    }
+}
+
+private struct AlphabetIndexRail: View {
+    let availableTitles: Set<String>
+    let onSelect: (String) -> Void
+    @State private var lastSelection: String?
+
+    var body: some View {
+        GeometryReader { proxy in
+            VStack(spacing: 0) {
+                ForEach(DirectorySection.indexTitles, id: \.self) { title in
+                    Text(title)
+                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .foregroundStyle(availableTitles.contains(title) ? KlangradarTheme.accent : Color.secondary.opacity(0.35))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .accessibilityHidden(true)
+                }
+            }
+            .contentShape(.rect)
+            .gesture(
+                DragGesture(minimumDistance: 0, coordinateSpace: .local)
+                    .onChanged { value in
+                        let height = max(proxy.size.height, 1)
+                        let progress = min(max(value.location.y / height, 0), 0.999)
+                        let index = min(Int(progress * CGFloat(DirectorySection.indexTitles.count)), DirectorySection.indexTitles.count - 1)
+                        let title = DirectorySection.indexTitles[index]
+                        guard title != lastSelection else { return }
+                        lastSelection = title
+                        onSelect(title)
+                    }
+                    .onEnded { _ in lastSelection = nil }
+            )
+        }
+        .frame(width: 24)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Alphabetische Navigation")
+        .accessibilityHint("Über die Buchstaben streichen, um in der Liste zu springen")
     }
 }

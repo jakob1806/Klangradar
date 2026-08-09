@@ -9,24 +9,24 @@ Legend: ✅ scaffolded and working · 🟡 partial · ⬜ not started
 | App shell | ✅ | iPhone/iPad target, five native tabs | Deep-link routing and per-tab path restoration |
 | Design system | 🟡 | adaptive light/dark background, native Liquid Glass surfaces and contrast-safe fallback borders | Complete tokens, accessibility variants and snapshot tests |
 | Supabase | 🟡 | local ignored configuration imported, live PostgREST reads/writes, RPCs, anonymous and email-OTP sessions | Token refresh coverage, realtime and Edge Functions |
-| Home | 🟡 | live events, correct dynamic dates, gallery/participant/venue image fallback, event rails and editorial collections | Full recommendation RPC modules and personalization |
-| Search | 🟡 | `search_all`, fully paginated events/directories, right-aligned counts and image-backed concert rows | Search history and advanced filters |
+| Home | 🟡 | live hero plus recommendation, seven-day, weekend, popularity, discovery, genre, free-entry and personalized event rails | Recommendation feedback signals and per-module analytics |
+| Search | 🟡 | `search_all`, fully paginated events/directories, right-aligned counts, thumbnails and Contacts-style A–Z/# directory index | Search history and advanced filters |
 | Map | 🟡 | native MapKit, selectable venues, event preview sheet, name/upcoming filters and reliable Munich recentering | Clustering, location permission flow and route mode selection |
 | Calendar | 🟡 | German custom month grid, concert-day markers and image-backed daily event list | Calendar sync, evening planning and persisted selection |
-| Profile | 🟡 | Supabase session/email OTP, favorite-event list and live notification preferences | Full interests editor, language and admin access |
+| Profile | 🟡 | Supabase session/email OTP, favorites, named personal concert lists, complete interests editor and live notification preferences | Language and admin access |
 | Event detail | 🟡 | resilient live full/core query, full-width artwork with overlay actions, program, participants, prices, tickets, accessibility, venue and attribution | Other dates, changes, provenance, similar events and content reporting |
 | Persons | 🟡 | directory, detail, biography, gallery, linked events and similar entries | Follow toggle, provenance/reporting and field-complete layout |
 | Ensembles | 🟡 | directory, detail, biography, gallery, linked events and similar entries | Follow toggle, provenance/reporting and field-complete layout |
 | Venues | 🟡 | directory, detail, gallery, linked events and live map location | Venue event sheet, provenance/reporting and full metadata |
 | Works | 🟡 | directory, generic metadata detail and linked performances | Dedicated composer/movement presentation |
-| Collections | 🟡 | published collection rail and live detail/events | Full empty/error states and editorial layout parity |
+| Collections | 🟡 | published collection rail and redesigned image-first detail with compact full-width event rows | Full empty/error states and sharing |
 | Favorites | 🟡 | authenticated favorite-event read/list | Toggle, status planning and anonymous synchronization |
 | Interests | 🟡 | live genres/persons/ensembles/venues selection and persistence | Recommendation feedback and onboarding preselection |
 | Notifications | 🟡 | all five preference fields read and upsert | APNs token registration and permission flow |
 | Onboarding | 🟡 | first-run paging, notification choice and persisted completion | Inline interest/location selection |
 | Localization | ⬜ | German literals only | String Catalog for German and English |
 | Accessibility | 🟡 | semantic labels and native controls | Dynamic Type audit, VoiceOver, contrast and reduced motion |
-| Automated tests | 🟡 | event decoding and preview repository | Repository fixtures, view-model tests and UI tests |
+| Automated tests | 🟡 | event decoding, preview repository and venue grouping (7 passing tests) | Repository fixtures, view-model tests and UI tests |
 
 ## Bug-fix batch b1–b10 (2026-08-09)
 
@@ -75,6 +75,20 @@ Verification: live nested detail query returned HTTP 200 with venue, work and pa
 - ✅ #3 The person detail header photo is now circular (was a 120×150 rounded rectangle, shared with ensembles). Ensembles/works keep the previous rectangular header.
 
 Verification: `xcodebuild build`/`xcodebuild test` succeeded (4/4 tests passing) after regenerating the project; visually confirmed on iPhone 16 Pro (iOS 18.6, material fallback) and iPhone 17 Pro (iOS 26.5, native `.glassEffect` Liquid Glass — confirmed via the floating glass tab bar) that the round header, cropped avatars and capitalized role labels render correctly under both. iPad not yet re-verified for this batch.
+
+## Home, directories, collections and Admin batch (2026-08-09)
+
+- ✅ Person dates use German `dd.MM.yyyy` formatting.
+- ✅ Person, ensemble, venue and event artwork opens a zoomable full-screen viewer; ensemble and venue headers remain width-bounded for every source aspect ratio.
+- ✅ Person, ensemble, venue and work directories are grouped and expose a right-side A–Z/# scrub index matching the iOS Contacts interaction.
+- ✅ Home now contains personalized recommendations plus today, seven-day, weekend, popular, discovery, opera, orchestral, chamber, choral, free-entry and upcoming modules.
+- ✅ Editorial collection details use an aspect-safe hero and compact full-width linked event rows instead of the former sparse two-column layout.
+- ✅ Signed-in users can create, rename and delete named concert lists, search the complete upcoming program and add/remove arbitrary events. Data uses the existing RLS-protected `favorite_lists` and `favorite_list_items` tables.
+- ✅ Admin event and group editing supports creating missing persons/ensembles and free event-specific role labels without changing entity master categories.
+- ✅ Admin single-event editing can parse pasted cast text with AI, review the detected name/type/role, match existing entities and create selected missing entities.
+- ✅ Admin person, ensemble, venue and event details have a read-only AI inconsistency audit for possible duplicates, shortened/unusual names, spelling variants, incomplete structured names, contradictory fields and implausible values. Possible duplicate records link directly to their edit page; the audit never mutates data.
+
+Deployment/verification: iOS simulator build and all 7 tests passed; the current Home build was visually verified on the iOS 18.6 simulator. Admin production build and all 15 Vitest tests passed. Vercel production deployment `dpl_2qJz4noBwGUGvQi8qhsghRJXbaj5` is `READY` at `https://ko-kal-x-claude.vercel.app`. Supabase migrations `20261007000006` and `20261007000007` are applied; `parse-event-participants` and the read-only `audit-entity` function are `ACTIVE` with JWT verification enabled.
 
 ## Definition of feature parity
 

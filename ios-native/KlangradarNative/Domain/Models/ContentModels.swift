@@ -156,6 +156,17 @@ func personRoleLabel(_ role: String) -> String {
 }
 
 extension String {
+    /// Formatiert ein von PostgREST geliefertes `date`-Feld ("YYYY-MM-DD")
+    /// als deutsches Datum ("TT.MM.JJJJ") — Nutzervorgabe: Geburts-/
+    /// Sterbedatum bei Personen zeigte bisher das rohe ISO-Format aus der
+    /// DB. Gibt den unveränderten String zurück, wenn er nicht exakt dem
+    /// erwarteten Format entspricht (z.B. bereits nur ein Jahr).
+    var asGermanDate: String {
+        let parts = split(separator: "-")
+        guard parts.count == 3, parts.allSatisfy({ $0.allSatisfy(\.isNumber) }) else { return self }
+        return "\(parts[2]).\(parts[1]).\(parts[0])"
+    }
+
     var cleanedWorkTitle: String {
         var value = trimmingCharacters(in: .whitespacesAndNewlines)
             .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)

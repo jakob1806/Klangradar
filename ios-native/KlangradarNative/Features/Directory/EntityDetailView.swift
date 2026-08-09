@@ -11,6 +11,7 @@ struct EntityDetailView: View {
     @State private var detail: EntityDetail?
     @State private var isLoading = true
     @State private var errorMessage: String?
+    @State private var fullScreenImage: FullScreenImageReference?
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -51,6 +52,7 @@ struct EntityDetailView: View {
             }
         }
         .edgeSwipeBack { dismiss() }
+        .fullScreenCover(item: $fullScreenImage) { FullScreenImageViewer(image: $0) }
         .task { await load() }
     }
 
@@ -65,21 +67,22 @@ struct EntityDetailView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
         case .ensemble:
-            // Nutzerfeedback: das kleine Bild neben dem Text wirkte "falsch
-            // formatiert" — Ensembles bekommen jetzt wie Venues ein breites
-            // Bild über dem Text statt eines kleinen seitlichen Ausschnitts
-            // (ein Ensemble-Gruppenfoto ist naturgemäß eher quer als hoch).
             VStack(alignment: .leading, spacing: 14) {
-                AsyncImage(url: detail.gallery.first?.url ?? detail.primaryImageURL) { image in
-                    image.resizable().scaledToFill()
-                } placeholder: {
-                    RoundedRectangle(cornerRadius: 22).fill(.quaternary)
-                        .overlay { Image(systemName: detail.kind.systemImage).font(.largeTitle) }
+                if let imageURL = detail.gallery.first?.url ?? detail.primaryImageURL {
+                    Button {
+                        showImage(imageURL, title: detail.title)
+                    } label: {
+                        constrainedEntityImage(
+                            url: imageURL,
+                            height: 190,
+                            systemImage: detail.kind.systemImage
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Bild von \(detail.title) vergrößern")
+                } else {
+                    entityImagePlaceholder(height: 190, systemImage: detail.kind.systemImage)
                 }
-                .frame(maxWidth: .infinity)
-                .frame(height: 190)
-                .clipped()
-                .clipShape(.rect(cornerRadius: 22))
 
                 VStack(alignment: .leading, spacing: 5) {
                     Text(detail.kind.title.uppercased()).font(.caption.bold()).tracking(1).foregroundStyle(.secondary)
@@ -89,16 +92,24 @@ struct EntityDetailView: View {
 
         case .person:
             HStack(alignment: .top, spacing: 18) {
-                // Nutzervorgabe: Personen bekommen oben auf der Detailseite
-                // ein rundes Profilbild.
-                AsyncImage(url: detail.gallery.first?.url ?? detail.primaryImageURL) { image in
-                    image.resizable().scaledToFill()
-                } placeholder: {
+                if let imageURL = detail.gallery.first?.url ?? detail.primaryImageURL {
+                    Button { showImage(imageURL, title: detail.title) } label: {
+                        AsyncImage(url: imageURL) { image in
+                            image.resizable().scaledToFill()
+                        } placeholder: {
+                            Circle().fill(.quaternary)
+                                .overlay { Image(systemName: detail.kind.systemImage).font(.largeTitle) }
+                        }
+                        .frame(width: 120, height: 120)
+                        .clipShape(.circle)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Bild von \(detail.title) vergrößern")
+                } else {
                     Circle().fill(.quaternary)
                         .overlay { Image(systemName: detail.kind.systemImage).font(.largeTitle) }
+                        .frame(width: 120, height: 120)
                 }
-                .frame(width: 120, height: 120)
-                .clipShape(.circle)
                 VStack(alignment: .leading, spacing: 8) {
                     Text(detail.kind.title.uppercased()).font(.caption.bold()).tracking(1).foregroundStyle(.secondary)
                     Text(detail.title).font(.title.bold())
@@ -113,20 +124,15 @@ struct EntityDetailView: View {
 
     private func venueHeader(_ detail: EntityDetail) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            AsyncImage(url: detail.gallery.first?.url ?? detail.primaryImageURL) { image in
-                ZStack {
-                    image.resizable().scaledToFill().blur(radius: 18).scaleEffect(1.12).opacity(0.55)
-                    image.resizable().scaledToFit()
+            if let imageURL = detail.gallery.first?.url ?? detail.primaryImageURL {
+                Button { showImage(imageURL, title: detail.title) } label: {
+                    constrainedEntityImage(url: imageURL, height: 210, systemImage: "building.columns")
                 }
-            } placeholder: {
-                LinearGradient(colors: [KlangradarTheme.deepInk, KlangradarTheme.accent], startPoint: .topLeading, endPoint: .bottomTrailing)
-                    .overlay { Image(systemName: "building.columns").font(.largeTitle).foregroundStyle(.white.opacity(0.8)) }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Bild von \(detail.title) vergrößern")
+            } else {
+                entityImagePlaceholder(height: 210, systemImage: "building.columns")
             }
-            .frame(maxWidth: .infinity)
-            .frame(height: 210)
-            .background(Color.black)
-            .clipped()
-            .clipShape(.rect(cornerRadius: 24))
 
             VStack(alignment: .leading, spacing: 5) {
                 Text("KONZERTORT").font(.caption.bold()).tracking(1).foregroundStyle(KlangradarTheme.accent)
@@ -158,7 +164,7 @@ struct EntityDetailView: View {
         let fields = detail.fields
         switch detail.kind {
         case .person:
-            return [("Nationalität", fields.string("nationality")), ("Geboren", fields.string("birth_date")), ("Gestorben", fields.string("death_date")), ("Instrument", fields.string("instrument"))].compactMap { label, value in value.map { (label, $0) } }
+            return [("Nationalität", fields.string("nationality")), ("Geboren", fields.string("birth_date")?.asGermanDate), ("Gestorben", fields.string("death_date")?.asGermanDate), ("Instrument", fields.string("instrument"))].compactMap { label, value in value.map { (label, $0) } }
         case .ensemble:
             return [("Gegründet", fields.integer("founded_year").map(String.init)), ("Herkunft", fields.string("city") ?? fields.string("country"))].compactMap { label, value in value.map { (label, $0) } }
         case .venue:
@@ -174,8 +180,16 @@ struct EntityDetailView: View {
             ScrollView(.horizontal) {
                 LazyHStack(spacing: 12) {
                     ForEach(images) { item in
-                        AsyncImage(url: item.url) { $0.resizable().scaledToFill() } placeholder: { Rectangle().fill(.quaternary) }
-                            .frame(width: 250, height: 170).clipShape(.rect(cornerRadius: 18))
+                        Button {
+                            showImage(item.url, title: item.altText ?? "Galeriebild")
+                        } label: {
+                            AsyncImage(url: item.url) { $0.resizable().scaledToFill() } placeholder: { Rectangle().fill(.quaternary) }
+                                .frame(width: 250, height: 170)
+                                .clipped()
+                                .clipShape(.rect(cornerRadius: 18))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Galeriebild vergrößern")
                     }
                 }
             }.scrollIndicators(.hidden)
@@ -326,6 +340,42 @@ struct EntityDetailView: View {
 
     private func biography(in detail: EntityDetail) -> String? {
         ["biography_de", "description_de", "bio_de", "description"].compactMap { detail.fields.string($0) }.first
+    }
+
+    private func showImage(_ url: URL, title: String) {
+        fullScreenImage = FullScreenImageReference(url: url, title: title)
+    }
+
+    private func constrainedEntityImage(url: URL, height: CGFloat, systemImage: String) -> some View {
+        GeometryReader { proxy in
+            AsyncImage(url: url) { image in
+                ZStack {
+                    Color.black
+                    image.resizable().scaledToFill().blur(radius: 18).scaleEffect(1.12).opacity(0.5)
+                    image.resizable().scaledToFit()
+                }
+            } placeholder: {
+                entityImagePlaceholder(height: height, systemImage: systemImage)
+            }
+            .frame(width: proxy.size.width, height: height)
+            .clipped()
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: height)
+        .clipShape(.rect(cornerRadius: 22))
+        .contentShape(.rect)
+    }
+
+    private func entityImagePlaceholder(height: CGFloat, systemImage: String) -> some View {
+        LinearGradient(
+            colors: [KlangradarTheme.deepInk, KlangradarTheme.accent],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .frame(maxWidth: .infinity)
+        .frame(height: height)
+        .overlay { Image(systemName: systemImage).font(.largeTitle).foregroundStyle(.white.opacity(0.8)) }
+        .clipShape(.rect(cornerRadius: 22))
     }
 
     private func load() async {

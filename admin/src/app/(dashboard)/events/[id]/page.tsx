@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { DeleteButton } from "@/components/delete-button";
 import { GalleryEditor } from "@/components/entity-gallery/gallery-editor";
 import { AiEnrichButton } from "@/components/ai-enrich-button";
+import { EntityAuditButton } from "@/components/entity-audit-button";
 import type { GalleryImage } from "@/lib/gallery-actions";
 import { deleteEvent, updateEvent } from "../actions";
 import { EventForm, type EventFormValues } from "../event-form";
@@ -110,8 +111,9 @@ export default async function EditEventPage({
           />
         </div>
       </div>
-      <div className="mt-4">
+      <div className="mt-4 flex flex-wrap items-start gap-3">
         <AiEnrichButton entityType="event" entityId={id} />
+        <EntityAuditButton entityType="event" entityId={id} />
       </div>
       {group && (
         <div className="mt-4 flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm">

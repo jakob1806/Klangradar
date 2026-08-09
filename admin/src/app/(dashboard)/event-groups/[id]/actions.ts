@@ -271,8 +271,17 @@ async function addParticipantToEvents(
   eventIds: string[],
   personId: string | null,
   ensembleId: string | null,
-  role: string | null,
+  roleLabel: string | null,
+  suggestedRole: string | null = null,
 ) {
+  const normalized = (roleLabel ?? "").toLocaleLowerCase("de");
+  const role = suggestedRole
+    ?? (normalized.includes("kompon") ? "komponist"
+      : normalized.includes("dirigent") || normalized.includes("musikalische leitung") ? "dirigent"
+      : normalized.includes("chorleit") ? "chorleiter"
+      : normalized.includes("moder") ? "moderator"
+      : normalized && !normalized.includes("orchester") && !normalized.includes("chor") && !normalized.includes("ensemble") ? "solist"
+      : null);
   for (const eventId of eventIds) {
     let query = supabase.from("event_participants").select("id").eq("event_id", eventId);
     query = personId ? query.eq("person_id", personId) : query.eq("ensemble_id", ensembleId);
@@ -284,6 +293,7 @@ async function addParticipantToEvents(
       person_id: personId,
       ensemble_id: ensembleId,
       role,
+      role_label: roleLabel,
     });
   }
 }
@@ -291,12 +301,12 @@ async function addParticipantToEvents(
 export async function addParticipantToGroup(groupId: string, formData: FormData) {
   const personId = String(formData.get("person_id") ?? "") || null;
   const ensembleId = String(formData.get("ensemble_id") ?? "") || null;
-  const role = String(formData.get("role") ?? "") || null;
+  const roleLabel = String(formData.get("role_label") ?? "").trim().slice(0, 160) || null;
   if (!personId && !ensembleId) return;
 
   const supabase = await createClient();
   const eventIds = selectedEventIds(formData, await memberEventIds(supabase, groupId));
-  await addParticipantToEvents(supabase, eventIds, personId, ensembleId, role);
+  await addParticipantToEvents(supabase, eventIds, personId, ensembleId, roleLabel);
 
   revalidatePath(`/event-groups/${groupId}`);
 }
@@ -307,7 +317,7 @@ export async function addParticipantToGroup(groupId: string, formData: FormData)
  * angelegten Person (siehe entity-candidates/actions.ts approveEntityCandidate). */
 export async function createPersonAndAddToGroup(groupId: string, formData: FormData) {
   const fullName = String(formData.get("full_name") ?? "").trim();
-  const role = String(formData.get("role_new_person") ?? "") || null;
+  const roleLabel = String(formData.get("role_label") ?? "").trim().slice(0, 160) || null;
   if (!fullName) return;
 
   const supabase = await createClient();
@@ -320,13 +330,14 @@ export async function createPersonAndAddToGroup(groupId: string, formData: FormD
   if (error) throw new Error(error.message);
 
   const eventIds = selectedEventIds(formData, await memberEventIds(supabase, groupId));
-  await addParticipantToEvents(supabase, eventIds, person.id, null, role);
+  await addParticipantToEvents(supabase, eventIds, person.id, null, roleLabel);
 
   revalidatePath(`/event-groups/${groupId}`);
 }
 
 export async function createEnsembleAndAddToGroup(groupId: string, formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
+  const roleLabel = String(formData.get("role_label") ?? "").trim().slice(0, 160) || null;
   if (!name) return;
 
   const supabase = await createClient();
@@ -339,7 +350,7 @@ export async function createEnsembleAndAddToGroup(groupId: string, formData: For
   if (error) throw new Error(error.message);
 
   const eventIds = selectedEventIds(formData, await memberEventIds(supabase, groupId));
-  await addParticipantToEvents(supabase, eventIds, null, ensemble.id, null);
+  await addParticipantToEvents(supabase, eventIds, null, ensemble.id, roleLabel);
 
   revalidatePath(`/event-groups/${groupId}`);
 }
@@ -366,6 +377,8 @@ export async function setParticipantEventMembership(
   groupId: string,
   personId: string | null,
   ensembleId: string | null,
+  roleLabel: string | null,
+  role: string | null,
   eventIds: string[],
 ) {
   const supabase = await createClient();
@@ -380,7 +393,7 @@ export async function setParticipantEventMembership(
   const toAdd = [...targetIds].filter((id) => !currentIds.has(id));
   const toRemove = [...currentIds].filter((id) => !targetIds.has(id));
 
-  await addParticipantToEvents(supabase, toAdd, personId, ensembleId, null);
+  await addParticipantToEvents(supabase, toAdd, personId, ensembleId, roleLabel, role);
   if (toRemove.length > 0) {
     let delQuery = supabase.from("event_participants").delete().in("event_id", toRemove);
     delQuery = personId ? delQuery.eq("person_id", personId) : delQuery.eq("ensemble_id", ensembleId);
