@@ -5,7 +5,7 @@ import type { InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes 
 // Dashboard über Field/TextInput/TextArea/Select bezogen, ändern hier
 // wirkt daher konsistent auf alle Bearbeiten-Seiten gleichzeitig.
 const labelClass = "type-label !text-neutral-600";
-const controlClass = "border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-[#171717]";
+const controlClass = "border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-[#0071e3]";
 
 export function Field({
   label,

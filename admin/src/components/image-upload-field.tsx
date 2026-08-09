@@ -146,7 +146,7 @@ export function ImageUploadField({
             type="button"
             disabled={uploading}
             onClick={() => fileInputRef.current?.click()}
-            className="self-start border border-neutral-300 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:border-[#171717] hover:text-[#171717] disabled:opacity-50"
+            className="self-start rounded-lg border border-black/10 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-black/[0.04] disabled:opacity-50"
           >
             {url ? "Foto ersetzen" : "Foto auswählen"}
           </button>

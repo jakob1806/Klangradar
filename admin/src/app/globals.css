@@ -9,37 +9,51 @@
    generelle Kontrastprobleme. color-scheme: light verhindert zusätzlich,
    dass native Formularelemente (Selects, Datepicker) trotzdem dunkel
    gerendert werden. */
-/* Swiss/International-Design (Nutzerwunsch: "ganz neues design für das
-   admin portal. kein standardmäßiges KI design, sondern eher
-   swiss/international") statt der bisherigen generischen abgerundeten
-   Tailwind-Karten-Optik. Prinzipien: strenges Raster, eine einzige knappe
-   Akzentfarbe statt vieler pastelliger Badge-Farben, Trennlinien statt
-   Schatten/Radius, enge, konsequente Typo-Hierarchie mit Versalien-Labels.
-   Signaturrot #d13c1f (klassische Schweizer Grafikdesign-Referenz, z.B.
-   SBB) — nur sparsam für Primäraktionen/aktiven Nav-Punkt, nie flächig.
-   Bewusst als feste Hex-Werte direkt in den Tailwind-Arbiträrklassen
-   (border-[#d13c1f] usw.) statt als CSS-Custom-Property: live geprüft,
-   lightningcss (Tailwind v4s Build-Schritt) verwirft selbst deklarierte
-   :root-Custom-Properties beim Minifizieren project-weit kommentarlos —
-   das kompilierte CSS enthielt die Variable nie, nur var(--accent)-
-   NUTZUNGEN ohne jede Definition. Feste Hex-Werte umgehen das zuverlässig. */
+/* Apple-Design (Nutzerwunsch: "mache das ganze redaktionsportal im design
+   von apple", strikt nach github.com/emilkowalski/skills/tree/main/skills/
+   apple-design — löst das vorherige Swiss/International-Design ab. NICHT
+   enthalten: "Liquid Glass" (eigene, inzwischen verworfene Fehlinterpretation
+   in einer Zwischenrunde — das ist eine SwiftUI-only-API ohne CSS-
+   Entsprechung, live per WebFetch geprüft, siehe git-Historie). Was aus der
+   Skill-Referenz konkret übernommen wurde:
+   - Typografie (Abschnitt "Details of UI Typography"): Systemschrift statt
+     Web-Font, negative Tracking bei großen Überschriften, ~0 bei Fließtext,
+     Hierarchie über Gewicht+Größe+Zeilenhöhe zusammen statt Größe allein.
+   - Materialien (Abschnitt "Materials & Depth"): Sidebar/Topbar als
+     durchscheinende Ebene (backdrop-filter: blur + halbtransparente
+     Fläche) mit darunter scrollendem Inhalt — das ist die Skill-eigene
+     Vorgabe für Navigations-Chrome, keine Liquid-Glass-Erfindung. Bewusst
+     NICHT auf dichten Datentabellen (Skill: "nie mehrere durchscheinende
+     Flächen übereinanderstapeln — Lesbarkeit bricht zusammen").
+   - EINE Akzentfarbe (Prinzip "Craft"/"Simplicity"): Apple-Blau #0071e3.
+   - 8 Prinzipien (Purpose/Agency/Responsibility/Familiarity/Flexibility/
+     Simplicity/Craft/Delight): direkte, spezifische Beschriftungen statt
+     vager Labels; Fehler inline statt erst bei Submit; jedes Element muss
+     sich seinen Platz verdienen.
+   Bewusst feste Hex-Arbiträrwerte statt CSS-Custom-Properties: lightningcss
+   (Tailwind v4s Build-Schritt) verwirft eigene :root-Variablen beim
+   Minifizieren kommentarlos, live geprüft. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f5f5f7;
+  --foreground: #1d1d1f;
   color-scheme: light;
+}
+
+.apple-font {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, "Segoe UI", Roboto, sans-serif;
 }
 
 .type-label {
   font-size: 0.6875rem;
   font-weight: 600;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
-  color: #8a8a8a;
+  color: #86868b;
 }
 
 .type-heading {
-  font-weight: 700;
-  letter-spacing: -0.01em;
+  font-weight: 600;
+  letter-spacing: -0.014em;
 }
 
 @theme inline {
@@ -52,7 +66,8 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, "Segoe UI", Roboto, sans-serif;
+  letter-spacing: -0.006em;
 }
 
 .mobile-dashboard-header {

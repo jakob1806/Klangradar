@@ -140,7 +140,7 @@ function MergeCandidateCard({ candidate, onDone }: { candidate: UiCandidate; onD
   const lowConfidence = match.similarity < 0.7;
 
   return (
-    <div className="border-2 border-[#171717] bg-white p-4">
+    <div className="rounded-xl border border-black/[0.06] bg-white p-4 shadow-sm">
       <span className="text-xs text-neutral-400">
         Gefunden {formatDate(candidate.createdAt)} · {ENTITY_TYPE_LABEL[candidate.entityType] ?? candidate.entityType}
       </span>
@@ -283,7 +283,7 @@ function NewCandidateCard({
   onDone: () => void;
 }) {
   return (
-    <div className="flex gap-3 border-2 border-[#171717] bg-white p-4">
+    <div className="flex gap-3 rounded-xl border border-black/[0.06] bg-white p-4 shadow-sm">
       {selectable && (
         <input
           type="checkbox"
@@ -443,14 +443,14 @@ export function CandidateList({
             <h2 className="text-sm font-semibold text-neutral-900">Weitere Kandidaten ({visibleLow.length})</h2>
           </div>
           {lowSelection.selected.size > 0 && (
-            <div className="mt-3 flex items-center justify-between border-2 border-[#171717] bg-neutral-50 px-4 py-2 text-sm">
+            <div className="mt-3 flex items-center justify-between rounded-xl border border-black/[0.06] bg-black/[0.02] px-4 py-2 text-sm">
               <span className="text-neutral-600">{lowSelection.selected.size} ausgewählt</span>
               <div className="flex items-center gap-3">
                 <button
                   type="button"
                   disabled={bulkPending}
                   onClick={() => bulkAct(lowSelection, "reject")}
-                  className="border border-neutral-300 px-3 py-1.5 text-sm font-medium text-neutral-700 hover:border-[#171717] hover:text-[#171717] disabled:opacity-50"
+                  className="rounded-lg border border-black/10 px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-black/[0.04] disabled:opacity-50"
                 >
                   Ablehnen
                 </button>
@@ -458,7 +458,7 @@ export function CandidateList({
                   type="button"
                   disabled={bulkPending}
                   onClick={() => bulkAct(lowSelection, "approve")}
-                  className="border-2 border-[#171717] bg-[#171717] px-3 py-1.5 text-sm font-medium text-white hover:bg-white hover:text-[#171717] disabled:opacity-50"
+                  className="rounded-lg bg-[#0071e3] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[#0077ed] disabled:opacity-50"
                 >
                   Genehmigen
                 </button>

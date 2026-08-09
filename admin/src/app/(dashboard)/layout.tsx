@@ -26,8 +26,8 @@ export default async function DashboardLayout({
         </MobileNavigation>
         <SignOutButton />
       </div>
-      <main className="flex-1 min-w-0 bg-white text-neutral-900">
-        <div className="hidden justify-end border-b-2 border-[#171717] bg-white px-8 py-3 md:flex">
+      <main className="flex-1 min-w-0 bg-[#f5f5f7] text-[#1d1d1f]">
+        <div className="sticky top-0 z-30 hidden justify-end border-b border-black/[0.06] bg-[#f5f5f7]/80 px-8 py-3 backdrop-blur-xl md:flex">
           <SignOutButton />
         </div>
         <div className="dashboard-content">{children}</div>

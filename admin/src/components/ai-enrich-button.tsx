@@ -50,7 +50,7 @@ export function AiEnrichButton({ entityType, entityId }: { entityType: EnrichEnt
         type="button"
         disabled={pending}
         onClick={handleClick}
-        className="type-label rounded-none border-2 border-[#171717] bg-white px-3 py-1.5 !text-[#171717] hover:bg-[#171717] hover:!text-white disabled:opacity-50"
+        className="rounded-lg border border-black/10 bg-white px-3 py-1.5 text-[13px] font-medium text-[#1d1d1f] transition-colors hover:bg-black/[0.04] disabled:opacity-50"
       >
         {pending ? "Prüfe & ergänze…" : "Prüfen & ergänzen (KI)"}
       </button>

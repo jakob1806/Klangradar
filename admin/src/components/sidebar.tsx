@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-// Swiss/International-Redesign: die bisherige flache 23-Punkte-Liste war
-// selbst schon ein wiederkehrender Unübersichtlichkeits-Kritikpunkt (siehe
-// #b4-Feedback zum Auto-Fix-Bereich, gleiches Muster) — Gruppierung nach
-// Arbeitsbereich macht die Navigation zusätzlich zum neuen visuellen Stil
-// auch inhaltlich schneller scanbar.
+// Gruppierung nach Arbeitsbereich (seit der ersten Redesign-Runde) macht
+// die Navigation zusätzlich zum visuellen Stil auch inhaltlich schneller
+// scanbar. Optik nach der Apple-Design-Skill-Referenz (Abschnitt
+// "Materials & Depth"): Sidebar als durchscheinende Ebene statt Volltonfarbe,
+// aktiver Eintrag als abgerundete Fläche in der einen Akzentfarbe.
 const NAV_GROUPS = [
   {
     label: "Redaktion",
@@ -63,15 +63,15 @@ export function Sidebar({ userEmail }: { userEmail?: string }) {
   const pathname = usePathname();
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col gap-8 border-r-2 border-[#171717] bg-white px-5 py-7">
-      <div className="border-b-2 border-[#171717] pb-4">
-        <p className="type-heading text-base">Klassik München</p>
-        <p className="type-label mt-1">Redaktions-Dashboard</p>
+    <aside className="flex w-64 shrink-0 flex-col gap-6 border-r border-black/[0.06] bg-[#f5f5f7]/80 px-3 py-6 backdrop-blur-xl">
+      <div className="px-3">
+        <p className="type-heading text-[15px] text-[#1d1d1f]">Klassik München</p>
+        <p className="mt-0.5 text-[11px] text-[#86868b]">Redaktions-Dashboard</p>
       </div>
-      <nav className="flex flex-1 flex-col gap-6 overflow-y-auto">
+      <nav className="flex flex-1 flex-col gap-5 overflow-y-auto">
         {NAV_GROUPS.map((group) => (
           <div key={group.label}>
-            <p className="type-label mb-2 px-3">{group.label}</p>
+            <p className="type-label mb-1.5 px-3">{group.label}</p>
             <div className="flex flex-col gap-0.5">
               {group.items.map((item) => {
                 const active = pathname === item.href || pathname?.startsWith(`${item.href}/`);
@@ -79,10 +79,8 @@ export function Sidebar({ userEmail }: { userEmail?: string }) {
                   <Link
                     key={item.href}
                     href={item.href}
-                    className={`group flex items-center gap-2.5 border-l-2 px-3 py-1.5 text-[13px] font-medium ${
-                      active
-                        ? "border-[#d13c1f] text-neutral-900 font-semibold"
-                        : "border-transparent text-neutral-700 hover:border-[#d13c1f] hover:text-neutral-900"
+                    className={`rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors ${
+                      active ? "bg-[#0071e3] text-white" : "text-[#1d1d1f] hover:bg-black/[0.04]"
                     }`}
                   >
                     {item.label}
@@ -94,7 +92,7 @@ export function Sidebar({ userEmail }: { userEmail?: string }) {
         ))}
       </nav>
       {userEmail && (
-        <p className="type-label truncate border-t-2 border-[#171717] pt-3 normal-case tracking-normal" title={userEmail}>
+        <p className="truncate px-3 pt-3 text-[11px] text-[#86868b]" title={userEmail}>
           {userEmail}
         </p>
       )}
