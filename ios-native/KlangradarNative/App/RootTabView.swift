@@ -5,6 +5,7 @@ struct RootTabView: View {
 
     @State private var selection: AppTab = .home
     @StateObject private var favorites: FavoriteStore
+    @StateObject private var follows: FollowStore
     @AppStorage("didCompleteOnboarding") private var didCompleteOnboarding = false
     @State private var showsOnboarding = false
     @AppStorage("appearance") private var appearance = "system"
@@ -12,6 +13,7 @@ struct RootTabView: View {
     init(environment: AppEnvironment) {
         self.environment = environment
         _favorites = StateObject(wrappedValue: FavoriteStore(auth: environment.auth, repository: environment.restClient.map(UserRepository.init(client:))))
+        _follows = StateObject(wrappedValue: FollowStore(auth: environment.auth, repository: environment.restClient.map(UserRepository.init(client:))))
     }
 
     var body: some View {
@@ -43,7 +45,12 @@ struct RootTabView: View {
                     Label("Karte", systemImage: "map")
                 }
 
-            EventCalendarView(repository: environment.events, contentRepository: environment.content)
+            EventCalendarView(
+                repository: environment.events,
+                contentRepository: environment.content,
+                auth: environment.auth,
+                userRepository: environment.restClient.map(UserRepository.init(client:))
+            )
                 .tag(AppTab.calendar)
                 .tabItem {
                     Label("Kalender", systemImage: "calendar")
@@ -62,8 +69,10 @@ struct RootTabView: View {
                 }
         }
         .environmentObject(favorites)
+        .environmentObject(follows)
         .task { await environment.auth.bootstrap(); showsOnboarding = !didCompleteOnboarding }
         .task { await favorites.load() }
+        .task { await follows.load() }
         .fullScreenCover(isPresented: $showsOnboarding) { OnboardingView() }
         .onOpenURL { url in
             let path = url.path.lowercased()

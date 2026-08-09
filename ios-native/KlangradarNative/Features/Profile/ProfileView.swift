@@ -589,7 +589,10 @@ private struct NotificationSettingsView: View {
             Toggle("Preisänderungen", isOn: binding(\.priceChanges, "price_changes"))
             Toggle("Fast ausverkauft", isOn: binding(\.almostSoldOut, "almost_sold_out"))
             Toggle("Erinnerung am Vortag", isOn: binding(\.reminderDayBefore, "reminder_day_before"))
-            Toggle("Neue Termine gefolgter Ensembles", isOn: binding(\.followedEnsembleNewEvent, "followed_ensemble_new_event"))
+            // Deckt jetzt auch gefolgte Personen/Orte ab (siehe
+            // notify-followed-entity-events), die Datenbankspalte heißt
+            // aus historischen Gründen weiter "followed_ensemble_new_event".
+            Toggle("Neue Termine gefolgter Personen, Ensembles & Orte", isOn: binding(\.followedEnsembleNewEvent, "followed_ensemble_new_event"))
         }
         .navigationTitle("Benachrichtigungen")
         .task {

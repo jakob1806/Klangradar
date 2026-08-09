@@ -179,9 +179,15 @@ struct EventParticipantImage: Codable, Hashable, Sendable {
 
 struct ParticipantPhoto: Codable, Hashable, Sendable {
     let id: UUID?
+    let name: String?
     let photoUrl: String?
-    init(id: UUID? = nil, photoUrl: String?) { self.id = id; self.photoUrl = photoUrl }
-    init(json: JSONObject) { id = json.string("id").flatMap(UUID.init(uuidString:)); photoUrl = json.string("photo_url") }
+    init(id: UUID? = nil, name: String? = nil, photoUrl: String?) { self.id = id; self.name = name; self.photoUrl = photoUrl }
+    init(json: JSONObject) {
+        id = json.string("id").flatMap(UUID.init(uuidString:))
+        // persons liefert full_name, ensembles liefert name — beide Fälle abdecken.
+        name = json.string("full_name") ?? json.string("name")
+        photoUrl = json.string("photo_url")
+    }
 }
 
 enum FlexibleDateParser {

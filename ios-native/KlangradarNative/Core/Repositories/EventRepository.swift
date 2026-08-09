@@ -30,7 +30,7 @@ struct LiveEventRepository: EventRepository {
             queryItems: [
                 URLQueryItem(
                     name: "select",
-                    value: "id,slug,title,subtitle,start_datetime,image_urls,status,category,is_free,venues(id,name,photo_url),event_genres(genres(id,slug,label_de)),event_participants(persons(id,photo_url),ensembles(id,photo_url))"
+                    value: "id,slug,title,subtitle,start_datetime,image_urls,status,category,is_free,venues(id,name,photo_url),event_genres(genres(id,slug,label_de)),event_participants(persons(id,full_name,photo_url),ensembles(id,name,photo_url))"
                 ),
                 URLQueryItem(name: "status", value: "eq.scheduled"),
                 URLQueryItem(
@@ -154,6 +154,10 @@ struct LiveEventRepository: EventRepository {
             if enriched.string("program_notes_de") == nil, let notes = sibling["program_notes_de"] {
                 enriched["program_notes_de"] = notes
             }
+            if enriched.string("program_extraction_status") == nil,
+               let status = sibling["program_extraction_status"] {
+                enriched["program_extraction_status"] = status
+            }
         }
         return await enrichingEntityImages(enriched)
     }
@@ -248,7 +252,7 @@ struct LiveEventRepository: EventRepository {
             URLQueryItem(name: "id", value: "neq.\(eventID)"),
             URLQueryItem(name: "status", value: "neq.draft")
         ] }
-        let selection = "program_notes_de,event_works(position,after_intermission,works(id,title,catalog_number,key_signature,instrumentation,movements,composer:persons(id,slug,full_name,photo_url))),event_participants(role,role_label,persons(id,slug,full_name,photo_url),ensembles(id,slug,name,photo_url))"
+        let selection = "program_notes_de,program_extraction_status,event_works(position,after_intermission,works(id,title,catalog_number,key_signature,instrumentation,movements,composer:persons(id,slug,full_name,photo_url))),event_participants(role,role_label,persons(id,slug,full_name,photo_url),ensembles(id,slug,name,photo_url))"
         var rows: [JSONObject]? = try? await client.get(table: "events", queryItems: queryItems(selection))
         if rows == nil {
             rows = try? await client.get(table: "events", queryItems: queryItems(selection.replacingOccurrences(of: "role,role_label", with: "role")))
@@ -259,10 +263,10 @@ struct LiveEventRepository: EventRepository {
         }
     }
 
-    private static let coreDetailSelection = "id,slug,title,subtitle,category,description_de,program_notes_de,start_datetime,end_datetime,duration_minutes,has_intermission,ticket_url,price_min,price_max,price_currency,is_free,remaining_tickets_status,doors_info,age_restriction,discount_info,presale_fee_info,target_audience,performance_language,website_url,accessibility,status,image_urls,program_id,attribution_notice,attribution_license_url,last_verified_at,venues(id,slug,name,address_street,address_zip,address_city,photo_url,description_de)"
+    private static let coreDetailSelection = "id,slug,title,subtitle,category,description_de,program_notes_de,program_extraction_status,start_datetime,end_datetime,duration_minutes,has_intermission,ticket_url,price_min,price_max,price_currency,is_free,remaining_tickets_status,doors_info,age_restriction,discount_info,target_audience,performance_language,website_url,accessibility,status,image_urls,program_id,attribution_notice,attribution_license_url,last_verified_at,venues(id,slug,name,address_street,address_zip,address_city,photo_url,description_de)"
 
     private static let detailSelection = """
-    id,slug,title,subtitle,category,description_de,program_notes_de,start_datetime,end_datetime,duration_minutes,has_intermission,
+    id,slug,title,subtitle,category,description_de,program_notes_de,program_extraction_status,start_datetime,end_datetime,duration_minutes,has_intermission,
     ticket_url,price_min,price_max,price_currency,is_free,remaining_tickets_status,doors_info,
     age_restriction,discount_info,presale_fee_info,target_audience,performance_language,
     website_url,accessibility,status,image_urls,program_id,attribution_notice,

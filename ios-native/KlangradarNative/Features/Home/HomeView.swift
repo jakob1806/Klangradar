@@ -3,6 +3,7 @@ import SwiftUI
 struct HomeView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @StateObject private var model: HomeViewModel
+    @EnvironmentObject private var follows: FollowStore
     private let contentRepository: any ContentRepository
     private let usesPreviewData: Bool
     @State private var collections: [EditorialCollection] = []
@@ -151,6 +152,17 @@ struct HomeView: View {
                             }
                     )
 
+                    // Nutzerwunsch: "bestimmten Ensembles/Personen/Venues
+                    // folgen, eigene Kategorie auf dem Homescreen nur für
+                    // diese Person/Venue/Ensemble" — eine eigene Reihe pro
+                    // gefolgter Entität statt eines gemeinsamen Sammel-
+                    // Moduls, damit z.B. "Isarphilharmonie" als eigener,
+                    // erkennbarer Titel erscheint. Nutzt dieselben Events,
+                    // die ohnehin schon geladen sind (kein Zusatz-Request).
+                    ForEach(followedSections(from: events)) { section in
+                        EventRail(title: section.title, events: section.events)
+                    }
+
                     if !collections.isEmpty {
                         CollectionRail(collections: collections)
                     }
@@ -172,6 +184,36 @@ struct HomeView: View {
         .padding(.horizontal, KlangradarTheme.pagePadding)
     }
 
+    /// Eine Reihe je gefolgter Person/Ensemble/Venue mit deren kommenden
+    /// Events aus der bereits geladenen Liste — alphabetisch nach Name, nur
+    /// Entitäten mit mindestens einem Treffer (keine leeren Reihen).
+    private func followedSections(from events: [ConcertEvent]) -> [FollowedEntitySection] {
+        var byID: [UUID: (name: String, events: [ConcertEvent])] = [:]
+
+        func record(id: UUID?, name: String?, event: ConcertEvent) {
+            guard let id, let name, !name.isEmpty else { return }
+            byID[id, default: (name, [])].events.append(event)
+        }
+
+        for event in events {
+            if let venue = event.venues, follows.isFollowing(kind: .venue, id: venue.id) {
+                record(id: venue.id, name: venue.name, event: event)
+            }
+            for participant in event.eventParticipants ?? [] {
+                if let person = participant.persons, let id = person.id, follows.isFollowing(kind: .person, id: id) {
+                    record(id: id, name: person.name, event: event)
+                }
+                if let ensemble = participant.ensembles, let id = ensemble.id, follows.isFollowing(kind: .ensemble, id: id) {
+                    record(id: id, name: ensemble.name, event: event)
+                }
+            }
+        }
+
+        return byID
+            .map { FollowedEntitySection(id: $0.key, title: $0.value.name, events: $0.value.events) }
+            .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+    }
+
     private func isWithinNextSevenDays(_ event: ConcertEvent) -> Bool {
         guard let date = event.startDate,
               let end = Calendar.current.date(byAdding: .day, value: 7, to: .now) else { return false }
@@ -190,6 +232,12 @@ struct HomeView: View {
               let monday = calendar.date(byAdding: .day, value: 2, to: saturday) else { return false }
         return date >= saturday && date < monday
     }
+}
+
+private struct FollowedEntitySection: Identifiable {
+    let id: UUID
+    let title: String
+    let events: [ConcertEvent]
 }
 
 private struct CollectionRail: View {

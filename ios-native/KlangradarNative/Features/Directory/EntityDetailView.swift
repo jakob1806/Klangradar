@@ -13,6 +13,7 @@ struct EntityDetailView: View {
     @State private var errorMessage: String?
     @State private var fullScreenImage: FullScreenImageReference?
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var follows: FollowStore
 
     var body: some View {
         Group {
@@ -21,6 +22,7 @@ struct EntityDetailView: View {
                     LazyVStack(alignment: .leading, spacing: 24) {
                         if detail.kind == .venue {
                             venueHeader(detail)
+                            followButton(detail)
                             if !detail.events.isEmpty { linkedEvents(detail.events, kind: detail.kind) }
                             metadata(detail)
                             if let biography = biography(in: detail) {
@@ -29,6 +31,7 @@ struct EntityDetailView: View {
                             if !detail.gallery.isEmpty { gallery(detail.gallery) }
                         } else {
                             header(detail)
+                            followButton(detail)
                             metadata(detail)
                             if let biography = biography(in: detail) {
                                 section("Über \(detail.title)") { Text(biography).lineSpacing(4) }
@@ -119,6 +122,28 @@ struct EntityDetailView: View {
 
         case .venue:
             EmptyView() // venueHeader(_:) wird stattdessen direkt aufgerufen.
+        }
+    }
+
+    /// Nutzerwunsch: "bestimmten Ensembles/Personen/Venues folgen" — Button
+    /// direkt auf der Detailseite, nutzt denselben Zustand wie Profil →
+    /// Interessen (siehe FollowStore). Keine eigene Version für Werke, die
+    /// haben keine Interessen-Kategorie.
+    @ViewBuilder private func followButton(_ detail: EntityDetail) -> some View {
+        if detail.kind != .work, follows.isSignedIn, let id = UUID(uuidString: detail.id) {
+            let following = follows.isFollowing(kind: detail.kind, id: id)
+            Button {
+                Task { await follows.toggle(kind: detail.kind, id: id) }
+            } label: {
+                Label(following ? "Gefolgt" : "Folgen", systemImage: following ? "checkmark" : "plus")
+                    .font(.subheadline.weight(.semibold))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 9)
+            }
+            .buttonStyle(.plain)
+            .background(following ? AnyShapeStyle(.thinMaterial) : AnyShapeStyle(KlangradarTheme.accent), in: .capsule)
+            .foregroundStyle(following ? Color.primary : Color.white)
+            .accessibilityLabel(following ? "\(detail.title) wird gefolgt, zum Entfolgen antippen" : "\(detail.title) folgen")
         }
     }
 

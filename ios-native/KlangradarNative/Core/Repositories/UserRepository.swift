@@ -242,3 +242,69 @@ final class FavoriteStore: ObservableObject {
         catch { if newValue { ids.remove(eventID) } else { ids.insert(eventID) } }
     }
 }
+
+/// Nutzerwunsch: "bestimmten Ensembles/Personen/Venues folgen" direkt von
+/// der jeweiligen Detailseite aus, statt nur über die separate Interessen-
+/// Einstellungsseite — nutzt dieselben Tabellen (user_favorite_persons/
+/// _ensembles/_venues), damit ein Follow auf der Detailseite und eine
+/// Auswahl unter Profil → Interessen konsistent denselben Zustand
+/// widerspiegeln. Genres bleiben bewusst außen vor (kein Follow-Button auf
+/// einer Genre-Detailseite).
+@MainActor
+final class FollowStore: ObservableObject {
+    @Published private(set) var personIDs: Set<UUID> = []
+    @Published private(set) var ensembleIDs: Set<UUID> = []
+    @Published private(set) var venueIDs: Set<UUID> = []
+    private let auth: AuthStore
+    private let repository: UserRepository?
+
+    init(auth: AuthStore, repository: UserRepository?) { self.auth = auth; self.repository = repository }
+
+    var isSignedIn: Bool { auth.userID != nil }
+
+    func load() async {
+        guard let repository, let userID = auth.userID, let token = auth.accessToken else { return }
+        async let persons = try? repository.selectedInterests(.person, userID: userID, token: token)
+        async let ensembles = try? repository.selectedInterests(.ensemble, userID: userID, token: token)
+        async let venues = try? repository.selectedInterests(.venue, userID: userID, token: token)
+        personIDs = Set(((await persons) ?? []).compactMap(UUID.init(uuidString:)))
+        ensembleIDs = Set(((await ensembles) ?? []).compactMap(UUID.init(uuidString:)))
+        venueIDs = Set(((await venues) ?? []).compactMap(UUID.init(uuidString:)))
+    }
+
+    func isFollowing(kind: EntityKind, id: UUID) -> Bool {
+        switch kind {
+        case .person: personIDs.contains(id)
+        case .ensemble: ensembleIDs.contains(id)
+        case .venue: venueIDs.contains(id)
+        case .work: false
+        }
+    }
+
+    func toggle(kind: EntityKind, id: UUID) async {
+        guard let repository, let userID = auth.userID, let token = auth.accessToken else { return }
+        let category: InterestCategory
+        switch kind {
+        case .person: category = .person
+        case .ensemble: category = .ensemble
+        case .venue: category = .venue
+        case .work: return
+        }
+        let newValue = !isFollowing(kind: kind, id: id)
+        setLocal(kind: kind, id: id, following: newValue)
+        do {
+            try await repository.setInterest(category, id: id.uuidString, selected: newValue, userID: userID, token: token)
+        } catch {
+            setLocal(kind: kind, id: id, following: !newValue)
+        }
+    }
+
+    private func setLocal(kind: EntityKind, id: UUID, following: Bool) {
+        switch kind {
+        case .person: if following { personIDs.insert(id) } else { personIDs.remove(id) }
+        case .ensemble: if following { ensembleIDs.insert(id) } else { ensembleIDs.remove(id) }
+        case .venue: if following { venueIDs.insert(id) } else { venueIDs.remove(id) }
+        case .work: break
+        }
+    }
+}

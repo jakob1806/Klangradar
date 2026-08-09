@@ -283,11 +283,19 @@ struct EventDetailView: View {
         } else {
             section("Programm") {
                 VStack(spacing: 14) {
-                    ContentUnavailableView(
-                        "Programm wird nacherfasst",
-                        systemImage: "music.note.list",
-                        description: Text("Die Quelle enthält derzeit noch keine zuverlässig strukturierten Einzelwerke.")
-                    )
+                    if value.string("program_extraction_status") == "not_published" {
+                        ContentUnavailableView(
+                            "Programm noch nicht veröffentlicht",
+                            systemImage: "music.note.list",
+                            description: Text("Der Veranstalter nennt derzeit noch keine konkreten Einzelwerke. Klangradar prüft die Quelle regelmäßig erneut.")
+                        )
+                    } else {
+                        ContentUnavailableView(
+                            "Programm wird geprüft",
+                            systemImage: "music.note.list",
+                            description: Text("Die offizielle Quelle wird gerade auf konkrete Einzelwerke geprüft.")
+                        )
+                    }
                     if let rawURL = value.string("website_url") ?? value.string("ticket_url"),
                        let url = URL(string: rawURL) {
                         Link(destination: url) {
