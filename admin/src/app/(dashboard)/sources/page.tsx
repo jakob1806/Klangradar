@@ -23,10 +23,10 @@ const TYPE_LABEL: Record<string, string> = {
 };
 
 const STATUS_STYLE: Record<string, string> = {
-  active: "bg-emerald-50 text-emerald-700",
-  paused: "bg-neutral-100 text-neutral-600",
-  under_review: "bg-amber-50 text-amber-700",
-  error: "bg-red-50 text-red-700",
+  active: "border-emerald-700 !text-emerald-700",
+  paused: "border-neutral-300 !text-neutral-500",
+  under_review: "border-amber-700 !text-amber-700",
+  error: "border-red-700 !text-red-700",
 };
 
 export default async function SourcesPage() {
@@ -53,19 +53,19 @@ export default async function SourcesPage() {
         <div className="flex gap-3">
           <Link
             href="/sources/discover"
-            className="rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-100"
+            className="border-2 border-[#171717] px-4 py-2 type-label !text-[#171717] hover:bg-[#171717] hover:!text-white"
           >
             Neue Quellen entdecken
           </Link>
           <Link
             href="/sources/onboard"
-            className="rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-100"
+            className="border-2 border-[#171717] px-4 py-2 type-label !text-[#171717] hover:bg-[#171717] hover:!text-white"
           >
             Neue Quelle testen
           </Link>
           <Link
             href="/sources/new"
-            className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700"
+            className="border-2 border-[#171717] bg-[#171717] px-4 py-2 type-label !text-white hover:bg-white hover:!text-[#171717]"
           >
             Neu anlegen
           </Link>
@@ -77,25 +77,25 @@ export default async function SourcesPage() {
       {!error && (
         <div className="mt-6">
         <TableSearchFilter containerId="sources-table" placeholder="Name durchsuchen…" />
-        <div id="sources-table" className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
+        <div id="sources-table" className="overflow-hidden border-2 border-[#171717] bg-white">
           <table className="w-full text-sm">
-            <thead className="bg-neutral-50 text-left text-xs uppercase tracking-wide text-neutral-500">
+            <thead className="border-b-2 border-[#171717] text-left">
               <tr>
-                <th className="px-4 py-3 font-medium">Name</th>
-                <th className="px-4 py-3 font-medium">Typ</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium">Letzter Lauf</th>
+                <th className="type-label px-4 py-3">Name</th>
+                <th className="type-label px-4 py-3">Typ</th>
+                <th className="type-label px-4 py-3">Status</th>
+                <th className="type-label px-4 py-3">Letzter Lauf</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-neutral-100">
+            <tbody className="divide-y divide-neutral-200">
               {data?.length ? (
                 data.map((source) => (
                   <tr key={source.id} data-search={source.name.toLowerCase()} className="hover:bg-neutral-50">
                     <td className="px-4 py-3 font-medium text-neutral-900">{source.name}</td>
                     <td className="px-4 py-3 text-neutral-600">{TYPE_LABEL[source.type] ?? source.type}</td>
                     <td className="px-4 py-3">
-                      <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${STATUS_STYLE[source.status] ?? ""}`}>
+                      <span className={`type-label border px-2 py-1 ${STATUS_STYLE[source.status] ?? "border-neutral-300 !text-neutral-500"}`}>
                         {source.status}
                         {source.consecutive_failures > 0 ? ` · ${source.consecutive_failures}x fehlgeschlagen` : ""}
                       </span>
@@ -106,7 +106,7 @@ export default async function SourcesPage() {
                         : "—"}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <Link href={`/sources/${source.id}`} className="text-sm font-medium text-neutral-700 hover:text-neutral-900">
+                      <Link href={`/sources/${source.id}`} className="text-sm font-medium text-neutral-700 hover:text-[#d13c1f]">
                         Bearbeiten
                       </Link>
                     </td>

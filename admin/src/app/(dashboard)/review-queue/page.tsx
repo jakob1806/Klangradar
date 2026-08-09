@@ -67,15 +67,15 @@ export default async function ReviewQueuePage() {
           <Link
             key={card.href}
             href={card.href}
-            className="rounded-lg border border-neutral-200 bg-white p-5 hover:border-neutral-400"
+            className="border-2 border-[#171717] bg-white p-5 hover:bg-[#171717] hover:text-white"
           >
-            <p className="text-2xl font-semibold text-neutral-900">{card.count}</p>
-            <p className="mt-1 text-sm text-neutral-500">{card.label}</p>
+            <p className="text-2xl font-semibold">{card.count}</p>
+            <p className="type-label mt-1 !text-inherit opacity-70">{card.label}</p>
           </Link>
         ))}
       </div>
 
-      <h2 className="mt-10 text-sm font-semibold uppercase tracking-wide text-neutral-500">
+      <h2 className="type-label mt-10">
         Events mit niedrigem Confidence-Score (quellenspezifisch kalibriert)
       </h2>
 

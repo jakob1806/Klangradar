@@ -68,14 +68,14 @@ export function LowConfidenceTable({ events }: { events: LowConfidenceEvent[] })
   return (
     <div>
       {selected.size > 0 && (
-        <div className="mb-3 flex items-center justify-between rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-2 text-sm">
+        <div className="mb-3 flex items-center justify-between border-2 border-[#171717] bg-neutral-50 px-4 py-2 text-sm">
           <span className="text-neutral-600">{selected.size} ausgewählt</span>
           <div className="flex items-center gap-3">
             <button
               type="button"
               disabled={pending}
               onClick={() => runBulk("reject")}
-              className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-white disabled:opacity-50"
+              className="border border-neutral-300 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-white disabled:opacity-50"
             >
               Ablehnen (auf Entwurf setzen)
             </button>
@@ -83,7 +83,7 @@ export function LowConfidenceTable({ events }: { events: LowConfidenceEvent[] })
               type="button"
               disabled={pending}
               onClick={() => runBulk("clear")}
-              className="rounded-md bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-700 disabled:opacity-50"
+              className="border-2 border-[#171717] bg-[#171717] px-3 py-1.5 text-sm font-medium text-white hover:bg-white hover:text-[#171717] disabled:opacity-50"
             >
               Als geprüft markieren
             </button>
@@ -92,9 +92,9 @@ export function LowConfidenceTable({ events }: { events: LowConfidenceEvent[] })
       )}
       {message && <p className="mb-3 text-xs text-neutral-500">{message}</p>}
 
-      <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
+      <div className="overflow-hidden border-2 border-[#171717] bg-white">
         <table className="w-full text-sm">
-          <thead className="bg-neutral-50 text-left text-xs uppercase tracking-wide text-neutral-500">
+          <thead className="border-b-2 border-[#171717] text-left">
             <tr>
               <th className="w-10 px-4 py-3">
                 <input
@@ -105,15 +105,15 @@ export function LowConfidenceTable({ events }: { events: LowConfidenceEvent[] })
                   aria-label="Alle auswählen"
                 />
               </th>
-              <th className="px-4 py-3 font-medium">Titel</th>
-              <th className="px-4 py-3 font-medium">Venue</th>
-              <th className="px-4 py-3 font-medium">Termin</th>
-              <th className="px-4 py-3 font-medium">Status</th>
-              <th className="px-4 py-3 font-medium">Score</th>
+              <th className="type-label px-4 py-3">Titel</th>
+              <th className="type-label px-4 py-3">Venue</th>
+              <th className="type-label px-4 py-3">Termin</th>
+              <th className="type-label px-4 py-3">Status</th>
+              <th className="type-label px-4 py-3">Score</th>
               <th className="px-4 py-3" />
             </tr>
           </thead>
-          <tbody className="divide-y divide-neutral-100">
+          <tbody className="divide-y divide-neutral-200">
             {visible.length ? (
               visible.map((e) => (
                 <tr key={e.id} className="hover:bg-neutral-50">
