@@ -146,20 +146,32 @@ export async function removeWorkFromGroup(groupId: string, workId: string) {
  * dasselbe Bild bei jedem Mitgliedsevent eingetragen, das es noch nicht hat.
  * Landet an oberster Position (sort_order 0) und wird damit die
  * Miniaturansicht — vorhandene Event-eigene Bilder bleiben erhalten,
- * rutschen nur eine Position nach hinten. */
+ * rutschen nur eine Position nach hinten.
+ *
+ * Ersetzt dabei ein zuvor über DIESEN Uploader gesetztes Gruppenbild, statt
+ * es zusätzlich zu stapeln — jeder erneute Upload verschob sonst nur die
+ * sort_order weiter, ohne den alten Eintrag je zu löschen. Bei wiederholtem
+ * Hochladen (z.B. Korrektur eines falschen Bilds) sammelten sich dadurch
+ * beliebig viele alte Kopien an (Nutzerfeedback: "es wird nicht das
+ * Eventgruppenbild angezeigt" — tatsächlich lag ownGalleryImageUrls durch
+ * einen separaten Groß-/Kleinschreibungs-Bug beim UUID-Abgleich immer leer
+ * und die App fiel auf ein Mitwirkenden-Foto zurück; die Stapelung machte
+ * das Debuggen zusätzlich unübersichtlich). Erkennungsmerkmal für "das ist
+ * ein früherer Gruppenbild-Upload": der Storage-Pfad-Präfix
+ * entity-photos/event-groups/ — individuell je Event hochgeladene Bilder
+ * (anderer Pfad) bleiben unangetastet. */
 export async function addGroupImage(groupId: string, sourceUrl: string) {
   const supabase = await createClient();
   const eventIds = await memberEventIds(supabase, groupId);
 
   for (const eventId of eventIds) {
-    const { data: existing } = await supabase
+    const { error: deleteError } = await supabase
       .from("images")
-      .select("id")
+      .delete()
       .eq("origin_type", "event")
       .eq("origin_id", eventId)
-      .eq("source_url", sourceUrl)
-      .maybeSingle();
-    if (existing) continue;
+      .like("source_url", "%/entity-photos/event-groups/%");
+    if (deleteError) throw new Error(deleteError.message);
 
     const { data: currentImages } = await supabase
       .from("images")
@@ -168,9 +180,9 @@ export async function addGroupImage(groupId: string, sourceUrl: string) {
       .eq("origin_id", eventId)
       .order("sort_order", { ascending: true });
 
-    // Alle vorhandenen Bilder um eine Position nach hinten schieben, damit
-    // das Gruppenbild an Position 0 (= Miniaturansicht) landet, ohne die
-    // sort_order-Werte der bestehenden Bilder zu duplizieren.
+    // Alle verbleibenden (nicht-Gruppenbild-)Bilder um eine Position nach
+    // hinten schieben, damit das neue Gruppenbild an Position 0 landet,
+    // ohne sort_order-Werte zu duplizieren.
     for (let i = (currentImages ?? []).length - 1; i >= 0; i--) {
       await supabase
         .from("images")

@@ -70,7 +70,12 @@ struct LiveEventRepository: EventRepository {
         }
         return events.map { event in
             let candidateIDs = [event.venues?.id].compactMap { $0 } + (event.eventParticipants ?? []).flatMap { [$0.persons?.id, $0.ensembles?.id].compactMap { $0 } }
-            let fallback = candidateIDs.flatMap { galleryURLs[$0.uuidString] ?? [] }
+            // PostgREST liefert origin_id klein geschrieben, UUID.uuidString liefert
+            // GROSSBUCHSTABEN — ohne .lowercased() traf dieser Dictionary-Lookup nie,
+            // eigene Event-/Venue-/Mitwirkenden-Galeriebilder (inkl. Event-Gruppen-
+            // Bild) wurden dadurch still ignoriert und auf das Mitwirkenden-eigene
+            // photo_url zurückgefallen (Nutzerfeedback: falsches Bild angezeigt).
+            let fallback = candidateIDs.flatMap { galleryURLs[$0.uuidString.lowercased()] ?? [] }
             return ConcertEvent(
                 id: event.id,
                 slug: event.slug,
@@ -82,7 +87,7 @@ struct LiveEventRepository: EventRepository {
                 venues: event.venues,
                 eventParticipants: event.eventParticipants,
                 fallbackImageUrls: fallback,
-                ownGalleryImageUrls: galleryURLs[event.id.uuidString],
+                ownGalleryImageUrls: galleryURLs[event.id.uuidString.lowercased()],
                 category: event.category,
                 genreIDs: event.genreIDs,
                 genreLabels: event.genreLabels,
