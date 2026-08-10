@@ -116,7 +116,7 @@ function PreviewList({ items }: { items?: { title: string; startDateTime: string
     <ul className="mt-3 space-y-1 text-sm text-neutral-700">
       {items.map((e, i) => (
         <li key={i}>
-          {e.title} — {new Date(e.startDateTime).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" })}
+          {e.title} — {new Date(e.startDateTime).toLocaleString("de-DE", { timeZone: "Europe/Berlin", dateStyle: "medium", timeStyle: "short" })}
           {e.venueName ? ` · ${e.venueName}` : ""}
         </li>
       ))}

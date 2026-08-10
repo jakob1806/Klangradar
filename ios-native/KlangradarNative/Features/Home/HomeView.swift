@@ -83,7 +83,7 @@ struct HomeView: View {
                     EventRail(
                         title: "Heute in München",
                         events: events.dropFirst().filter { event in
-                            event.startDate.map(Calendar.current.isDateInToday) ?? false
+                            event.startDate.map(KlangradarDateTime.calendar.isDateInToday) ?? false
                         }
                     )
 
@@ -143,7 +143,7 @@ struct HomeView: View {
                         // leer und die Reihenfolge bleibt exakt wie zuvor.
                         events: events.dropFirst()
                             .filter { event in
-                                !(event.startDate.map(Calendar.current.isDateInToday) ?? false)
+                                !(event.startDate.map(KlangradarDateTime.calendar.isDateInToday) ?? false)
                             }
                             .sorted { lhs, rhs in
                                 let lhsMatch = lhs.matchesPersonalization(model.personalizedEntityIDs)
@@ -216,8 +216,8 @@ struct HomeView: View {
 
     private func isWithinNextSevenDays(_ event: ConcertEvent) -> Bool {
         guard let date = event.startDate,
-              let end = Calendar.current.date(byAdding: .day, value: 7, to: .now) else { return false }
-        return date >= .now && date <= end && !Calendar.current.isDateInToday(date)
+              let end = KlangradarDateTime.calendar.date(byAdding: .day, value: 7, to: .now) else { return false }
+        return date >= .now && date <= end && !KlangradarDateTime.calendar.isDateInToday(date)
     }
 
     private func isThisWeekend(_ event: ConcertEvent) -> Bool {
@@ -330,7 +330,7 @@ private struct HeroEventView: View {
 
     private func heroDate(_ event: ConcertEvent) -> String {
         guard let date = event.startDate else { return "NÄCHSTE VERANSTALTUNG" }
-        let day = Calendar.current.isDateInToday(date) ? "HEUTE" : date.formatted(.dateTime.locale(Locale(identifier: "de_DE")).weekday(.abbreviated).day().month(.abbreviated)).uppercased()
+        let day = KlangradarDateTime.calendar.isDateInToday(date) ? "HEUTE" : KlangradarDateTime.string(date, format: "EEE, d. MMM").uppercased()
         return "\(day) · \(date.formatted(date: .omitted, time: .shortened))"
     }
 }

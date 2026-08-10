@@ -17,6 +17,7 @@ import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/search/presentation/search_screen.dart';
 import '../../features/venues/presentation/venue_detail_screen.dart';
 import '../../features/works/presentation/work_detail_screen.dart';
+import '../time/munich_time.dart';
 import '../widgets/app_shell.dart';
 
 /// Routing-Baum nach docs/05-navigation-structure.md.
@@ -103,8 +104,8 @@ GoRouter buildAppRouter({String initialLocation = '/home'}) => GoRouter(
       builder: (context, state) {
         final dateParam = state.uri.queryParameters['date'];
         final day = dateParam != null
-            ? (DateTime.tryParse(dateParam) ?? DateTime.now())
-            : DateTime.now();
+            ? (DateTime.tryParse(dateParam) ?? MunichTime.now())
+            : MunichTime.now();
         return EveningPlanScreen(day: day);
       },
     ),

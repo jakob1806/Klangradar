@@ -23,7 +23,7 @@ struct EventCalendarView: View {
     @State private var createdListName: String?
 
     private var selectedEvents: [ConcertEvent] {
-        events.filter { $0.startDate.map { Calendar.current.isDate($0, inSameDayAs: selectedDate) } ?? false }
+        events.filter { $0.startDate.map { KlangradarDateTime.calendar.isDate($0, inSameDayAs: selectedDate) } ?? false }
     }
 
     var body: some View {
@@ -37,7 +37,7 @@ struct EventCalendarView: View {
                     )
 
                     HStack {
-                        Text(selectedDate.formatted(.dateTime.locale(Locale(identifier: "de_DE")).weekday(.wide).day().month(.wide)))
+                        Text(KlangradarDateTime.string(selectedDate, format: "EEEE, d. MMMM"))
                             .font(.title2.bold())
                         Spacer()
                         if auth?.userID != nil, !selectedEvents.isEmpty {
@@ -169,7 +169,7 @@ private struct MonthEventCalendar: View {
             HStack {
                 Button("Vorheriger Monat", systemImage: "chevron.left") { changeMonth(-1) }.labelStyle(.iconOnly)
                 Spacer()
-                Text(visibleMonth.formatted(.dateTime.locale(Locale(identifier: "de_DE")).month(.wide).year())).font(.headline)
+                Text(KlangradarDateTime.string(visibleMonth, format: "MMMM yyyy")).font(.headline)
                 Spacer()
                 Button("Nächster Monat", systemImage: "chevron.right") { changeMonth(1) }.labelStyle(.iconOnly)
             }
@@ -204,7 +204,7 @@ private struct CalendarEventRow: View {
                 .clipped()
                 .clipShape(.rect(cornerRadius: 12))
             VStack(alignment: .leading, spacing: 5) {
-                Text(event.startDate?.formatted(.dateTime.hour().minute()) ?? "–")
+                Text(event.startDate.map { KlangradarDateTime.string($0, format: "HH:mm") } ?? "–")
                     .font(.caption.bold().monospacedDigit())
                     .foregroundStyle(KlangradarTheme.accent)
                 Text(event.title).font(.headline).lineLimit(2).fixedSize(horizontal: false, vertical: true)

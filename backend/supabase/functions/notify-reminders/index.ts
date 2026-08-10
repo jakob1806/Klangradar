@@ -14,13 +14,16 @@
 // verhindert Doppelversand bei mehrfachem Lauf.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { munichDayRange } from "../_shared/munichTime.ts";
 import { sendPushToTokens, verifyFcmCredentials } from "../_shared/fcm.ts";
 
 const NOTIFICATION_TYPE = "reminder_day_before";
 
 interface FavoriteRow {
   user_id: string;
-  events: { id: string; title: string; slug: string; start_datetime: string } | null;
+  events:
+    | { id: string; title: string; slug: string; start_datetime: string }
+    | null;
 }
 
 Deno.serve(async (req) => {
@@ -39,7 +42,9 @@ Deno.serve(async (req) => {
   // noch keine echten Push-Tokens in der DB gibt.
   if (body.verifyOnly === true) {
     const result = await verifyFcmCredentials();
-    return new Response(JSON.stringify(result), { status: result.ok ? 200 : 500 });
+    return new Response(JSON.stringify(result), {
+      status: result.ok ? 200 : 500,
+    });
   }
 
   const supabase = createClient(
@@ -47,12 +52,9 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
   );
 
-  const now = new Date();
-  const tomorrowStart = new Date(now);
-  tomorrowStart.setUTCDate(tomorrowStart.getUTCDate() + 1);
-  tomorrowStart.setUTCHours(0, 0, 0, 0);
-  const tomorrowEnd = new Date(tomorrowStart);
-  tomorrowEnd.setUTCHours(23, 59, 59, 999);
+  // „Morgen“ meint den Münchner Kalendertag. UTC-Mitternacht wäre je nach
+  // Sommer-/Winterzeit um ein bzw. zwei Stunden verschoben.
+  const { start: tomorrowStart, end: tomorrowEnd } = munichDayRange(1);
 
   const { data: favorites, error: fetchError } = await supabase
     .from("favorites")
@@ -62,7 +64,9 @@ Deno.serve(async (req) => {
     .returns<FavoriteRow[]>();
 
   if (fetchError) {
-    return new Response(JSON.stringify({ error: fetchError.message }), { status: 500 });
+    return new Response(JSON.stringify({ error: fetchError.message }), {
+      status: 500,
+    });
   }
   // Der events-Join filtert oben nicht das äußere Ergebnis (PostgREST
   // wendet .gte/.lte auf embedded resources als Filter an, liefert aber bei
@@ -120,7 +124,9 @@ Deno.serve(async (req) => {
         data: { route: `/event/${event.slug}` },
       });
 
-      const invalidTokens = results.filter((r) => r.invalidToken).map((r) => r.token);
+      const invalidTokens = results.filter((r) => r.invalidToken).map((r) =>
+        r.token
+      );
       if (invalidTokens.length > 0) {
         await supabase.from("push_tokens").delete().in("token", invalidTokens);
         invalidTokensRemoved += invalidTokens.length;
@@ -138,7 +144,11 @@ Deno.serve(async (req) => {
       });
       if (anySuccess) notified++;
     } catch (err) {
-      errors.push(`user ${fav.user_id} / event ${event.id}: ${err instanceof Error ? err.message : String(err)}`);
+      errors.push(
+        `user ${fav.user_id} / event ${event.id}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
     }
   }
 

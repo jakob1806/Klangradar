@@ -8,6 +8,7 @@ import {
   SelectAllCheckbox,
 } from "./bulk-select";
 import { ImageStatusBadge } from "@/components/image-status-badge";
+import { formatMunichDateTime } from "@/lib/munich-time";
 
 // Event-Daten ändern sich häufig (Preise, Restkarten) — nie statisch cachen.
 export const dynamic = "force-dynamic";
@@ -196,10 +197,7 @@ export default async function EventsPage({
                       <td className="px-4 py-3 font-medium text-neutral-900">{event.title}</td>
                       <td className="px-4 py-3 text-neutral-600">{event.venues?.name ?? "—"}</td>
                       <td className="px-4 py-3 text-neutral-600 tabular-nums">
-                        {new Date(event.start_datetime).toLocaleString("de-DE", {
-                          dateStyle: "medium",
-                          timeStyle: "short",
-                        })}
+                        {formatMunichDateTime(event.start_datetime)}
                       </td>
                       <td className="px-4 py-3 text-neutral-500">{event.sources?.name ?? "manuell"}</td>
                       <td className="px-4 py-3">

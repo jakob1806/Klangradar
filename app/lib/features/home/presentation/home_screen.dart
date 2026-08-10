@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/time/munich_time.dart';
 import '../../../core/widgets/editorial_collections_section.dart';
 import '../../../core/widgets/event_section.dart';
 import '../../../core/widgets/genre_artwork.dart';
@@ -191,7 +192,7 @@ class _Hero extends StatelessWidget {
     final genre = EventGenre.fromSlug(
       genreSlugs.isEmpty ? null : genreSlugs.first,
     );
-    final start = DateTime.tryParse(event?['start_datetime'] as String? ?? '');
+    final start = MunichTime.tryParse(event?['start_datetime'] as String?);
     final venueName = event?['venues']?['name'] as String?;
     final imageUrls = event?['image_urls'] as List?;
     final imageUrl = (imageUrls != null && imageUrls.isNotEmpty)

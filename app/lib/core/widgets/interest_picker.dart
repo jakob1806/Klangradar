@@ -127,11 +127,17 @@ class _InterestSectionState extends ConsumerState<InterestSection> {
             children: [
               Row(
                 children: [
-                  Text(widget.title, style: Theme.of(context).textTheme.titleMedium),
+                  Text(
+                    widget.title,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
                   if (widget.selectedIds.isNotEmpty) ...[
                     const SizedBox(width: AppSpacing.sm),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: colors.accentPrimary.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(999),
@@ -157,8 +163,15 @@ class _InterestSectionState extends ConsumerState<InterestSection> {
                   decoration: InputDecoration(
                     isDense: true,
                     hintText: l10n.interestsSearchHint,
-                    hintStyle: TextStyle(color: colors.textTertiary, fontSize: 13),
-                    prefixIcon: Icon(Icons.search_rounded, size: 18, color: colors.textTertiary),
+                    hintStyle: TextStyle(
+                      color: colors.textTertiary,
+                      fontSize: 13,
+                    ),
+                    prefixIcon: Icon(
+                      Icons.search_rounded,
+                      size: 18,
+                      color: colors.textTertiary,
+                    ),
                     prefixIconConstraints: const BoxConstraints(minWidth: 36),
                     filled: true,
                     fillColor: colors.backgroundPrimary,
@@ -203,7 +216,9 @@ class _InterestSectionState extends ConsumerState<InterestSection> {
                         // über Hintergrund-/Rahmen-/Textfarbe signalisiert — für
                         // farbenblinde Nutzer:innen (accentPrimary ist ein
                         // Rotton) kaum von "nicht ausgewählt" zu unterscheiden.
-                        selectedColor: colors.accentPrimary.withValues(alpha: 0.16),
+                        selectedColor: colors.accentPrimary.withValues(
+                          alpha: 0.16,
+                        ),
                         backgroundColor: colors.backgroundSecondary,
                         side: BorderSide(
                           color: widget.selectedIds.contains(option.id)

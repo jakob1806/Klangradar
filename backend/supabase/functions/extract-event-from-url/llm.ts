@@ -10,7 +10,11 @@
 // Provider-Secrets — ohne jeden Key liefert diese Funktion einen klaren
 // Fehler statt eines still leeren Ergebnisses.
 
-import { callAiFunction, hasAnyAiProviderConfigured, type AiFunctionDeclaration } from "../_shared/ai/router.ts";
+import {
+  type AiFunctionDeclaration,
+  callAiFunction,
+  hasAnyAiProviderConfigured,
+} from "../_shared/ai/router.ts";
 import type { RawEvent } from "../ingest-source/types.ts";
 
 const MAX_TEXT_CHARS = 15000; // grobe Kosten-/Token-Begrenzung pro Aufruf
@@ -31,18 +35,34 @@ const EVENT_EXTRACTION_FUNCTION: AiFunctionDeclaration = {
             title: { type: "string" },
             description: {
               type: "string",
-              description: "Programm, Werke, Mitwirkende — falls im Text vorhanden, sonst weglassen.",
+              description:
+                "Programm, Werke, Mitwirkende — falls im Text vorhanden, sonst weglassen.",
             },
             startDateTime: {
               type: "string",
               description:
-                "ISO 8601 mit Zeitzonen-Offset, z.B. 2026-08-15T19:30:00+02:00. Fehlt im Text das Jahr, aus dem heutigen Datum ableiten (Veranstaltungsseiten zeigen kommende, nicht vergangene Termine).",
+                "ISO 8601 mit dem zum Termin gültigen Offset von Europe/Berlin (CET/CEST), z.B. 2026-08-15T19:30:00+02:00. Niemals eine zeitzonenlose Uhrzeit ausgeben. Fehlt im Text das Jahr, aus dem heutigen Datum ableiten (Veranstaltungsseiten zeigen kommende, nicht vergangene Termine).",
             },
-            venueName: { type: "string", description: "Falls im Text erkennbar, sonst weglassen." },
-            venueAddress: { type: "string", description: "Falls im Text erkennbar, sonst weglassen." },
-            priceMin: { type: "number", description: "Falls im Text erkennbar, sonst weglassen." },
-            priceMax: { type: "number", description: "Falls im Text erkennbar, sonst weglassen." },
-            isFree: { type: "boolean", description: "Falls im Text erkennbar, sonst weglassen." },
+            venueName: {
+              type: "string",
+              description: "Falls im Text erkennbar, sonst weglassen.",
+            },
+            venueAddress: {
+              type: "string",
+              description: "Falls im Text erkennbar, sonst weglassen.",
+            },
+            priceMin: {
+              type: "number",
+              description: "Falls im Text erkennbar, sonst weglassen.",
+            },
+            priceMax: {
+              type: "number",
+              description: "Falls im Text erkennbar, sonst weglassen.",
+            },
+            isFree: {
+              type: "boolean",
+              description: "Falls im Text erkennbar, sonst weglassen.",
+            },
           },
           required: ["title", "startDateTime"],
         },
@@ -67,14 +87,17 @@ export async function extractEventsWithLlm(
       events: [],
       errors: [
         "Kein AI-Provider-Secret gesetzt (CEREBRAS_API_KEY, NVIDIA_API_KEY oder GEMINI_API_KEY) — " +
-          "KI-Fallback nicht verfügbar (Schema.org-Extraktion hat für diese Seite keine Events gefunden).",
+        "KI-Fallback nicht verfügbar (Schema.org-Extraktion hat für diese Seite keine Events gefunden).",
       ],
     };
   }
 
   const truncated = pageText.slice(0, MAX_TEXT_CHARS);
   if (!truncated.trim()) {
-    return { events: [], errors: ["Seitentext war leer — nichts zu extrahieren."] };
+    return {
+      events: [],
+      errors: ["Seitentext war leer — nichts zu extrahieren."],
+    };
   }
 
   const response = await callAiFunction(
@@ -87,7 +110,12 @@ export async function extractEventsWithLlm(
   const args = response?.args;
 
   if (!args) {
-    return { events: [], errors: ["AI-Aufruf fehlgeschlagen (alle Provider) oder lieferte keinen extract_events-Aufruf."] };
+    return {
+      events: [],
+      errors: [
+        "AI-Aufruf fehlgeschlagen (alle Provider) oder lieferte keinen extract_events-Aufruf.",
+      ],
+    };
   }
 
   const rawEvents = Array.isArray(args.events) ? args.events : [];
@@ -95,8 +123,21 @@ export async function extractEventsWithLlm(
   const events: RawEvent[] = [];
 
   for (const e of rawEvents) {
-    if (!isRecord(e) || typeof e.title !== "string" || !e.title.trim() || typeof e.startDateTime !== "string") {
-      errors.push(`Übersprungen: fehlender Titel oder Startzeit (${JSON.stringify(e).slice(0, 200)})`);
+    if (
+      !isRecord(e) || typeof e.title !== "string" || !e.title.trim() ||
+      typeof e.startDateTime !== "string"
+    ) {
+      errors.push(
+        `Übersprungen: fehlender Titel oder Startzeit (${
+          JSON.stringify(e).slice(0, 200)
+        })`,
+      );
+      continue;
+    }
+    if (!/(?:Z|[+-]\d{2}:\d{2})$/.test(e.startDateTime)) {
+      errors.push(
+        `"${e.title}": Datum ohne Zeitzonen-Offset "${e.startDateTime}"`,
+      );
       continue;
     }
     const parsedDate = new Date(e.startDateTime);
@@ -113,11 +154,17 @@ export async function extractEventsWithLlm(
       // Fuzzy-Match (Titel+Venue+Zeit).
       externalId: null,
       title: e.title.trim(),
-      description: typeof e.description === "string" ? (e.description.trim() || null) : null,
+      description: typeof e.description === "string"
+        ? (e.description.trim() || null)
+        : null,
       startDateTime: parsedDate.toISOString(),
       endDateTime: null,
-      venueName: typeof e.venueName === "string" ? (e.venueName.trim() || null) : null,
-      venueAddress: typeof e.venueAddress === "string" ? (e.venueAddress.trim() || null) : null,
+      venueName: typeof e.venueName === "string"
+        ? (e.venueName.trim() || null)
+        : null,
+      venueAddress: typeof e.venueAddress === "string"
+        ? (e.venueAddress.trim() || null)
+        : null,
       url: sourceUrl,
       imageUrl: null,
       priceMin: typeof e.priceMin === "number" ? e.priceMin : null,

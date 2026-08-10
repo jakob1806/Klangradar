@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/time/munich_time.dart';
+
 class MapVenue {
   const MapVenue({
     required this.id,
@@ -66,7 +68,7 @@ class VenueUpcomingEvent {
       id: row['id'] as String,
       slug: row['slug'] as String,
       title: row['title'] as String? ?? '',
-      startDateTime: DateTime.tryParse(row['start_datetime'] as String? ?? ''),
+      startDateTime: MunichTime.tryParse(row['start_datetime'] as String?),
       imageUrl: (imageUrls != null && imageUrls.isNotEmpty)
           ? imageUrls.first as String?
           : null,

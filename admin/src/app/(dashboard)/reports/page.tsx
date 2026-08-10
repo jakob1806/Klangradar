@@ -46,7 +46,7 @@ export default async function ReportsPage() {
                         </span>
                       )}
                       <span className="text-xs text-neutral-400">
-                        {new Date(report.created_at).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" })}
+                        {new Date(report.created_at).toLocaleString("de-DE", { timeZone: "Europe/Berlin", dateStyle: "medium", timeStyle: "short" })}
                       </span>
                     </div>
                     <p className="mt-2 text-sm font-medium text-neutral-900">{report.message}</p>

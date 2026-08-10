@@ -223,7 +223,7 @@ struct EntityDetailView: View {
 
     @ViewBuilder private func linkedEvents(_ events: [LinkedEvent], kind: EntityKind) -> some View {
         let sorted = events
-            .filter { kind != .venue || ($0.startDate ?? .distantPast) >= Calendar.current.startOfDay(for: .now) }
+            .filter { kind != .venue || ($0.startDate ?? .distantPast) >= KlangradarDateTime.calendar.startOfDay(for: .now) }
             .sorted { ($0.startDate ?? .distantFuture) < ($1.startDate ?? .distantFuture) }
 
         if !sorted.isEmpty {
@@ -258,7 +258,7 @@ struct EntityDetailView: View {
         return VStack(alignment: .leading, spacing: 18) {
             ForEach(groups) { group in
                 VStack(alignment: .leading, spacing: 9) {
-                    Text(group.month.formatted(.dateTime.locale(Locale(identifier: "de_DE")).month(.wide).year()))
+                    Text(KlangradarDateTime.string(group.month, format: "MMMM yyyy"))
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.secondary)
                     LiquidGlassSurface(cornerRadius: 22) {
@@ -286,9 +286,9 @@ struct EntityDetailView: View {
     private func linkedEventLabel(_ event: LinkedEvent, showsVenue: Bool) -> some View {
         HStack(spacing: 14) {
             VStack(spacing: 0) {
-                Text(event.startDate?.formatted(.dateTime.locale(Locale(identifier: "de_DE")).day()) ?? "–")
+                Text(event.startDate.map { KlangradarDateTime.string($0, format: "dd") } ?? "–")
                     .font(.title3.bold())
-                Text(event.startDate?.formatted(.dateTime.locale(Locale(identifier: "de_DE")).month(.abbreviated)) ?? "")
+                Text(event.startDate.map { KlangradarDateTime.string($0, format: "MMM") } ?? "")
                     .font(.caption2.weight(.semibold))
                     .textCase(.uppercase)
                     .foregroundStyle(KlangradarTheme.accent)
@@ -300,7 +300,7 @@ struct EntityDetailView: View {
                 Text(event.title).font(.headline).lineLimit(2)
                 HStack(spacing: 5) {
                     if let date = event.startDate {
-                        Text(date.formatted(.dateTime.locale(Locale(identifier: "de_DE")).weekday(.abbreviated).hour().minute()))
+                        Text(KlangradarDateTime.string(date, format: "EEE HH:mm"))
                     }
                     if showsVenue, let venue = event.venueName { Text("· \(venue)") }
                     if let role = event.role { Text("· \(role)") }

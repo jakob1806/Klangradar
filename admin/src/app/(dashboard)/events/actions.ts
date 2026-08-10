@@ -3,11 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { munichLocalToISOString } from "@/lib/munich-time";
 
 function readEventFields(formData: FormData) {
-  // Nimmt an, dass die Browser-Zeitzone der Redakteurin Europe/Berlin ist —
-  // datetime-local liefert keine Zeitzone mit, new Date() interpretiert sie
-  // als lokale Zeit des Browsers.
+  // datetime-local enthält absichtlich keine Zone. Server Actions laufen auf
+  // Vercel in UTC; deshalb ausdrücklich als Münchner Zeit interpretieren.
   const startLocal = String(formData.get("start_datetime") ?? "");
 
   return {
@@ -15,7 +15,7 @@ function readEventFields(formData: FormData) {
     title: String(formData.get("title") ?? "").trim(),
     subtitle: String(formData.get("subtitle") ?? "").trim() || null,
     description_de: String(formData.get("description_de") ?? "").trim() || null,
-    start_datetime: startLocal ? new Date(startLocal).toISOString() : null,
+    start_datetime: startLocal ? munichLocalToISOString(startLocal) : null,
     duration_minutes: formData.get("duration_minutes")
       ? Number(formData.get("duration_minutes"))
       : null,

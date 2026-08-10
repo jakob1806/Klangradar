@@ -7,6 +7,7 @@ import 'package:table_calendar/table_calendar.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/time/munich_time.dart';
 import '../../../core/widgets/event_card.dart';
 import '../../../core/widgets/favorite_button.dart';
 import '../../../core/widgets/genre_artwork.dart';
@@ -27,8 +28,8 @@ class CalendarScreen extends ConsumerStatefulWidget {
 }
 
 class _CalendarScreenState extends ConsumerState<CalendarScreen> {
-  DateTime _focusedDay = DateTime.now();
-  DateTime _selectedDay = DateTime.now();
+  DateTime _focusedDay = MunichTime.now();
+  DateTime _selectedDay = MunichTime.now();
   _CalendarViewMode _mode = _CalendarViewMode.month;
 
   @override
@@ -69,7 +70,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
             .where(
               (d) =>
                   !isSameDay(d, _selectedDay) &&
-                  !d.isBefore(_dayKey(DateTime.now())),
+                  !d.isBefore(_dayKey(MunichTime.now())),
             )
             .toList()
           ..sort();
@@ -123,8 +124,8 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
               ),
               child: TableCalendar(
                 locale: Localizations.localeOf(context).toString(),
-                firstDay: DateTime.now().subtract(const Duration(days: 365)),
-                lastDay: DateTime.now().add(const Duration(days: 365)),
+                firstDay: MunichTime.now().subtract(const Duration(days: 365)),
+                lastDay: MunichTime.now().add(const Duration(days: 365)),
                 focusedDay: _focusedDay,
                 calendarFormat: _mode == _CalendarViewMode.week
                     ? CalendarFormat.week
@@ -192,7 +193,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                   selectedBuilder: (context, day, focusedDay) => _DayCell(
                     day: day,
                     colors: colors,
-                    isToday: isSameDay(day, DateTime.now()),
+                    isToday: isSameDay(day, MunichTime.now()),
                     isSelected: true,
                     eventCount: (eventsByDay[_dayKey(day)] ?? const []).length,
                   ),

@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/gallery/entity_gallery_providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/time/munich_time.dart';
 import '../../../core/widgets/detail_card.dart';
 import '../../../core/widgets/detail_hero_background.dart';
 import '../../../core/widgets/entity_event_row.dart';
@@ -93,16 +94,16 @@ class EnsembleDetailScreen extends ConsumerWidget {
           final events = data['events'] as List;
           final sources = data['sources'] as Map<String, FieldSource>;
           final similar = data['similar'] as List;
-          final now = DateTime.now();
+          final now = MunichTime.now();
           final upcoming = events.where((row) {
-            final start = DateTime.tryParse(
+            final start = MunichTime.tryParse(
               row['events']?['start_datetime'] ?? '',
             );
             return start != null && start.isAfter(now);
           }).toList();
           final past = events
               .where((row) {
-                final start = DateTime.tryParse(
+                final start = MunichTime.tryParse(
                   row['events']?['start_datetime'] ?? '',
                 );
                 return start != null && start.isBefore(now);
@@ -325,7 +326,7 @@ class _EnsembleEventRow extends StatelessWidget {
     return EntityEventRow(
       title: event['title'] ?? '',
       slug: event['slug'] as String? ?? '',
-      start: DateTime.tryParse(event['start_datetime'] ?? ''),
+      start: MunichTime.tryParse(event['start_datetime']),
       subtitle: event['venues']?['name'] as String?,
     );
   }

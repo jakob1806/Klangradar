@@ -15,11 +15,13 @@ import 'core/push/push_service.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_mode_provider.dart';
+import 'core/time/munich_time.dart';
 import 'firebase_options.dart';
 import 'l10n/generated/app_localizations.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  MunichTime.initialize();
 
   await Env.load();
   await initializeDateFormatting('de_DE', null);

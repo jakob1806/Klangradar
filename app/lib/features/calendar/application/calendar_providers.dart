@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/auth/auth_providers.dart';
+import '../../../core/time/munich_time.dart';
 import '../../home/application/home_providers.dart';
 
 /// Schlüssel für [monthEventsProvider] — Jahr+Monat statt eines konkreten
@@ -96,12 +97,12 @@ final upcomingFavoriteEventsProvider =
           )
           .eq('user_id', user.id);
 
-      final now = DateTime.now();
+      final now = MunichTime.now();
       final events = <SyncableEvent>[];
       for (final row in rows as List) {
         final e = row['events'] as Map<String, dynamic>?;
         if (e == null) continue;
-        final start = DateTime.tryParse(e['start_datetime'] as String? ?? '');
+        final start = MunichTime.tryParse(e['start_datetime'] as String?);
         if (start == null || !start.isAfter(now)) continue;
 
         final venue = e['venues'] as Map<String, dynamic>?;
@@ -147,7 +148,7 @@ class AgendaEvents {
 final agendaEventsProvider = FutureProvider.autoDispose<AgendaEvents>((
   ref,
 ) async {
-  final now = DateTime.now();
+  final now = MunichTime.now();
   final rows = await Supabase.instance.client
       .from('events')
       .select(_calendarEventColumns)

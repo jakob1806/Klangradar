@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Field, Select, TextArea, TextInput } from "@/components/form-fields";
 import { SubmitButton } from "@/components/submit-button";
+import { toMunichDatetimeLocal } from "@/lib/munich-time";
 
 function slugify(value: string) {
   return value
@@ -13,13 +14,6 @@ function slugify(value: string) {
     .replace(/ß/g, "ss")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "");
-}
-
-function toDatetimeLocalValue(iso: string | null) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 const STATUS_OPTIONS = [
@@ -118,7 +112,7 @@ export function EventForm({
             name="start_datetime"
             type="datetime-local"
             required
-            defaultValue={toDatetimeLocalValue(initial?.start_datetime ?? null)}
+            defaultValue={toMunichDatetimeLocal(initial?.start_datetime ?? null)}
           />
         </Field>
         <Field label="Dauer (Minuten)">

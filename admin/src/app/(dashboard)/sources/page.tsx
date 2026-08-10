@@ -102,7 +102,7 @@ export default async function SourcesPage() {
                     </td>
                     <td className="px-4 py-3 text-neutral-600 tabular-nums">
                       {source.last_run_at
-                        ? new Date(source.last_run_at).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" })
+                        ? new Date(source.last_run_at).toLocaleString("de-DE", { timeZone: "Europe/Berlin", dateStyle: "medium", timeStyle: "short" })
                         : "—"}
                     </td>
                     <td className="px-4 py-3 text-right">

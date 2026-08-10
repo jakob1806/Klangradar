@@ -47,4 +47,12 @@ final class ConcertEventTests: XCTestCase {
         XCTAssertFalse(detail?.objects("event_works").isEmpty ?? true)
         XCTAssertFalse(detail?.objects("event_participants").isEmpty ?? true)
     }
+
+    func testMunichTimeUsesSummerAndWinterOffsets() throws {
+        let summer = try XCTUnwrap(FlexibleDateParser.date(from: "2027-06-28T17:00:00Z"))
+        let winter = try XCTUnwrap(FlexibleDateParser.date(from: "2027-01-15T18:00:00Z"))
+
+        XCTAssertEqual(KlangradarDateTime.string(summer, format: "HH:mm"), "19:00")
+        XCTAssertEqual(KlangradarDateTime.string(winter, format: "HH:mm"), "19:00")
+    }
 }

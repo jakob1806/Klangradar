@@ -74,7 +74,7 @@ struct VenueMapView: View {
                             .tint(KlangradarTheme.accent)
                             .tag(venue.id)
                     } else if let first = group.first {
-                        Annotation(first.name, coordinate: first.coordinate) {
+                        Annotation(groupTitle(for: group), coordinate: first.coordinate) {
                             Button {
                                 selectedVenueGroup = group.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
                             } label: {
@@ -121,6 +121,10 @@ struct VenueMapView: View {
             .onChange(of: selectedVenueID) { _, id in
                 selectedVenue = venues.first { $0.id == id }
             }
+    }
+
+    private func groupTitle(for group: [VenueLocation]) -> String {
+        titleForVenueGroup(group)
     }
 
     private var filterSheet: some View {
@@ -179,7 +183,7 @@ private struct VenuePreviewSheet: View {
                                 EventArtwork(event: event).frame(width: 48, height: 48).clipped().clipShape(.rect(cornerRadius: 10))
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(event.title).font(.headline).lineLimit(1)
-                                    Text(event.startDate?.formatted(.dateTime.locale(Locale(identifier: "de_DE")).day().month().year().hour().minute()) ?? "").font(.caption).foregroundStyle(.secondary)
+                                    Text(event.startDate.map { KlangradarDateTime.string($0, format: "dd.MM.yyyy, HH:mm") } ?? "").font(.caption).foregroundStyle(.secondary)
                                 }
                                 Spacer(); Image(systemName: "chevron.right").foregroundStyle(.tertiary)
                             }

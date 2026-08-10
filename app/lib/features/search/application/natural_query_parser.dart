@@ -8,6 +8,8 @@
 /// search_all geht.
 library;
 
+import '../../../core/time/munich_time.dart';
+
 class ParsedSearchQuery {
   const ParsedSearchQuery({
     required this.coreQuery,
@@ -37,7 +39,7 @@ DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
 /// (from, to, matchedPhrase) für die erste erkannte Datumsphrase, oder
 /// null. `to` ist EXKLUSIV (für den Vergleich `start < to`).
 ({DateTime from, DateTime to, String phrase})? _matchDatePhrase(String q) {
-  final now = DateTime.now();
+  final now = MunichTime.now();
   final today = _dateOnly(now);
 
   bool contains(String phrase) => q.contains(phrase);

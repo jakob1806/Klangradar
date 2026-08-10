@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/gallery/entity_gallery_providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/time/munich_time.dart';
 import '../../../core/widgets/detail_card.dart';
 import '../../../core/widgets/entity_event_row.dart';
 import '../../../core/widgets/entity_photo_gallery.dart';
@@ -84,14 +85,14 @@ class WorkDetailScreen extends ConsumerWidget {
           final work = data['work'] as Map<String, dynamic>;
           final sources = data['sources'] as Map<String, FieldSource>;
           final composer = work['composer'] as Map<String, dynamic>?;
-          final now = DateTime.now();
+          final now = MunichTime.now();
           final performances = (data['performances'] as List)
               .map((p) => p['events'] as Map<String, dynamic>?)
               .whereType<Map<String, dynamic>>()
               .toList();
           final upcoming =
               performances.where((e) {
-                final start = DateTime.tryParse(e['start_datetime'] ?? '');
+                final start = MunichTime.tryParse(e['start_datetime']);
                 return start != null && start.isAfter(now);
               }).toList()..sort(
                 (a, b) => DateTime.parse(
@@ -100,7 +101,7 @@ class WorkDetailScreen extends ConsumerWidget {
               );
           final past =
               performances.where((e) {
-                final start = DateTime.tryParse(e['start_datetime'] ?? '');
+                final start = MunichTime.tryParse(e['start_datetime']);
                 return start != null && start.isBefore(now);
               }).toList()..sort(
                 (a, b) => DateTime.parse(
@@ -267,7 +268,7 @@ class WorkDetailScreen extends ConsumerWidget {
                         child: EntityEventRow(
                           title: event['title'] ?? '',
                           slug: event['slug'] as String? ?? '',
-                          start: DateTime.tryParse(
+                          start: MunichTime.tryParse(
                             event['start_datetime'] ?? '',
                           ),
                           subtitle: event['venues']?['name'] as String?,

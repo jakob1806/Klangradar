@@ -10,6 +10,7 @@ import '../../../core/auth/auth_providers.dart';
 import '../../../core/events/filtered_events_providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/time/munich_time.dart';
 import '../../../core/widgets/cropped_network_image.dart';
 import '../../../core/widgets/event_filter_sheet.dart';
 import '../../../core/widgets/genre_artwork.dart';
@@ -64,7 +65,7 @@ final _searchResultsProvider =
             }
           }
           if (parsed.dateFrom != null) {
-            final start = DateTime.tryParse(r['start_datetime'] ?? '');
+            final start = MunichTime.tryParse(r['start_datetime']);
             if (start == null ||
                 start.isBefore(parsed.dateFrom!) ||
                 !start.isBefore(parsed.dateTo!)) {

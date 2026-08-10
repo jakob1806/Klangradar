@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../l10n/generated/app_localizations.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
+import '../time/munich_time.dart';
 
 /// Redaktionelle Themensammlungen (Phase D.1, docs/09-feature-expansion-
 /// plan.md, Nutzerwunsch Punkt 11: "Höhepunkte der Woche... thematische
@@ -23,7 +24,7 @@ final editorialCollectionsProvider =
           )
           .order('sort_order', ascending: true);
 
-      final now = DateTime.now();
+      final now = MunichTime.now();
       // Sammlungen ohne noch anstehende Veranstaltungen werden nicht mehr
       // gezeigt (Nutzerwunsch: keine manuelle Pflege für "abgelaufene"
       // Sammlungen nötig) — die Zuordnung selbst bleibt im Admin-Dashboard
@@ -31,7 +32,7 @@ final editorialCollectionsProvider =
       return (rows as List).cast<Map<String, dynamic>>().where((c) {
         final links = c['editorial_collection_events'] as List? ?? const [];
         return links.any((l) {
-          final start = DateTime.tryParse(
+          final start = MunichTime.tryParse(
             l['events']?['start_datetime'] as String? ?? '',
           );
           return start != null && start.isAfter(now);

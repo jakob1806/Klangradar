@@ -1,5 +1,24 @@
 import Foundation
 
+enum KlangradarDateTime {
+    static let timeZone = TimeZone(identifier: "Europe/Berlin")!
+    static var calendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = Locale(identifier: "de_DE")
+        calendar.timeZone = timeZone
+        return calendar
+    }
+
+    static func string(_ date: Date, format: String) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "de_DE")
+        formatter.calendar = calendar
+        formatter.timeZone = timeZone
+        formatter.dateFormat = format
+        return formatter.string(from: date)
+    }
+}
+
 struct ConcertEvent: Codable, Identifiable, Hashable, Sendable {
     let id: UUID
     let slug: String
@@ -38,7 +57,11 @@ struct ConcertEvent: Codable, Identifiable, Hashable, Sendable {
 
     var dateLine: String {
         guard let startDate else { return venueName }
-        return "\(startDate.formatted(.dateTime.locale(Locale(identifier: "de_DE")).weekday(.abbreviated).hour().minute())) · \(venueName)"
+        // Nutzerfeedback: "Mo, 18:00" allein zeigt weder Tag noch Monat —
+        // ohne den vollen Kontext (z.B. beim Scrollen durch Suchergebnisse
+        // über mehrere Wochen) weiß man nicht, WELCHER Montag gemeint ist.
+        // Tag+Monat ergänzt, Wochentag/Uhrzeit bleiben aus Platzgründen kurz.
+        return "\(KlangradarDateTime.string(startDate, format: "EEE, d. MMM HH:mm")) · \(venueName)"
     }
 
     init(
