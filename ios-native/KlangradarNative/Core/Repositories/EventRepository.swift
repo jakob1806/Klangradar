@@ -69,7 +69,7 @@ struct LiveEventRepository: EventRepository {
             }
         }
         return events.map { event in
-            let candidateIDs = [event.id, event.venues?.id].compactMap { $0 } + (event.eventParticipants ?? []).flatMap { [$0.persons?.id, $0.ensembles?.id].compactMap { $0 } }
+            let candidateIDs = [event.venues?.id].compactMap { $0 } + (event.eventParticipants ?? []).flatMap { [$0.persons?.id, $0.ensembles?.id].compactMap { $0 } }
             let fallback = candidateIDs.flatMap { galleryURLs[$0.uuidString] ?? [] }
             return ConcertEvent(
                 id: event.id,
@@ -82,6 +82,7 @@ struct LiveEventRepository: EventRepository {
                 venues: event.venues,
                 eventParticipants: event.eventParticipants,
                 fallbackImageUrls: fallback,
+                ownGalleryImageUrls: galleryURLs[event.id.uuidString],
                 category: event.category,
                 genreIDs: event.genreIDs,
                 genreLabels: event.genreLabels,

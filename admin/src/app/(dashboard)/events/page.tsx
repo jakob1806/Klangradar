@@ -76,6 +76,25 @@ export default async function EventsPage({
     .range(from, to)
     .returns<EventRow[]>();
 
+  // "Bild"-Spalte prüfte bisher nur events.image_urls (vom Scraping befüllt)
+  // und ignorierte dabei komplett die images-Galerie-Tabelle — dorthin
+  // schreibt z.B. das Event-Gruppen-Gruppenbild (siehe event-groups/[id]/
+  // actions.ts addGroupImage). Ein hochgeladenes Gruppenbild zeigte deshalb
+  // hier weiterhin "Kein Bild", obwohl es in der App bereits sichtbar sein
+  // sollte. Zusätzlich abfragen, welche der aktuell angezeigten Events
+  // mindestens ein freigegebenes Galeriebild haben.
+  const idsWithoutOwnImage = (data ?? []).filter((e) => (e.image_urls?.length ?? 0) === 0).map((e) => e.id);
+  let galleryImageEventIds = new Set<string>();
+  if (idsWithoutOwnImage.length > 0) {
+    const { data: galleryRows } = await supabase
+      .from("images")
+      .select("origin_id")
+      .eq("origin_type", "event")
+      .in("origin_id", idsWithoutOwnImage)
+      .in("license_status", ["confirmed_free", "confirmed_licensed"]);
+    galleryImageEventIds = new Set((galleryRows ?? []).map((r) => r.origin_id as string));
+  }
+
   const { data: statusCounts } = await supabase.from("events").select("status");
   const countByStatus = new Map<string, number>();
   for (const row of statusCounts ?? []) {
@@ -206,7 +225,9 @@ export default async function EventsPage({
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <ImageStatusBadge hasImage={(event.image_urls?.length ?? 0) > 0} />
+                        <ImageStatusBadge
+                          hasImage={(event.image_urls?.length ?? 0) > 0 || galleryImageEventIds.has(event.id)}
+                        />
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-4">

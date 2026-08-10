@@ -15,6 +15,7 @@ import {
   type ReactNode,
 } from "react";
 import { bulkPublishEvents, publishEvent } from "./actions";
+import { createEventGroup } from "../event-groups/actions";
 
 interface SelectionContextValue {
   selected: Set<string>;
@@ -122,7 +123,13 @@ export function SelectAllCheckbox({ ids }: { ids: string[] }) {
 export function BulkActionBar() {
   const { selected, setAll } = useSelection();
   const [pending, startTransition] = useTransition();
+  const [groupPending, startGroupTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
+  // Inline-Namensfeld statt window.prompt(): Dialogfunktionen wie prompt()
+  // sind in eingebetteten/automatisierten Browser-Kontexten (z.B. Vorschau-
+  // Panels) nicht verfügbar und blockieren dort mit einem harten Fehler.
+  const [namingGroup, setNamingGroup] = useState(false);
+  const [groupName, setGroupName] = useState("");
 
   if (selected.size === 0 && !message) return null;
 
@@ -139,6 +146,56 @@ export function BulkActionBar() {
     });
   }
 
+  function createGroup() {
+    const ids = Array.from(selected);
+    const name = groupName.trim();
+    if (!name) return;
+    startGroupTransition(async () => {
+      await createEventGroup(name, ids);
+      setMessage(`Gruppe "${name}" mit ${ids.length} Terminen erstellt.`);
+      setAll(ids, false);
+      setNamingGroup(false);
+      setGroupName("");
+    });
+  }
+
+  if (namingGroup) {
+    return (
+      <div className="mb-4 flex items-center gap-3 rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-2 text-sm">
+        <span className="text-neutral-600 whitespace-nowrap">
+          Gruppenname für {selected.size} Termine:
+        </span>
+        <input
+          type="text"
+          autoFocus
+          value={groupName}
+          onChange={(e) => setGroupName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") createGroup();
+            if (e.key === "Escape") setNamingGroup(false);
+          }}
+          placeholder="z.B. Produktionstitel"
+          className="flex-1 rounded-md border border-neutral-300 px-3 py-1.5 text-sm outline-none focus:border-[#0071e3]"
+        />
+        <button
+          type="button"
+          disabled={groupPending || !groupName.trim()}
+          onClick={createGroup}
+          className="rounded-md bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-700 disabled:opacity-50"
+        >
+          {groupPending ? "Wird erstellt…" : "Anlegen"}
+        </button>
+        <button
+          type="button"
+          onClick={() => setNamingGroup(false)}
+          className="text-sm font-medium text-neutral-500 hover:text-neutral-700"
+        >
+          Abbrechen
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="mb-4 flex items-center justify-between rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-2 text-sm">
       <span className="text-neutral-600">
@@ -152,6 +209,15 @@ export function BulkActionBar() {
           >
             Bearbeiten
           </Link>
+          <button
+            type="button"
+            disabled={selected.size < 2}
+            onClick={() => setNamingGroup(true)}
+            title={selected.size < 2 ? "Mindestens 2 Veranstaltungen auswählen" : undefined}
+            className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-white disabled:opacity-50"
+          >
+            Gruppe erstellen
+          </button>
           <button
             type="button"
             disabled={pending}

@@ -30,6 +30,15 @@ struct ConcertEvent: Codable, Identifiable, Hashable, Sendable {
     let venues: VenueSummary?
     let eventParticipants: [EventParticipantImage]?
     let fallbackImageUrls: [String]?
+    // Redaktionell in der Admin-Galerie hinterlegte Bilder für GENAU dieses
+    // Event (origin_type='event', origin_id=event.id) — z.B. ein
+    // Gruppenbild, das für alle Termine einer Produktion hochgeladen wurde
+    // (siehe admin event-groups addGroupImage). Bewusst getrennt von
+    // fallbackImageUrls (das auch Venue-/Mitwirkenden-Fotos als Notlösung
+    // enthält): ein redaktionell gepflegtes EIGENES Bild soll das
+    // automatisch gescrapte imageUrls überschreiben können, ein bloßer
+    // Venue-/Personen-Fallback dagegen nicht (siehe primaryImageURL).
+    let ownGalleryImageUrls: [String]?
     let category: String?
     let genreIDs: [UUID]
     let genreLabels: [String]
@@ -37,7 +46,7 @@ struct ConcertEvent: Codable, Identifiable, Hashable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case id, slug, title, subtitle, startDatetime, imageUrls, status, venues
-        case eventParticipants, fallbackImageUrls, category, genreIDs, genreLabels, isFree
+        case eventParticipants, fallbackImageUrls, ownGalleryImageUrls, category, genreIDs, genreLabels, isFree
     }
 
     var startDate: Date? {
@@ -45,7 +54,8 @@ struct ConcertEvent: Codable, Identifiable, Hashable, Sendable {
     }
 
     var primaryImageURL: URL? {
-        imageUrls?.compactMap(URL.init(string:)).first
+        ownGalleryImageUrls?.compactMap(URL.init(string:)).first
+            ?? imageUrls?.compactMap(URL.init(string:)).first
             ?? fallbackImageUrls?.compactMap(URL.init(string:)).first
             ?? eventParticipants?.compactMap(\.imageURL).first
             ?? venues?.photoURL
@@ -75,6 +85,7 @@ struct ConcertEvent: Codable, Identifiable, Hashable, Sendable {
         venues: VenueSummary?,
         eventParticipants: [EventParticipantImage]? = nil,
         fallbackImageUrls: [String]? = nil,
+        ownGalleryImageUrls: [String]? = nil,
         category: String? = nil,
         genreIDs: [UUID] = [],
         genreLabels: [String] = [],
@@ -90,6 +101,7 @@ struct ConcertEvent: Codable, Identifiable, Hashable, Sendable {
         self.venues = venues
         self.eventParticipants = eventParticipants
         self.fallbackImageUrls = fallbackImageUrls
+        self.ownGalleryImageUrls = ownGalleryImageUrls
         self.category = category
         self.genreIDs = genreIDs
         self.genreLabels = genreLabels
@@ -145,6 +157,7 @@ struct ConcertEvent: Codable, Identifiable, Hashable, Sendable {
             venues: try values.decodeIfPresent(VenueSummary.self, forKey: .venues),
             eventParticipants: try values.decodeIfPresent([EventParticipantImage].self, forKey: .eventParticipants),
             fallbackImageUrls: try values.decodeIfPresent([String].self, forKey: .fallbackImageUrls),
+            ownGalleryImageUrls: try values.decodeIfPresent([String].self, forKey: .ownGalleryImageUrls),
             category: try values.decodeIfPresent(String.self, forKey: .category),
             genreIDs: try values.decodeIfPresent([UUID].self, forKey: .genreIDs) ?? [],
             genreLabels: try values.decodeIfPresent([String].self, forKey: .genreLabels) ?? [],
@@ -164,6 +177,7 @@ struct ConcertEvent: Codable, Identifiable, Hashable, Sendable {
         try values.encodeIfPresent(venues, forKey: .venues)
         try values.encodeIfPresent(eventParticipants, forKey: .eventParticipants)
         try values.encodeIfPresent(fallbackImageUrls, forKey: .fallbackImageUrls)
+        try values.encodeIfPresent(ownGalleryImageUrls, forKey: .ownGalleryImageUrls)
         try values.encodeIfPresent(category, forKey: .category)
         try values.encode(genreIDs, forKey: .genreIDs)
         try values.encode(genreLabels, forKey: .genreLabels)
