@@ -3,11 +3,12 @@ import { ConfirmButton } from "@/components/confirm-button";
 import { createClient } from "@/lib/supabase/server";
 import { createEventGroup, deleteEventGroup } from "./actions";
 import { suggestEventGroups } from "./suggestions";
+import { formatMunichDateTime } from "@/lib/munich-time";
 
 export const dynamic = "force-dynamic";
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" });
+  return formatMunichDateTime(iso);
 }
 
 interface GroupRow {

@@ -7,6 +7,7 @@ import '../../../core/constants/role_labels.dart';
 import '../../../core/gallery/entity_gallery_providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/time/munich_time.dart';
 import '../../../core/widgets/detail_card.dart';
 import '../../../core/widgets/detail_hero_background.dart';
 import '../../../core/widgets/entity_event_row.dart';
@@ -140,16 +141,16 @@ class PersonDetailScreen extends ConsumerWidget {
               .toList();
           final hasPerformingRole =
               performingRows.isNotEmpty || roles.any((r) => r != 'komponist');
-          final now = DateTime.now();
+          final now = MunichTime.now();
           final upcoming = performingRows.where((row) {
-            final start = DateTime.tryParse(
+            final start = MunichTime.tryParse(
               row['events']?['start_datetime'] ?? '',
             );
             return start != null && start.isAfter(now);
           }).toList();
           final past = performingRows
               .where((row) {
-                final start = DateTime.tryParse(
+                final start = MunichTime.tryParse(
                   row['events']?['start_datetime'] ?? '',
                 );
                 return start != null && start.isBefore(now);
@@ -159,7 +160,7 @@ class PersonDetailScreen extends ConsumerWidget {
               .take(20)
               .toList();
           final upcomingWorks = composerRows.where((row) {
-            final start = DateTime.tryParse(
+            final start = MunichTime.tryParse(
               row['events']?['start_datetime'] ?? '',
             );
             return start != null && start.isAfter(now);
@@ -510,7 +511,7 @@ class _EventRow extends StatelessWidget {
     return EntityEventRow(
       title: event['title'] ?? '',
       slug: event['slug'] as String? ?? '',
-      start: DateTime.tryParse(event['start_datetime'] ?? ''),
+      start: MunichTime.tryParse(event['start_datetime']),
       subtitle: event['venues']?['name'] as String?,
     );
   }

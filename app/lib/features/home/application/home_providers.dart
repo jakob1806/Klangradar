@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/widgets/genre_artwork.dart';
+import '../../../core/time/munich_time.dart';
 
 // Öffentlich (nicht mehr privat) statt einer eigenen Kopie in
 // favorites_screen.dart — die hatte image_urls schlicht vergessen
@@ -15,7 +16,7 @@ const homeEventColumns =
 String _formatDateTime(DateTime d) {
   final time =
       '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
-  final now = DateTime.now();
+  final now = MunichTime.now();
   final isToday =
       d.year == now.year && d.month == now.month && d.day == now.day;
   if (isToday) return 'Heute · $time';
@@ -46,7 +47,7 @@ class HomeEventItem {
   final String? imageUrl;
 
   factory HomeEventItem.fromRow(Map<String, dynamic> row) {
-    final start = DateTime.tryParse(row['start_datetime'] as String? ?? '');
+    final start = MunichTime.tryParse(row['start_datetime'] as String?);
     final venueName = row['venues']?['name'] as String?;
     final genreSlugs = (row['event_genres'] as List? ?? [])
         .map((g) => g['genres']?['slug'] as String?)
@@ -214,7 +215,7 @@ Future<Map<String, Set<String>>> _loadComposerIdsByEvent(
 
 final homeDataProvider = FutureProvider.autoDispose<HomeData>((ref) async {
   final client = Supabase.instance.client;
-  final now = DateTime.now();
+  final now = MunichTime.now();
   final todayStart = DateTime(now.year, now.month, now.day);
   final todayEnd = todayStart.add(const Duration(days: 1));
   final nowIso = now.toIso8601String();

@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/time/munich_time.dart';
 import '../../../core/widgets/genre_artwork.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../home/application/home_providers.dart';
@@ -25,7 +26,7 @@ final _collectionProvider =
           .eq('collection_id', collection['id'])
           .order('position', ascending: true);
 
-      final now = DateTime.now();
+      final now = MunichTime.now();
       // Vergangene Veranstaltungen bleiben in der Admin-Zuordnung bestehen
       // (Redaktion kann sie dort weiter verwalten/entfernen), fallen aber
       // aus der App-Anzeige raus — eine "Höhepunkte der Woche"-Sammlung

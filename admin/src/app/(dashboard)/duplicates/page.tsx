@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ConfirmButton } from "@/components/confirm-button";
 import { createClient } from "@/lib/supabase/server";
 import { resolveDuplicateAsDistinct, resolveDuplicateAsMerged } from "./actions";
+import { formatMunichDateTime } from "@/lib/munich-time";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,7 @@ interface CandidateRow {
 }
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" });
+  return formatMunichDateTime(iso);
 }
 
 export default async function DuplicatesPage() {

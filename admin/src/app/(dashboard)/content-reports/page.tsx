@@ -89,7 +89,7 @@ const ENTITY_NAME_COLUMN: Record<ReportRow["entity_type"], string> = {
 };
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" });
+  return new Date(iso).toLocaleString("de-DE", { timeZone: "Europe/Berlin", dateStyle: "medium", timeStyle: "short" });
 }
 
 /** Meldungen verweisen polymorph auf events/venues/persons/ensembles (kein

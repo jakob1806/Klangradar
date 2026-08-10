@@ -100,7 +100,7 @@ export default async function EditSourcePage({
                 runs.map((run) => (
                   <tr key={run.id}>
                     <td className="px-4 py-3 text-neutral-600 tabular-nums">
-                      {new Date(run.started_at).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" })}
+                      {new Date(run.started_at).toLocaleString("de-DE", { timeZone: "Europe/Berlin", dateStyle: "medium", timeStyle: "short" })}
                     </td>
                     <td className="px-4 py-3">
                       <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${RUN_STATUS_STYLE[run.status] ?? ""}`}>

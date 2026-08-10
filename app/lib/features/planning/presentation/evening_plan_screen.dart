@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/time/munich_time.dart';
 import '../../../l10n/generated/app_localizations.dart';
 
 /// Konzertplanung für einen Abend (Phase D.3, docs/09-feature-expansion-
@@ -50,13 +51,13 @@ final _eveningEventsProvider =
 
       return (rows as List)
           .map((r) {
-            final start = DateTime.tryParse(r['start_datetime'] ?? '');
+            final start = MunichTime.tryParse(r['start_datetime']);
             if (start == null) return null;
             return _EveningEvent(
               id: r['id'] as String,
               slug: r['slug'] as String,
               title: r['title'] as String? ?? '',
-              start: start.toLocal(),
+              start: start,
               durationMinutes: r['duration_minutes'] as int?,
               venueName: r['venues']?['name'] as String?,
             );

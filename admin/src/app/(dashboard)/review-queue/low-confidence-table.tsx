@@ -10,6 +10,7 @@
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { bulkClearReview, bulkRejectReview } from "./actions";
+import { formatMunichDateTime } from "@/lib/munich-time";
 
 export interface LowConfidenceEvent {
   id: string;
@@ -21,7 +22,7 @@ export interface LowConfidenceEvent {
 }
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" });
+  return formatMunichDateTime(iso);
 }
 
 export function LowConfidenceTable({ events }: { events: LowConfidenceEvent[] }) {

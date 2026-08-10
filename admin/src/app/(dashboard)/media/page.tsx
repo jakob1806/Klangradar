@@ -53,7 +53,7 @@ interface ImageRow {
 }
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" });
+  return new Date(iso).toLocaleString("de-DE", { timeZone: "Europe/Berlin", dateStyle: "medium", timeStyle: "short" });
 }
 
 /** Zeigt das bereits heruntergeladene, re-encodierte Thumbnail statt des

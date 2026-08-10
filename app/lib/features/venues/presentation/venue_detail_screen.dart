@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/gallery/entity_gallery_providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/time/munich_time.dart';
 import '../../../core/utils/external_maps.dart';
 import '../../../core/widgets/detail_card.dart';
 import '../../../core/widgets/detail_hero_background.dart';
@@ -91,9 +92,9 @@ class VenueDetailScreen extends ConsumerWidget {
           final sources = data['sources'] as Map<String, FieldSource>;
           final accessibility =
               (venue['accessibility'] as Map<String, dynamic>?) ?? {};
-          final now = DateTime.now();
+          final now = MunichTime.now();
           final upcoming = events.where((e) {
-            final start = DateTime.tryParse(e['start_datetime'] ?? '');
+            final start = MunichTime.tryParse(e['start_datetime']);
             return start != null && start.isAfter(now);
           }).toList();
 
@@ -428,8 +429,7 @@ class _GroupedUpcomingEvents extends StatefulWidget {
   final List<dynamic> events;
 
   @override
-  State<_GroupedUpcomingEvents> createState() =>
-      _GroupedUpcomingEventsState();
+  State<_GroupedUpcomingEvents> createState() => _GroupedUpcomingEventsState();
 }
 
 class _GroupedUpcomingEventsState extends State<_GroupedUpcomingEvents> {
@@ -438,12 +438,14 @@ class _GroupedUpcomingEventsState extends State<_GroupedUpcomingEvents> {
   List<_MonthGroup> _groupByMonth() {
     final groups = <_MonthGroup>[];
     for (final event in widget.events) {
-      final start = DateTime.tryParse(event['start_datetime'] ?? '');
+      final start = MunichTime.tryParse(event['start_datetime']);
       if (start == null) continue;
       if (groups.isEmpty ||
           groups.last.year != start.year ||
           groups.last.month != start.month) {
-        groups.add(_MonthGroup(year: start.year, month: start.month, events: []));
+        groups.add(
+          _MonthGroup(year: start.year, month: start.month, events: []),
+        );
       }
       groups.last.events.add(event);
     }
@@ -539,7 +541,7 @@ class _MonthGroupCard extends StatelessWidget {
               child: EntityEventRow(
                 title: event['title'] ?? '',
                 slug: event['slug'] as String? ?? '',
-                start: DateTime.tryParse(event['start_datetime'] ?? ''),
+                start: MunichTime.tryParse(event['start_datetime']),
               ),
             ),
       ],

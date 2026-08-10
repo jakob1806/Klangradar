@@ -8,6 +8,7 @@ import '../events/filtered_events_providers.dart';
 import '../interests/interests_providers.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
+import '../time/munich_time.dart';
 
 /// "FilterSheet (Modal, von überall aufrufbar)" laut
 /// docs/05-navigation-structure.md — ein einziger Einstiegspunkt statt
@@ -62,7 +63,7 @@ class _EventFilterSheetState extends ConsumerState<_EventFilterSheet> {
   }
 
   Future<void> _pickDateRange() async {
-    final now = DateTime.now();
+    final now = MunichTime.now();
     final picked = await showDateRangePicker(
       context: context,
       firstDate: now,

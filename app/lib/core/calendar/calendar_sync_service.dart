@@ -1,6 +1,5 @@
 import 'package:device_calendar/device_calendar.dart';
-import 'package:timezone/data/latest.dart' as tz_data;
-
+import '../time/munich_time.dart';
 import '../../l10n/generated/app_localizations.dart';
 
 class CalendarSyncEvent {
@@ -41,24 +40,11 @@ class CalendarSyncService {
 
   static const _calendarName = 'Klangradar';
 
-  static Future<void> _ensureTimeZones() async {
-    if (_timeZonesInitialized) return;
-    tz_data.initializeTimeZones();
-    _timeZonesInitialized = true;
-  }
-
-  // getLocation() unten braucht die IANA-Zeitzonendatenbank des timezone-
-  // Pakets, die anders als z.B. bei Firebase nicht automatisch initialisiert
-  // wird — ohne diesen Aufruf wirft jeder Sync-Versuch eine
-  // TimeZoneInitException. Lazy statt in main(), da nur dieser eine Screen
-  // sie braucht.
-  static bool _timeZonesInitialized = false;
-
   static Future<CalendarSyncResult> syncEvents(
     List<CalendarSyncEvent> events, {
     required AppLocalizations l10n,
   }) async {
-    await _ensureTimeZones();
+    MunichTime.initialize();
 
     final plugin = DeviceCalendarPlugin();
 
@@ -129,7 +115,7 @@ class CalendarSyncService {
       }
     }
 
-    final berlin = getLocation('Europe/Berlin');
+    final berlin = getLocation(MunichTime.zoneName);
     var synced = 0;
     var failed = 0;
     for (final e in events) {

@@ -14,6 +14,7 @@ import '../../../core/events/filtered_events_providers.dart';
 import '../../../core/gallery/entity_gallery_providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/time/munich_time.dart';
 import '../../../core/widgets/detail_card.dart';
 import '../../../core/widgets/detail_hero_background.dart';
 import '../../../core/widgets/entity_photo_gallery.dart';
@@ -243,7 +244,7 @@ class EventDetailScreen extends ConsumerWidget {
               .toList();
           final primaryGenreId = genrePairs.firstOrNull?.id;
 
-          final start = DateTime.tryParse(event['start_datetime'] ?? '');
+          final start = MunichTime.tryParse(event['start_datetime']);
           final venue = event['venues'] as Map<String, dynamic>?;
           final similarEvents =
               ref
@@ -786,7 +787,7 @@ class _OtherDateRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final start = DateTime.tryParse(row['start_datetime'] as String? ?? '');
+    final start = MunichTime.tryParse(row['start_datetime'] as String?);
     final slug = row['slug'] as String?;
     if (start == null || slug == null) return const SizedBox.shrink();
     final l10n = AppLocalizations.of(context)!;
@@ -1224,7 +1225,7 @@ String _formatChangeValue(AppLocalizations l10n, String field, String? value) {
   if (value == null) return '–';
   switch (field) {
     case 'start_datetime':
-      final d = DateTime.tryParse(value);
+      final d = MunichTime.tryParse(value);
       if (d == null) return value;
       return l10n.eventDateTimeShort(
         '${d.day}.${d.month}.${d.year}',

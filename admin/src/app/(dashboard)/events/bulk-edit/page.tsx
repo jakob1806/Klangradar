@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { loadEventFormOptions } from "../form-options";
 import { BulkEditForm } from "./bulk-edit-form";
+import { formatMunichDateTime } from "@/lib/munich-time";
 
 export const dynamic = "force-dynamic";
 
@@ -57,7 +58,7 @@ export default async function BulkEditEventsPage({
               {e.start_datetime && (
                 <span className="text-neutral-400">
                   {" · "}
-                  {new Date(e.start_datetime).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" })}
+                  {formatMunichDateTime(e.start_datetime)}
                 </span>
               )}
             </li>

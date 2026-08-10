@@ -151,7 +151,7 @@ struct EventDetailView: View {
             }
             if let date = event.startDate {
                 Label(
-                    date.formatted(.dateTime.locale(Locale(identifier: "de_DE")).weekday(.wide).day().month(.wide).year().hour().minute()),
+                    KlangradarDateTime.string(date, format: "EEEE, d. MMMM yyyy, HH:mm"),
                     systemImage: "calendar"
                 )
                 .font(.headline)
@@ -238,13 +238,13 @@ struct EventDetailView: View {
                                             .foregroundStyle(KlangradarTheme.accent)
                                             .frame(width: 28)
                                         VStack(alignment: .leading, spacing: 3) {
-                                            Text(date.formatted(.dateTime.locale(Locale(identifier: "de_DE")).weekday(.wide)))
+                                            Text(KlangradarDateTime.string(date, format: "EEEE"))
                                                 .font(.headline)
-                                            Text(date.formatted(.dateTime.locale(Locale(identifier: "de_DE")).day().month(.wide).year()))
+                                            Text(KlangradarDateTime.string(date, format: "d. MMMM yyyy"))
                                                 .font(.subheadline).foregroundStyle(.secondary)
                                         }
                                         Spacer()
-                                        Text(date.formatted(.dateTime.hour().minute()))
+                                        Text(KlangradarDateTime.string(date, format: "HH:mm"))
                                             .font(.headline.monospacedDigit())
                                         Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(.tertiary)
                                     }
@@ -539,7 +539,7 @@ struct EventDetailView: View {
             VStack(alignment: .leading, spacing: 5) {
                 if let notice = value.string("attribution_notice") { Text(notice) }
                 if let rawDate = value.string("last_verified_at"), let date = FlexibleDateParser.date(from: rawDate) {
-                    Text("Zuletzt geprüft: \(date.formatted(.dateTime.locale(Locale(identifier: "de_DE")).day().month().year()))")
+                    Text("Zuletzt geprüft: \(KlangradarDateTime.string(date, format: "dd.MM.yyyy"))")
                 }
             }
             .font(.caption)

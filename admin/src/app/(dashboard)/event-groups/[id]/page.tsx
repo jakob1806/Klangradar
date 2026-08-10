@@ -9,6 +9,7 @@ import { EventChecklist } from "./event-checklist";
 import { GroupImageUploader } from "./group-image-uploader";
 import { MembershipEditor } from "./membership-editor";
 import { MoveButtons } from "../../events/[id]/program/move-buttons";
+import { formatMunichDateTime } from "@/lib/munich-time";
 import {
   addExistingWorkToGroup,
   addParticipantToGroup,
@@ -31,7 +32,7 @@ const ROLE_LABEL: Record<string, string> = {
 };
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" });
+  return formatMunichDateTime(iso);
 }
 
 interface MemberEvent {

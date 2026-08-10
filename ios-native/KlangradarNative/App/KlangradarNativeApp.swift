@@ -9,6 +9,8 @@ struct KlangradarNativeApp: App {
         WindowGroup {
             RootTabView(environment: environment)
                 .tint(KlangradarTheme.accent)
+                .environment(\.timeZone, KlangradarDateTime.timeZone)
+                .environment(\.calendar, KlangradarDateTime.calendar)
         }
     }
 }
