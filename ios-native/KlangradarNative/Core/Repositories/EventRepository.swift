@@ -265,6 +265,13 @@ struct LiveEventRepository: EventRepository {
 
     private static let coreDetailSelection = "id,slug,title,subtitle,category,description_de,program_notes_de,program_extraction_status,start_datetime,end_datetime,duration_minutes,has_intermission,ticket_url,price_min,price_max,price_currency,is_free,remaining_tickets_status,doors_info,age_restriction,discount_info,target_audience,performance_language,website_url,accessibility,status,image_urls,program_id,attribution_notice,attribution_license_url,last_verified_at,venues(id,slug,name,address_street,address_zip,address_city,photo_url,description_de)"
 
+    // PostgREST lehnt echte Zeilenumbrüche innerhalb des select-Parameters ab
+    // (PGRST100: "unexpected \"\n\""), sobald sie URL-kodiert übertragen werden —
+    // ein reines Multiline-String-Literal ("""...""") schlug dadurch für JEDES
+    // Event fehl (primär UND Legacy-Fallback), sodass die App still auf
+    // coreDetailSelection zurückfiel, das event_works/event_participants gar
+    // nicht erst enthält. Deshalb hier Zeilenumbrüche vor Verwendung entfernen,
+    // statt den mehrzeiligen Aufbau (bessere Lesbarkeit im Quelltext) aufzugeben.
     private static let detailSelection = """
     id,slug,title,subtitle,category,description_de,program_notes_de,program_extraction_status,start_datetime,end_datetime,duration_minutes,has_intermission,
     ticket_url,price_min,price_max,price_currency,is_free,remaining_tickets_status,doors_info,
@@ -276,6 +283,8 @@ struct LiveEventRepository: EventRepository {
     event_works(position,after_intermission,works(id,title,catalog_number,key_signature,instrumentation,movements,composer:persons(id,slug,full_name,photo_url))),
     event_participants(role,role_label,persons(id,slug,full_name,photo_url),ensembles(id,slug,name,photo_url))
     """
+    .components(separatedBy: .newlines)
+    .joined()
 
     private static let legacyDetailSelection = detailSelection.replacingOccurrences(
         of: "role,role_label",
