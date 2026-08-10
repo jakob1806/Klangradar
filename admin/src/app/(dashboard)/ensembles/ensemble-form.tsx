@@ -34,6 +34,7 @@ export interface EnsembleFormValues {
   founded_year: number | null;
   member_count: number | null;
   home_venue_id: string | null;
+  parent_ensemble_id: string | null;
   website_url: string | null;
   photo_url: string | null;
   avatar_crop_x: number | null;
@@ -47,11 +48,15 @@ export function EnsembleForm({
   action,
   initial,
   venues,
+  ensembles,
   ensembleId,
 }: {
   action: (formData: FormData) => void;
   initial?: EnsembleFormValues;
   venues: { id: string; name: string }[];
+  /** Für die "Gehört zu Ensemble"-Auswahl — schließt das aktuell bearbeitete
+   * Ensemble selbst aus (kein Selbstverweis, siehe DB-Check-Constraint). */
+  ensembles: { id: string; name: string }[];
   /** Nur auf der Bearbeiten-Seite gesetzt — siehe AvatarCropButton. */
   ensembleId?: string;
 }) {
@@ -114,6 +119,19 @@ export function EnsembleForm({
               {v.name}
             </option>
           ))}
+        </Select>
+      </Field>
+
+      <Field label="Gehört zu Ensemble">
+        <Select name="parent_ensemble_id" defaultValue={initial?.parent_ensemble_id ?? ""}>
+          <option value="">— kein übergeordnetes Ensemble —</option>
+          {ensembles
+            .filter((e) => e.id !== ensembleId)
+            .map((e) => (
+              <option key={e.id} value={e.id}>
+                {e.name}
+              </option>
+            ))}
         </Select>
       </Field>
 

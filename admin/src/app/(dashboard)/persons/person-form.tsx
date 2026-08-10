@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Field, TextArea, TextInput } from "@/components/form-fields";
+import { Field, Select, TextArea, TextInput } from "@/components/form-fields";
 import { ImageUploadField } from "@/components/image-upload-field";
 import { AvatarCropButton } from "@/components/entity-gallery/avatar-crop-button";
 import type { CropRect } from "@/components/entity-gallery/crop-math";
@@ -43,16 +43,21 @@ export interface PersonFormValues {
   avatar_crop_y: number | null;
   avatar_crop_width: number | null;
   avatar_crop_height: number | null;
+  member_of_ensemble_id: string | null;
   is_verified: boolean;
 }
 
 export function PersonForm({
   action,
   initial,
+  ensembles,
   personId,
 }: {
   action: (formData: FormData) => void;
   initial?: PersonFormValues;
+  /** Für die "Gehört zu Ensemble"-Auswahl, z. B. "Solist(en) des Tölzer
+   * Knabenchors" gehört zum Ensemble "Tölzer Knabenchor". */
+  ensembles: { id: string; name: string }[];
   /** Nur auf der Bearbeiten-Seite gesetzt — der Avatar-Crop-Button
    * braucht eine bereits existierende Person (siehe AvatarCropButton). */
   personId?: string;
@@ -138,6 +143,17 @@ export function PersonForm({
 
       <Field label="Instrument (bei Solist:innen)">
         <TextInput name="instrument" defaultValue={initial?.instrument ?? ""} placeholder="z. B. Violine" />
+      </Field>
+
+      <Field label="Gehört zu Ensemble">
+        <Select name="member_of_ensemble_id" defaultValue={initial?.member_of_ensemble_id ?? ""}>
+          <option value="">— kein Ensemble —</option>
+          {ensembles.map((e) => (
+            <option key={e.id} value={e.id}>
+              {e.name}
+            </option>
+          ))}
+        </Select>
       </Field>
 
       <div className="grid grid-cols-2 gap-4">
