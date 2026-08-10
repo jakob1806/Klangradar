@@ -85,6 +85,36 @@ export default async function EventGroupDetailPage({
   }));
   const allMemberIdsSet = new Set(memberIds);
 
+  // Nutzeranfrage: "in der Bearbeitungsansicht soll angezeigt werden, wenn
+  // schon ein Bild für die Gruppe vorhanden ist, und auch welches" —
+  // addGroupImage trägt dasselbe Bild bei JEDEM Mitgliedsevent an Position 0
+  // ein (siehe actions.ts), es gibt keine eigene Gruppen-Bild-Spalte. Das
+  // "aktuelle" Gruppenbild wird deshalb als die unter den Terminen häufigste
+  // sourceUrl an Position 0 ermittelt — im Normalfall identisch bei allen,
+  // die Abdeckungszahl macht aber sichtbar, falls z.B. ein neu hinzugefügter
+  // Termin das Bild noch nicht hat.
+  let groupImageUrl: string | null = null;
+  let groupImageCoverage = 0;
+  if (memberIds.length > 0) {
+    const { data: topImages } = await supabase
+      .from("images")
+      .select("origin_id, source_url")
+      .eq("origin_type", "event")
+      .in("origin_id", memberIds)
+      .eq("sort_order", 0)
+      .in("license_status", ["confirmed_free", "confirmed_licensed"]);
+    const counts = new Map<string, number>();
+    for (const row of topImages ?? []) {
+      if (!row.source_url) continue;
+      counts.set(row.source_url, (counts.get(row.source_url) ?? 0) + 1);
+    }
+    const dominant = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
+    if (dominant) {
+      groupImageUrl = dominant[0];
+      groupImageCoverage = dominant[1];
+    }
+  }
+
   const [{ data: workRows }, { data: participantRows }, { data: works }, { data: persons }, { data: ensembles }, { data: ungrouped }] =
     memberIds.length > 0
       ? await Promise.all([
@@ -178,7 +208,12 @@ export default async function EventGroupDetailPage({
       </p>
 
       <div className="mt-4">
-        <GroupImageUploader groupId={id} />
+        <GroupImageUploader
+          groupId={id}
+          currentImageUrl={groupImageUrl}
+          coverage={groupImageCoverage}
+          memberCount={memberCount}
+        />
       </div>
 
       <section className="mt-8">

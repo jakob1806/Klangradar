@@ -196,6 +196,28 @@ export async function addGroupImage(groupId: string, sourceUrl: string) {
   revalidatePath(`/event-groups/${groupId}`);
 }
 
+/** Entfernt das Gruppenbild wieder von allen Mitgliedsevents (Nutzeranfrage:
+ * die Bearbeitungsansicht soll zeigen, OB und WELCHES Gruppenbild bereits
+ * hinterlegt ist — dazu gehört auch ein Weg, es wieder zu entfernen, analog
+ * zum Löschen in der normalen Event-Galerie). Löscht gezielt die Zeile mit
+ * genau dieser sourceUrl statt pauschal sort_order=0, damit ein eigenes
+ * Event-Bild an Position 1 nicht mit hochrutscht/verloren geht. */
+export async function removeGroupImage(groupId: string, sourceUrl: string) {
+  const supabase = await createClient();
+  const eventIds = await memberEventIds(supabase, groupId);
+  if (eventIds.length === 0) return;
+
+  const { error } = await supabase
+    .from("images")
+    .delete()
+    .eq("origin_type", "event")
+    .in("origin_id", eventIds)
+    .eq("source_url", sourceUrl);
+  if (error) throw new Error(error.message);
+
+  revalidatePath(`/event-groups/${groupId}`);
+}
+
 /** Verschiebt ein Werk in der (deduplizierten) Gruppen-Programmliste um
  * einen Platz — wirkt auf ALLE Mitgliedsevents gleichzeitig, damit die
  * Reihenfolge über die ganze Gruppe konsistent bleibt. Die Referenz-
