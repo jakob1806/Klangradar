@@ -327,7 +327,11 @@ struct LiveContentRepository: ContentRepository {
         case .person: ("persons", "id,slug,full_name,roles,instrument,photo_url,avatar_crop_x,avatar_crop_y,avatar_crop_width,avatar_crop_height", "full_name")
         case .ensemble: ("ensembles", "id,slug,name,photo_url,avatar_crop_x,avatar_crop_y,avatar_crop_width,avatar_crop_height", "name")
         case .venue: ("venues", "id,slug,name,address_city,photo_url", "name")
-        case .work: ("works", "id,title,catalog_number,genre,key_signature,duration_minutes,composition_year,instrumentation,composer:persons(full_name)", "title")
+        case .work: (
+            "works",
+            "id,title,catalog_number,genre,key_signature,duration_minutes,composition_year,instrumentation,composer:persons(id,slug,full_name,photo_url,avatar_crop_x,avatar_crop_y,avatar_crop_width,avatar_crop_height)",
+            "title"
+        )
         }
     }
 
@@ -340,7 +344,19 @@ struct LiveContentRepository: ContentRepository {
             title: title(from: row, kind: kind),
             subtitle: subtitle(from: row, kind: kind),
             imageURL: imageURL(from: row),
-            avatarCrop: avatarCrop(from: row)
+            avatarCrop: avatarCrop(from: row),
+            composer: kind == .work ? composerRef(from: row) : nil
+        )
+    }
+
+    private func composerRef(from row: JSONObject) -> DirectoryItem.ComposerRef? {
+        guard let composer = row.object("composer"), let id = composer.string("id"), let name = composer.string("full_name") else { return nil }
+        return DirectoryItem.ComposerRef(
+            id: id,
+            slug: composer.string("slug"),
+            name: name,
+            imageURL: composer.string("photo_url").flatMap(URL.init(string:)),
+            avatarCrop: avatarCrop(from: composer)
         )
     }
 

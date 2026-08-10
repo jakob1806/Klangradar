@@ -50,6 +50,19 @@ struct DirectoryItem: Identifiable, Hashable, Sendable {
     /// vorher leer war, der Crop bleibt dadurch immer zum richtigen Bild
     /// konsistent, ohne extra Nullung nötig).
     var avatarCrop: CropRect? = nil
+    /// Nur bei `kind == .work` gesetzt — treibt die Gruppierung/Sortierung
+    /// der Werke-Liste nach Komponist statt nach Werktitel (Nutzeranfrage:
+    /// "Werke sollen nach Komponist sortiert werden... wie in der Liste der
+    /// Personen ein Miniaturbild erhalten").
+    var composer: ComposerRef? = nil
+
+    struct ComposerRef: Hashable, Sendable {
+        let id: String
+        let slug: String?
+        let name: String
+        let imageURL: URL?
+        let avatarCrop: CropRect?
+    }
 }
 
 struct GalleryImage: Identifiable, Hashable, Sendable {
