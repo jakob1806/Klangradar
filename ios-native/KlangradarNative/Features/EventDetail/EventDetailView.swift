@@ -264,6 +264,14 @@ struct EventDetailView: View {
     @ViewBuilder private func program(_ value: JSONObject) -> some View {
         let works = value.objects("event_works").sorted { ($0.integer("position") ?? 0) < ($1.integer("position") ?? 0) }
         let notes = value.string("program_notes_de")
+        // Bei vielen Quellen enthält description_de bereits eine Komma-
+        // Aufzählung der Werke/Komponisten als Fließtext (keine KI-Erfindung,
+        // steht so auf der Quellwebsite) — die wird oben in "Zum Konzert"
+        // ohnehin schon gezeigt. Ohne strukturiertes Programm hier zusätzlich
+        // "Programm wird geprüft" anzuzeigen ist irreführend, da die
+        // Information faktisch schon sichtbar ist (Parität zu Flutter, das
+        // description_de exakt für diesen Fall als Programm-Ersatz zeigt).
+        let hasDescriptionFallback = (value.string("description_de")?.isEmpty == false)
         if !works.isEmpty || notes != nil {
             section("Programm") {
                 if !works.isEmpty {
@@ -280,7 +288,7 @@ struct EventDetailView: View {
                     Text(notes).font(.body).foregroundStyle(.secondary).lineSpacing(4)
                 }
             }
-        } else {
+        } else if !hasDescriptionFallback {
             section("Programm") {
                 VStack(spacing: 14) {
                     if value.string("program_extraction_status") == "not_published" {
