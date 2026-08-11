@@ -21,12 +21,13 @@ Legend: ✅ scaffolded and working · 🟡 partial · ⬜ not started
 | Works | 🟡 | directory, generic metadata detail and linked performances | Dedicated composer/movement presentation |
 | Collections | 🟡 | published collection rail and redesigned image-first detail with compact full-width event rows | Full empty/error states and sharing |
 | Favorites | 🟡 | authenticated favorite-event read/list | Toggle, status planning and anonymous synchronization |
+| Redaktion | 🟡 | rollenbeschränkter Native-Schnellkorrekturmodus im Apple-Design mit Bereichsauswahl und Live-Suche; nur heutige/zukünftige Events; Event-Titel, Untertitel, Termin, Venue, Bilder, Mitwirkende und Programm sowie Venues, Personen, Ensembles und Werke bearbeitbar; zentrale Mehrfachbilder-Galerie für Events, Venues, Personen, Ensembles und Werke mit Mehrfachauswahl aus Fotomediathek/Dateien, Titelbildwahl und Einzellöschung; Programmwerke inklusive Titel und Komponist:in direkt bearbeitbar; fehlende Personen, Ensembles und Werke sowohl zentral als auch direkt bei der Veranstaltungszuordnung neu anlegbar; direkte gemeinsame Supabase-Schreibvorgänge mit `system_logs`-Audit | Venue-Neuanlage mit Geodaten sowie erweiterte Zuschnitt-/Lizenzverwaltung bleiben im Admin-Portal |
 | Interests | 🟡 | live genres/persons/ensembles/venues selection and persistence | Recommendation feedback and onboarding preselection |
 | Notifications | 🟡 | all five preference fields read and upsert | APNs token registration and permission flow |
 | Onboarding | 🟡 | first-run paging, notification choice and persisted completion | Inline interest/location selection |
 | Localization | ⬜ | German literals only | String Catalog for German and English |
 | Accessibility | 🟡 | semantic labels and native controls | Dynamic Type audit, VoiceOver, contrast and reduced motion |
-| Automated tests | 🟡 | event decoding, preview repository and venue grouping (7 passing tests) | Repository fixtures, view-model tests and UI tests |
+| Automated tests | 🟡 | event decoding, preview repository and venue grouping (10 passing tests) | Repository fixtures, view-model tests and UI tests |
 
 ## Bug-fix batch b1–b10 (2026-08-09)
 

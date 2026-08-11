@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -27,7 +28,7 @@ final _personProvider = FutureProvider.family<Map<String, dynamic>?, String>((
   final client = Supabase.instance.client;
   final person = await client
       .from('persons')
-      .select()
+      .select('*, member_of:ensembles!member_of_ensemble_id(slug, name)')
       .eq('slug', slug)
       .maybeSingle();
   if (person == null) return null;
@@ -175,15 +176,21 @@ class PersonDetailScreen extends ConsumerWidget {
                 iconTheme: const IconThemeData(color: Colors.white),
                 flexibleSpace: FlexibleSpaceBar(
                   background: gallery.maybeWhen(
-                    data: (images) => images.isNotEmpty
-                        ? EntityPhotoGallery(
-                            images: images,
-                            fallbackGenre: EventGenre.kammermusik,
-                          )
-                        : DetailHeroBackground(
-                            photoUrl: person['photo_url'] as String?,
-                            fallbackGenre: EventGenre.kammermusik,
-                          ),
+                    data: (images) {
+                      final displayImages = profilePhotoFirst(
+                        person['photo_url'] as String?,
+                        images,
+                      );
+                      return displayImages.isNotEmpty
+                          ? EntityPhotoGallery(
+                              images: displayImages,
+                              fallbackGenre: EventGenre.kammermusik,
+                            )
+                          : DetailHeroBackground(
+                              photoUrl: person['photo_url'] as String?,
+                              fallbackGenre: EventGenre.kammermusik,
+                            );
+                    },
                     orElse: () => DetailHeroBackground(
                       photoUrl: person['photo_url'] as String?,
                       fallbackGenre: EventGenre.kammermusik,
@@ -236,6 +243,22 @@ class PersonDetailScreen extends ConsumerWidget {
                         style: TextStyle(
                           color: colors.textSecondary,
                           fontSize: 13,
+                        ),
+                      ),
+                    ],
+                    if (person['member_of'] != null) ...[
+                      const SizedBox(height: AppSpacing.xs),
+                      GestureDetector(
+                        onTap: () => context.push(
+                          '/ensemble/${person['member_of']['slug']}',
+                        ),
+                        child: Text(
+                          'Teil von ${person['member_of']['name']}',
+                          style: TextStyle(
+                            color: colors.accentPrimary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ],

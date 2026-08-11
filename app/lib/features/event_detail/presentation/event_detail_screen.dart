@@ -80,11 +80,39 @@ final _eventProvider = FutureProvider.family<Map<String, dynamic>?, String>((
         organizers(name),
         event_genres(genres(id, slug, label_de)),
         event_works(position, after_intermission, works(id, title, catalog_number, key_signature, instrumentation, movements, composer:persons(slug, full_name))),
-        event_participants(role, persons(id, slug, full_name), ensembles(id, slug, name))
+        event_participants(role, persons(id, slug, full_name, member_of:ensembles!member_of_ensemble_id(slug, name)), ensembles(id, slug, name, parent_ensemble_id))
       ''')
       .eq('slug', slug)
       .neq('status', 'draft')
       .maybeSingle();
+
+  // ensembles.parent_ensemble_id ist ein Self-Join (siehe Kommentar in
+  // ensemble_detail_screen.dart) — PostgREST-Embedding liefert dafür
+  // zuverlässig nur die Rückwärts-Richtung, deshalb hier für alle
+  // Mitwirkenden-Ensembles manuell in einem zweiten Schritt aufgelöst.
+  if (event != null) {
+    final participantEnsembles = (event['event_participants'] as List)
+        .map((p) => p['ensembles'] as Map<String, dynamic>?)
+        .whereType<Map<String, dynamic>>()
+        .toList();
+    final parentIds = participantEnsembles
+        .map((e) => e['parent_ensemble_id'])
+        .whereType<String>()
+        .toSet();
+    if (parentIds.isNotEmpty) {
+      final parents = await Supabase.instance.client
+          .from('ensembles')
+          .select('id, slug, name')
+          .inFilter('id', parentIds.toList());
+      final parentById = {for (final p in parents) p['id'] as String: p};
+      for (final e in participantEnsembles) {
+        final parentId = e['parent_ensemble_id'] as String?;
+        if (parentId != null && parentById.containsKey(parentId)) {
+          e['parent'] = parentById[parentId];
+        }
+      }
+    }
+  }
 
   // Speist recommended_events()'s Venue-"besucht"-Signal — siehe
   // docs/06-mvp-plan.md. Fire-and-forget, blockiert nicht das Rendern.
@@ -1141,6 +1169,10 @@ class _ParticipantRow extends StatelessWidget {
         ? l10n.roleEnsemble
         : _roleLabels(l10n)[participant['role']];
     final slug = person?['slug'] ?? ensemble?['slug'];
+    // Nutzeranfrage: Verknüpfung zu einem übergeordneten Ensemble soll auch
+    // hier in der Mitwirkenden-Liste erkennbar sein, nicht erst auf der
+    // eigenen Detailseite der Person/des Ensembles.
+    final parentEnsemble = person?['member_of'] ?? ensemble?['parent'];
 
     return Material(
       color: Colors.transparent,
@@ -1155,35 +1187,48 @@ class _ParticipantRow extends StatelessWidget {
             horizontal: AppSpacing.md,
             vertical: AppSpacing.sm + 2,
           ),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Text(
-                  name,
-                  style: TextStyle(
-                    fontSize: 13.5,
-                    color: slug != null
-                        ? colors.accentPrimary
-                        : colors.textPrimary,
-                    fontWeight: FontWeight.w600,
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      name,
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        color: slug != null
+                            ? colors.accentPrimary
+                            : colors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
-                ),
+                  if (role != null) ...[
+                    const SizedBox(width: AppSpacing.sm),
+                    Text(
+                      role,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                  ],
+                  if (slug != null) ...[
+                    const SizedBox(width: 4),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      size: 18,
+                      color: colors.textTertiary,
+                    ),
+                  ],
+                ],
               ),
-              if (role != null) ...[
-                const SizedBox(width: AppSpacing.sm),
+              if (parentEnsemble != null)
                 Text(
-                  role,
-                  style: TextStyle(fontSize: 12.5, color: colors.textSecondary),
+                  'Teil von ${parentEnsemble['name']}',
+                  style: TextStyle(fontSize: 11.5, color: colors.textTertiary),
                 ),
-              ],
-              if (slug != null) ...[
-                const SizedBox(width: 4),
-                Icon(
-                  Icons.chevron_right_rounded,
-                  size: 18,
-                  color: colors.textTertiary,
-                ),
-              ],
             ],
           ),
         ),

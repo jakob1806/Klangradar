@@ -51,6 +51,58 @@ export async function removeEventFromGroup(groupId: string, eventId: string) {
   revalidatePath("/event-groups");
 }
 
+/** Nutzeranfrage: "eventgruppen soll man auch zusammenführen können. zb.
+ * habe ich zwei gruppen zauberflöte, bei denen aber zwischen den beiden
+ * blöcken mehr als 14 tage dazwischen liegen, weshalb sie nicht
+ * zusammengehen" — die 14-Tage-Lücke in suggestEventGroups() verhindert nur
+ * den AUTOMATISCHEN Vorschlag für noch ungruppierte Events, ist aber keine
+ * Regel für bereits angelegte Gruppen. Werke/Mitwirkende/Bilder hängen alle
+ * an event_id, nicht an program_id (siehe [id]/actions.ts-Kommentar
+ * "Broadcast"-Bearbeitung) — Zusammenführen ist deshalb rein ein Umhängen
+ * aller Termine der Quellgruppe auf die Zielgruppe, ohne Datenverlust bei
+ * Werken/Mitwirkenden/Bildern der einzelnen Termine.
+ */
+async function mergeOneGroup(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  sourceGroupId: string,
+  targetGroupId: string,
+) {
+  const { error: moveError } = await supabase
+    .from("events")
+    .update({ program_id: targetGroupId })
+    .eq("program_id", sourceGroupId);
+  if (moveError) throw new Error(moveError.message);
+
+  const { error: deleteError } = await supabase.from("programs").delete().eq("id", sourceGroupId);
+  if (deleteError) throw new Error(deleteError.message);
+}
+
+export async function mergeEventGroups(sourceGroupId: string, targetGroupId: string) {
+  if (!sourceGroupId || !targetGroupId || sourceGroupId === targetGroupId) return;
+  const supabase = await createClient();
+  await mergeOneGroup(supabase, sourceGroupId, targetGroupId);
+
+  revalidatePath("/event-groups");
+  revalidatePath(`/event-groups/${targetGroupId}`);
+}
+
+/** Nutzeranfrage: "automatische vorschläge zum zusammenführen beim gleichen
+ * standort und gleichem programm" — Übernahme eines kompletten
+ * suggestGroupMerges()-Vorschlags (mehrere Quellgruppen auf einmal in
+ * dieselbe Zielgruppe), statt den einzelnen mergeEventGroups()-Aufruf pro
+ * Quellgruppe manuell zu wiederholen. */
+export async function mergeEventGroupsBatch(targetGroupId: string, sourceGroupIds: string[]) {
+  if (!targetGroupId || sourceGroupIds.length === 0) return;
+  const supabase = await createClient();
+  for (const sourceGroupId of sourceGroupIds) {
+    if (sourceGroupId === targetGroupId) continue;
+    await mergeOneGroup(supabase, sourceGroupId, targetGroupId);
+  }
+
+  revalidatePath("/event-groups");
+  revalidatePath(`/event-groups/${targetGroupId}`);
+}
+
 /** programs hat keine ON DELETE CASCADE auf events.program_id — erst alle
  * Mitglieder aushängen, dann die Gruppe selbst löschen, sonst schlägt der
  * Delete am FK fehl. */

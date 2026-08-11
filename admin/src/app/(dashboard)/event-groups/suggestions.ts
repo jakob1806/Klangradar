@@ -72,3 +72,106 @@ export async function suggestEventGroups(): Promise<SuggestedGroup[]> {
 
   return suggestions;
 }
+
+export interface SuggestedMerge {
+  key: string;
+  title: string;
+  venueName: string | null;
+  targetGroupId: string;
+  targetTitle: string;
+  sourceGroupIds: string[];
+  groups: { id: string; title: string; eventCount: number }[];
+}
+
+/** Nutzeranfrage: "automatische vorschläge zum zusammenführen beim gleichen
+ * standort und gleichem programm" — anders als suggestEventGroups() geht es
+ * hier NICHT um noch ungruppierte Events, sondern um bereits als eigene
+ * Gruppen angelegte Serien, die eigentlich dieselbe Produktion sind (z.B.
+ * "zwei gruppen zauberflöte, bei denen aber zwischen den beiden blöcken
+ * mehr als 14 tage dazwischen liegen, weshalb sie nicht zusammengehen" —
+ * genau die 14-Tage-Grenze aus suggestEventGroups() greift hier bewusst
+ * nicht). Gruppiert stattdessen nach normalisiertem Titel (case-insensitiv,
+ * Anführungszeichen/Whitespace ignoriert — Quellen liefern denselben Titel
+ * gerne mal in Groß- oder Kleinschreibung) UND demselben Hauptspielort:
+ * mehrere bestehende Gruppen mit gleichem Titel UND mindestens einem
+ * gemeinsamen Veranstaltungsort gelten als Vorschlag. Zielgruppe der
+ * Zusammenführung ist die mit den meisten Terminen (bei Gleichstand die
+ * älteste) — die anderen werden vorgeschlagen, dort hinein aufzugehen. */
+export async function suggestGroupMerges(): Promise<SuggestedMerge[]> {
+  const supabase = await createClient();
+  const { data: groups } = await supabase
+    .from("programs")
+    .select("id, title, created_at, events(id, venues(name))")
+    .order("created_at", { ascending: true })
+    .returns<
+      { id: string; title: string; created_at: string; events: { id: string; venues: { name: string } | null }[] }[]
+    >();
+
+  if (!groups || groups.length < 2) return [];
+
+  const normalizeTitle = (title: string) =>
+    title
+      .toLowerCase()
+      .normalize("NFKD")
+      .replace(/[̀-ͯ]/g, "")
+      .replace(/[«»„"'’]/g, "")
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+
+  const withVenues = groups
+    .filter((g) => g.events.length > 0)
+    .map((g) => ({
+      id: g.id,
+      title: g.title,
+      created_at: g.created_at,
+      eventCount: g.events.length,
+      normalizedTitle: normalizeTitle(g.title),
+      venueNames: new Set(g.events.map((e) => e.venues?.name).filter((n): n is string => !!n)),
+    }));
+
+  const byTitle = new Map<string, typeof withVenues>();
+  for (const g of withVenues) {
+    if (!g.normalizedTitle) continue;
+    const list = byTitle.get(g.normalizedTitle) ?? [];
+    list.push(g);
+    byTitle.set(g.normalizedTitle, list);
+  }
+
+  const suggestions: SuggestedMerge[] = [];
+  for (const [normalizedTitle, sameTitle] of byTitle) {
+    if (sameTitle.length < 2) continue;
+
+    // Innerhalb desselben Titels zusätzlich nach gemeinsamem Spielort
+    // clustern — ein generischer Titel wie "Der Nussknacker" kann an
+    // mehreren, komplett unabhängigen Häusern laufen, das wäre keine
+    // Zusammenführung, sondern eine andere Produktion.
+    const remaining = [...sameTitle];
+    while (remaining.length > 1) {
+      const seed = remaining.shift()!;
+      const cluster = [seed];
+      for (let i = remaining.length - 1; i >= 0; i--) {
+        const candidate = remaining[i];
+        const sharesVenue = [...candidate.venueNames].some((v) => seed.venueNames.has(v));
+        if (sharesVenue) {
+          cluster.push(candidate);
+          remaining.splice(i, 1);
+        }
+      }
+      if (cluster.length < 2) continue;
+
+      cluster.sort((a, b) => b.eventCount - a.eventCount || a.created_at.localeCompare(b.created_at));
+      const [target, ...sources] = cluster;
+      suggestions.push({
+        key: `${normalizedTitle}__${target.id}`,
+        title: target.title,
+        venueName: [...target.venueNames][0] ?? null,
+        targetGroupId: target.id,
+        targetTitle: target.title,
+        sourceGroupIds: sources.map((s) => s.id),
+        groups: cluster.map((g) => ({ id: g.id, title: g.title, eventCount: g.eventCount })),
+      });
+    }
+  }
+
+  return suggestions;
+}

@@ -82,7 +82,26 @@ struct LiveContentRepository: ContentRepository {
     func detail(kind: EntityKind, identifier: String) async throws -> EntityDetail? {
         let specification = directorySpecification(for: kind)
         let idColumn = kind == .work || UUID(uuidString: identifier) != nil ? "id" : "slug"
-        let detailSelection = kind == .work ? "*,composer:persons(id,slug,full_name)" : "*"
+        // member_of/parent: Nutzeranfrage, die Zugehörigkeit zu einem
+        // übergeordneten Ensemble sichtbar zu machen (z.B. "Solist des
+        // Tölzer Knabenchors" gehört zum Ensemble "Tölzer Knabenchor").
+        // fields (der rohe JSONObject) landet direkt in EntityDetail, kein
+        // Modell-Update nötig — siehe EntityDetailView.header.
+        // ensembles.parent_ensemble_id ist ein Self-Join (Ensemble->Ensemble)
+        // — PostgREST kann bei Self-Joins "gehört zu" (Vorwärts, ein Objekt)
+        // nicht zuverlässig von "hat als Unter-Ensemble" (Rückwärts, mehrere)
+        // unterscheiden und liefert über das Embedding immer die Rückwärts-
+        // Richtung. Deshalb hier NUR die scalar-ID selektieren und weiter
+        // unten manuell auflösen. person.member_of_ensemble_id betrifft
+        // dagegen zwei VERSCHIEDENE Tabellen (persons/ensembles) und bleibt
+        // ein normales, unproblematisches Embedding.
+        let detailSelection: String
+        switch kind {
+        case .work: detailSelection = "*,composer:persons(id,slug,full_name)"
+        case .person: detailSelection = "*,member_of:ensembles!member_of_ensemble_id(id,slug,name)"
+        case .ensemble: detailSelection = "*"
+        case .venue: detailSelection = "*"
+        }
         let rows: [JSONObject] = try await client.get(
             table: specification.table,
             queryItems: [
@@ -91,8 +110,22 @@ struct LiveContentRepository: ContentRepository {
                 URLQueryItem(name: "limit", value: "1")
             ]
         )
-        guard let row = rows.first else { return nil }
+        guard var row = rows.first else { return nil }
         guard let entityID = row.string("id") else { return nil }
+
+        if kind == .ensemble, let parentID = row.string("parent_ensemble_id") {
+            let parentRows: [JSONObject] = (try? await client.get(
+                table: "ensembles",
+                queryItems: [
+                    URLQueryItem(name: "select", value: "id,slug,name"),
+                    URLQueryItem(name: "id", value: "eq.\(parentID)"),
+                    URLQueryItem(name: "limit", value: "1")
+                ]
+            )) ?? []
+            if let parent = parentRows.first {
+                row["parent"] = .object(parent)
+            }
+        }
 
         async let galleryResult = optionalGallery(kind: kind, entityID: entityID)
         async let eventResult = optionalLinkedEvents(kind: kind, entityID: entityID)
@@ -327,7 +360,11 @@ struct LiveContentRepository: ContentRepository {
         case .person: ("persons", "id,slug,full_name,roles,instrument,photo_url,avatar_crop_x,avatar_crop_y,avatar_crop_width,avatar_crop_height", "full_name")
         case .ensemble: ("ensembles", "id,slug,name,photo_url,avatar_crop_x,avatar_crop_y,avatar_crop_width,avatar_crop_height", "name")
         case .venue: ("venues", "id,slug,name,address_city,photo_url", "name")
-        case .work: ("works", "id,title,catalog_number,genre,key_signature,duration_minutes,composition_year,instrumentation,composer:persons(full_name)", "title")
+        case .work: (
+            "works",
+            "id,title,catalog_number,genre,key_signature,duration_minutes,composition_year,instrumentation,composer:persons(id,slug,full_name,photo_url,avatar_crop_x,avatar_crop_y,avatar_crop_width,avatar_crop_height)",
+            "title"
+        )
         }
     }
 
@@ -340,7 +377,19 @@ struct LiveContentRepository: ContentRepository {
             title: title(from: row, kind: kind),
             subtitle: subtitle(from: row, kind: kind),
             imageURL: imageURL(from: row),
-            avatarCrop: avatarCrop(from: row)
+            avatarCrop: avatarCrop(from: row),
+            composer: kind == .work ? composerRef(from: row) : nil
+        )
+    }
+
+    private func composerRef(from row: JSONObject) -> DirectoryItem.ComposerRef? {
+        guard let composer = row.object("composer"), let id = composer.string("id"), let name = composer.string("full_name") else { return nil }
+        return DirectoryItem.ComposerRef(
+            id: id,
+            slug: composer.string("slug"),
+            name: name,
+            imageURL: composer.string("photo_url").flatMap(URL.init(string:)),
+            avatarCrop: avatarCrop(from: composer)
         )
     }
 

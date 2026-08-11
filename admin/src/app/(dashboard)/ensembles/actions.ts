@@ -13,6 +13,7 @@ function readEnsembleFields(formData: FormData) {
     founded_year: formData.get("founded_year") ? Number(formData.get("founded_year")) : null,
     member_count: formData.get("member_count") ? Number(formData.get("member_count")) : null,
     home_venue_id: String(formData.get("home_venue_id") ?? "") || null,
+    parent_ensemble_id: String(formData.get("parent_ensemble_id") ?? "") || null,
     website_url: String(formData.get("website_url") ?? "").trim() || null,
     photo_url: String(formData.get("photo_url") ?? "").trim() || null,
     is_verified: formData.get("is_verified") === "on",

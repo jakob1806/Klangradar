@@ -43,6 +43,7 @@ struct EventDetailView: View {
                             venue(detail)
                             similarEvents(detail)
                             source(detail)
+                            ReportContentLink(entityType: "event", entityID: event.id.uuidString)
                         } else if isLoading {
                             ProgressView("Details werden geladen …")
                                 .frame(maxWidth: .infinity)
@@ -264,6 +265,14 @@ struct EventDetailView: View {
     @ViewBuilder private func program(_ value: JSONObject) -> some View {
         let works = value.objects("event_works").sorted { ($0.integer("position") ?? 0) < ($1.integer("position") ?? 0) }
         let notes = value.string("program_notes_de")
+        // Bei vielen Quellen enthält description_de bereits eine Komma-
+        // Aufzählung der Werke/Komponisten als Fließtext (keine KI-Erfindung,
+        // steht so auf der Quellwebsite) — die wird oben in "Zum Konzert"
+        // ohnehin schon gezeigt. Ohne strukturiertes Programm hier zusätzlich
+        // "Programm wird geprüft" anzuzeigen ist irreführend, da die
+        // Information faktisch schon sichtbar ist (Parität zu Flutter, das
+        // description_de exakt für diesen Fall als Programm-Ersatz zeigt).
+        let hasDescriptionFallback = (value.string("description_de")?.isEmpty == false)
         if !works.isEmpty || notes != nil {
             section("Programm") {
                 if !works.isEmpty {
@@ -280,7 +289,7 @@ struct EventDetailView: View {
                     Text(notes).font(.body).foregroundStyle(.secondary).lineSpacing(4)
                 }
             }
-        } else {
+        } else if !hasDescriptionFallback {
             section("Programm") {
                 VStack(spacing: 14) {
                     if value.string("program_extraction_status") == "not_published" {
@@ -421,6 +430,9 @@ struct EventDetailView: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(participantName(row)).font(.headline)
                 Text(participantRole(row)).font(.subheadline).foregroundStyle(.secondary)
+                if let parentEnsembleName = parentEnsembleName(row) {
+                    Text("Teil von \(parentEnsembleName)").font(.caption).foregroundStyle(.tertiary)
+                }
             }
             Spacer(minLength: 8)
             Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(.tertiary)
@@ -615,6 +627,14 @@ struct EventDetailView: View {
         if let person = row.object("persons") { return (.person, person) }
         if let ensemble = row.object("ensembles") { return (.ensemble, ensemble) }
         return nil
+    }
+
+    /// Nutzeranfrage: Verknüpfung zu einem übergeordneten Ensemble soll auch
+    /// hier in der Mitwirkenden-Liste erkennbar sein, nicht erst auf der
+    /// eigenen Detailseite der Person/des Ensembles.
+    private func parentEnsembleName(_ row: JSONObject) -> String? {
+        row.object("persons")?.object("member_of")?.string("name")
+            ?? row.object("ensembles")?.object("parent")?.string("name")
     }
 
     private func initials(_ name: String) -> String {

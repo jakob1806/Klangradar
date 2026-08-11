@@ -20,6 +20,8 @@
 
 import { parseBayernCloud } from "./parsers/bayerncloud.ts";
 import { fetchBrsoConcertsJson, parseBrso } from "./parsers/brso.ts";
+import { fetchGaertnerplatzSchedule } from "./parsers/gaertnerplatz.ts";
+import { fetchStaatsoperSchedule, parseStaatsoper } from "./parsers/staatsoper.ts";
 import { isAllowedByRobots, USER_AGENT } from "../_shared/robots.ts";
 import { fetchWithRetry } from "../_shared/http/fetchWithRetry.ts";
 import { parseIcal } from "./parsers/ical.ts";
@@ -35,7 +37,7 @@ import { upsertRawEvent } from "./write.ts";
 // generischen Einzel-GET (siehe parsers/brso.ts's Datei-Kommentar für den
 // Grund: der Konzertinhalt lädt clientseitig per AJAX, kein CSS-Scraping
 // möglich).
-export const SUPPORTED_TYPES = new Set(["schema_org", "ical", "rss", "scrape", "api", "brso"]);
+export const SUPPORTED_TYPES = new Set(["schema_org", "ical", "rss", "scrape", "api", "brso", "staatsoper", "gaertnerplatz"]);
 
 /** Führt einen kompletten Ingestion-Lauf für eine Quelle aus — der eigentliche
  * Kern, den ingest-source/index.ts's Deno.serve-Handler direkt aufruft.
@@ -89,7 +91,7 @@ export async function runIngestion(
     return result({ status: "failed", error: message }, 422);
   }
 
-  if (source.type === "scrape" || source.type === "brso") {
+  if (["scrape", "brso", "staatsoper", "gaertnerplatz"].includes(source.type)) {
     const allowed = await isAllowedByRobots(source.url);
     if (!allowed) {
       const message = `robots.txt disallows fetching ${source.url} — refusing to scrape`;
@@ -160,6 +162,10 @@ export async function runIngestion(
     // greift trotzdem unverändert.
     if (source.type === "brso") {
       responseBody = await fetchBrsoConcertsJson(source.url);
+    } else if (source.type === "staatsoper") {
+      responseBody = await fetchStaatsoperSchedule(source.url, config.monthsAhead);
+    } else if (source.type === "gaertnerplatz") {
+      responseBody = await fetchGaertnerplatzSchedule(source.url, config.maxPages);
     } else {
       // Einzige zentrale Netzwerkstelle im Ingestion-Pfad ohne Timeout/
       // Retry (siehe _shared/http/fetchWithRetry.ts) — ein hängender
@@ -204,7 +210,21 @@ export async function runIngestion(
   // gar nicht vorhandenen) teuren LLM-Schritt — aus denselben Gründen wie
   // beim 304-Fall oben.
   const bodyHash = await sha256Hex(responseBody);
-  if (!responseEtag && !responseLastModified && httpCache.lastBodyHash === bodyHash) {
+  const pendingWriteOffset = typeof config.writeOffset === "number" ? config.writeOffset : 0;
+  const theaterNeedsBatchInitialization = source.type === "staatsoper"
+    ? config.parserVersion !== 3
+    : source.type === "gaertnerplatz" && typeof config.writeBatchSize !== "number";
+  if (
+    !responseEtag && !responseLastModified && httpCache.lastBodyHash === bodyHash &&
+    pendingWriteOffset === 0 && !theaterNeedsBatchInitialization
+  ) {
+    if (source.type === "staatsoper" && config.cleanupVersion !== 1) {
+      const accepted = new Set(
+        parseStaatsoper(responseBody).events.map((event) => event.externalId).filter((id): id is string => Boolean(id)),
+      );
+      await removeStaleStaatsoperEvents(supabase, source.id, accepted);
+      await supabase.from("sources").update({ config: { ...config, cleanupVersion: 1 } }).eq("id", source.id);
+    }
     await finishRun(supabase, run.id, "skipped_unchanged", { events_found: 0 }, []);
     await touchSource(supabase, source.id, true);
     await adjustCrawlFrequency(supabase, source.id, source.crawl_frequency_minutes, false);
@@ -286,6 +306,12 @@ export async function runIngestion(
       case "brso":
         parsed = parseBrso(responseBody);
         break;
+      case "staatsoper":
+        parsed = parseStaatsoper(responseBody);
+        break;
+      case "gaertnerplatz":
+        parsed = parseScrape(responseBody, source.config);
+        break;
       default:
         // Unreachable given the SUPPORTED_TYPES guard above, but keeps the
         // switch exhaustive without a non-null assertion.
@@ -298,6 +324,30 @@ export async function runIngestion(
     return result({ status: "failed", error: message }, 500);
   }
 
+  // Große Saisonlisten in fortsetzbare Batches teilen. Der Cursor lebt in
+  // sources.config; solange er > 0 ist, darf der Body-Hash-Shortcut oben
+  // nicht greifen. So überschreitet weder Staatsoper noch Gärtnerplatz das
+  // Edge-Zeitlimit, und der nächste reguläre Lauf setzt exakt fort.
+  const fullEventCount = parsed.events.length;
+  const fullExternalIds = source.type === "staatsoper"
+    ? new Set(parsed.events.map((event) => event.externalId).filter((id): id is string => Boolean(id)))
+    : null;
+  const configuredBatchSize = source.type === "staatsoper"
+    ? 40
+    : typeof config.writeBatchSize === "number"
+    ? config.writeBatchSize
+    : ["staatsoper", "gaertnerplatz"].includes(source.type)
+    ? 40
+    : null;
+  const writeBatchSize = configuredBatchSize == null
+    ? null
+    : Math.min(Math.max(Math.floor(configuredBatchSize), 1), 150);
+  const writeOffset = writeBatchSize ? Math.min(pendingWriteOffset, fullEventCount) : 0;
+  if (writeBatchSize) parsed.events = parsed.events.slice(writeOffset, writeOffset + writeBatchSize);
+  const nextWriteOffset = writeBatchSize && writeOffset + parsed.events.length < fullEventCount
+    ? writeOffset + parsed.events.length
+    : 0;
+
   let created = 0;
   let updated = 0;
   let unchanged = 0;
@@ -305,7 +355,7 @@ export async function runIngestion(
   const rawWriteErrors: string[] = [...parsed.errors];
   const seenEventIds: string[] = [];
 
-  for (const raw of parsed.events) {
+  const writeOne = async (raw: ParseResult["events"][number]) => {
     const result = await upsertRawEvent(supabase, source, raw);
     switch (result.outcome) {
       case "created":
@@ -328,6 +378,30 @@ export async function runIngestion(
         rawWriteErrors.push(`"${raw.title}": ${result.error}`);
         break;
     }
+  };
+
+  if (["staatsoper", "gaertnerplatz"].includes(source.type)) {
+    // Saisonspielpläne enthalten hunderte Termine. Unterschiedliche Titel
+    // parallel schreiben, Wiederholungen derselben Produktion aber seriell:
+    // generateUniqueSlug() darf für zwei gleichnamige Termine nicht in ein
+    // Race geraten. Acht Titel-Lanes halten den Edge-Lauf deutlich unter
+    // dem Zeitlimit, ohne die Datenbank mit 285 Einzel-Promises zu fluten.
+    const groups = new Map<string, typeof parsed.events>();
+    for (const raw of parsed.events) {
+      const key = raw.title.toLocaleLowerCase("de").replace(/\s+/g, " ").trim();
+      groups.set(key, [...(groups.get(key) ?? []), raw]);
+    }
+    const lanes = Array.from(groups.values());
+    let nextLane = 0;
+    const worker = async () => {
+      while (nextLane < lanes.length) {
+        const lane = lanes[nextLane++];
+        for (const raw of lane) await writeOne(raw);
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(20, lanes.length) }, worker));
+  } else {
+    for (const raw of parsed.events) await writeOne(raw);
   }
 
   const writeErrors = summarizeErrors(rawWriteErrors);
@@ -375,6 +449,40 @@ export async function runIngestion(
     await flagMissingEvents(supabase, source.id, seenEventIds);
   }
 
+  if (writeBatchSize) {
+    if (source.type === "staatsoper" && nextWriteOffset === 0 && fullExternalIds) {
+      await removeStaleStaatsoperEvents(supabase, source.id, fullExternalIds);
+    }
+    await supabase.from("sources").update({
+      config: {
+        ...config,
+        ...(source.type === "staatsoper" && nextWriteOffset === 0 ? { parserVersion: 3 } : {}),
+        ...(source.type === "staatsoper" && nextWriteOffset === 0 ? { cleanupVersion: 1 } : {}),
+        writeBatchSize,
+        writeOffset: nextWriteOffset,
+        httpCache: {
+          etag: responseEtag ?? undefined,
+          lastModified: responseLastModified ?? undefined,
+          lastBodyHash: bodyHash,
+        },
+      },
+    }).eq("id", source.id);
+  } else if (source.type === "staatsoper") {
+    await supabase.from("sources").update({
+      config: {
+        ...config,
+        parserVersion: 3,
+        writeOffset: 0,
+        writeBatchSize: null,
+        httpCache: {
+          etag: responseEtag ?? undefined,
+          lastModified: responseLastModified ?? undefined,
+          lastBodyHash: bodyHash,
+        },
+      },
+    }).eq("id", source.id);
+  }
+
   await finishRun(
     supabase,
     run.id,
@@ -392,12 +500,38 @@ export async function runIngestion(
   return result({
     status,
     events_found: attempted,
+    ...(writeBatchSize ? { total_events_found: fullEventCount, next_write_offset: nextWriteOffset } : {}),
     events_created: created,
     events_updated: updated,
     events_unchanged: unchanged,
     events_flagged_for_review: flagged,
     error_count: writeErrors.length,
   });
+}
+
+async function removeStaleStaatsoperEvents(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  sourceId: string,
+  acceptedExternalIds: Set<string>,
+) {
+  const { data, error } = await supabase
+    .from("events")
+    .select("id,external_id")
+    .eq("source_id", sourceId)
+    .eq("status", "scheduled")
+    .gte("start_datetime", new Date().toISOString())
+    .limit(2000);
+  if (error) {
+    console.error(`Staatsoper stale-event lookup failed: ${error.message}`);
+    return;
+  }
+  const staleIds = (data ?? [])
+    .filter((event: { external_id: string | null }) => !event.external_id || !acceptedExternalIds.has(event.external_id))
+    .map((event: { id: string }) => event.id);
+  if (staleIds.length === 0) return;
+  const { error: deleteError } = await supabase.from("events").delete().in("id", staleIds);
+  if (deleteError) console.error(`Staatsoper stale-event cleanup failed: ${deleteError.message}`);
 }
 
 // Nutzerfeedback: Quellen ohne feste venue_id, deren Parser auch keinen

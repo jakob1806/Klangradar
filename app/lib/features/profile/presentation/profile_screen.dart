@@ -12,6 +12,7 @@ import '../../../l10n/generated/app_localizations.dart';
 import 'widgets/admin_portal_dialog.dart';
 import 'widgets/auth_section.dart';
 import 'widgets/language_sheet.dart';
+import 'widgets/profile_avatar_editor.dart';
 import 'widgets/theme_mode_sheet.dart';
 
 class ProfileScreen extends ConsumerWidget {
@@ -38,6 +39,7 @@ class ProfileScreen extends ConsumerWidget {
             const AuthSection()
           else
             _SignedInHeader(
+              userId: user.id,
               email: user.email ?? l10n.profileSignedIn,
               colors: colors,
             ),
@@ -98,7 +100,12 @@ class ProfileScreen extends ConsumerWidget {
 }
 
 class _SignedInHeader extends StatelessWidget {
-  const _SignedInHeader({required this.email, required this.colors});
+  const _SignedInHeader({
+    required this.userId,
+    required this.email,
+    required this.colors,
+  });
+  final String userId;
   final String email;
   final AppColorsExtension colors;
 
@@ -106,15 +113,7 @@ class _SignedInHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        CircleAvatar(
-          radius: 32,
-          backgroundColor: colors.accentPrimary,
-          child: const Icon(
-            Icons.person_rounded,
-            color: Colors.white,
-            size: 28,
-          ),
-        ),
+        ProfileAvatarEditor(userId: userId),
         const SizedBox(height: AppSpacing.sm),
         Text(
           email,

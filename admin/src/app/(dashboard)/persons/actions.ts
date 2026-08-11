@@ -28,6 +28,7 @@ function readPersonFields(formData: FormData) {
     biography_de: String(formData.get("biography_de") ?? "").trim() || null,
     website_url: String(formData.get("website_url") ?? "").trim() || null,
     photo_url: String(formData.get("photo_url") ?? "").trim() || null,
+    member_of_ensemble_id: String(formData.get("member_of_ensemble_id") ?? "") || null,
     is_verified: formData.get("is_verified") === "on",
   };
 }

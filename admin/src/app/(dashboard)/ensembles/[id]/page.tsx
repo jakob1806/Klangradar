@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { GalleryEditor } from "@/components/entity-gallery/gallery-editor";
@@ -16,15 +17,16 @@ export default async function EditEnsemblePage({
   const { id } = await params;
   const supabase = await createClient();
 
-  const [{ data, error }, { data: venues }, { data: images }] = await Promise.all([
+  const [{ data, error }, { data: venues }, { data: ensembles }, { data: images }] = await Promise.all([
     supabase
       .from("ensembles")
       .select(
-        "slug, name, type, description_de, founded_year, member_count, home_venue_id, website_url, photo_url, avatar_crop_x, avatar_crop_y, avatar_crop_width, avatar_crop_height, is_verified",
+        "slug, name, type, description_de, founded_year, member_count, home_venue_id, parent_ensemble_id, website_url, photo_url, avatar_crop_x, avatar_crop_y, avatar_crop_width, avatar_crop_height, is_verified",
       )
       .eq("id", id)
       .maybeSingle<EnsembleFormValues>(),
     supabase.from("venues").select("id, name").order("name"),
+    supabase.from("ensembles").select("id, name").order("name").returns<{ id: string; name: string }[]>(),
     // Nur freigegebene Bilder — siehe Kommentar in persons/[id]/page.tsx.
     supabase
       .from("images")
@@ -38,6 +40,8 @@ export default async function EditEnsemblePage({
 
   if (error || !data) notFound();
 
+  const parentEnsemble = (ensembles ?? []).find((e) => e.id === data.parent_ensemble_id);
+
   return (
     <div className="p-8">
       <div className="flex items-center justify-between">
@@ -48,8 +52,22 @@ export default async function EditEnsemblePage({
         <AiEnrichButton entityType="ensemble" entityId={id} />
         <EntityAuditButton entityType="ensemble" entityId={id} />
       </div>
+      {parentEnsemble && (
+        <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+          Gehört zum Ensemble{" "}
+          <Link href={`/ensembles/${parentEnsemble.id}`} className="font-medium underline">
+            {parentEnsemble.name}
+          </Link>
+        </div>
+      )}
       <div className="mt-6">
-        <EnsembleForm action={updateEnsemble.bind(null, id)} initial={data} venues={venues ?? []} ensembleId={id} />
+        <EnsembleForm
+          action={updateEnsemble.bind(null, id)}
+          initial={data}
+          venues={venues ?? []}
+          ensembles={ensembles ?? []}
+          ensembleId={id}
+        />
       </div>
       <div className="mt-8 max-w-xl border-t border-neutral-200 pt-6">
         <GalleryEditor originType="ensemble" originId={id} path={`/ensembles/${id}`} images={images ?? []} />

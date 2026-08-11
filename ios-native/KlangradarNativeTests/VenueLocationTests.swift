@@ -38,4 +38,22 @@ final class VenueLocationTests: XCTestCase {
         let groups = groupVenuesByLocation([venue])
         XCTAssertEqual(groups, [[venue]])
     }
+
+    /// Nutzerfeedback: der Gruppen-Pin für Gasteig HP8 zeigte "Black Box im
+    /// Gasteig HP8" (Name des ersten Venues) als Übertitel statt des
+    /// gemeinsamen Gebäudenamens "Gasteig HP8".
+    func testGroupTitleExtractsSharedBuildingName() {
+        let isarphilharmonie = VenueLocation(id: UUID(), name: "Isarphilharmonie (Gasteig HP8)", latitude: 48.1114407, longitude: 11.553687)
+        let saalX = VenueLocation(id: UUID(), name: "Saal X im Gasteig HP8", latitude: 48.1114407, longitude: 11.553687)
+        let blackbox = VenueLocation(id: UUID(), name: "Black Box im Gasteig HP8", latitude: 48.1114407, longitude: 11.553687)
+
+        XCTAssertEqual(titleForVenueGroup([blackbox, isarphilharmonie, saalX]), "Gasteig HP8")
+    }
+
+    func testGroupTitleFallsBackToCountWithoutSharedName() {
+        let a = VenueLocation(id: UUID(), name: "Alpha Saal", latitude: 48.0, longitude: 11.0)
+        let b = VenueLocation(id: UUID(), name: "Beta Bühne", latitude: 48.0, longitude: 11.0)
+
+        XCTAssertEqual(titleForVenueGroup([a, b]), "2 Konzertorte")
+    }
 }

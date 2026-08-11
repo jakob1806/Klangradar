@@ -24,6 +24,40 @@ struct SupabaseRESTClient: Sendable {
             .appendingPathComponent(path)
     }
 
+    func uploadPublicObject(
+        bucket: String,
+        path: String,
+        data: Data,
+        contentType: String,
+        accessToken: String
+    ) async throws -> URL {
+        let url = configuration.supabaseURL
+            .appendingPathComponent("storage/v1/object")
+            .appendingPathComponent(bucket)
+            .appendingPathComponent(path)
+        var request = authorizedRequest(url: url, accessToken: accessToken)
+        request.httpMethod = "POST"
+        request.httpBody = data
+        request.setValue(contentType, forHTTPHeaderField: "Content-Type")
+        request.setValue("true", forHTTPHeaderField: "x-upsert")
+        _ = try await perform(request)
+        return publicStorageURL(bucket: bucket, path: path)
+    }
+
+    func deleteStorageObject(
+        bucket: String,
+        path: String,
+        accessToken: String
+    ) async throws {
+        let url = configuration.supabaseURL
+            .appendingPathComponent("storage/v1/object")
+            .appendingPathComponent(bucket)
+            .appendingPathComponent(path)
+        var request = authorizedRequest(url: url, accessToken: accessToken)
+        request.httpMethod = "DELETE"
+        _ = try await perform(request)
+    }
+
     func get<Response: Decodable & Sendable>(
         table: String,
         queryItems: [URLQueryItem],
@@ -153,6 +187,14 @@ struct SupabaseRESTClient: Sendable {
 
     private func authorizedRequest(url: URL, accessToken: String?) -> URLRequest {
         var request = URLRequest(url: url)
+        // PostgREST-Antworten liefern keine Cache-Control-Header. URLSession.shared
+        // kann solche Antworten trotzdem in einem plattenpersistenten Cache ablegen,
+        // der auch App-Neustarts übersteht — ein einmal (z.B. vor einer Admin-
+        // Bearbeitung) geladenes Event blieb dadurch dauerhaft veraltet, obwohl die
+        // Datenbank längst aktuell war. Für Live-Daten wird der Cache hier bewusst
+        // umgangen statt nur nicht befüllt (reloadIgnoringLocalCacheData), damit
+        // bereits vorhandene veraltete Einträge ebenfalls nicht mehr greifen.
+        request.cachePolicy = .reloadIgnoringLocalCacheData
         request.setValue(configuration.supabaseAnonKey, forHTTPHeaderField: "apikey")
         request.setValue(
             "Bearer \(accessToken ?? configuration.supabaseAnonKey)",

@@ -41,6 +41,20 @@ class GalleryImage {
   }
 }
 
+/// Stellt das separate Profilfoto vor die Bildergalerie, ohne ein identisches
+/// Bild doppelt anzuzeigen. Für Personen und Ensembles ist `photo_url` die
+/// verbindliche Miniaturansicht; `sort_order` ordnet nur die Galerie dahinter.
+List<GalleryImage> profilePhotoFirst(
+  String? profilePhotoUrl,
+  List<GalleryImage> gallery,
+) {
+  if (profilePhotoUrl == null || profilePhotoUrl.isEmpty) return gallery;
+  return [
+    GalleryImage(url: profilePhotoUrl),
+    ...gallery.where((image) => image.url != profilePhotoUrl),
+  ];
+}
+
 /// Freigegebene Galerie-Bilder einer Person/eines Ensembles, in
 /// redaktioneller Reihenfolge (niedrigster sort_order zuerst = Titelbild).
 /// Leere Liste, wenn noch keine über die neue Admin-Galerie gepflegt wurden

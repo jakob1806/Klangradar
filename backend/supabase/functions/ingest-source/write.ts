@@ -18,6 +18,7 @@ interface SourceRow {
   ensemble_id?: string | null;
   consecutive_failures?: number | null;
   confidence_thresholds?: { auto?: number; quick?: number } | null;
+  config?: { autoPublish?: boolean } | null;
 }
 
 /** Ordnet den Score einer Triage-Stufe zu, mit den PRO QUELLE kalibrierten
@@ -40,7 +41,7 @@ function reviewStatusForScore(
 // Structured feed types haben eine strukturell niedrigere Fehlerquote als
 // freies HTML-Scraping mit KI-Extraktion — siehe Architektur-Dokument
 // Abschnitt 4 ("extraktions_methode").
-const STRUCTURED_SOURCE_TYPES = new Set(["schema_org", "rss", "ical", "api"]);
+const STRUCTURED_SOURCE_TYPES = new Set(["schema_org", "rss", "ical", "api", "staatsoper", "gaertnerplatz"]);
 
 /** Grobe Erstversion der Confidence-Score-Formel aus dem Architektur-
  * Dokument (Abschnitt 4) — NUR für neu angelegte Events berechnet.
@@ -308,7 +309,7 @@ export async function upsertRawEvent(
         // attachCoverImage() unten füllt es erst, wenn das Bild die
         // Mindestauflösung der Pipeline besteht (siehe dortiger Kommentar).
         image_urls: [],
-        status: "draft",
+        status: source.config?.autoPublish === true ? "scheduled" : "draft",
         source_id: source.id,
         external_id: raw.externalId,
         content_hash: contentHash,

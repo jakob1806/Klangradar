@@ -185,19 +185,65 @@ struct DirectoryView: View {
         }
     }
 
+    // Nutzeranfrage: "Werke sollen nach Komponist sortiert werden. Dabei
+    // soll jeder Komponist alphabetisch sortiert werden und wie in der
+    // Liste der Personen ein Miniaturbild erhalten." — Werke gruppieren sich
+    // deshalb nicht wie die übrigen Directory-Kinds nach dem eigenen Titel,
+    // sondern nach Komponist; die A-Z-Schnellsprungleiste bleibt dasselbe
+    // Muster, springt jetzt aber zu Komponisten-Anfangsbuchstaben.
+    private var composerSections: [ComposerSection] {
+        let groupedByComposer = Dictionary(grouping: items) { $0.composer?.id ?? "unbekannt" }
+        let composerGroups = groupedByComposer.map { _, works -> ComposerGroup in
+            let composer = works.first?.composer
+            return ComposerGroup(
+                id: composer?.id ?? "unbekannt",
+                name: composer?.name ?? "Unbekannter Komponist",
+                slug: composer?.slug,
+                imageURL: composer?.imageURL,
+                avatarCrop: composer?.avatarCrop,
+                works: works.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+            )
+        }
+        .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+
+        let bucketed = Dictionary(grouping: composerGroups) { DirectorySection.indexTitle(for: $0.name) }
+        return DirectorySection.indexTitles.compactMap { letter in
+            guard let groups = bucketed[letter], !groups.isEmpty else { return nil }
+            return ComposerSection(title: letter, groups: groups)
+        }
+    }
+
     var body: some View {
         ScrollViewReader { proxy in
             List {
-                ForEach(sections) { section in
-                    Section {
-                        ForEach(section.items) { item in
-                            directoryRow(item)
+                if kind == .work {
+                    ForEach(composerSections) { section in
+                        Section {
+                            ForEach(section.groups) { group in
+                                composerHeaderRow(group)
+                                ForEach(group.works) { work in
+                                    workRow(work, composerName: group.name)
+                                }
+                            }
+                        } header: {
+                            Text(section.title)
+                                .font(.headline)
+                                .foregroundStyle(.secondary)
+                                .id(section.title)
                         }
-                    } header: {
-                        Text(section.title)
-                            .font(.headline)
-                            .foregroundStyle(.secondary)
-                            .id(section.title)
+                    }
+                } else {
+                    ForEach(sections) { section in
+                        Section {
+                            ForEach(section.items) { item in
+                                directoryRow(item)
+                            }
+                        } header: {
+                            Text(section.title)
+                                .font(.headline)
+                                .foregroundStyle(.secondary)
+                                .id(section.title)
+                        }
                     }
                 }
             }
@@ -205,9 +251,10 @@ struct DirectoryView: View {
             .contentMargins(.trailing, 18, for: .scrollContent)
             .overlay(alignment: .trailing) {
                 AlphabetIndexRail(
-                    availableTitles: Set(sections.map(\.title)),
+                    availableTitles: Set((kind == .work ? composerSections.map(\.title) : sections.map(\.title))),
                     onSelect: { requested in
-                        guard let target = sectionTarget(for: requested) else { return }
+                        let available = kind == .work ? composerSections.map(\.title) : sections.map(\.title)
+                        guard let target = sectionTarget(for: requested, available: available) else { return }
                         withAnimation(.snappy(duration: 0.2)) {
                             proxy.scrollTo(target, anchor: .top)
                         }
@@ -222,34 +269,69 @@ struct DirectoryView: View {
     }
 
     @ViewBuilder
+    private func composerHeaderRow(_ group: ComposerGroup) -> some View {
+        let label = HStack(spacing: 12) {
+            CroppedAsyncImage(url: group.imageURL, crop: group.avatarCrop) {
+                Color.secondary.opacity(0.12).overlay { Image(systemName: "person") }
+            }
+            .frame(width: 44, height: 44)
+            .clipShape(Circle())
+            Text(group.name).font(.headline)
+            Spacer(minLength: 0)
+        }
+        if let slug = group.slug {
+            NavigationLink(value: EntityRoute(kind: .person, identifier: slug)) { label }
+        } else {
+            label
+        }
+    }
+
+    /// Werk-Zeile innerhalb einer Komponisten-Gruppe — die Komponist-Angabe
+    /// steht bereits im Gruppen-Header (composerHeaderRow), wird deshalb aus
+    /// dem sonst geteilten item.subtitle (Komponist · Opus · Tonart · Jahr ·
+    /// Dauer, siehe ContentRepository.subtitle) entfernt, um sie nicht doppelt
+    /// zu zeigen.
+    @ViewBuilder
+    private func workRow(_ item: DirectoryItem, composerName: String) -> some View {
+        NavigationLink(value: EntityRoute(kind: kind, identifier: item.slug ?? item.id)) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text(item.title.cleanedWorkTitle).font(.headline).fixedSize(horizontal: false, vertical: true)
+                if let detail = workDetailLine(item.subtitle, composerName: composerName) {
+                    Text(detail).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
+                }
+            }
+            .padding(.vertical, 6)
+            .padding(.leading, 56)
+        }
+    }
+
+    private func workDetailLine(_ subtitle: String?, composerName: String) -> String? {
+        guard var text = subtitle, !text.isEmpty else { return nil }
+        if text.hasPrefix(composerName) {
+            text.removeFirst(composerName.count)
+            if text.hasPrefix(" · ") { text.removeFirst(3) }
+        }
+        return text.isEmpty ? nil : text
+    }
+
+    @ViewBuilder
     private func directoryRow(_ item: DirectoryItem) -> some View {
         NavigationLink(value: EntityRoute(kind: kind, identifier: item.slug ?? item.id)) {
-            if kind == .work {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(item.title.cleanedWorkTitle).font(.headline).fixedSize(horizontal: false, vertical: true)
-                    if let subtitle = item.subtitle, !subtitle.isEmpty {
-                        Text(subtitle).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
-                    }
+            HStack(spacing: 12) {
+                CroppedAsyncImage(url: item.imageURL, crop: item.avatarCrop) {
+                    Color.secondary.opacity(0.12).overlay { Image(systemName: kind.systemImage) }
                 }
-                .padding(.vertical, 6)
-            } else {
-                HStack(spacing: 12) {
-                    CroppedAsyncImage(url: item.imageURL, crop: item.avatarCrop) {
-                        Color.secondary.opacity(0.12).overlay { Image(systemName: kind.systemImage) }
-                    }
-                    .frame(width: 54, height: 54)
-                    .clipShape(kind == .person || kind == .ensemble ? AnyShape(Circle()) : AnyShape(RoundedRectangle(cornerRadius: 14, style: .continuous)))
-                    VStack(alignment: .leading) {
-                        Text(item.title).font(.headline)
-                        if let subtitle = item.subtitle { Text(subtitle).font(.subheadline).foregroundStyle(.secondary) }
-                    }
+                .frame(width: 54, height: 54)
+                .clipShape(kind == .person || kind == .ensemble ? AnyShape(Circle()) : AnyShape(RoundedRectangle(cornerRadius: 14, style: .continuous)))
+                VStack(alignment: .leading) {
+                    Text(item.title).font(.headline)
+                    if let subtitle = item.subtitle { Text(subtitle).font(.subheadline).foregroundStyle(.secondary) }
                 }
             }
         }
     }
 
-    private func sectionTarget(for requested: String) -> String? {
-        let available = sections.map(\.title)
+    private func sectionTarget(for requested: String, available: [String]) -> String? {
         guard !available.isEmpty else { return nil }
         if available.contains(requested) { return requested }
         guard let requestedIndex = DirectorySection.indexTitles.firstIndex(of: requested) else { return available.first }
@@ -257,6 +339,21 @@ struct DirectoryView: View {
             ?? DirectorySection.indexTitles.prefix(requestedIndex).reversed().first(where: available.contains)
             ?? available.first
     }
+}
+
+private struct ComposerGroup: Identifiable {
+    let id: String
+    let name: String
+    let slug: String?
+    let imageURL: URL?
+    let avatarCrop: CropRect?
+    let works: [DirectoryItem]
+}
+
+private struct ComposerSection: Identifiable {
+    let title: String
+    let groups: [ComposerGroup]
+    var id: String { title }
 }
 
 private struct DirectorySection: Identifiable {

@@ -22,8 +22,104 @@ struct UserEventList: Identifiable, Hashable, Sendable {
     let events: [ConcertEvent]
 }
 
+struct KlangradarUserProfile: Sendable {
+    var displayName: String
+    var birthDate: Date?
+    var avatarURL: URL?
+}
+
 struct UserRepository: Sendable {
     let client: SupabaseRESTClient
+
+    func profile(userID: UUID, token: String) async throws -> KlangradarUserProfile {
+        let rows: [JSONObject] = try await client.get(
+            table: "profiles",
+            queryItems: [
+                URLQueryItem(name: "select", value: "display_name,birth_date,avatar_url"),
+                URLQueryItem(name: "id", value: "eq.\(userID.uuidString)"),
+                URLQueryItem(name: "limit", value: "1")
+            ],
+            accessToken: token
+        )
+        let row = rows.first ?? [:]
+        return KlangradarUserProfile(
+            displayName: row.string("display_name") ?? "",
+            birthDate: row.string("birth_date").flatMap(FlexibleDateParser.date(from:)),
+            avatarURL: row.string("avatar_url").flatMap(URL.init(string:))
+        )
+    }
+
+    func updateProfile(
+        displayName: String,
+        birthDate: Date?,
+        userID: UUID,
+        token: String
+    ) async throws {
+        let cleanName = String(displayName.trimmingCharacters(in: .whitespacesAndNewlines).prefix(80))
+        guard !cleanName.isEmpty else { return }
+        let dateValue: JSONValue = birthDate.map {
+            .string(KlangradarDateTime.string($0, format: "yyyy-MM-dd"))
+        } ?? .null
+        try await client.update(
+            table: "profiles",
+            values: ["display_name": .string(cleanName), "birth_date": dateValue],
+            filters: [URLQueryItem(name: "id", value: "eq.\(userID.uuidString)")],
+            accessToken: token
+        )
+    }
+
+    func profileAvatarURL(userID: UUID, token: String) async throws -> URL? {
+        let rows: [JSONObject] = try await client.get(
+            table: "profiles",
+            queryItems: [
+                URLQueryItem(name: "select", value: "avatar_url"),
+                URLQueryItem(name: "id", value: "eq.\(userID.uuidString)"),
+                URLQueryItem(name: "limit", value: "1")
+            ],
+            accessToken: token
+        )
+        return rows.first?.string("avatar_url").flatMap(URL.init(string:))
+    }
+
+    func uploadProfileAvatar(
+        _ data: Data,
+        userID: UUID,
+        token: String
+    ) async throws -> URL {
+        let path = "\(userID.uuidString.lowercased())/avatar.jpg"
+        let publicURL = try await client.uploadPublicObject(
+            bucket: "profile-avatars",
+            path: path,
+            data: data,
+            contentType: "image/jpeg",
+            accessToken: token
+        )
+        var components = URLComponents(url: publicURL, resolvingAgainstBaseURL: false)
+        components?.queryItems = [URLQueryItem(name: "v", value: String(Int(Date().timeIntervalSince1970)))]
+        let versionedURL = components?.url ?? publicURL
+        try await client.update(
+            table: "profiles",
+            values: ["avatar_url": .string(versionedURL.absoluteString)],
+            filters: [URLQueryItem(name: "id", value: "eq.\(userID.uuidString)")],
+            accessToken: token
+        )
+        return versionedURL
+    }
+
+    func deleteProfileAvatar(userID: UUID, token: String) async throws {
+        let path = "\(userID.uuidString.lowercased())/avatar.jpg"
+        try await client.deleteStorageObject(
+            bucket: "profile-avatars",
+            path: path,
+            accessToken: token
+        )
+        try await client.update(
+            table: "profiles",
+            values: ["avatar_url": .null],
+            filters: [URLQueryItem(name: "id", value: "eq.\(userID.uuidString)")],
+            accessToken: token
+        )
+    }
 
     func favoriteEvents(userID: UUID, token: String) async throws -> [ConcertEvent] {
         let rows: [JSONObject] = try await client.get(table: "favorites", queryItems: [
@@ -147,6 +243,30 @@ struct UserRepository: Sendable {
         try await client.upsert(table: "notification_preferences", values: [
             "user_id": .string(userID.uuidString), column: .bool(value)
         ], accessToken: token, conflictColumns: "user_id")
+    }
+
+    /// Nutzeranfrage: Fehlermeldungen auch aus der nativen App möglich machen,
+    /// analog zu Flutters ReportContentSheet (app/lib/core/widgets/
+    /// report_content_sheet.dart). Schreibt in dieselbe content_reports-
+    /// Tabelle; die platform-Spalte (Migration 20261011000006) unterscheidet
+    /// in der Redaktion zwischen Flutter- und Native-Meldungen.
+    func reportContent(
+        entityType: String,
+        entityID: String,
+        reason: String,
+        message: String?,
+        userID: UUID?,
+        token: String
+    ) async throws {
+        var values: JSONObject = [
+            "entity_type": .string(entityType),
+            "entity_id": .string(entityID),
+            "reason": .string(reason),
+            "platform": .string("native")
+        ]
+        values["reporter_id"] = userID.map { .string($0.uuidString) } ?? .null
+        if let message, !message.isEmpty { values["message"] = .string(message) }
+        _ = try await client.insert(table: "content_reports", values: values, accessToken: token)
     }
 
     func interestOptions(_ category: InterestCategory) async throws -> [InterestOption] {
@@ -306,5 +426,20 @@ final class FollowStore: ObservableObject {
         case .venue: if following { venueIDs.insert(id) } else { venueIDs.remove(id) }
         case .work: break
         }
+    }
+}
+
+/// App-weit als EnvironmentObject verfügbar (siehe RootTabView), damit
+/// ReportContentLink auf Detailseiten (Event/Person/Ensemble/Venue) nicht
+/// auth/UserRepository durch jede Zwischenansicht (SearchView, VenueMapView
+/// etc.) durchreichen muss.
+@MainActor
+final class ReportStore: ObservableObject {
+    let auth: AuthStore
+    let repository: UserRepository?
+
+    init(auth: AuthStore, repository: UserRepository?) {
+        self.auth = auth
+        self.repository = repository
     }
 }

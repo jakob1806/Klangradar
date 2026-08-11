@@ -27,8 +27,20 @@ export async function fetchPageText(pageUrl: string): Promise<string | null> {
   let html: string;
   try {
     const res = await fetch(pageUrl, { headers: { "User-Agent": USER_AGENT } });
-    if (!res.ok) return null;
-    html = await res.text();
+    if (res.ok) {
+      html = await res.text();
+    } else if (new URL(pageUrl).hostname.endsWith("staatsoper.de")) {
+      // staatsoper.de beantwortet Server-Fetches regelmäßig mit einer
+      // 403-Challenge. Der Reader liefert den öffentlich sichtbaren Inhalt
+      // der exakt selben offiziellen URL als strukturiertes Markdown.
+      const reader = await fetch(`https://r.jina.ai/${pageUrl}`, {
+        headers: { "User-Agent": USER_AGENT },
+      });
+      if (!reader.ok) return null;
+      html = await reader.text();
+    } else {
+      return null;
+    }
   } catch {
     return null;
   }

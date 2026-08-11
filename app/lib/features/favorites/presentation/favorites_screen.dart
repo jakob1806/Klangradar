@@ -374,7 +374,8 @@ class _FavoriteRowTile extends ConsumerWidget {
           FavoriteButton(eventId: e.id, size: 20),
         ],
       ),
-      onTap: () => context.push('/event/${e.slug}'),
+      onTap: () =>
+          context.pushNamed('event-detail', pathParameters: {'slug': e.slug}),
     );
   }
 }

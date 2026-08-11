@@ -1,12 +1,20 @@
+import { createClient } from "@/lib/supabase/server";
 import { createPerson } from "../actions";
 import { PersonForm } from "../person-form";
 
-export default function NewPersonPage() {
+export default async function NewPersonPage() {
+  const supabase = await createClient();
+  const { data: ensembles } = await supabase
+    .from("ensembles")
+    .select("id, name")
+    .order("name")
+    .returns<{ id: string; name: string }[]>();
+
   return (
     <div className="p-8">
       <h1 className="text-xl font-semibold tracking-tight">Neue Person</h1>
       <div className="mt-6">
-        <PersonForm action={createPerson} />
+        <PersonForm action={createPerson} ensembles={ensembles ?? []} />
       </div>
     </div>
   );

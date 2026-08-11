@@ -69,8 +69,13 @@ struct LiveEventRepository: EventRepository {
             }
         }
         return events.map { event in
-            let candidateIDs = [event.id, event.venues?.id].compactMap { $0 } + (event.eventParticipants ?? []).flatMap { [$0.persons?.id, $0.ensembles?.id].compactMap { $0 } }
-            let fallback = candidateIDs.flatMap { galleryURLs[$0.uuidString] ?? [] }
+            let candidateIDs = [event.venues?.id].compactMap { $0 } + (event.eventParticipants ?? []).flatMap { [$0.persons?.id, $0.ensembles?.id].compactMap { $0 } }
+            // PostgREST liefert origin_id klein geschrieben, UUID.uuidString liefert
+            // GROSSBUCHSTABEN — ohne .lowercased() traf dieser Dictionary-Lookup nie,
+            // eigene Event-/Venue-/Mitwirkenden-Galeriebilder (inkl. Event-Gruppen-
+            // Bild) wurden dadurch still ignoriert und auf das Mitwirkenden-eigene
+            // photo_url zurückgefallen (Nutzerfeedback: falsches Bild angezeigt).
+            let fallback = candidateIDs.flatMap { galleryURLs[$0.uuidString.lowercased()] ?? [] }
             return ConcertEvent(
                 id: event.id,
                 slug: event.slug,
@@ -82,6 +87,7 @@ struct LiveEventRepository: EventRepository {
                 venues: event.venues,
                 eventParticipants: event.eventParticipants,
                 fallbackImageUrls: fallback,
+                ownGalleryImageUrls: galleryURLs[event.id.uuidString.lowercased()],
                 category: event.category,
                 genreIDs: event.genreIDs,
                 genreLabels: event.genreLabels,
@@ -159,7 +165,43 @@ struct LiveEventRepository: EventRepository {
                 enriched["program_extraction_status"] = status
             }
         }
-        return await enrichingEntityImages(enriched)
+        return await enrichingEntityImages(await enrichingParentEnsembles(enriched))
+    }
+
+    /// ensembles.parent_ensemble_id ist ein Self-Join (Ensemble->Ensemble) —
+    /// PostgREST liefert dafür über Embedding zuverlässig nur die Rückwärts-
+    /// Richtung ("hat als Unter-Ensemble" statt "gehört zu"), siehe Kommentar
+    /// bei detailSelection. Deshalb wird hier für alle Mitwirkenden-Ensembles
+    /// mit gesetzter parent_ensemble_id die übergeordnete Ensemble-Kurzform
+    /// (slug, name) manuell nachgeladen und als "parent" angehängt.
+    private func enrichingParentEnsembles(_ detail: JSONObject) async -> JSONObject {
+        let ensembles = detail.objects("event_participants").compactMap { $0.object("ensembles") }
+        let parentIDs = Set(ensembles.compactMap { $0.string("parent_ensemble_id") })
+        guard !parentIDs.isEmpty else { return detail }
+
+        let parentRows: [JSONObject] = (try? await client.get(table: "ensembles", queryItems: [
+            URLQueryItem(name: "select", value: "id,slug,name"),
+            URLQueryItem(name: "id", value: "in.(\(parentIDs.joined(separator: ",")))")
+        ])) ?? []
+        guard !parentRows.isEmpty else { return detail }
+        let parentByID = Dictionary(uniqueKeysWithValues: parentRows.compactMap { row -> (String, JSONObject)? in
+            guard let id = row.string("id") else { return nil }
+            return (id, row)
+        })
+
+        var enriched = detail
+        let participants = detail.objects("event_participants").map { original -> JSONObject in
+            var row = original
+            if var ensemble = row.object("ensembles"),
+               let parentID = ensemble.string("parent_ensemble_id"),
+               let parent = parentByID[parentID] {
+                ensemble["parent"] = .object(parent)
+                row["ensembles"] = .object(ensemble)
+            }
+            return row
+        }
+        enriched["event_participants"] = .array(participants.map(JSONValue.object))
+        return enriched
     }
 
     private func enrichingEntityImages(_ detail: JSONObject) async -> JSONObject {
@@ -252,7 +294,7 @@ struct LiveEventRepository: EventRepository {
             URLQueryItem(name: "id", value: "neq.\(eventID)"),
             URLQueryItem(name: "status", value: "neq.draft")
         ] }
-        let selection = "program_notes_de,program_extraction_status,event_works(position,after_intermission,works(id,title,catalog_number,key_signature,instrumentation,movements,composer:persons(id,slug,full_name,photo_url))),event_participants(role,role_label,persons(id,slug,full_name,photo_url),ensembles(id,slug,name,photo_url))"
+        let selection = "program_notes_de,program_extraction_status,event_works(position,after_intermission,works(id,title,catalog_number,key_signature,instrumentation,movements,composer:persons(id,slug,full_name,photo_url))),event_participants(role,role_label,persons(id,slug,full_name,photo_url,member_of:ensembles!member_of_ensemble_id(slug,name)),ensembles(id,slug,name,photo_url,parent_ensemble_id))"
         var rows: [JSONObject]? = try? await client.get(table: "events", queryItems: queryItems(selection))
         if rows == nil {
             rows = try? await client.get(table: "events", queryItems: queryItems(selection.replacingOccurrences(of: "role,role_label", with: "role")))
@@ -265,6 +307,13 @@ struct LiveEventRepository: EventRepository {
 
     private static let coreDetailSelection = "id,slug,title,subtitle,category,description_de,program_notes_de,program_extraction_status,start_datetime,end_datetime,duration_minutes,has_intermission,ticket_url,price_min,price_max,price_currency,is_free,remaining_tickets_status,doors_info,age_restriction,discount_info,target_audience,performance_language,website_url,accessibility,status,image_urls,program_id,attribution_notice,attribution_license_url,last_verified_at,venues(id,slug,name,address_street,address_zip,address_city,photo_url,description_de)"
 
+    // PostgREST lehnt echte Zeilenumbrüche innerhalb des select-Parameters ab
+    // (PGRST100: "unexpected \"\n\""), sobald sie URL-kodiert übertragen werden —
+    // ein reines Multiline-String-Literal ("""...""") schlug dadurch für JEDES
+    // Event fehl (primär UND Legacy-Fallback), sodass die App still auf
+    // coreDetailSelection zurückfiel, das event_works/event_participants gar
+    // nicht erst enthält. Deshalb hier Zeilenumbrüche vor Verwendung entfernen,
+    // statt den mehrzeiligen Aufbau (bessere Lesbarkeit im Quelltext) aufzugeben.
     private static let detailSelection = """
     id,slug,title,subtitle,category,description_de,program_notes_de,program_extraction_status,start_datetime,end_datetime,duration_minutes,has_intermission,
     ticket_url,price_min,price_max,price_currency,is_free,remaining_tickets_status,doors_info,
@@ -274,8 +323,10 @@ struct LiveEventRepository: EventRepository {
     venues(id,slug,name,address_street,address_zip,address_city,photo_url,description_de),
     organizers(name),event_genres(genres(id,slug,label_de)),
     event_works(position,after_intermission,works(id,title,catalog_number,key_signature,instrumentation,movements,composer:persons(id,slug,full_name,photo_url))),
-    event_participants(role,role_label,persons(id,slug,full_name,photo_url),ensembles(id,slug,name,photo_url))
+    event_participants(role,role_label,persons(id,slug,full_name,photo_url,member_of:ensembles!member_of_ensemble_id(slug,name)),ensembles(id,slug,name,photo_url,parent_ensemble_id))
     """
+    .components(separatedBy: .newlines)
+    .joined()
 
     private static let legacyDetailSelection = detailSelection.replacingOccurrences(
         of: "role,role_label",

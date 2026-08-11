@@ -11,6 +11,27 @@
 // content_report_fixes-Eintrag hinterlässt (der "Bericht") — auch wenn
 // nichts geändert wurde, damit die Redaktion nachvollziehen kann, warum.
 //
+// Nutzerfeedback: "die nutzermeldungen sind mir nach wie vor nicht
+// intelligent genug ... zu viele fälle landen auf 'manuell prüfen'. ich
+// möchte da so wenig wie mgl. manuell machen." Deshalb bei fixViaSourceEvidence
+// (der generische Pfad für alle Meldungsgründe außer wrong_image/
+// wrong_artist/missing_program) drei Verschärfungen:
+// a) Mehr erlaubte Felder pro Entitätstyp (siehe ALLOWED_FIELDS) — vorher
+//    fielen z.B. Geburtsdatum/Nationalität/Instrument einer Person nie in
+//    den automatischen Fix, selbst bei glasklarer Quellen-Evidenz.
+// b) Mehrquellige Recherche (gatherCandidateSources): nicht mehr nur bei
+//    fehlender URL eine Websuche versuchen, sondern IMMER zusätzlich zur
+//    hinterlegten Quelle bis zu drei Websuche-Kandidaten vorbereiten und der
+//    Reihe nach durchprobieren, bis eine Quelle eine belegte Korrektur
+//    liefert.
+// c) Selbstkritik-Runde: sind alle Quellen erschöpft, ohne dass die KI sich
+//    sicher genug war, bekommt eine ZWEITE, unabhängige KI-Instanz die
+//    bisherigen (zu vorsichtigen) Einschätzungen vorgelegt und prüft
+//    kritisch, ob die Quelle die Angabe in Wahrheit doch eindeutig belegt.
+//    Der scharfe Zitat-Grounding-Check (Punkt 2 unten) gilt dabei
+//    unverändert — die Selbstkritik darf nur unnötige Vorsicht korrigieren,
+//    nie das Beleg-Erfordernis aufweichen.
+//
 // Sicherheitsprinzipien:
 // 1. Nur ein FESTES Set an Feldern pro Entitätstyp darf überhaupt
 //    verändert werden (ALLOWED_FIELDS) — die KI kann nichts anderes
@@ -63,6 +84,12 @@ const ENTITY_TABLE: Record<EntityType, string> = {
 // Schema-Feldname -> DB-Spalte, NUR für die hier gelisteten Typen/Felder
 // überhaupt anwendbar — alles, was die KI sonst noch vorschlägt, wird
 // stillschweigend ignoriert (siehe applyProposal()).
+// Nutzerfeedback: "die nutzermeldungen sind mir nach wie vor nicht
+// intelligent genug ... zu viele fälle landen auf 'manuell prüfen'" — ein
+// Grund war, dass selbst bei eindeutiger Quellen-Evidenz viele Felder pro
+// Entität gar nicht im automatischen Fix-Vokabular vorkamen (z.B. Geburts-/
+// Sterbedatum einer Person). Jetzt deutlich breiter, bleibt aber pro
+// Entitätstyp weiterhin ein FESTES Set (siehe Datei-Kommentar Punkt 1).
 const ALLOWED_FIELDS: Record<EntityType, Record<string, string>> = {
   event: {
     title: "title",
@@ -71,10 +98,37 @@ const ALLOWED_FIELDS: Record<EntityType, Record<string, string>> = {
     ticketUrl: "ticket_url",
     websiteUrl: "website_url",
   },
-  venue: { title: "name", descriptionDe: "description_de", websiteUrl: "website_url" },
-  person: { title: "full_name", descriptionDe: "biography_de", websiteUrl: "website_url" },
-  ensemble: { title: "name", descriptionDe: "description_de", websiteUrl: "website_url" },
+  venue: {
+    title: "name",
+    descriptionDe: "description_de",
+    websiteUrl: "website_url",
+    addressStreet: "address_street",
+    addressZip: "address_zip",
+    addressCity: "address_city",
+    phone: "phone",
+    publicTransport: "public_transport",
+  },
+  person: {
+    title: "full_name",
+    descriptionDe: "biography_de",
+    websiteUrl: "website_url",
+    nationality: "nationality",
+    birthDate: "birth_date",
+    deathDate: "death_date",
+    instrument: "instrument",
+  },
+  ensemble: {
+    title: "name",
+    descriptionDe: "description_de",
+    websiteUrl: "website_url",
+    foundedYear: "founded_year",
+    city: "city",
+    country: "country",
+  },
 };
+
+const DATE_ONLY_FIELDS = new Set(["birthDate", "deathDate"]);
+const MIN_PLAUSIBLE_YEAR = 1200;
 
 const EVENT_STATUS_VALUES = new Set(["scheduled", "cancelled", "postponed", "sold_out"]);
 const MAX_DATE_DRIFT_DAYS = 400;
@@ -90,11 +144,16 @@ interface ContentReportRow {
 }
 
 interface FixResult {
-  status: "fixed" | "needs_manual_review" | "error";
+  status: "fixed" | "needs_manual_review" | "error" | "code_bug_suspected";
   diagnosis: string;
   actionTaken?: string;
   fieldsChanged?: { table: string; id: string; field: string; before: unknown; after: unknown }[];
   aiProvider?: string;
+  /** Nur bei status="code_bug_suspected" gefüllt — landet in code_fix_tasks
+   * (siehe Migration 20261011000007), damit Claude Code die Aufgabe beim
+   * nächsten Mal direkt aufgreifen kann, ohne dass ein Mensch sie erst
+   * abtippen muss. */
+  codeFixTask?: { title: string; prompt: string };
 }
 
 async function fetchPageText(url: string): Promise<string | null> {
@@ -159,6 +218,18 @@ const FIX_PROPOSAL_FUNCTION: AiFunctionDeclaration = {
       },
       ticketUrl: { type: "string", description: "Korrigierter Ticket-Link, nur bei Events." },
       websiteUrl: { type: "string", description: "Korrigierter Website-Link." },
+      nationality: { type: "string", description: "Korrigierte Nationalität, nur bei Personen." },
+      birthDate: { type: "string", description: "Korrigiertes Geburtsdatum als YYYY-MM-DD, nur bei Personen." },
+      deathDate: { type: "string", description: "Korrigiertes Sterbedatum als YYYY-MM-DD, nur bei Personen." },
+      instrument: { type: "string", description: "Korrigiertes Hauptinstrument, nur bei Personen." },
+      foundedYear: { type: "number", description: "Korrigiertes Gründungsjahr, nur bei Ensembles." },
+      city: { type: "string", description: "Korrigierte Herkunfts-/Sitzstadt, nur bei Ensembles." },
+      country: { type: "string", description: "Korrigiertes Herkunftsland, nur bei Ensembles." },
+      addressStreet: { type: "string", description: "Korrigierte Straße samt Hausnummer, nur bei Venues." },
+      addressZip: { type: "string", description: "Korrigierte Postleitzahl, nur bei Venues." },
+      addressCity: { type: "string", description: "Korrigierte Stadt der Adresse, nur bei Venues." },
+      phone: { type: "string", description: "Korrigierte Telefonnummer, nur bei Venues." },
+      publicTransport: { type: "string", description: "Korrigierte ÖPNV-Anbindung, nur bei Venues." },
     },
     required: ["confident", "reasoning"],
   },
@@ -545,120 +616,19 @@ async function fixWrongImage(
   };
 }
 
-async function fixViaSourceEvidence(
+/** Baut aus einem KI-Vorschlag die tatsächlichen DB-Updates (mit Validierung/
+ * Plausibilitätsgrenzen je Feldtyp) — extrahiert aus fixViaSourceEvidence,
+ * damit derselbe Code für jeden Quellenversuch UND die Selbstkritik-Runde
+ * (siehe unten) gilt, statt Logik zu duplizieren. */
+function buildUpdatesFromProposal(
   // deno-lint-ignore no-explicit-any
-  supabase: any,
-  report: ContentReportRow,
-): Promise<FixResult> {
-  const table = ENTITY_TABLE[report.entity_type];
-  const allowed = ALLOWED_FIELDS[report.entity_type];
-  const columns = ["id", ...new Set(Object.values(allowed))].join(", ");
-
-  const { data: entity, error: loadError } = await supabase.from(table).select(columns).eq("id", report.entity_id).maybeSingle();
-  if (loadError || !entity) {
-    return { status: "error", diagnosis: `Entität nicht ladbar: ${loadError?.message ?? "nicht gefunden"}` };
-  }
-
-  const originalPageUrl = report.entity_type === "event"
-    ? (entity.ticket_url as string | null) ?? (entity.website_url as string | null)
-    : (entity.website_url as string | null);
-  let pageUrl = originalPageUrl;
-  let pageText: string | null = pageUrl ? await fetchPageText(pageUrl) : null;
-  let foundViaSearch = false;
-  let searchAttempted = false;
-
-  // Nutzerfeedback: "der automatische bug fix ist immer noch nicht
-  // intelligent genug" — bisher gab die Function sofort auf, wenn keine
-  // Ticket-/Website-URL hinterlegt war (bei vielen Quellen der Regelfall,
-  // siehe #b7). Statt direkt auf manuelle Prüfung zu verweisen, jetzt erst
-  // eine echte Websuche versuchen (dieselben zwei bereits erprobten,
-  // kostenfreien/kontingentschonenden Quellen wie bei der Bilder-Recherche:
-  // DuckDuckGo zuerst ohne Key, Gemini-Grounding nur als Ergänzung mit
-  // eigenem Kontingent) und die ersten paar Treffer der Reihe nach als
-  // Quellseite probieren. Der nachfolgende KI-Zitat-Grounding-Check bleibt
-  // unverändert scharf — eine per Websuche gefundene, aber inhaltsleere
-  // Seite liefert dort ohnehin kein verwertbares Zitat.
-  if (!pageText) {
-    const nameColumn = allowed.title;
-    const entityName = String(entity[nameColumn] ?? "").trim();
-    if (entityName) {
-      searchAttempted = true;
-      const query = report.entity_type === "event"
-        ? `${entityName} München Termine Tickets`
-        : `${entityName} München offizielle Website`;
-
-      const candidates: string[] = [];
-      const ddgResults = await searchDuckDuckGo(query, 3);
-      for (const r of ddgResults ?? []) candidates.push(r.url);
-
-      const geminiApiKey = Deno.env.get("GEMINI_SEARCH_API_KEY");
-      if (geminiApiKey && candidates.length < 3) {
-        const groundedResults = await searchViaGeminiGrounding(geminiApiKey, query);
-        for (const r of groundedResults ?? []) candidates.push(r.url);
-      }
-
-      for (const candidateUrl of candidates.slice(0, 3)) {
-        const text = await fetchPageText(candidateUrl);
-        if (text) {
-          pageUrl = candidateUrl;
-          pageText = text;
-          foundViaSearch = true;
-          break;
-        }
-      }
-    }
-  }
-
-  if (!pageUrl || !pageText) {
-    const searchNote = searchAttempted ? " Auch per Websuche wurde keine verwertbare Ersatzseite gefunden." : "";
-    return {
-      status: "needs_manual_review",
-      diagnosis: originalPageUrl
-        ? `Quellseite (${originalPageUrl}) nicht abrufbar oder kein HTML — kann die Meldung nicht automatisch verifizieren.${searchNote}`
-        : `Keine Quell-URL hinterlegt.${searchNote || " Auch keine Websuche möglich (kein Entitätsname)."}`,
-    };
-  }
-
-  if (!hasAnyAiProviderConfigured()) {
-    return { status: "needs_manual_review", diagnosis: "Kein AI-Provider-Secret konfiguriert." };
-  }
-
-  const currentValues = Object.fromEntries(Object.entries(allowed).map(([schemaField, column]) => [schemaField, entity[column]]));
-
-  const response = await callAiFunction(
-    "Du bist Teil einer redaktionellen Datenpflege für eine Klassik-Konzert-App in München. Du prüfst eine " +
-      "Nutzer-Meldung ('etwas an diesem Eintrag stimmt nicht') gegen den echten, gerade abgerufenen Text der " +
-      "offiziellen Quellseite. Sei SEHR konservativ: schlage nur etwas vor, wenn die Seite die Angabe eindeutig " +
-      "und wörtlich belegt. Erfinde niemals Werte. Bei jedem Zweifel confident=false.",
-    `Meldungsgrund: ${report.reason}\nNutzer-Kommentar: ${report.message ?? "(kein Kommentar)"}\n\n` +
-      `Aktuell gespeicherte Werte: ${JSON.stringify(currentValues)}\n\n` +
-      `Text der Quellseite (${pageUrl}):\n${pageText}`,
-    FIX_PROPOSAL_FUNCTION,
-  );
-
-  if (!response) {
-    return { status: "needs_manual_review", diagnosis: "KI-Aufruf fehlgeschlagen (alle Provider)." };
-  }
-  const { args, provider } = response;
-
-  if (args.confident !== true) {
-    return {
-      status: "needs_manual_review",
-      diagnosis: typeof args.reasoning === "string" ? args.reasoning : "KI war sich nicht sicher genug.",
-      aiProvider: provider,
-    };
-  }
-
-  const quote = typeof args.evidenceQuote === "string" ? args.evidenceQuote.trim() : "";
-  if (!quote || !pageText.toLowerCase().includes(quote.toLowerCase())) {
-    return {
-      status: "needs_manual_review",
-      diagnosis: `KI behauptete Sicherheit, aber das gelieferte Zitat kommt nicht wörtlich im abgerufenen Seitentext vor ` +
-        `(Grounding-Prüfung fehlgeschlagen). Ursprüngliche Begründung: ${args.reasoning ?? "-"}`,
-      aiProvider: provider,
-    };
-  }
-
+  args: Record<string, any>,
+  // deno-lint-ignore no-explicit-any
+  entity: Record<string, any>,
+  table: string,
+  allowed: Record<string, string>,
+  entityId: string,
+): { updates: Record<string, unknown>; fieldsChanged: { table: string; id: string; field: string; before: unknown; after: unknown }[] } {
   const fieldsChanged: { table: string; id: string; field: string; before: unknown; after: unknown }[] = [];
   const updates: Record<string, unknown> = {};
 
@@ -676,50 +646,252 @@ async function fixViaSourceEvidence(
         if (driftDays > MAX_DATE_DRIFT_DAYS) continue; // Plausibilitätsgrenze, siehe Datei-Kommentar
       }
       updates[column] = parsed.toISOString();
-      fieldsChanged.push({ table, id: report.entity_id, field: column, before, after: parsed.toISOString() });
+      fieldsChanged.push({ table, id: entityId, field: column, before, after: parsed.toISOString() });
       continue;
     }
     if (schemaField === "status") {
       if (!EVENT_STATUS_VALUES.has(String(proposed))) continue;
       updates[column] = proposed;
-      fieldsChanged.push({ table, id: report.entity_id, field: column, before, after: proposed });
+      fieldsChanged.push({ table, id: entityId, field: column, before, after: proposed });
       continue;
     }
     if (schemaField === "ticketUrl" || schemaField === "websiteUrl") {
       if (!isValidHttpUrl(String(proposed))) continue;
       updates[column] = proposed;
-      fieldsChanged.push({ table, id: report.entity_id, field: column, before, after: proposed });
+      fieldsChanged.push({ table, id: entityId, field: column, before, after: proposed });
       continue;
     }
-    // title / descriptionDe: reine Textfelder, nur eine grobe Längenprüfung.
+    if (DATE_ONLY_FIELDS.has(schemaField)) {
+      const parsed = new Date(String(proposed));
+      if (Number.isNaN(parsed.getTime())) continue;
+      const year = parsed.getUTCFullYear();
+      if (year < MIN_PLAUSIBLE_YEAR || year > new Date().getUTCFullYear()) continue; // Plausibilitätsgrenze
+      const dateOnly = parsed.toISOString().slice(0, 10);
+      updates[column] = dateOnly;
+      fieldsChanged.push({ table, id: entityId, field: column, before, after: dateOnly });
+      continue;
+    }
+    if (schemaField === "foundedYear") {
+      const year = Number(proposed);
+      if (!Number.isInteger(year) || year < MIN_PLAUSIBLE_YEAR || year > new Date().getUTCFullYear()) continue;
+      updates[column] = year;
+      fieldsChanged.push({ table, id: entityId, field: column, before, after: year });
+      continue;
+    }
+    // title / descriptionDe / restliche Textfelder (Nationalität, Instrument,
+    // Adresse, Telefon, ÖPNV, ...): reine Textfelder, nur eine grobe Längenprüfung.
     const text = String(proposed).trim();
     if (text.length === 0 || text.length > 3000) continue;
     updates[column] = text;
-    fieldsChanged.push({ table, id: report.entity_id, field: column, before, after: text });
+    fieldsChanged.push({ table, id: entityId, field: column, before, after: text });
   }
 
-  if (fieldsChanged.length === 0) {
+  return { updates, fieldsChanged };
+}
+
+interface SourceCandidate {
+  url: string;
+  text: string;
+  viaSearch: boolean;
+}
+
+/** Sammelt bis zu vier mögliche Quellseiten in Prioritätsreihenfolge: erst
+ * die hinterlegte Ticket-/Website-URL, danach — Nutzerfeedback: "zu viele
+ * fälle landen auf 'manuell prüfen'" — IMMER zusätzlich eine echte Websuche
+ * (nicht mehr nur, wenn gar keine URL hinterlegt ist), falls die hinterlegte
+ * Seite fehlt/nicht abrufbar ist ODER die KI dort später nicht sicher genug
+ * war. Dieselben zwei bereits erprobten, kontingentschonenden Quellen wie
+ * bei der Bilder-Recherche: DuckDuckGo zuerst ohne Key, Gemini-Grounding nur
+ * als Ergänzung mit eigenem Kontingent. */
+async function gatherCandidateSources(
+  report: ContentReportRow,
+  // deno-lint-ignore no-explicit-any
+  entity: Record<string, any>,
+  allowed: Record<string, string>,
+): Promise<SourceCandidate[]> {
+  const candidates: SourceCandidate[] = [];
+  const primaryUrl = report.entity_type === "event"
+    ? (entity.ticket_url as string | null) ?? (entity.website_url as string | null)
+    : (entity.website_url as string | null);
+
+  if (primaryUrl) {
+    const text = await fetchPageText(primaryUrl);
+    if (text) candidates.push({ url: primaryUrl, text, viaSearch: false });
+  }
+
+  const entityName = String(entity[allowed.title] ?? "").trim();
+  if (entityName) {
+    const query = report.entity_type === "event"
+      ? `${entityName} München Termine Tickets`
+      : `${entityName} München offizielle Website`;
+
+    const urls: string[] = [];
+    const ddgResults = await searchDuckDuckGo(query, 3);
+    for (const r of ddgResults ?? []) urls.push(r.url);
+
+    const geminiApiKey = Deno.env.get("GEMINI_SEARCH_API_KEY");
+    if (geminiApiKey && urls.length < 3) {
+      const groundedResults = await searchViaGeminiGrounding(geminiApiKey, query);
+      for (const r of groundedResults ?? []) urls.push(r.url);
+    }
+
+    for (const url of urls.slice(0, 3)) {
+      if (candidates.some((c) => c.url === url)) continue;
+      const text = await fetchPageText(url);
+      if (text) candidates.push({ url, text, viaSearch: true });
+      if (candidates.length >= 4) break;
+    }
+  }
+
+  return candidates;
+}
+
+async function fixViaSourceEvidence(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  report: ContentReportRow,
+): Promise<FixResult> {
+  const table = ENTITY_TABLE[report.entity_type];
+  const allowed = ALLOWED_FIELDS[report.entity_type];
+  const columns = ["id", ...new Set(Object.values(allowed))].join(", ");
+
+  const { data: entity, error: loadError } = await supabase.from(table).select(columns).eq("id", report.entity_id).maybeSingle();
+  if (loadError || !entity) {
+    return { status: "error", diagnosis: `Entität nicht ladbar: ${loadError?.message ?? "nicht gefunden"}` };
+  }
+
+  if (!hasAnyAiProviderConfigured()) {
+    return { status: "needs_manual_review", diagnosis: "Kein AI-Provider-Secret konfiguriert." };
+  }
+
+  const currentValues = Object.fromEntries(Object.entries(allowed).map(([schemaField, column]) => [schemaField, entity[column]]));
+  const sources = await gatherCandidateSources(report, entity, allowed);
+
+  if (sources.length === 0) {
     return {
       status: "needs_manual_review",
-      diagnosis: `KI war sich sicher (Zitat: „${quote}“), aber kein vorgeschlagener Wert bestand die Validierung ` +
-        `(Format/Plausibilität) oder wich nicht vom gespeicherten Wert ab. Begründung: ${args.reasoning ?? "-"}`,
+      diagnosis: "Weder eine hinterlegte Quell-URL noch eine Websuche lieferten eine abrufbare Seite mit Inhalt.",
+    };
+  }
+
+  const attempts: { url: string; viaSearch: boolean; reasoning: string; provider: string }[] = [];
+  let lastText = sources[sources.length - 1].text;
+  let lastUrl = sources[sources.length - 1].url;
+
+  // Schritt 1: jede Quelle der Reihe nach probieren, bis eine konkrete,
+  // belegte Korrektur zustande kommt.
+  for (const source of sources) {
+    const response = await callAiFunction(
+      "Du bist Teil einer redaktionellen Datenpflege für eine Klassik-Konzert-App in München. Du prüfst eine " +
+        "Nutzer-Meldung ('etwas an diesem Eintrag stimmt nicht') gegen den echten, gerade abgerufenen Text der " +
+        "offiziellen Quellseite. Sei SEHR konservativ: schlage nur etwas vor, wenn die Seite die Angabe eindeutig " +
+        "und wörtlich belegt. Erfinde niemals Werte. Bei jedem Zweifel confident=false.",
+      `Meldungsgrund: ${report.reason}\nNutzer-Kommentar: ${report.message ?? "(kein Kommentar)"}\n\n` +
+        `Aktuell gespeicherte Werte: ${JSON.stringify(currentValues)}\n\n` +
+        `Text der Quellseite (${source.url}):\n${source.text}`,
+      FIX_PROPOSAL_FUNCTION,
+    );
+    if (!response) continue;
+    const { args, provider } = response;
+    lastText = source.text;
+    lastUrl = source.url;
+
+    if (args.confident !== true) {
+      attempts.push({ url: source.url, viaSearch: source.viaSearch, reasoning: String(args.reasoning ?? "-"), provider });
+      continue;
+    }
+
+    const quote = typeof args.evidenceQuote === "string" ? args.evidenceQuote.trim() : "";
+    if (!quote || !source.text.toLowerCase().includes(quote.toLowerCase())) {
+      attempts.push({
+        url: source.url,
+        viaSearch: source.viaSearch,
+        reasoning: `Zitat nicht im Seitentext auffindbar (Grounding fehlgeschlagen). ${args.reasoning ?? ""}`,
+        provider,
+      });
+      continue;
+    }
+
+    const { updates, fieldsChanged } = buildUpdatesFromProposal(args, entity, table, allowed, report.entity_id);
+    if (fieldsChanged.length === 0) {
+      attempts.push({
+        url: source.url,
+        viaSearch: source.viaSearch,
+        reasoning: `Sicher (Zitat: „${quote}“), aber kein Wert bestand die Validierung oder wich nicht vom ` +
+          `gespeicherten Wert ab. ${args.reasoning ?? ""}`,
+        provider,
+      });
+      continue;
+    }
+
+    const { error: updateError } = await supabase.from(table).update(updates).eq("id", report.entity_id);
+    if (updateError) return { status: "error", diagnosis: `Update fehlgeschlagen: ${updateError.message}`, aiProvider: provider };
+
+    return {
+      status: "fixed",
+      diagnosis: `${args.reasoning ?? ""} (Beleg: „${quote}“, Quelle: ${source.url}${source.viaSearch ? ", per Websuche gefunden" : ""})`,
+      actionTaken: fieldsChanged.map((f) => `${f.field}: „${f.before ?? "–"}“ → „${f.after}“`).join("; "),
+      fieldsChanged,
       aiProvider: provider,
     };
   }
 
-  const { error: updateError } = await supabase.from(table).update(updates).eq("id", report.entity_id);
-  if (updateError) {
-    return { status: "error", diagnosis: `Update fehlgeschlagen: ${updateError.message}`, aiProvider: provider };
+  // Schritt 2 — Selbstkritik-Runde (Nutzerfeedback: "zu viele fälle landen
+  // auf 'manuell prüfen'"): statt nach der ersten Unsicherheit sofort
+  // aufzugeben, bekommt eine ZWEITE, unabhängige KI-Instanz explizit die
+  // bisherige(n) konservative(n) Einschätzung(en) vorgelegt und wird
+  // gebeten, kritisch zu prüfen, ob dort zu vorsichtig geurteilt wurde. Der
+  // Zitat-Grounding-Check bleibt exakt derselbe scharfe Filter wie oben —
+  // die Selbstkritik-Runde darf NIE ein Zitat akzeptieren, das nicht
+  // wörtlich im Seitentext steht, sie darf nur eine vorschnelle
+  // confident=false-Einschätzung revidieren.
+  if (attempts.length > 0) {
+    const critique = await callAiFunction(
+      "Du bist die zweite, unabhängige Prüfinstanz in einer redaktionellen Datenpflege für eine Klassik-Konzert-App " +
+        "in München (Vier-Augen-Prinzip unter KIs). Eine erste KI-Instanz hat eine Nutzer-Meldung gegen eine " +
+        "Quellseite geprüft und sich NICHT sicher genug für eine Korrektur gefühlt. Prüfe kritisch und unabhängig, " +
+        "ob diese Einschätzung tatsächlich zutrifft, oder ob die Seite die Angabe in Wahrheit eindeutig und " +
+        "wörtlich belegt. Sei dabei weiterhin sehr sorgfältig: erfinde niemals Werte, und liefere nur dann " +
+        "confident=true, wenn du selbst ein wörtliches Zitat aus dem Text nennen kannst. Bei echtem Zweifel bleibt " +
+        "es bei confident=false — es geht darum, unnötige Vorsicht zu korrigieren, nicht darum, das Risiko zu " +
+        "erhöhen.",
+      `Meldungsgrund: ${report.reason}\nNutzer-Kommentar: ${report.message ?? "(kein Kommentar)"}\n\n` +
+        `Aktuell gespeicherte Werte: ${JSON.stringify(currentValues)}\n\n` +
+        `Bisherige Einschätzung(en) der ersten KI-Instanz:\n${
+          attempts.map((a) => `- Quelle ${a.url}: „${a.reasoning}“`).join("\n")
+        }\n\n` +
+        `Text der zuletzt geprüften Quellseite (${lastUrl}):\n${lastText}`,
+      FIX_PROPOSAL_FUNCTION,
+    );
+
+    if (critique) {
+      const { args, provider } = critique;
+      if (args.confident === true) {
+        const quote = typeof args.evidenceQuote === "string" ? args.evidenceQuote.trim() : "";
+        if (quote && lastText.toLowerCase().includes(quote.toLowerCase())) {
+          const { updates, fieldsChanged } = buildUpdatesFromProposal(args, entity, table, allowed, report.entity_id);
+          if (fieldsChanged.length > 0) {
+            const { error: updateError } = await supabase.from(table).update(updates).eq("id", report.entity_id);
+            if (updateError) return { status: "error", diagnosis: `Update fehlgeschlagen: ${updateError.message}`, aiProvider: provider };
+            return {
+              status: "fixed",
+              diagnosis: `Selbstkritik-Runde korrigierte eine zu vorsichtige erste Einschätzung: ${args.reasoning ?? ""} ` +
+                `(Beleg: „${quote}“, Quelle: ${lastUrl})`,
+              actionTaken: fieldsChanged.map((f) => `${f.field}: „${f.before ?? "–"}“ → „${f.after}“`).join("; "),
+              fieldsChanged,
+              aiProvider: provider,
+            };
+          }
+        }
+      }
+    }
   }
 
+  const sourceSummary = sources.map((s) => `${s.url}${s.viaSearch ? " (Websuche)" : ""}`).join("; ");
+  const reasoningSummary = attempts.map((a) => a.reasoning).filter(Boolean).join(" | ") || "Keine KI-Antwort erhalten.";
   return {
-    status: "fixed",
-    diagnosis: `${args.reasoning ?? ""} (Beleg: „${quote}“, Quelle: ${pageUrl}${
-      foundViaSearch ? ", per Websuche gefunden" : ""
-    })`,
-    actionTaken: fieldsChanged.map((f) => `${f.field}: „${f.before ?? "–"}“ → „${f.after}“`).join("; "),
-    fieldsChanged,
-    aiProvider: provider,
+    status: "needs_manual_review",
+    diagnosis: `Geprüfte Quelle(n): ${sourceSummary}. Auch die Selbstkritik-Runde fand keine belegbare Korrektur. ${reasoningSummary}`,
   };
 }
 
@@ -948,6 +1120,173 @@ async function fixMissingProgram(
   };
 }
 
+const FREEFORM_FIX_FUNCTION: AiFunctionDeclaration = {
+  name: "propose_freeform_fix",
+  description:
+    "Entscheidet frei — wie eine erfahrene Redaktion, nicht als starres Regelwerk — wie eine bereits einmal " +
+    "erfolglos automatisch geprüfte Nutzer-Meldung zu behandeln ist.",
+  parameters: {
+    type: "object",
+    properties: {
+      outcome: {
+        type: "string",
+        description:
+          "Genau eine von: 'data_fix' (ein oder mehrere Datenbank-Felder sollen korrigiert werden), 'code_bug' " +
+          "(die eigentliche Ursache ist vermutlich ein Bug im Scraping-/Ingest-/App-Code, kein falscher " +
+          "Datenwert), 'unclear' (auch mit freierem Urteil keine sinnvolle Entscheidung möglich).",
+      },
+      reasoning: { type: "string", description: "Begründung auf Deutsch: was hast du geprüft, wofür hast du dich entschieden und warum." },
+      title: { type: "string", description: "Korrigierter Titel/Name, nur bei outcome=data_fix." },
+      descriptionDe: { type: "string", description: "Korrigierte Beschreibung/Biografie, nur bei outcome=data_fix." },
+      startDatetime: { type: "string", description: "Korrigiertes Datum/Uhrzeit als ISO-8601, nur bei Events, nur bei outcome=data_fix." },
+      status: { type: "string", description: "Korrigierter Status: scheduled, cancelled, postponed oder sold_out, nur bei Events." },
+      ticketUrl: { type: "string", description: "Korrigierter Ticket-Link, nur bei Events." },
+      websiteUrl: { type: "string", description: "Korrigierter Website-Link." },
+      nationality: { type: "string", description: "Korrigierte Nationalität, nur bei Personen." },
+      birthDate: { type: "string", description: "Korrigiertes Geburtsdatum als YYYY-MM-DD, nur bei Personen." },
+      deathDate: { type: "string", description: "Korrigiertes Sterbedatum als YYYY-MM-DD, nur bei Personen." },
+      instrument: { type: "string", description: "Korrigiertes Hauptinstrument, nur bei Personen." },
+      foundedYear: { type: "number", description: "Korrigiertes Gründungsjahr, nur bei Ensembles." },
+      city: { type: "string", description: "Korrigierte Herkunfts-/Sitzstadt, nur bei Ensembles." },
+      country: { type: "string", description: "Korrigiertes Herkunftsland, nur bei Ensembles." },
+      addressStreet: { type: "string", description: "Korrigierte Straße samt Hausnummer, nur bei Venues." },
+      addressZip: { type: "string", description: "Korrigierte Postleitzahl, nur bei Venues." },
+      addressCity: { type: "string", description: "Korrigierte Stadt der Adresse, nur bei Venues." },
+      phone: { type: "string", description: "Korrigierte Telefonnummer, nur bei Venues." },
+      publicTransport: { type: "string", description: "Korrigierte ÖPNV-Anbindung, nur bei Venues." },
+      codeBugTitle: { type: "string", description: "Kurzer Titel für die Code-Aufgabe, nur bei outcome=code_bug." },
+      codeBugPrompt: {
+        type: "string",
+        description:
+          "Nur bei outcome=code_bug: ein selbstständiger, in sich geschlossener Auftragstext für einen " +
+          "Software-Entwickler ohne Kenntnis dieser Konversation — welche Datei/Funktion vermutlich betroffen " +
+          "ist (falls erkennbar), was das Symptom ist, und welcher Beleg (Meldungstext, bisherige Fix-Versuche, " +
+          "aktuell gespeicherte Werte) dafür spricht.",
+      },
+    },
+    required: ["outcome", "reasoning"],
+  },
+};
+
+/** Nutzerwunsch: "bei erneut versuchen soll einfach eine KI diese fehler
+ * durchgehen und beheben. das ist dann wie, als würde ich dir eine
+ * chatnachricht mit der fehlerkorrektur schreiben." Läuft NUR beim
+ * gezielten "Erneut versuchen"-Klick (nie per Cron, siehe Datei-Kommentar
+ * Punkt 4 und retry-Flag im Deno.serve-Handler) — ein Mensch hat also schon
+ * einmal den ersten, konservativeren automatischen Versuch UND ggf. die
+ * Selbstkritik-Runde (fixViaSourceEvidence) durchlaufen lassen und klickt
+ * bewusst erneut. Anders als der Erstversuch verlangt dieser Pfad KEIN
+ * wörtliches Zitat von einer Quellseite mehr — die KI bekommt stattdessen
+ * den vollen Datensatz der Entität, den Meldungstext und alle bisherigen
+ * Fix-Versuche und entscheidet wie ein Redakteur, dem man den Fehler in
+ * einer Chatnachricht schildert. Bleibt aber weiterhin auf die Felder aus
+ * ALLOWED_FIELDS beschränkt (Sicherheitsprinzip 1 bleibt in Kraft) — nur
+ * die Beleg-Pflicht entfällt. Vermutet die KI stattdessen einen Code-Bug
+ * (z.B. #b7: bestimmte Quellen schlagen strukturell fehl), kann sie das
+ * zur Laufzeit nicht selbst reparieren (Edge Functions haben keinen Repo-/
+ * Deploy-Zugriff) — stattdessen legt sie eine fertige Aufgabe in
+ * code_fix_tasks an, die Claude Code beim nächsten Mal aufgreift. */
+async function fixFreeform(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  report: ContentReportRow,
+): Promise<FixResult> {
+  const table = ENTITY_TABLE[report.entity_type];
+  const allowed = ALLOWED_FIELDS[report.entity_type];
+
+  const { data: entity, error: loadError } = await supabase.from(table).select("*").eq("id", report.entity_id).maybeSingle();
+  if (loadError || !entity) {
+    return { status: "error", diagnosis: `Entität nicht ladbar: ${loadError?.message ?? "nicht gefunden"}` };
+  }
+
+  if (!hasAnyAiProviderConfigured()) {
+    return { status: "needs_manual_review", diagnosis: "Kein AI-Provider-Secret konfiguriert." };
+  }
+
+  const { data: history } = await supabase
+    .from("content_report_fixes")
+    .select("status, diagnosis, created_at")
+    .eq("report_id", report.id)
+    .order("created_at", { ascending: true });
+
+  const historyRows = (history ?? []) as { status: string; diagnosis: string; created_at: string }[];
+  const historyText = historyRows
+    .map((h, i) => `Versuch ${i + 1} (${h.status}): ${h.diagnosis}`)
+    .join("\n") || "(keine bisherigen Versuche protokolliert)";
+
+  // Beste-Bemühung-Kontext, KEINE Pflicht mehr (anders als fixViaSourceEvidence)
+  // — falls vorhanden, hilft eine echte Quellseite trotzdem bei der Einschätzung.
+  const pageUrl = report.entity_type === "event"
+    ? (entity.ticket_url as string | null) ?? (entity.website_url as string | null)
+    : (entity.website_url as string | null);
+  const pageText = pageUrl ? await fetchPageText(pageUrl) : null;
+
+  const currentValues = Object.fromEntries(Object.entries(allowed).map(([schemaField, column]) => [schemaField, entity[column]]));
+
+  const response = await callAiFunction(
+    "Du bist ein erfahrener Redakteur einer Klassik-Konzert-App in München und bekommst eine Nutzer-Meldung " +
+      "geschildert, die der automatische, konservative Erst-Check bereits geprüft hat, ohne sich sicher genug zu " +
+      "fühlen (siehe Verlauf). Du darfst jetzt freier urteilen — wie ein Kollege, dem man den Fehler in einer " +
+      "Chatnachricht schildert, nicht wie ein starres Regelwerk. Ein wörtliches Zitat ist NICHT mehr zwingend " +
+      "nötig, wenn dir die aktuell gespeicherten Werte, der Meldungstext und der bisherige Verlauf zusammen " +
+      "genug Kontext für eine plausible Korrektur geben. Bleib trotzdem ehrlich: wenn du wirklich nichts " +
+      "Sinnvolles erkennst, wähle 'unclear' statt zu raten. Wenn dir die Meldung eher nach einem strukturellen " +
+      "Bug in der Datenerfassung (Scraper/Import) als nach einem einzelnen falschen Wert aussieht — z.B. weil " +
+      "mehrere Versuche am selben Symptom scheitern oder ein Feld systematisch fehlt/falsch befüllt wirkt — " +
+      "wähle 'code_bug' und beschreibe präzise, was zu prüfen ist.",
+    `Meldungsgrund: ${report.reason}\nNutzer-Kommentar: ${report.message ?? "(kein Kommentar)"}\n\n` +
+      `Bisherige automatische Versuche:\n${historyText}\n\n` +
+      `Aktuell gespeicherte Werte: ${JSON.stringify(currentValues)}\n\n` +
+      (pageText ? `Text einer evtl. relevanten Quellseite (${pageUrl}):\n${pageText}` : "(Keine Quellseite abrufbar oder hinterlegt.)"),
+    FREEFORM_FIX_FUNCTION,
+  );
+
+  if (!response) return { status: "needs_manual_review", diagnosis: "KI-Aufruf fehlgeschlagen (alle Provider)." };
+  const { args, provider } = response;
+
+  if (args.outcome === "code_bug") {
+    const title = typeof args.codeBugTitle === "string" && args.codeBugTitle.trim() ? args.codeBugTitle.trim() : `Code-Bug-Verdacht: ${report.reason}`;
+    const prompt = typeof args.codeBugPrompt === "string" && args.codeBugPrompt.trim()
+      ? args.codeBugPrompt.trim()
+      : String(args.reasoning ?? "Kein Auftragstext geliefert.");
+    return {
+      status: "code_bug_suspected",
+      diagnosis: `${args.reasoning ?? ""} (Aufgabe für Claude Code angelegt: „${title}“)`,
+      aiProvider: provider,
+      codeFixTask: { title, prompt },
+    };
+  }
+
+  if (args.outcome !== "data_fix") {
+    return {
+      status: "needs_manual_review",
+      diagnosis: typeof args.reasoning === "string" ? args.reasoning : "KI konnte sich auch mit freierem Urteil nicht entscheiden.",
+      aiProvider: provider,
+    };
+  }
+
+  const { updates, fieldsChanged } = buildUpdatesFromProposal(args, entity, table, allowed, report.entity_id);
+  if (fieldsChanged.length === 0) {
+    return {
+      status: "needs_manual_review",
+      diagnosis: `KI entschied sich für eine Datenkorrektur, aber kein Wert bestand die Validierung oder wich vom ` +
+        `gespeicherten Wert ab. Begründung: ${args.reasoning ?? "-"}`,
+      aiProvider: provider,
+    };
+  }
+
+  const { error: updateError } = await supabase.from(table).update(updates).eq("id", report.entity_id);
+  if (updateError) return { status: "error", diagnosis: `Update fehlgeschlagen: ${updateError.message}`, aiProvider: provider };
+
+  return {
+    status: "fixed",
+    diagnosis: `${args.reasoning ?? ""} (freies Urteil im Retry-Modus, ohne Zitatpflicht)`,
+    actionTaken: fieldsChanged.map((f) => `${f.field}: „${f.before ?? "–"}“ → „${f.after}“`).join("; "),
+    fieldsChanged,
+    aiProvider: provider,
+  };
+}
+
 async function fixReport(
   // deno-lint-ignore no-explicit-any
   supabase: any,
@@ -955,7 +1294,11 @@ async function fixReport(
   anonKey: string,
   report: ContentReportRow,
   adminInitiated: boolean,
+  retry: boolean,
 ): Promise<FixResult> {
+  if (retry) {
+    return await fixFreeform(supabase, report);
+  }
   if (report.reason === "wrong_image") {
     return await fixWrongImage(supabase, supabaseUrl, anonKey, report.entity_type, report.entity_id);
   }
@@ -969,7 +1312,7 @@ async function fixReport(
 }
 
 Deno.serve(async (req) => {
-  let body: { reportId?: unknown; limit?: unknown; adminInitiated?: unknown };
+  let body: { reportId?: unknown; limit?: unknown; adminInitiated?: unknown; retry?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -979,6 +1322,10 @@ Deno.serve(async (req) => {
   // tut das für beide Buttons) — der Cron-Aufruf (siehe 20261006000009)
   // lässt das Feld weg und bleibt damit konservativ. Siehe Datei-Kommentar.
   const adminInitiated = body.adminInitiated === true;
+  // Nur beim "Erneut versuchen"-Klick gesetzt (nie per Cron, nie beim
+  // allerersten "Automatisch fixen") — schaltet auf den freieren
+  // fixFreeform-Pfad um, siehe dortiger Kommentar.
+  const retry = body.retry === true;
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
@@ -1023,19 +1370,23 @@ Deno.serve(async (req) => {
   for (const report of reports) {
     let result: FixResult;
     try {
-      result = await fixReport(supabase, supabaseUrl, anonKey, report, adminInitiated);
+      result = await fixReport(supabase, supabaseUrl, anonKey, report, adminInitiated, retry);
     } catch (err) {
       result = { status: "error", diagnosis: `Unerwarteter Fehler: ${err instanceof Error ? err.message : String(err)}` };
     }
 
-    await supabase.from("content_report_fixes").insert({
-      report_id: report.id,
-      status: result.status,
-      diagnosis: result.diagnosis,
-      action_taken: result.actionTaken ?? null,
-      fields_changed: result.fieldsChanged ?? [],
-      ai_provider: result.aiProvider ?? null,
-    });
+    const { data: insertedFix } = await supabase
+      .from("content_report_fixes")
+      .insert({
+        report_id: report.id,
+        status: result.status,
+        diagnosis: result.diagnosis,
+        action_taken: result.actionTaken ?? null,
+        fields_changed: result.fieldsChanged ?? [],
+        ai_provider: result.aiProvider ?? null,
+      })
+      .select("id")
+      .single();
 
     if (result.status === "fixed") {
       await supabase
@@ -1043,8 +1394,18 @@ Deno.serve(async (req) => {
         .update({ status: "resolved", reviewed_at: new Date().toISOString() })
         .eq("id", report.id);
     }
-    // needs_manual_review/error: content_reports.status bleibt 'pending' —
-    // die Redaktion sieht den Diagnose-Bericht weiterhin in der Warteschlange.
+    // needs_manual_review/error/code_bug_suspected: content_reports.status
+    // bleibt 'pending' — die Redaktion sieht den Diagnose-Bericht weiterhin
+    // in der Warteschlange.
+
+    if (result.status === "code_bug_suspected" && result.codeFixTask) {
+      await supabase.from("code_fix_tasks").insert({
+        report_id: report.id,
+        fix_id: insertedFix?.id ?? null,
+        title: result.codeFixTask.title,
+        prompt: result.codeFixTask.prompt,
+      });
+    }
 
     results.push({ reportId: report.id, status: result.status, diagnosis: result.diagnosis });
   }

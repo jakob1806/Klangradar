@@ -114,6 +114,10 @@ export interface ScrapeConfig {
    * "Marktmusik" haben dort kein eigenes Tag/Kategorie-Feld, nur den
    * Titeltext). Leer/fehlend = keine Filterung. */
   titleExcludeIfContains?: string[];
+  /** Items mit einem dieser CSS-Klassen-Fragmente verwerfen. Für Kalender,
+   * die Heim- und Gastspielorte mischen, obwohl die Quelle eine feste
+   * venue_id besitzt (Gärtnerplatz: ort-102 = Gastspielorte). */
+  itemExcludeClassContains?: string[];
 }
 
 /** Löst den "nächste Seite"-Link relativ zur AKTUELL abgerufenen Seiten-URL
@@ -130,7 +134,7 @@ export function extractNextPageUrl(
 ): string | null {
   if (!config.nextPageSelector) return null;
   try {
-    const { document } = parseHTML(html);
+    const { document } = parseHTML(html) as any;
     const el = document.querySelector(config.nextPageSelector);
     if (!el || el.hasAttribute?.("disabled")) return null;
     const value = el.getAttribute?.(config.nextPageAttribute ?? "href");
@@ -157,9 +161,9 @@ export function parseScrape(html: string, config: ScrapeConfig): ParseResult {
     return { events, errors };
   }
 
-  let document: Document;
+  let document: any;
   try {
-    ({ document } = parseHTML(html));
+    ({ document } = parseHTML(html) as any);
   } catch (err) {
     errors.push(
       `failed to parse HTML: ${err instanceof Error ? err.message : String(err)}`,
@@ -175,9 +179,13 @@ export function parseScrape(html: string, config: ScrapeConfig): ParseResult {
     return { events, errors };
   }
 
-  items.forEach((item, i) => {
+  items.forEach((item: any, i: number) => {
     const label = `item ${i + 1}`;
     try {
+      if (config.itemExcludeClassContains?.length) {
+        const classes = item.getAttribute?.("class") ?? "";
+        if (config.itemExcludeClassContains.some((value) => classes.includes(value))) return;
+      }
       const title = extractText(
         item,
         config.titleSelector,
@@ -442,7 +450,7 @@ function parseFlexibleDate(raw: string): string | null {
     const nameLower = germanNoYear[2].toLowerCase();
     const month = GERMAN_MONTHS[nameLower] ?? GERMAN_MONTHS_ABBR[nameLower.slice(0, 3)];
     if (month) {
-      const timeMatch = text.match(/(\d{1,2}):(\d{2})/);
+      const timeMatch = text.match(/(\d{1,2})[.:](\d{2})(?=\s*(?:Uhr|[–-]))/);
       const hour = timeMatch ? parseInt(timeMatch[1], 10) : 0;
       const minute = timeMatch ? parseInt(timeMatch[2], 10) : 0;
       const year = inferYear(month, day, hour, minute);
@@ -456,16 +464,17 @@ function parseFlexibleDate(raw: string): string | null {
   // timeSelector als eigenes Element dazu (z.B. "18:00") und wird an den
   // Datumstext angehängt, bevor geparst wird — Doppelpunkt statt "Uhr"
   // unterscheidet die Uhrzeit zuverlässig von den Punkten im Datum selbst.
-  const numericGerman = text.match(/(\d{1,2})\.(\d{1,2})\.(?:(\d{4}))?/);
+  const numericGerman = text.match(/(\d{1,2})\.(\d{1,2})\.(?:(\d{2}|\d{4}))?/);
   if (numericGerman) {
     const day = parseInt(numericGerman[1], 10);
     const month = parseInt(numericGerman[2], 10);
     if (month >= 1 && month <= 12) {
-      const timeMatch = text.match(/(\d{1,2}):(\d{2})/);
+      const timeMatch = text.match(/(\d{1,2})[.:](\d{2})(?=\s*(?:Uhr|[–-]))/);
       const hour = timeMatch ? parseInt(timeMatch[1], 10) : 0;
       const minute = timeMatch ? parseInt(timeMatch[2], 10) : 0;
-      const year = numericGerman[3]
-        ? parseInt(numericGerman[3], 10)
+      const parsedYear = numericGerman[3] ? parseInt(numericGerman[3], 10) : null;
+      const year = parsedYear != null
+        ? (parsedYear < 100 ? 2000 + parsedYear : parsedYear)
         : inferYear(month, day, hour, minute);
       return toBerlinIsoString(year, month, day, hour, minute);
     }

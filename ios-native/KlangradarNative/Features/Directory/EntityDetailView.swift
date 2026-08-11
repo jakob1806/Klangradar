@@ -42,6 +42,9 @@ struct EntityDetailView: View {
                         if !detail.similar.isEmpty {
                             similar(detail.similar, kind: detail.kind)
                         }
+                        if detail.kind != .work {
+                            ReportContentLink(entityType: detail.kind.rawValue, entityID: detail.id)
+                        }
                     }
                     .padding(KlangradarTheme.pagePadding)
                     .padding(.bottom, 100)
@@ -71,7 +74,7 @@ struct EntityDetailView: View {
 
         case .ensemble:
             VStack(alignment: .leading, spacing: 14) {
-                if let imageURL = detail.gallery.first?.url ?? detail.primaryImageURL {
+                if let imageURL = detail.primaryImageURL ?? detail.gallery.first?.url {
                     Button {
                         showImage(imageURL, title: detail.title)
                     } label: {
@@ -90,12 +93,13 @@ struct EntityDetailView: View {
                 VStack(alignment: .leading, spacing: 5) {
                     Text(detail.kind.title.uppercased()).font(.caption.bold()).tracking(1).foregroundStyle(.secondary)
                     Text(detail.title).font(.title.bold())
+                    parentEnsembleLink(detail.fields.object("parent"))
                 }
             }
 
         case .person:
             HStack(alignment: .top, spacing: 18) {
-                if let imageURL = detail.gallery.first?.url ?? detail.primaryImageURL {
+                if let imageURL = detail.primaryImageURL ?? detail.gallery.first?.url {
                     Button { showImage(imageURL, title: detail.title) } label: {
                         AsyncImage(url: imageURL) { image in
                             image.resizable().scaledToFill()
@@ -117,11 +121,30 @@ struct EntityDetailView: View {
                     Text(detail.kind.title.uppercased()).font(.caption.bold()).tracking(1).foregroundStyle(.secondary)
                     Text(detail.title).font(.title.bold())
                     if let subtitle = detail.subtitle { Text(subtitle).foregroundStyle(.secondary) }
+                    parentEnsembleLink(detail.fields.object("member_of"))
                 }
             }
 
         case .venue:
             EmptyView() // venueHeader(_:) wird stattdessen direkt aufgerufen.
+        }
+    }
+
+    /// Nutzeranfrage: Zugehörigkeit zu einem übergeordneten Ensemble sichtbar
+    /// machen, z.B. "Solist des Tölzer Knabenchors" → "Tölzer Knabenchor"
+    /// oder "Kammerorchester des BR" → "Symphonieorchester des BR". `row`
+    /// kommt direkt aus dem "member_of"/"parent"-Join in ContentRepository.detail.
+    @ViewBuilder private func parentEnsembleLink(_ row: JSONObject?) -> some View {
+        if let row, let slug = row.string("slug"), let name = row.string("name") {
+            NavigationLink(value: EntityRoute(kind: .ensemble, identifier: slug)) {
+                HStack(spacing: 4) {
+                    Text("Teil von \(name)")
+                    Image(systemName: "chevron.right").font(.caption2.bold())
+                }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(KlangradarTheme.accent)
+            }
+            .buttonStyle(.plain)
         }
     }
 
