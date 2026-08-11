@@ -104,9 +104,7 @@ final _eventProvider = FutureProvider.family<Map<String, dynamic>?, String>((
           .from('ensembles')
           .select('id, slug, name')
           .inFilter('id', parentIds.toList());
-      final parentById = {
-        for (final p in parents) p['id'] as String: p,
-      };
+      final parentById = {for (final p in parents) p['id'] as String: p};
       for (final e in participantEnsembles) {
         final parentId = e['parent_ensemble_id'] as String?;
         if (parentId != null && parentById.containsKey(parentId)) {
@@ -1174,8 +1172,7 @@ class _ParticipantRow extends StatelessWidget {
     // Nutzeranfrage: Verknüpfung zu einem übergeordneten Ensemble soll auch
     // hier in der Mitwirkenden-Liste erkennbar sein, nicht erst auf der
     // eigenen Detailseite der Person/des Ensembles.
-    final parentEnsemble =
-        person?['member_of'] ?? ensemble?['parent'];
+    final parentEnsemble = person?['member_of'] ?? ensemble?['parent'];
 
     return Material(
       color: Colors.transparent,
