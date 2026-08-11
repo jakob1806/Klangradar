@@ -429,6 +429,9 @@ struct EventDetailView: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(participantName(row)).font(.headline)
                 Text(participantRole(row)).font(.subheadline).foregroundStyle(.secondary)
+                if let parentEnsembleName = parentEnsembleName(row) {
+                    Text("Teil von \(parentEnsembleName)").font(.caption).foregroundStyle(.tertiary)
+                }
             }
             Spacer(minLength: 8)
             Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(.tertiary)
@@ -623,6 +626,14 @@ struct EventDetailView: View {
         if let person = row.object("persons") { return (.person, person) }
         if let ensemble = row.object("ensembles") { return (.ensemble, ensemble) }
         return nil
+    }
+
+    /// Nutzeranfrage: Verknüpfung zu einem übergeordneten Ensemble soll auch
+    /// hier in der Mitwirkenden-Liste erkennbar sein, nicht erst auf der
+    /// eigenen Detailseite der Person/des Ensembles.
+    private func parentEnsembleName(_ row: JSONObject) -> String? {
+        row.object("persons")?.object("member_of")?.string("name")
+            ?? row.object("ensembles")?.object("parent")?.string("name")
     }
 
     private func initials(_ name: String) -> String {

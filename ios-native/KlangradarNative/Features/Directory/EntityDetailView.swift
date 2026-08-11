@@ -90,6 +90,7 @@ struct EntityDetailView: View {
                 VStack(alignment: .leading, spacing: 5) {
                     Text(detail.kind.title.uppercased()).font(.caption.bold()).tracking(1).foregroundStyle(.secondary)
                     Text(detail.title).font(.title.bold())
+                    parentEnsembleLink(detail.fields.object("parent"))
                 }
             }
 
@@ -117,11 +118,30 @@ struct EntityDetailView: View {
                     Text(detail.kind.title.uppercased()).font(.caption.bold()).tracking(1).foregroundStyle(.secondary)
                     Text(detail.title).font(.title.bold())
                     if let subtitle = detail.subtitle { Text(subtitle).foregroundStyle(.secondary) }
+                    parentEnsembleLink(detail.fields.object("member_of"))
                 }
             }
 
         case .venue:
             EmptyView() // venueHeader(_:) wird stattdessen direkt aufgerufen.
+        }
+    }
+
+    /// Nutzeranfrage: Zugehörigkeit zu einem übergeordneten Ensemble sichtbar
+    /// machen, z.B. "Solist des Tölzer Knabenchors" → "Tölzer Knabenchor"
+    /// oder "Kammerorchester des BR" → "Symphonieorchester des BR". `row`
+    /// kommt direkt aus dem "member_of"/"parent"-Join in ContentRepository.detail.
+    @ViewBuilder private func parentEnsembleLink(_ row: JSONObject?) -> some View {
+        if let row, let slug = row.string("slug"), let name = row.string("name") {
+            NavigationLink(value: EntityRoute(kind: .ensemble, identifier: slug)) {
+                HStack(spacing: 4) {
+                    Text("Teil von \(name)")
+                    Image(systemName: "chevron.right").font(.caption2.bold())
+                }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(KlangradarTheme.accent)
+            }
+            .buttonStyle(.plain)
         }
     }
 

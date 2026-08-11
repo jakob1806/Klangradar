@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/gallery/entity_gallery_providers.dart';
@@ -30,6 +31,20 @@ final _ensembleProvider = FutureProvider.family<Map<String, dynamic>?, String>((
       .eq('slug', slug)
       .maybeSingle();
   if (ensemble == null) return null;
+
+  // parent_ensemble_id zeigt auf dieselbe Tabelle (Self-Join) — PostgREST
+  // kann bei Self-Joins "gehört zu" (Vorwärts, ein Objekt) nicht zuverlässig
+  // von "hat als Unter-Ensemble" (Rückwärts, mehrere) unterscheiden und
+  // liefert über das Embedding immer die Rückwärts-Richtung. Deshalb hier
+  // manuell in einem zweiten, einfachen Schritt aufgelöst statt embedded.
+  final parentEnsembleId = ensemble['parent_ensemble_id'] as String?;
+  if (parentEnsembleId != null) {
+    ensemble['parent'] = await client
+        .from('ensembles')
+        .select('slug, name')
+        .eq('id', parentEnsembleId)
+        .maybeSingle();
+  }
 
   final events = await client
       .from('event_participants')
@@ -172,6 +187,22 @@ class EnsembleDetailScreen extends ConsumerWidget {
                         fontSize: 13,
                       ),
                     ),
+                    if (ensemble['parent'] != null) ...[
+                      const SizedBox(height: AppSpacing.xs),
+                      GestureDetector(
+                        onTap: () => context.push(
+                          '/ensemble/${ensemble['parent']['slug']}',
+                        ),
+                        child: Text(
+                          'Teil von ${ensemble['parent']['name']}',
+                          style: TextStyle(
+                            color: colors.accentPrimary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
                     if (ensemble['description_de'] != null) ...[
                       const SizedBox(height: AppSpacing.lg),
                       SectionHeaderWithSource(
