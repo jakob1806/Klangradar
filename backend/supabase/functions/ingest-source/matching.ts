@@ -71,11 +71,29 @@ export async function findEventMatch(
   startDateTime: string,
   castNames?: string[] | null,
 ): Promise<{ id: string; similarity: number } | null> {
+  // Nutzerfeedback: "ich habe das gefühl, dass nach wie vor einige
+  // duplikate entstehen. auch durch quellen wie concerti oder IN münchen,
+  // die gesammelte konzertdaten zur verfügung bereitstellen." Konkret
+  // nachvollzogen: die zwei venuelosen Aggregator-Quellen "Concerti
+  // München" und "IN-Muenchen (nur Klassik)" formulieren Titel oft
+  // komplett anders als die Original-Quelle des Veranstaltungsorts (z.B.
+  // ein einzelnes Programmwerk statt des Konzerttitels) — die
+  // RPC-Standardschwelle (0.35) lässt solche Fälle dann OHNE jeden
+  // duplicate_candidates-Eintrag als scheinbar neues Event durchrutschen,
+  // obwohl Venue und Uhrzeit exakt übereinstimmen. Deshalb hier explizit
+  // 0 statt der Standardschwelle: JEDES Event am selben Venue im selben
+  // +/-2h-Fenster wird zurückgegeben und unten (write.ts) mindestens zur
+  // manuellen Prüfung markiert — echte Duplikate werden so nie mehr
+  // stillschweigend übersehen. Ein automatisches Zusammenführen bleibt
+  // weiterhin nur ab similarity >= 0.7 erlaubt (siehe write.ts), das
+  // Sicherheitsprinzip ändert sich also nicht, nur die Sichtbarkeit
+  // niedrigerer Übereinstimmungen für die Redaktion.
   const { data, error } = await supabase.rpc("find_matching_event", {
     p_title: title,
     p_venue_id: venueId,
     p_start_datetime: startDateTime,
     p_cast_names: castNames && castNames.length > 0 ? castNames : null,
+    p_similarity_threshold: 0,
   });
 
   if (error) {
