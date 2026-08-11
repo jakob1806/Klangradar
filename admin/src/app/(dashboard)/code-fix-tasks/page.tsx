@@ -40,7 +40,7 @@ export default async function CodeFixTasksPage() {
       <div>
         <h1 className="text-xl font-semibold tracking-tight">Code-Aufgaben für Claude Code</h1>
         <p className="mt-1 max-w-xl text-sm text-neutral-500">
-          Wenn der freiere Fix-Versuch einer Nutzer-Meldung ("Erneut versuchen") vermutet, dass die Ursache ein Bug
+          Wenn der freiere Fix-Versuch einer Nutzer-Meldung (&quot;Erneut versuchen&quot;) vermutet, dass die Ursache ein Bug
           im Scraping-/Ingest-Code ist statt eines falschen Datenwerts, landet hier ein fertiger Auftragstext —
           Auftragstext kopieren und Claude Code damit beauftragen, danach hier abhaken.
         </p>
