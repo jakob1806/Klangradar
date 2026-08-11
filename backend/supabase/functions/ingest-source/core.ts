@@ -39,6 +39,16 @@ import { upsertRawEvent } from "./write.ts";
 // möglich).
 export const SUPPORTED_TYPES = new Set(["schema_org", "ical", "rss", "scrape", "api", "brso", "staatsoper", "gaertnerplatz"]);
 
+// flagMissingEvents() (siehe unten) vergleicht seenEventIds gegen ALLE
+// bisher bekannten Events dieser Quelle, um verschwundene als "cancelled"
+// zu markieren — das setzt voraus, dass ein Lauf die VOLLSTÄNDIGE Liste
+// gesehen hat. Diese drei Typen liefern strukturell immer die komplette
+// aktuelle Liste (kein Pagination-Konzept wie bei scrape/staatsoper) und
+// dürfen deshalb NIE standardmäßig in fortsetzbare Batches aufgeteilt
+// werden (siehe configuredBatchSize unten) — sonst würden Events, die nur
+// noch nicht im aktuellen Batch waren, fälschlich als verschwunden geflaggt.
+const FULL_LISTING_TYPES = new Set(["ical", "rss", "schema_org"]);
+
 /** Führt einen kompletten Ingestion-Lauf für eine Quelle aus — der eigentliche
  * Kern, den ingest-source/index.ts's Deno.serve-Handler direkt aufruft.
  * Als eigene, exportierte Funktion extrahiert, damit run-all-sources/index.ts
@@ -332,13 +342,29 @@ export async function runIngestion(
   const fullExternalIds = source.type === "staatsoper"
     ? new Set(parsed.events.map((event) => event.externalId).filter((id): id is string => Boolean(id)))
     : null;
+  // Nutzerfeedback: "die bild ingestion ist mir immer noch etwas zu
+  // langsam und unzuverlässig" — bisher bekamen NUR staatsoper/
+  // gaertnerplatz standardmäßig fortsetzbare Batches (siehe Kommentar
+  // oben); jede andere Quelle (rss/scrape/ical/schema_org/api/brso —
+  // darunter gerade die großen Aggregatoren Concerti München/IN-Muenchen)
+  // versuchte IMMER die komplette Ereignisliste in einem einzigen
+  // Edge-Aufruf zu schreiben, inklusive der pro Event synchronen
+  // Bild-Pipeline (Download+Decode+Resize+Upload, bis zu 20s Timeout je
+  // Bild) — bei größeren Quellen ein reales Risiko, das Edge-Zeitlimit zu
+  // überschreiten und mitten im Lauf abzubrechen (unvollständige/
+  // inkonsistente Ergebnisse zwischen Läufen). Batching ist bereits
+  // vollständig generisch (siehe Persistenz-Block unten, keine
+  // Typ-Sonderfälle außer den staatsoper-spezifischen Zusatzschritten) —
+  // 40 als Standard für ALLE Typen statt nur zwei macht jede Quelle
+  // fortsetzbar, ohne das bewährte Verhalten für bereits konfigurierte
+  // Quellen (config.writeBatchSize) zu ändern.
   const configuredBatchSize = source.type === "staatsoper"
     ? 40
     : typeof config.writeBatchSize === "number"
     ? config.writeBatchSize
-    : ["staatsoper", "gaertnerplatz"].includes(source.type)
-    ? 40
-    : null;
+    : FULL_LISTING_TYPES.has(source.type)
+    ? null
+    : 40;
   const writeBatchSize = configuredBatchSize == null
     ? null
     : Math.min(Math.max(Math.floor(configuredBatchSize), 1), 150);
@@ -380,29 +406,33 @@ export async function runIngestion(
     }
   };
 
-  if (["staatsoper", "gaertnerplatz"].includes(source.type)) {
-    // Saisonspielpläne enthalten hunderte Termine. Unterschiedliche Titel
-    // parallel schreiben, Wiederholungen derselben Produktion aber seriell:
-    // generateUniqueSlug() darf für zwei gleichnamige Termine nicht in ein
-    // Race geraten. Acht Titel-Lanes halten den Edge-Lauf deutlich unter
-    // dem Zeitlimit, ohne die Datenbank mit 285 Einzel-Promises zu fluten.
-    const groups = new Map<string, typeof parsed.events>();
-    for (const raw of parsed.events) {
-      const key = raw.title.toLocaleLowerCase("de").replace(/\s+/g, " ").trim();
-      groups.set(key, [...(groups.get(key) ?? []), raw]);
-    }
-    const lanes = Array.from(groups.values());
-    let nextLane = 0;
-    const worker = async () => {
-      while (nextLane < lanes.length) {
-        const lane = lanes[nextLane++];
-        for (const raw of lane) await writeOne(raw);
-      }
-    };
-    await Promise.all(Array.from({ length: Math.min(20, lanes.length) }, worker));
-  } else {
-    for (const raw of parsed.events) await writeOne(raw);
+  // Nutzerfeedback: "die bild ingestion ist mir immer noch etwas zu
+  // langsam und unzuverlässig" — die Titel-Lane-Parallelisierung lief
+  // bisher nur für staatsoper/gaertnerplatz, obwohl JEDE Quelle pro Event
+  // dieselbe synchrone Bild-Pipeline (Download+Decode+Resize+Upload)
+  // durchläuft. Für alle anderen Typen (rss/scrape/ical/schema_org/api/
+  // brso) lief das bisher komplett seriell — bei größeren Aggregator-
+  // Quellen (z.B. Concerti München/IN-Muenchen) unnötig langsam. Jetzt
+  // generisch für jede Quelle: unterschiedliche Titel parallel schreiben,
+  // Wiederholungen derselben Produktion aber weiterhin seriell in ihrer
+  // eigenen Lane (generateUniqueSlug() darf für zwei gleichnamige Termine
+  // nicht in ein Race geraten). Bis zu 20 Lanes halten den Edge-Lauf
+  // deutlich unter dem Zeitlimit, ohne die Datenbank mit hunderten
+  // Einzel-Promises gleichzeitig zu fluten.
+  const groups = new Map<string, typeof parsed.events>();
+  for (const raw of parsed.events) {
+    const key = raw.title.toLocaleLowerCase("de").replace(/\s+/g, " ").trim();
+    groups.set(key, [...(groups.get(key) ?? []), raw]);
   }
+  const lanes = Array.from(groups.values());
+  let nextLane = 0;
+  const worker = async () => {
+    while (nextLane < lanes.length) {
+      const lane = lanes[nextLane++];
+      for (const raw of lane) await writeOne(raw);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(20, lanes.length) }, worker));
 
   const writeErrors = summarizeErrors(rawWriteErrors);
 
@@ -440,7 +470,6 @@ export async function runIngestion(
   // war (keine Parse-Fehler, jedes RawEvent erfolgreich geschrieben) —
   // sonst könnte ein einzelner fehlgeschlagener Write ein weiterhin
   // existierendes Event fälschlich als "verschwunden" erscheinen lassen.
-  const FULL_LISTING_TYPES = new Set(["ical", "rss", "schema_org"]);
   if (
     FULL_LISTING_TYPES.has(source.type) &&
     parsed.errors.length === 0 &&

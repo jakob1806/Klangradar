@@ -25,6 +25,7 @@ function readPersonFields(formData: FormData) {
     nationality: String(formData.get("nationality") ?? "").trim() || null,
     birth_date: String(formData.get("birth_date") ?? "") || null,
     death_date: String(formData.get("death_date") ?? "") || null,
+    is_deceased: formData.get("is_deceased") === "on",
     biography_de: String(formData.get("biography_de") ?? "").trim() || null,
     website_url: String(formData.get("website_url") ?? "").trim() || null,
     photo_url: String(formData.get("photo_url") ?? "").trim() || null,
