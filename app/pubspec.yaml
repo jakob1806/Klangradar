@@ -88,6 +88,8 @@ dependencies:
   # device_calendar direkt und ohne native UI einzutragen. add_2_calendar
   # präsentiert genau diese native EKEventEditViewController-Sheet auf iOS.
   add_2_calendar: ^3.1.1
+  image_picker: ^1.2.3
+  image_cropper: ^12.2.1
 
 dev_dependencies:
   flutter_test:

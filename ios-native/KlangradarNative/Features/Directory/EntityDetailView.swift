@@ -42,6 +42,9 @@ struct EntityDetailView: View {
                         if !detail.similar.isEmpty {
                             similar(detail.similar, kind: detail.kind)
                         }
+                        if detail.kind != .work {
+                            ReportContentLink(entityType: detail.kind.rawValue, entityID: detail.id)
+                        }
                     }
                     .padding(KlangradarTheme.pagePadding)
                     .padding(.bottom, 100)
@@ -71,7 +74,7 @@ struct EntityDetailView: View {
 
         case .ensemble:
             VStack(alignment: .leading, spacing: 14) {
-                if let imageURL = detail.gallery.first?.url ?? detail.primaryImageURL {
+                if let imageURL = detail.primaryImageURL ?? detail.gallery.first?.url {
                     Button {
                         showImage(imageURL, title: detail.title)
                     } label: {
@@ -96,7 +99,7 @@ struct EntityDetailView: View {
 
         case .person:
             HStack(alignment: .top, spacing: 18) {
-                if let imageURL = detail.gallery.first?.url ?? detail.primaryImageURL {
+                if let imageURL = detail.primaryImageURL ?? detail.gallery.first?.url {
                     Button { showImage(imageURL, title: detail.title) } label: {
                         AsyncImage(url: imageURL) { image in
                             image.resizable().scaledToFill()

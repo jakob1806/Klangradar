@@ -43,6 +43,7 @@ struct EventDetailView: View {
                             venue(detail)
                             similarEvents(detail)
                             source(detail)
+                            ReportContentLink(entityType: "event", entityID: event.id.uuidString)
                         } else if isLoading {
                             ProgressView("Details werden geladen …")
                                 .frame(maxWidth: .infinity)

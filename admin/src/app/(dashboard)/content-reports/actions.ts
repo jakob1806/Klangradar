@@ -16,6 +16,7 @@ export async function resolveContentReport(reportId: string) {
     .eq("id", reportId);
   if (error) throw new Error(error.message);
   revalidatePath("/content-reports");
+  revalidatePath("/content-reports-native");
 }
 
 export async function dismissContentReport(reportId: string) {
@@ -26,10 +27,11 @@ export async function dismissContentReport(reportId: string) {
     .eq("id", reportId);
   if (error) throw new Error(error.message);
   revalidatePath("/content-reports");
+  revalidatePath("/content-reports-native");
 }
 
 export interface AutoFixResult {
-  status: "fixed" | "needs_manual_review" | "error";
+  status: "fixed" | "needs_manual_review" | "error" | "code_bug_suspected";
   diagnosis: string;
 }
 
@@ -54,18 +56,27 @@ function authHeaders() {
  * mit adminInitiated=true — das schaltet dort auch die riskanteren Fixes
  * frei (neue Mitwirkende/Werke anlegen), die der unbeaufsichtigte
  * Cron-Lauf bewusst NICHT macht (siehe dortiger Datei-Kommentar). Übergeht
- * außerdem die "schon mal versucht"-Sperre, die nur der Cron-Lauf beachtet. */
-export async function autoFixContentReport(reportId: string): Promise<AutoFixResult> {
+ * außerdem die "schon mal versucht"-Sperre, die nur der Cron-Lauf beachtet.
+ *
+ * `retry`: Nutzerwunsch "bei erneut versuchen soll einfach eine KI diese
+ * fehler durchgehen und beheben. das ist dann wie, als würde ich dir eine
+ * chatnachricht mit der fehlerkorrektur schreiben" — schaltet in der Edge
+ * Function auf den freieren fixFreeform-Pfad um (kein Zitat-Zwang mehr,
+ * volle Entität + bisheriger Verlauf als Kontext). Wird vom Button nur beim
+ * "Erneut versuchen" (also alreadyTried=true) gesetzt, nie beim allerersten
+ * Klick. */
+export async function autoFixContentReport(reportId: string, retry = false): Promise<AutoFixResult> {
   const res = await fetch(functionsUrl("auto-fix-content-report"), {
     method: "POST",
     headers: authHeaders(),
-    body: JSON.stringify({ reportId, adminInitiated: true }),
+    body: JSON.stringify({ reportId, adminInitiated: true, retry }),
   });
   const data = await res.json().catch(() => null);
   if (!res.ok || !data?.results?.[0]) {
     throw new Error(data?.error ?? "Automatischer Fix fehlgeschlagen.");
   }
   revalidatePath("/content-reports");
+  revalidatePath("/content-reports-native");
   return { status: data.results[0].status, diagnosis: data.results[0].diagnosis };
 }
 

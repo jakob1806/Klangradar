@@ -15,12 +15,14 @@ const STATUS_STYLE: Record<AutoFixResult["status"], string> = {
   fixed: "bg-green-50 text-green-800 border-green-200",
   needs_manual_review: "bg-amber-50 text-amber-800 border-amber-200",
   error: "bg-red-50 text-red-700 border-red-200",
+  code_bug_suspected: "bg-purple-50 text-purple-800 border-purple-200",
 };
 
 const STATUS_LABEL: Record<AutoFixResult["status"], string> = {
   fixed: "Automatisch behoben",
   needs_manual_review: "Manuelle Prüfung nötig",
   error: "Fehler beim Fix-Versuch",
+  code_bug_suspected: "Code-Bug vermutet — Aufgabe für Claude Code angelegt",
 };
 
 export function AutoFixButton({
@@ -43,7 +45,7 @@ export function AutoFixButton({
     setError(null);
     startTransition(async () => {
       try {
-        const r = await autoFixContentReport(reportId);
+        const r = await autoFixContentReport(reportId, alreadyTried);
         setResult(r);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Automatischer Fix fehlgeschlagen.");

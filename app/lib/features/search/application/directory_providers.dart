@@ -46,19 +46,17 @@ Future<Map<String, String>> _coverImagesByOriginId(String originType) async {
   return covers;
 }
 
-/// Bevorzugt das Galerie-Titelbild vor der eigenen `photo_url`-Spalte,
-/// sobald eines existiert (siehe Kommentar oben — meist die bessere/
-/// geprüfte Aufnahme). Der redaktionelle Avatar-Ausschnitt
-/// (avatar_crop_x/y/width/height) wurde im Admin gegen die ursprüngliche
-/// `photo_url` gewählt — greift stattdessen das Galeriebild, gehört der
-/// Ausschnitt zu einem ANDEREN Bild und wird deshalb bewusst verworfen
-/// (sonst würde z.B. ein am Kopf zugeschnittener Ausschnitt plötzlich
-/// einen Fuß zeigen).
-List<Map<String, dynamic>> _applyCoverFallback(
+/// Nutzt das Galerie-Titelbild ausschließlich als Fallback. Ein vorhandenes
+/// `photo_url` ist das verbindliche Profilfoto und muss in kleinen wie großen
+/// Künstler-/Ensemble-Miniaturen Vorrang behalten. Dadurch bleibt auch der
+/// zu diesem Profilfoto gespeicherte Avatar-Ausschnitt gültig.
+List<Map<String, dynamic>> applyDirectoryCoverFallback(
   List<Map<String, dynamic>> rows,
   Map<String, String> covers,
 ) {
   return rows.map((r) {
+    final profilePhoto = r['photo_url'] as String?;
+    if (profilePhoto != null && profilePhoto.isNotEmpty) return r;
     final coverUrl = covers[r['id']];
     if (coverUrl == null) return r;
     return {
@@ -83,7 +81,7 @@ final allPersonsProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>
       )
       .order('full_name', ascending: true);
   final covers = await _coverImagesByOriginId('person');
-  return _applyCoverFallback(
+  return applyDirectoryCoverFallback(
     (rawRows as List).cast<Map<String, dynamic>>(),
     covers,
   );
@@ -99,7 +97,7 @@ final allEnsemblesProvider =
           )
           .order('name', ascending: true);
       final covers = await _coverImagesByOriginId('ensemble');
-      return _applyCoverFallback(
+      return applyDirectoryCoverFallback(
         (rawRows as List).cast<Map<String, dynamic>>(),
         covers,
       );

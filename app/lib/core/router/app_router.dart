@@ -76,6 +76,7 @@ GoRouter buildAppRouter({String initialLocation = '/home'}) => GoRouter(
     ),
     GoRoute(
       path: '/event/:slug',
+      name: 'event-detail',
       parentNavigatorKey: rootNavigatorKey,
       builder: (context, state) =>
           EventDetailScreen(slug: state.pathParameters['slug']!),

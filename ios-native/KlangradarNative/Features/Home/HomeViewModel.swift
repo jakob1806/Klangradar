@@ -23,6 +23,7 @@ final class HomeViewModel: ObservableObject {
     @Published private(set) var popularEvents: [ConcertEvent] = []
 
     let repository: any EventRepository
+    var currentUserID: UUID? { auth?.userID }
     private let auth: AuthStore?
     private let userRepository: UserRepository?
 

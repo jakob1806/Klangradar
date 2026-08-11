@@ -176,15 +176,21 @@ class PersonDetailScreen extends ConsumerWidget {
                 iconTheme: const IconThemeData(color: Colors.white),
                 flexibleSpace: FlexibleSpaceBar(
                   background: gallery.maybeWhen(
-                    data: (images) => images.isNotEmpty
-                        ? EntityPhotoGallery(
-                            images: images,
-                            fallbackGenre: EventGenre.kammermusik,
-                          )
-                        : DetailHeroBackground(
-                            photoUrl: person['photo_url'] as String?,
-                            fallbackGenre: EventGenre.kammermusik,
-                          ),
+                    data: (images) {
+                      final displayImages = profilePhotoFirst(
+                        person['photo_url'] as String?,
+                        images,
+                      );
+                      return displayImages.isNotEmpty
+                          ? EntityPhotoGallery(
+                              images: displayImages,
+                              fallbackGenre: EventGenre.kammermusik,
+                            )
+                          : DetailHeroBackground(
+                              photoUrl: person['photo_url'] as String?,
+                              fallbackGenre: EventGenre.kammermusik,
+                            );
+                    },
                     orElse: () => DetailHeroBackground(
                       photoUrl: person['photo_url'] as String?,
                       fallbackGenre: EventGenre.kammermusik,

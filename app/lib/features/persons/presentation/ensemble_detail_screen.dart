@@ -137,15 +137,21 @@ class EnsembleDetailScreen extends ConsumerWidget {
                 iconTheme: const IconThemeData(color: Colors.white),
                 flexibleSpace: FlexibleSpaceBar(
                   background: gallery.maybeWhen(
-                    data: (images) => images.isNotEmpty
-                        ? EntityPhotoGallery(
-                            images: images,
-                            fallbackGenre: EventGenre.orchester,
-                          )
-                        : DetailHeroBackground(
-                            photoUrl: ensemble['photo_url'] as String?,
-                            fallbackGenre: EventGenre.orchester,
-                          ),
+                    data: (images) {
+                      final displayImages = profilePhotoFirst(
+                        ensemble['photo_url'] as String?,
+                        images,
+                      );
+                      return displayImages.isNotEmpty
+                          ? EntityPhotoGallery(
+                              images: displayImages,
+                              fallbackGenre: EventGenre.orchester,
+                            )
+                          : DetailHeroBackground(
+                              photoUrl: ensemble['photo_url'] as String?,
+                              fallbackGenre: EventGenre.orchester,
+                            );
+                    },
                     orElse: () => DetailHeroBackground(
                       photoUrl: ensemble['photo_url'] as String?,
                       fallbackGenre: EventGenre.orchester,

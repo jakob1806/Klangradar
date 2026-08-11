@@ -1,5 +1,75 @@
 import SwiftUI
 
+enum HomeRecommendationCategory: String, CaseIterable, Codable, Identifiable {
+    case forYou, today, nextSevenDays, weekend, popular, discover
+    case opera, orchestra, chamber, choir, free, upcoming, followed, editorialCollections
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .forYou: "Für dich empfohlen"
+        case .today: "Heute in München"
+        case .nextSevenDays: "In den nächsten 7 Tagen"
+        case .weekend: "Dieses Wochenende"
+        case .popular: "Beliebt in München"
+        case .discover: "Neu für dich entdecken"
+        case .opera: "Oper & Musiktheater"
+        case .orchestra: "Orchester & Sinfonik"
+        case .chamber: "Kammermusik & Recitals"
+        case .choir: "Chor & Vokalmusik"
+        case .free: "Eintritt frei"
+        case .upcoming: "Demnächst in München"
+        case .followed: "Gefolgte Künstler & Orte"
+        case .editorialCollections: "Redaktionelle Sammlungen"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .forYou: "sparkles"
+        case .today: "sun.max"
+        case .nextSevenDays: "calendar.badge.clock"
+        case .weekend: "calendar"
+        case .popular: "flame"
+        case .discover: "safari"
+        case .opera: "theatermasks"
+        case .orchestra: "music.note.list"
+        case .chamber: "music.quarternote.3"
+        case .choir: "person.3"
+        case .free: "eurosign.circle"
+        case .upcoming: "clock"
+        case .followed: "person.crop.circle.badge.checkmark"
+        case .editorialCollections: "rectangle.stack"
+        }
+    }
+
+    static let defaultOrder = allCases
+}
+
+enum HomeCategoryPreferences {
+    private static func key(for userID: UUID?) -> String {
+        "homeRecommendationCategoryOrder.\(userID?.uuidString ?? "guest")"
+    }
+
+    static func order(for userID: UUID?) -> [HomeRecommendationCategory] {
+        guard let values = UserDefaults.standard.stringArray(forKey: key(for: userID)) else {
+            return HomeRecommendationCategory.defaultOrder
+        }
+        let saved = values.compactMap(HomeRecommendationCategory.init(rawValue:))
+        let missing = HomeRecommendationCategory.defaultOrder.filter { !saved.contains($0) }
+        return saved + missing
+    }
+
+    static func save(_ order: [HomeRecommendationCategory], for userID: UUID?) {
+        UserDefaults.standard.set(order.map(\.rawValue), forKey: key(for: userID))
+    }
+
+    static func reset(for userID: UUID?) {
+        UserDefaults.standard.removeObject(forKey: key(for: userID))
+    }
+}
+
 struct HomeView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @StateObject private var model: HomeViewModel
@@ -7,6 +77,7 @@ struct HomeView: View {
     private let contentRepository: any ContentRepository
     private let usesPreviewData: Bool
     @State private var collections: [EditorialCollection] = []
+    @State private var categoryOrder: [HomeRecommendationCategory] = HomeRecommendationCategory.defaultOrder
 
     init(
         repository: any EventRepository,
@@ -39,6 +110,9 @@ struct HomeView: View {
             .task {
                 await model.load()
                 collections = (try? await contentRepository.collections()) ?? []
+            }
+            .onAppear {
+                categoryOrder = HomeCategoryPreferences.order(for: model.currentUserID)
             }
         }
     }
@@ -75,102 +149,52 @@ struct HomeView: View {
                         .buttonStyle(.plain)
                     }
 
-                    EventRail(
-                        title: model.hasPersonalizedInterests ? "Für dich" : "Für dich empfohlen",
-                        events: Array(model.recommendedEvents.filter { $0.id != events.first?.id }.prefix(14))
-                    )
-
-                    EventRail(
-                        title: "Heute in München",
-                        events: events.dropFirst().filter { event in
-                            event.startDate.map(KlangradarDateTime.calendar.isDateInToday) ?? false
-                        }
-                    )
-
-                    EventRail(
-                        title: "In den nächsten 7 Tagen",
-                        events: Array(events.dropFirst().filter(isWithinNextSevenDays).prefix(14))
-                    )
-
-                    EventRail(
-                        title: "Dieses Wochenende",
-                        events: Array(events.filter(isThisWeekend).prefix(14))
-                    )
-
-                    EventRail(
-                        title: "Beliebt in München",
-                        events: Array(model.popularEvents.prefix(14))
-                    )
-
-                    EventRail(
-                        title: "Neu für dich entdecken",
-                        events: Array(model.discoveryEvents.prefix(14))
-                    )
-
-                    EventRail(
-                        title: "Oper & Musiktheater",
-                        events: Array(events.filter { $0.matchesFeedTerms(["oper", "musiktheater", "ballett"]) }.prefix(14))
-                    )
-
-                    EventRail(
-                        title: "Orchester & Sinfonik",
-                        events: Array(events.filter { $0.matchesFeedTerms(["orchester", "sinfoni", "symphoni"]) }.prefix(14))
-                    )
-
-                    EventRail(
-                        title: "Kammermusik & Recitals",
-                        events: Array(events.filter { $0.matchesFeedTerms(["kammer", "recital", "klavierabend", "sonatenabend"]) }.prefix(14))
-                    )
-
-                    EventRail(
-                        title: "Chor & Vokalmusik",
-                        events: Array(events.filter { $0.matchesFeedTerms(["chor", "vokal", "lied", "requiem", "messe"]) }.prefix(14))
-                    )
-
-                    EventRail(
-                        title: "Eintritt frei",
-                        events: Array(events.filter { $0.isFree == true }.prefix(14))
-                    )
-
-                    EventRail(
-                        title: "Demnächst in München",
-                        // Nutzerfeedback: "zu wenig personalisiert" — Events,
-                        // die zu den Interessen/Favoriten (Personen,
-                        // Ensembles, Orte) passen, zuerst; innerhalb beider
-                        // Gruppen bleibt die bisherige chronologische
-                        // Reihenfolge erhalten (stabile Sortierung). Ohne
-                        // Anmeldung/Interessen ist personalizedEntityIDs
-                        // leer und die Reihenfolge bleibt exakt wie zuvor.
-                        events: events.dropFirst()
-                            .filter { event in
-                                !(event.startDate.map(KlangradarDateTime.calendar.isDateInToday) ?? false)
-                            }
-                            .sorted { lhs, rhs in
-                                let lhsMatch = lhs.matchesPersonalization(model.personalizedEntityIDs)
-                                let rhsMatch = rhs.matchesPersonalization(model.personalizedEntityIDs)
-                                return lhsMatch && !rhsMatch
-                            }
-                    )
-
-                    // Nutzerwunsch: "bestimmten Ensembles/Personen/Venues
-                    // folgen, eigene Kategorie auf dem Homescreen nur für
-                    // diese Person/Venue/Ensemble" — eine eigene Reihe pro
-                    // gefolgter Entität statt eines gemeinsamen Sammel-
-                    // Moduls, damit z.B. "Isarphilharmonie" als eigener,
-                    // erkennbarer Titel erscheint. Nutzt dieselben Events,
-                    // die ohnehin schon geladen sind (kein Zusatz-Request).
-                    ForEach(followedSections(from: events)) { section in
-                        EventRail(title: section.title, events: section.events)
-                    }
-
-                    if !collections.isEmpty {
-                        CollectionRail(collections: collections)
+                    ForEach(categoryOrder) { category in
+                        recommendationSection(category, events: events)
                     }
                 }
                 .padding(.top, 8)
                 .padding(.bottom, 110)
             }
             .refreshable { await model.refresh() }
+        }
+    }
+
+    @ViewBuilder
+    private func recommendationSection(_ category: HomeRecommendationCategory, events: [ConcertEvent]) -> some View {
+        switch category {
+        case .forYou:
+            EventRail(title: model.hasPersonalizedInterests ? "Für dich" : "Für dich empfohlen", events: Array(model.recommendedEvents.filter { $0.id != events.first?.id }.prefix(14)))
+        case .today:
+            EventRail(title: category.title, events: events.dropFirst().filter { $0.startDate.map(KlangradarDateTime.calendar.isDateInToday) ?? false })
+        case .nextSevenDays:
+            EventRail(title: category.title, events: Array(events.dropFirst().filter(isWithinNextSevenDays).prefix(14)))
+        case .weekend:
+            EventRail(title: category.title, events: Array(events.filter(isThisWeekend).prefix(14)))
+        case .popular:
+            EventRail(title: category.title, events: Array(model.popularEvents.prefix(14)))
+        case .discover:
+            EventRail(title: category.title, events: Array(model.discoveryEvents.prefix(14)))
+        case .opera:
+            EventRail(title: category.title, events: Array(events.filter { $0.matchesFeedTerms(["oper", "musiktheater", "ballett"]) }.prefix(14)))
+        case .orchestra:
+            EventRail(title: category.title, events: Array(events.filter { $0.matchesFeedTerms(["orchester", "sinfoni", "symphoni"]) }.prefix(14)))
+        case .chamber:
+            EventRail(title: category.title, events: Array(events.filter { $0.matchesFeedTerms(["kammer", "recital", "klavierabend", "sonatenabend"]) }.prefix(14)))
+        case .choir:
+            EventRail(title: category.title, events: Array(events.filter { $0.matchesFeedTerms(["chor", "vokal", "lied", "requiem", "messe"]) }.prefix(14)))
+        case .free:
+            EventRail(title: category.title, events: Array(events.filter { $0.isFree == true }.prefix(14)))
+        case .upcoming:
+            EventRail(title: category.title, events: events.dropFirst().filter { !($0.startDate.map(KlangradarDateTime.calendar.isDateInToday) ?? false) }.sorted { lhs, rhs in
+                lhs.matchesPersonalization(model.personalizedEntityIDs) && !rhs.matchesPersonalization(model.personalizedEntityIDs)
+            })
+        case .followed:
+            ForEach(followedSections(from: events)) { section in
+                EventRail(title: section.title, events: section.events)
+            }
+        case .editorialCollections:
+            if !collections.isEmpty { CollectionRail(collections: collections) }
         }
     }
 
@@ -260,13 +284,17 @@ private struct CollectionRail: View {
                                         .overlay { Image(systemName: "sparkles") }
                                 }
                                 .frame(width: 280, height: 160)
+                                .clipped()
                                 .clipShape(.rect(cornerRadius: 22))
-                                Text(collection.title).font(.headline)
+                                Text(collection.title).font(.headline).lineLimit(1)
                                 if let subtitle = collection.subtitle {
                                     Text(subtitle).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
+                                } else {
+                                    Text(" ").font(.subheadline).hidden()
                                 }
                             }
-                            .frame(width: 280, alignment: .leading)
+                            .frame(width: 280, height: 222, alignment: .topLeading)
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                     }

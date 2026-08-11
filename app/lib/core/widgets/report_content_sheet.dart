@@ -143,6 +143,10 @@ class _ReportSheetState extends State<_ReportSheet> {
         'message': _messageController.text.trim().isEmpty
             ? null
             : _messageController.text.trim(),
+        // Redaktion unterscheidet Meldungen nach Herkunfts-App (siehe
+        // admin content-reports vs. content-reports-native) — explizit
+        // statt sich auf den DB-Default zu verlassen.
+        'platform': 'flutter',
       });
       if (mounted) setState(() => _submitted = true);
     } catch (_) {

@@ -71,6 +71,29 @@ actor AuthService {
         try keychain.delete(account: sessionAccount)
     }
 
+    func updateEmail(_ email: String) async throws {
+        try await updateUser(["email": .string(email)])
+    }
+
+    func updatePassword(_ password: String) async throws {
+        try await updateUser(["password": .string(password)])
+    }
+
+    private func updateUser(_ values: JSONObject) async throws {
+        guard let session = cachedSession else { throw AuthStoreError.unavailable }
+        var request = authorizedRequest(path: "user", token: session.accessToken)
+        request.httpMethod = "PUT"
+        request.httpBody = try JSONEncoder().encode(values)
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let (data, response) = try await client.data(for: request)
+        guard 200..<300 ~= response.statusCode else {
+            throw APIError.httpStatus(
+                response.statusCode,
+                String(data: data, encoding: .utf8) ?? "Account konnte nicht aktualisiert werden"
+            )
+        }
+    }
+
     private func refresh(_ token: String) async throws -> AuthSession {
         try await performSessionRequest(
             path: "token?grant_type=refresh_token",

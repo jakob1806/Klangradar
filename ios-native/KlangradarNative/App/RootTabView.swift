@@ -6,6 +6,7 @@ struct RootTabView: View {
     @State private var selection: AppTab = .home
     @StateObject private var favorites: FavoriteStore
     @StateObject private var follows: FollowStore
+    @StateObject private var reportStore: ReportStore
     @AppStorage("didCompleteOnboarding") private var didCompleteOnboarding = false
     @State private var showsOnboarding = false
     @AppStorage("appearance") private var appearance = "system"
@@ -14,6 +15,7 @@ struct RootTabView: View {
         self.environment = environment
         _favorites = StateObject(wrappedValue: FavoriteStore(auth: environment.auth, repository: environment.restClient.map(UserRepository.init(client:))))
         _follows = StateObject(wrappedValue: FollowStore(auth: environment.auth, repository: environment.restClient.map(UserRepository.init(client:))))
+        _reportStore = StateObject(wrappedValue: ReportStore(auth: environment.auth, repository: environment.restClient.map(UserRepository.init(client:))))
     }
 
     var body: some View {
@@ -60,6 +62,7 @@ struct RootTabView: View {
                 usesPreviewData: environment.isUsingPreviewData,
                 auth: environment.auth,
                 userRepository: environment.restClient.map(UserRepository.init(client:)),
+                editorialRepository: environment.restClient.map(EditorialRepository.init(client:)),
                 eventRepository: environment.events,
                 contentRepository: environment.content
             )
@@ -70,6 +73,7 @@ struct RootTabView: View {
         }
         .environmentObject(favorites)
         .environmentObject(follows)
+        .environmentObject(reportStore)
         .task { await environment.auth.bootstrap(); showsOnboarding = !didCompleteOnboarding }
         .task { await favorites.load() }
         .task { await follows.load() }

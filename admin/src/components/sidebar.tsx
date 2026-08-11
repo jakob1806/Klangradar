@@ -16,7 +16,9 @@ const NAV_GROUPS = [
       { href: "/event-groups", label: "Event-Gruppen" },
       { href: "/review-queue", label: "Review-Queue" },
       { href: "/cancellations", label: "Absage-Review" },
-      { href: "/content-reports", label: "Nutzer-Meldungen" },
+      { href: "/content-reports", label: "Nutzer-Meldungen (Flutter)" },
+      { href: "/content-reports-native", label: "Nutzer-Meldungen (Native)" },
+      { href: "/code-fix-tasks", label: "Code-Aufgaben (Claude Code)" },
     ],
   },
   {

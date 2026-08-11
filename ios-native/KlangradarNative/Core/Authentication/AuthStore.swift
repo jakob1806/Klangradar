@@ -54,6 +54,16 @@ final class AuthStore: ObservableObject {
         apply(try await service.signInAnonymously())
     }
 
+    func updateEmail(_ email: String) async throws {
+        guard let service else { throw AuthStoreError.unavailable }
+        try await service.updateEmail(email)
+    }
+
+    func updatePassword(_ password: String) async throws {
+        guard let service else { throw AuthStoreError.unavailable }
+        try await service.updatePassword(password)
+    }
+
     private func apply(_ session: AuthSession) {
         state = session.user.isAnonymous == true
             ? .anonymous(session)
