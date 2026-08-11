@@ -20,7 +20,7 @@ export default async function EditPersonPage({
     supabase
       .from("persons")
       .select(
-        "slug, full_name, first_name, middle_name, last_name, roles, instrument, nationality, birth_date, death_date, biography_de, website_url, photo_url, avatar_crop_x, avatar_crop_y, avatar_crop_width, avatar_crop_height, member_of_ensemble_id, is_verified",
+        "slug, full_name, first_name, middle_name, last_name, roles, instrument, nationality, birth_date, death_date, is_deceased, biography_de, website_url, photo_url, avatar_crop_x, avatar_crop_y, avatar_crop_width, avatar_crop_height, member_of_ensemble_id, is_verified",
       )
       .eq("id", id)
       .maybeSingle<PersonFormValues & { full_name: string }>(),

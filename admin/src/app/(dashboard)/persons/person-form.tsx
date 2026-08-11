@@ -36,6 +36,7 @@ export interface PersonFormValues {
   nationality: string | null;
   birth_date: string | null;
   death_date: string | null;
+  is_deceased: boolean;
   biography_de: string | null;
   website_url: string | null;
   photo_url: string | null;
@@ -162,6 +163,10 @@ export function PersonForm({
         </Field>
         <Field label="Sterbedatum">
           <TextInput name="death_date" type="date" defaultValue={initial?.death_date ?? ""} />
+          <label className="mt-1.5 flex items-center gap-2 text-xs text-neutral-600">
+            <input type="checkbox" name="is_deceased" defaultChecked={initial?.is_deceased ?? Boolean(initial?.death_date)} />
+            Verstorben (auch ohne bekanntes genaues Datum)
+          </label>
         </Field>
       </div>
 

@@ -55,6 +55,63 @@ async function repointEventReferences(supabase: Supa, deleteEventId: string, kee
   await repointFieldProvenance(supabase, "event", keepEventId, deleteEventId);
 }
 
+function normalizeWorkTitle(title: string): string {
+  return title
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9 ]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Nutzeranfrage: "falls ein event zusammengeführt wird, soll der
+ * komponist automatisch für alle zusammengeführten events übernommen
+ * werden." Der Komponist lebt auf works.composer_id, nicht auf event_works
+ * selbst — repointEventReferences() oben behandelt event_works rein
+ * strukturell über den natürlichen Schlüssel (work_id, position). Wenn
+ * beide zusammengeführten Events dasselbe Werk als ZWEI unterschiedliche
+ * works-Zeilen referenzieren (typischer Fall bei automatisch importierten
+ * Duplikaten: eine Zeile mit Komponist von der direkten Venue-Quelle, eine
+ * ohne von einer Aggregator-Quelle wie Concerti/IN München), landen nach
+ * dem Zusammenführen BEIDE Werk-Zeilen im Programm des verbleibenden
+ * Events — eine davon weiterhin ohne Komponist. Dieser Schritt läuft
+ * danach: gruppiert die event_works-Zeilen des verbleibenden Events nach
+ * normalisiertem Werktitel und behält bei Namensgleichheit nur die Zeile,
+ * deren Werk einen Komponisten hat (falls vorhanden) — die
+ * komponistenlose(n) Dublette(n) werden aus dem Programm entfernt (nur die
+ * event_works-Verknüpfung, nicht die works-Zeile selbst, die könnte an
+ * anderen Events noch hängen). */
+async function carryOverComposerOnMerge(supabase: Supa, keepEventId: string) {
+  const { data: rows } = await supabase
+    .from("event_works")
+    .select("work_id, position, works(title, composer_id)")
+    .eq("event_id", keepEventId);
+  if (!rows || rows.length < 2) return;
+
+  type Row = { work_id: string; position: number; works: { title: string; composer_id: string | null }[] };
+  const groups = new Map<string, Row[]>();
+  for (const row of rows as unknown as Row[]) {
+    const title = row.works?.[0]?.title;
+    if (!title) continue;
+    const key = normalizeWorkTitle(title);
+    const list = groups.get(key) ?? [];
+    list.push(row);
+    groups.set(key, list);
+  }
+
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+    const withComposer = group.find((r) => r.works?.[0]?.composer_id);
+    if (!withComposer) continue; // keine Version hat einen Komponisten — nichts zu bevorzugen
+
+    for (const row of group) {
+      if (row.work_id === withComposer.work_id) continue;
+      await supabase.from("event_works").delete().eq("event_id", keepEventId).eq("work_id", row.work_id);
+    }
+  }
+}
+
 // event_a_id ist im Ingestion-Worker (backend/supabase/functions/ingest-
 // source/write.ts) immer das bereits existierende, event_b_id das neu
 // angelegte Draft-Event — reine Anlage-Reihenfolge, sagt nichts darüber
@@ -82,6 +139,7 @@ export async function resolveDuplicateAsMerged(candidateId: string, keepEventId:
   const deleteEventId = keepEventId === candidate.event_a_id ? candidate.event_b_id : candidate.event_a_id;
 
   await repointEventReferences(supabase, deleteEventId, keepEventId);
+  await carryOverComposerOnMerge(supabase, keepEventId);
 
   const { error: updateError } = await supabase
     .from("duplicate_candidates")
