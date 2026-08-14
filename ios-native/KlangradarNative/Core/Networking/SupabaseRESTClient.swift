@@ -98,6 +98,19 @@ struct SupabaseRESTClient: Sendable {
         return try decoder.decode(Response.self, from: try await perform(request))
     }
 
+    func edgeFunction<Response: Decodable & Sendable>(
+        _ function: String,
+        body: JSONObject,
+        accessToken: String
+    ) async throws -> Response {
+        let url = configuration.supabaseURL.appendingPathComponent("functions/v1").appendingPathComponent(function)
+        var request = authorizedRequest(url: url, accessToken: accessToken)
+        request.httpMethod = "POST"
+        request.httpBody = try JSONEncoder().encode(body)
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        return try decoder.decode(Response.self, from: try await perform(request))
+    }
+
     func insert(
         table: String,
         values: JSONObject,

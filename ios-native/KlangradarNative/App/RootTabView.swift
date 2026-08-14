@@ -7,6 +7,7 @@ struct RootTabView: View {
     @StateObject private var favorites: FavoriteStore
     @StateObject private var follows: FollowStore
     @StateObject private var reportStore: ReportStore
+    @StateObject private var genreFilterRouter = GenreFilterRouter()
     @AppStorage("didCompleteOnboarding") private var didCompleteOnboarding = false
     @State private var showsOnboarding = false
     @AppStorage("appearance") private var appearance = "system"
@@ -74,6 +75,10 @@ struct RootTabView: View {
         .environmentObject(favorites)
         .environmentObject(follows)
         .environmentObject(reportStore)
+        .environmentObject(genreFilterRouter)
+        .onChange(of: genreFilterRouter.pending) { _, pending in
+            if pending != nil { selection = .search }
+        }
         .task { await environment.auth.bootstrap(); showsOnboarding = !didCompleteOnboarding }
         .task { await favorites.load() }
         .task { await follows.load() }

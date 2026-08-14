@@ -20,7 +20,9 @@ function readPersonFields(formData: FormData) {
     middle_name,
     last_name,
     full_name: [first_name, middle_name, last_name].filter(Boolean).join(" "),
-    roles: formData.getAll("roles").map(String),
+    // TagInput schreibt die Rollen kommagetrennt in ein einzelnes verstecktes
+    // Feld statt mehrerer gleichnamiger Checkbox-Werte (siehe tag-input.tsx).
+    roles: String(formData.get("roles") ?? "").split(",").map((r) => r.trim()).filter(Boolean),
     instrument: String(formData.get("instrument") ?? "").trim() || null,
     nationality: String(formData.get("nationality") ?? "").trim() || null,
     birth_date: String(formData.get("birth_date") ?? "") || null,
@@ -37,6 +39,8 @@ function readPersonFields(formData: FormData) {
 export async function createPerson(formData: FormData) {
   const f = readPersonFields(formData);
   const supabase = await createClient();
+  const { data: resolved } = await supabase.rpc("resolve_entity_alias", { p_entity_type: "person", p_name: f.full_name });
+  if (resolved?.[0]?.id) redirect(`/persons/${resolved[0].id}`);
   const { error } = await supabase.from("persons").insert(f);
   if (error) throw new Error(error.message);
 

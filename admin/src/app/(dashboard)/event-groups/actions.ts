@@ -11,6 +11,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { cleanupEventGroupIfEmpty } from "@/lib/event-group-cleanup";
 
 export async function createEventGroup(name: string, eventIds: string[]) {
   if (!name.trim() || eventIds.length === 0) return;
@@ -46,6 +47,11 @@ export async function removeEventFromGroup(groupId: string, eventId: string) {
   const supabase = await createClient();
   const { error } = await supabase.from("events").update({ program_id: null }).eq("id", eventId);
   if (error) throw new Error(error.message);
+
+  // Nutzer-Meldung "es bestehen eventgruppen mit keinen terminen" (z.B.
+  // "Finding Neverland" · 0 Termine) — Aushängen des letzten Mitglieds ließ
+  // die Gruppe bisher als leere Zeile stehen, siehe event-group-cleanup.ts.
+  await cleanupEventGroupIfEmpty(supabase, groupId);
 
   revalidatePath(`/event-groups/${groupId}`);
   revalidatePath("/event-groups");

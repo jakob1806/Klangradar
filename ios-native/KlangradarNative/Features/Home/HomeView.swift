@@ -48,12 +48,16 @@ enum HomeRecommendationCategory: String, CaseIterable, Codable, Identifiable {
 }
 
 enum HomeCategoryPreferences {
+    static let didChange = Notification.Name("HomeCategoryPreferencesDidChange")
+    private static let fallbackKey = "homeRecommendationCategoryOrder.current"
+
     private static func key(for userID: UUID?) -> String {
         "homeRecommendationCategoryOrder.\(userID?.uuidString ?? "guest")"
     }
 
     static func order(for userID: UUID?) -> [HomeRecommendationCategory] {
-        guard let values = UserDefaults.standard.stringArray(forKey: key(for: userID)) else {
+        guard let values = UserDefaults.standard.stringArray(forKey: key(for: userID))
+            ?? UserDefaults.standard.stringArray(forKey: fallbackKey) else {
             return HomeRecommendationCategory.defaultOrder
         }
         let saved = values.compactMap(HomeRecommendationCategory.init(rawValue:))
@@ -62,11 +66,18 @@ enum HomeCategoryPreferences {
     }
 
     static func save(_ order: [HomeRecommendationCategory], for userID: UUID?) {
-        UserDefaults.standard.set(order.map(\.rawValue), forKey: key(for: userID))
+        let values = order.map(\.rawValue)
+        UserDefaults.standard.set(values, forKey: key(for: userID))
+        // Stabiler Fallback während AuthStore beim App-Start seine Session
+        // wiederherstellt und userID kurzzeitig nil sein kann.
+        UserDefaults.standard.set(values, forKey: fallbackKey)
+        NotificationCenter.default.post(name: didChange, object: nil)
     }
 
     static func reset(for userID: UUID?) {
         UserDefaults.standard.removeObject(forKey: key(for: userID))
+        UserDefaults.standard.removeObject(forKey: fallbackKey)
+        NotificationCenter.default.post(name: didChange, object: nil)
     }
 }
 
@@ -112,6 +123,9 @@ struct HomeView: View {
                 collections = (try? await contentRepository.collections()) ?? []
             }
             .onAppear {
+                categoryOrder = HomeCategoryPreferences.order(for: model.currentUserID)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: HomeCategoryPreferences.didChange)) { _ in
                 categoryOrder = HomeCategoryPreferences.order(for: model.currentUserID)
             }
         }

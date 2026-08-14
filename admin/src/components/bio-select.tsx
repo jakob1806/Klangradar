@@ -137,6 +137,7 @@ export function BioResearchBar({
   const { selected, clear } = useSelection();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   if (selected.size === 0) return null;
 
   const ids = Array.from(selected);
@@ -169,15 +170,41 @@ export function BioResearchBar({
               Als geprüft markieren
             </button>
           )}
-          {bulkDeleteAction && (
+          {/* Inline statt window.confirm(): Browser unterdrücken wiederholte
+           * confirm()-Dialoge nach ein paar Aufrufen automatisch (Chrome/
+           * Firefox bieten "Diese Seite daran hindern, weitere Dialoge zu
+           * erstellen" an) — jeder weitere Klick tat dann optisch NICHTS,
+           * ohne jeden Hinweis, warum (Nutzer-Meldung: Mehrfach-Löschen bei
+           * Ensembles reagierte nicht mehr). Gleiches Muster wie ConfirmButton. */}
+          {bulkDeleteAction && confirmingDelete && (
+            <span className="flex items-center gap-2 text-sm">
+              <span className="text-neutral-600">{selected.size} wirklich löschen?</span>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => {
+                  setConfirmingDelete(false);
+                  runBulk(() => bulkDeleteAction(ids));
+                }}
+                className="font-medium text-red-700 hover:text-red-900 disabled:opacity-50"
+              >
+                {pending ? "…" : "Ja, löschen"}
+              </button>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => setConfirmingDelete(false)}
+                className="font-medium text-neutral-500 hover:text-neutral-700 disabled:opacity-50"
+              >
+                Abbrechen
+              </button>
+            </span>
+          )}
+          {bulkDeleteAction && !confirmingDelete && (
             <button
               type="button"
               disabled={pending}
-              onClick={() => {
-                if (window.confirm(`${selected.size} Einträge wirklich löschen?`)) {
-                  runBulk(() => bulkDeleteAction(ids));
-                }
-              }}
+              onClick={() => setConfirmingDelete(true)}
               className="rounded-md border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
             >
               Löschen

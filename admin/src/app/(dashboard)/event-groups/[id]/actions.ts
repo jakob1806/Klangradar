@@ -50,6 +50,14 @@ async function generateUniqueSlug(supabase: Supa, table: "persons" | "ensembles"
   return `${base}-${crypto.randomUUID().slice(0, 8)}`;
 }
 
+async function resolveCanonicalEntity(supabase: Supa, entityType: "person" | "ensemble", name: string): Promise<string | null> {
+  const { data } = await supabase.rpc("resolve_entity_alias", {
+    p_entity_type: entityType,
+    p_name: name,
+  });
+  return data?.[0]?.id ? String(data[0].id) : null;
+}
+
 async function memberEventIds(supabase: Supa, groupId: string): Promise<string[]> {
   const { data } = await supabase.from("events").select("id").eq("program_id", groupId);
   return (data ?? []).map((e) => e.id);
@@ -355,16 +363,20 @@ export async function createPersonAndAddToGroup(groupId: string, formData: FormD
   if (!fullName) return;
 
   const supabase = await createClient();
-  const slug = await generateUniqueSlug(supabase, "persons", fullName);
-  const { data: person, error } = await supabase
-    .from("persons")
-    .insert({ full_name: fullName, slug, is_verified: false })
-    .select("id")
-    .single();
-  if (error) throw new Error(error.message);
+  let personId = await resolveCanonicalEntity(supabase, "person", fullName);
+  if (!personId) {
+    const slug = await generateUniqueSlug(supabase, "persons", fullName);
+    const { data: person, error } = await supabase
+      .from("persons")
+      .insert({ full_name: fullName, slug, is_verified: false })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    personId = person.id;
+  }
 
   const eventIds = selectedEventIds(formData, await memberEventIds(supabase, groupId));
-  await addParticipantToEvents(supabase, eventIds, person.id, null, roleLabel);
+  await addParticipantToEvents(supabase, eventIds, personId, null, roleLabel);
 
   revalidatePath(`/event-groups/${groupId}`);
 }
@@ -375,16 +387,28 @@ export async function createEnsembleAndAddToGroup(groupId: string, formData: For
   if (!name) return;
 
   const supabase = await createClient();
-  const slug = await generateUniqueSlug(supabase, "ensembles", name);
-  const { data: ensemble, error } = await supabase
-    .from("ensembles")
-    .insert({ name, slug, type: "sonstiges", is_verified: false })
-    .select("id")
-    .single();
-  if (error) throw new Error(error.message);
-
   const eventIds = selectedEventIds(formData, await memberEventIds(supabase, groupId));
-  await addParticipantToEvents(supabase, eventIds, null, ensemble.id, roleLabel);
+  const { data: resolution } = await supabase.rpc("resolve_ensemble_entities", { p_name: name });
+  if (resolution?.some((row: { resolution: string }) => ["ignore", "ambiguous"].includes(row.resolution))) return;
+  const resolvedIds = (resolution ?? []).map((row: { id: string | null }) => row.id).filter((id: string | null): id is string => id !== null);
+  if (resolvedIds.length > 0) {
+    for (const ensembleId of resolvedIds) await addParticipantToEvents(supabase, eventIds, null, ensembleId, roleLabel);
+    revalidatePath(`/event-groups/${groupId}`);
+    return;
+  }
+  let ensembleId = await resolveCanonicalEntity(supabase, "ensemble", name);
+  if (!ensembleId) {
+    const slug = await generateUniqueSlug(supabase, "ensembles", name);
+    const { data: ensemble, error } = await supabase
+      .from("ensembles")
+      .insert({ name, slug, type: "sonstiges", is_verified: false })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    ensembleId = ensemble.id;
+  }
+
+  await addParticipantToEvents(supabase, eventIds, null, ensembleId, roleLabel);
 
   revalidatePath(`/event-groups/${groupId}`);
 }

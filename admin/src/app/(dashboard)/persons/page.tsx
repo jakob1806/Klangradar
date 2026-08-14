@@ -9,6 +9,7 @@ import {
   BioStatusBadge,
 } from "@/components/bio-select";
 import { ImageStatusBadge } from "@/components/image-status-badge";
+import { ListThumbnail } from "@/components/list-thumbnail";
 import { TableSearchFilter } from "@/components/table-search-filter";
 import { bulkDeletePersons, bulkSetPersonsVerified } from "./actions";
 
@@ -23,12 +24,18 @@ interface PersonRow {
   photo_url: string | null;
 }
 
+// Nur Anzeige-Beschriftung, keine Einschränkung — persons.roles ist text[]
+// (siehe 20261013000014_persons_roles_free_text.sql), unbekannte Werte
+// werden weiter unten unverändert als Rohtext angezeigt (ROLE_LABEL[r] ?? r).
 const ROLE_LABEL: Record<string, string> = {
   komponist: "Komponist:in",
   dirigent: "Dirigent:in",
   solist: "Solist:in",
   chorleiter: "Chorleiter:in",
   moderator: "Moderator:in",
+  regisseur: "Regisseur:in",
+  schauspieler: "Schauspieler:in",
+  choreograf: "Choreograf:in",
 };
 
 export default async function PersonsPage() {
@@ -53,12 +60,20 @@ export default async function PersonsPage() {
             </Link>
           </p>
         </div>
-        <Link
-          href="/persons/new"
-          className="rounded-lg bg-[#0071e3] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#0077ed]"
-        >
-          Neu anlegen
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/qualitaetspruefung?type=person"
+            className="rounded-lg border border-violet-200 bg-violet-50 px-4 py-2 text-sm font-medium text-violet-900 transition-colors hover:bg-violet-100"
+          >
+            Qualitätsprüfung
+          </Link>
+          <Link
+            href="/persons/new"
+            className="rounded-lg bg-[#0071e3] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#0077ed]"
+          >
+            Neu anlegen
+          </Link>
+        </div>
       </div>
 
       {error && (
@@ -103,7 +118,12 @@ export default async function PersonsPage() {
                         <td className="px-4 py-3">
                           <BioRowCheckbox id={person.id} />
                         </td>
-                        <td className="px-4 py-3 font-medium text-neutral-900">{person.full_name}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <ListThumbnail src={person.photo_url} alt={person.full_name} rounded />
+                            <span className="font-medium text-neutral-900">{person.full_name}</span>
+                          </div>
+                        </td>
                         <td className="px-4 py-3 text-neutral-600">
                           {person.roles.map((r) => ROLE_LABEL[r] ?? r).join(", ") || "—"}
                         </td>

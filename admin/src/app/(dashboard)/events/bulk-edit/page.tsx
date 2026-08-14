@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { loadEventFormOptions } from "../form-options";
 import { BulkEditForm } from "./bulk-edit-form";
+import { BulkEventImageAdd } from "./bulk-event-image-add";
 import { formatMunichDateTime } from "@/lib/munich-time";
 
 export const dynamic = "force-dynamic";
@@ -64,6 +65,10 @@ export default async function BulkEditEventsPage({
             </li>
           ))}
         </ul>
+      </div>
+
+      <div className="mt-6">
+        <BulkEventImageAdd eventIds={eventIds} />
       </div>
 
       <div className="mt-6">

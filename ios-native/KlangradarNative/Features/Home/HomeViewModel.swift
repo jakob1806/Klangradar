@@ -75,12 +75,14 @@ final class HomeViewModel: ObservableObject {
             return ([], false)
         }
         async let genres = try? userRepository.selectedInterests(.genre, userID: userID, token: token)
+        async let works = try? userRepository.selectedInterests(.work, userID: userID, token: token)
         async let persons = try? userRepository.selectedInterests(.person, userID: userID, token: token)
         async let ensembles = try? userRepository.selectedInterests(.ensemble, userID: userID, token: token)
         async let venues = try? userRepository.selectedInterests(.venue, userID: userID, token: token)
         let genreIDs = (await genres) ?? []
+        let workIDs = (await works) ?? []
         let entityIDs = ((await persons) ?? []).union((await ensembles) ?? []).union((await venues) ?? [])
-        return (Set(entityIDs.compactMap(UUID.init(uuidString:))), !genreIDs.isEmpty || !entityIDs.isEmpty)
+        return (Set(entityIDs.compactMap(UUID.init(uuidString:))), !genreIDs.isEmpty || !workIDs.isEmpty || !entityIDs.isEmpty)
     }
 
     private func loadHomeModules() async -> (recommended: [ConcertEvent], discovery: [ConcertEvent], popular: [ConcertEvent]) {

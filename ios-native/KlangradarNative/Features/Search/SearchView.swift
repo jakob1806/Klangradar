@@ -3,16 +3,22 @@ import SwiftUI
 struct SearchView: View {
     let eventRepository: any EventRepository
     let contentRepository: any ContentRepository
+    @EnvironmentObject private var genreFilter: GenreFilterRouter
     @State private var query = ""
     @State private var events: [ConcertEvent] = []
     @State private var hits: [SearchHit] = []
     @State private var directories: [EntityKind: [DirectoryItem]] = [:]
     @State private var errorMessage: String?
+    @State private var activeGenre: GenreFilterRouter.Genre?
+    @State private var genreEvents: [ConcertEvent] = []
+    @State private var isLoadingGenreEvents = false
 
     var body: some View {
         NavigationStack {
             List {
-                if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                if let activeGenre, query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    genreFilterSection(activeGenre)
+                } else if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     Section("Entdecken") {
                         ForEach(EntityKind.allCases, id: \.self) { kind in
                             NavigationLink(value: kind) {
@@ -54,8 +60,51 @@ struct SearchView: View {
             .navigationDestination(for: EntityRoute.self) { EntityDetailView(route: $0, repository: contentRepository) }
             .task { await load() }
             .task(id: query) { await search() }
+            // TabView baut den Suche-Tab erst beim ersten Betreten auf — wird
+            // genau dieser Tab-Wechsel durch einen Genre-Chip-Tap ausgelöst,
+            // existiert SearchView beim Setzen von genreFilter.pending noch
+            // nicht, .onChange greift dann nicht (kein "Wechsel" seit dem
+            // Erscheinen des Modifiers). .onAppear fängt diesen Fall zusätzlich ab.
+            .onChange(of: genreFilter.pending) { _, _ in applyPendingGenreFilter() }
+            .onAppear { applyPendingGenreFilter() }
             .overlay { if let errorMessage, events.isEmpty { ContentUnavailableView("Suche nicht verfügbar", systemImage: "wifi.exclamationmark", description: Text(errorMessage)) } }
         }
+    }
+
+    @ViewBuilder private func genreFilterSection(_ genre: GenreFilterRouter.Genre) -> some View {
+        Section {
+            HStack {
+                Label(genre.label, systemImage: "music.quarternote.3")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(KlangradarTheme.accent)
+                Spacer()
+                Button("Filter entfernen") { activeGenre = nil; genreEvents = [] }
+                    .font(.caption)
+            }
+        }
+        Section("Veranstaltungen · \(genre.label)") {
+            if isLoadingGenreEvents {
+                ProgressView().frame(maxWidth: .infinity)
+            } else if genreEvents.isEmpty {
+                Text("Keine kommenden Veranstaltungen mit diesem Tag gefunden.")
+                    .foregroundStyle(.secondary)
+            } else {
+                eventRows(genreEvents)
+            }
+        }
+    }
+
+    private func applyPendingGenreFilter() {
+        guard let genre = genreFilter.consume() else { return }
+        query = ""
+        activeGenre = genre
+        Task { await loadGenreEvents(genre.id) }
+    }
+
+    @MainActor private func loadGenreEvents(_ genreID: UUID) async {
+        isLoadingGenreEvents = true
+        defer { isLoadingGenreEvents = false }
+        genreEvents = (try? await eventRepository.events(genreID: genreID, limit: 60)) ?? []
     }
 
     @ViewBuilder private func eventRows(_ values: [ConcertEvent]) -> some View {

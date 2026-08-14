@@ -18,14 +18,18 @@ struct LiveContentRepository: ContentRepository {
         var rows: [JSONObject] = []
         let pageSize = 500
         while true {
+            var queryItems = [
+                URLQueryItem(name: "select", value: specification.select),
+                URLQueryItem(name: "order", value: "\(specification.order).asc"),
+                URLQueryItem(name: "limit", value: String(pageSize)),
+                URLQueryItem(name: "offset", value: String(rows.count))
+            ]
+            if kind == .ensemble {
+                queryItems.append(URLQueryItem(name: "is_resolution_placeholder", value: "eq.false"))
+            }
             let page: [JSONObject] = try await client.get(
                 table: specification.table,
-                queryItems: [
-                    URLQueryItem(name: "select", value: specification.select),
-                    URLQueryItem(name: "order", value: "\(specification.order).asc"),
-                    URLQueryItem(name: "limit", value: String(pageSize)),
-                    URLQueryItem(name: "offset", value: String(rows.count))
-                ]
+                queryItems: queryItems
             )
             rows.append(contentsOf: page)
             if page.count < pageSize { break }
@@ -38,12 +42,22 @@ struct LiveContentRepository: ContentRepository {
 
     private func enrichingDirectoryImages(_ items: [DirectoryItem], kind: EntityKind) async -> [DirectoryItem] {
         guard kind != .work else { return items }
-        let missingIDs = items.filter { $0.imageURL == nil }.compactMap { UUID(uuidString: $0.id) }
-        guard !missingIDs.isEmpty else { return items }
+        // Ensembles/Venues: das Admin-Galerie-Titelbild (sort_order 0) ist
+        // verbindlich für Miniaturansicht UND Detailansicht und hat Vorrang
+        // vor dem separaten photo_url-Feld — sonst änderte "Als Titelbild"
+        // in der Admin-Galerie sichtbar nichts in der App (siehe analoger
+        // Fix in app/lib/features/search/application/directory_providers.dart,
+        // applyDirectoryCoverGalleryFirst). Bei Personen bleibt photo_url
+        // weiterhin verbindlich, die Galerie nur Fallback bei fehlendem Foto.
+        let galleryFirst = kind == .ensemble || kind == .venue
+        let targetIDs = galleryFirst
+            ? items.compactMap { UUID(uuidString: $0.id) }
+            : items.filter { $0.imageURL == nil }.compactMap { UUID(uuidString: $0.id) }
+        guard !targetIDs.isEmpty else { return items }
 
         var imageRows: [JSONObject] = []
-        for start in stride(from: 0, to: missingIDs.count, by: 75) {
-            let chunk = missingIDs[start..<min(start + 75, missingIDs.count)]
+        for start in stride(from: 0, to: targetIDs.count, by: 75) {
+            let chunk = targetIDs[start..<min(start + 75, targetIDs.count)]
             let rows: [JSONObject]? = try? await client.get(table: "images", queryItems: [
                 URLQueryItem(name: "select", value: "origin_id,storage_path,source_url,sort_order"),
                 URLQueryItem(name: "origin_type", value: "eq.\(kind.rawValue)"),
@@ -62,19 +76,20 @@ struct LiveContentRepository: ContentRepository {
                 return image.string("source_url").flatMap(URL.init(string:))
             }
         return items.map { item in
-            DirectoryItem(
+            let coverURL = imageByID[item.id]
+            let resolvedImageURL = galleryFirst ? (coverURL ?? item.imageURL) : (item.imageURL ?? coverURL)
+            return DirectoryItem(
                 id: item.id,
                 kind: item.kind,
                 slug: item.slug,
                 title: item.title,
                 subtitle: item.subtitle,
-                imageURL: item.imageURL ?? imageByID[item.id],
-                // avatarCrop existiert nur, wenn item.imageURL schon vorher
-                // gesetzt war (Crop gehört zu photo_url) — diese Zweige
-                // laufen nur für Items OHNE imageURL, avatarCrop bleibt
-                // also ohnehin immer nil hier. Pass-through der Vollständigkeit
-                // halber statt eines stillschweigenden Felddrops.
-                avatarCrop: item.avatarCrop
+                imageURL: resolvedImageURL,
+                // avatarCrop gehört zu photo_url — sobald ein Galerie-
+                // Titelbild dessen Stelle einnimmt (galleryFirst mit
+                // coverURL != nil), passt ein zuvor für photo_url gesetzter
+                // Crop nicht mehr zum neuen Bild.
+                avatarCrop: (galleryFirst && coverURL != nil) ? nil : item.avatarCrop
             )
         }
     }
@@ -126,11 +141,25 @@ struct LiveContentRepository: ContentRepository {
                 row["parent"] = .object(parent)
             }
         }
+        if kind == .ensemble {
+            let children: [JSONObject] = (try? await client.get(
+                table: "ensembles",
+                queryItems: [
+                    URLQueryItem(name: "select", value: "id,slug,name,family_role"),
+                    URLQueryItem(name: "parent_ensemble_id", value: "eq.\(entityID)"),
+                    URLQueryItem(name: "is_resolution_placeholder", value: "eq.false"),
+                    URLQueryItem(name: "order", value: "name.asc")
+                ]
+            )) ?? []
+            row["children"] = .array(children.map(JSONValue.object))
+        }
 
         async let galleryResult = optionalGallery(kind: kind, entityID: entityID)
         async let eventResult = optionalLinkedEvents(kind: kind, entityID: entityID)
         async let similarResult = optionalSimilarItems(kind: kind, row: row, entityID: entityID)
+        async let latLngResult = optionalVenueLatLng(kind: kind, entityID: entityID)
 
+        let latLng = await latLngResult
         return EntityDetail(
             id: entityID,
             kind: kind,
@@ -141,8 +170,18 @@ struct LiveContentRepository: ContentRepository {
             fields: row,
             gallery: await galleryResult,
             events: await eventResult,
-            similar: await similarResult
+            similar: await similarResult,
+            venueLatitude: latLng?.0,
+            venueLongitude: latLng?.1
         )
+    }
+
+    private func optionalVenueLatLng(kind: EntityKind, entityID: String) async -> (Double, Double)? {
+        guard kind == .venue else { return nil }
+        struct LatLngRow: Decodable { let lat: Double?; let lng: Double? }
+        let rows: [LatLngRow]? = try? await client.rpc("venue_with_latlng", parameters: ["p_id": .string(entityID)])
+        guard let row = rows?.first, let lat = row.lat, let lng = row.lng else { return nil }
+        return (lat, lng)
     }
 
     private func optionalGallery(kind: EntityKind, entityID: String) async -> [GalleryImage] {
@@ -211,8 +250,26 @@ struct LiveContentRepository: ContentRepository {
                 "result_limit": .number(Double(limit))
             ]
         )
+        let ensembleIDs = rows.filter { $0.string("result_type") == EntityKind.ensemble.rawValue }
+            .compactMap { $0.string("id") }
+        var visibleEnsembleIDs = Set(ensembleIDs)
+        if !ensembleIDs.isEmpty {
+            let visible: [JSONObject] = (try? await client.get(
+                table: "ensembles",
+                queryItems: [
+                    URLQueryItem(name: "select", value: "id"),
+                    URLQueryItem(name: "id", value: "in.(\(ensembleIDs.joined(separator: ",")))"),
+                    URLQueryItem(name: "is_resolution_placeholder", value: "eq.false")
+                ]
+            )) ?? []
+            visibleEnsembleIDs = Set(visible.compactMap { $0.string("id") })
+        }
         return rows.compactMap { row in
             guard let id = row.string("id"), let title = row.string("title") else {
+                return nil
+            }
+            if row.string("result_type") == EntityKind.ensemble.rawValue,
+               !visibleEnsembleIDs.contains(id) {
                 return nil
             }
             return SearchHit(

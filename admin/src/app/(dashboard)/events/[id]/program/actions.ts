@@ -127,18 +127,31 @@ export async function createWorkAndAdd(eventId: string, formData: FormData) {
   if (!title) return;
 
   const supabase = await createClient();
-
-  const { data: work, error: workError } = await supabase
-    .from("works")
-    .insert({ title, composer_id: composerId, catalog_number: catalogNumber })
-    .select("id")
-    .single();
-  if (workError) throw new Error(workError.message);
+  const { data: matches } = await supabase.rpc("find_matching_work", {
+    p_title: title,
+    p_composer_id: composerId,
+    p_result_limit: 1,
+  });
+  let workId = matches?.[0]?.similarity >= 0.999 ? String(matches[0].id) : null;
+  if (workId) {
+    await supabase.from("entity_aliases").upsert(
+      { entity_type: "work", entity_id: workId, alias: title },
+      { onConflict: "entity_type,entity_id,alias_normalized" },
+    );
+  } else {
+    const { data: work, error: workError } = await supabase
+      .from("works")
+      .insert({ title, composer_id: composerId, catalog_number: catalogNumber })
+      .select("id")
+      .single();
+    if (workError) throw new Error(workError.message);
+    workId = work.id;
+  }
 
   const position = await nextWorkPosition(supabase, eventId);
   const { error } = await supabase.from("event_works").insert({
     event_id: eventId,
-    work_id: work.id,
+    work_id: workId,
     position,
     after_intermission: afterIntermission,
   });
@@ -232,6 +245,14 @@ export async function createEnsembleAndAdd(eventId: string, formData: FormData) 
   const roleLabel = String(formData.get("role_label") ?? "").trim().slice(0, 160) || null;
   if (!name) return;
   const supabase = await createClient();
+  const { data: resolution } = await supabase.rpc("resolve_ensemble_entities", { p_name: name });
+  const resolvedIds = (resolution ?? []).map((row: { id: string | null }) => row.id).filter((id: string | null): id is string => id !== null);
+  if (resolution?.some((row: { resolution: string }) => ["ignore", "ambiguous"].includes(row.resolution))) return;
+  if (resolvedIds.length > 0) {
+    for (const ensembleId of resolvedIds) await linkParticipant(supabase, eventId, null, ensembleId, roleLabel);
+    revalidatePath(`/events/${eventId}/program`);
+    return;
+  }
   const existing = await findExactEntity(supabase, "ensemble", name);
   let ensembleId = existing?.id ?? null;
   if (!ensembleId) {
@@ -246,6 +267,13 @@ export async function createEnsembleAndAdd(eventId: string, formData: FormData) 
 }
 
 async function findExactEntity(supabase: Supa, entityType: EntityType, name: string) {
+  const { data: resolved } = await supabase.rpc("resolve_entity_alias", {
+    p_entity_type: entityType,
+    p_name: name,
+  });
+  if (resolved?.[0]) {
+    return { id: String(resolved[0].id), name: String(resolved[0].canonical_name) };
+  }
   const table = entityType === "person" ? "persons" : "ensembles";
   const column = entityType === "person" ? "full_name" : "name";
   const { data } = await supabase.from(table).select(`id, ${column}`).ilike(column, name).limit(1).maybeSingle();

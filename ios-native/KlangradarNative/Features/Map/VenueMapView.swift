@@ -16,7 +16,7 @@ struct VenueMapView: View {
     // eine Auswahlliste statt direkt die Venue-Vorschau.
     @State private var selectedVenueGroup: [VenueLocation]?
     @State private var showsFilter = false
-    @State private var onlyWithEvents = true
+    @State private var onlyWithEvents = false
     @State private var filterText = ""
     @State private var position: MapCameraPosition = .region(Self.munichRegion)
 

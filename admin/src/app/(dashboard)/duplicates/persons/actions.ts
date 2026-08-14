@@ -78,7 +78,7 @@ export async function resolvePersonDuplicateAsMerged(candidateId: string, keepPe
     before: { deleted_person_id: deletePersonId, kept_person_id: keepPersonId, alias_added: deletedPerson?.full_name },
   });
 
-  revalidatePath("/duplicates/persons");
+  revalidatePath("/duplicates");
 }
 
 export async function resolvePersonDuplicateAsDistinct(candidateId: string) {
@@ -98,5 +98,34 @@ export async function resolvePersonDuplicateAsDistinct(candidateId: string) {
     actor: user?.email ?? user?.id ?? "unknown",
   });
 
-  revalidatePath("/duplicates/persons");
+  revalidatePath("/duplicates");
+}
+
+/** Mehrfachauswahl-Variante für die konsolidierte Duplikate-Seite (/duplicates,
+ * Reiter Personen) — siehe resolveDuplicatesAsDistinct in ../actions.ts für
+ * die Begründung, warum nur "als unterschiedlich markieren" bulkfähig ist. */
+export async function resolvePersonDuplicatesAsDistinct(candidateIds: string[]): Promise<{ completed: number }> {
+  const uniqueIds = [...new Set(candidateIds)].slice(0, 200);
+  if (uniqueIds.length === 0) return { completed: 0 };
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("person_duplicate_candidates")
+    .update({ status: "dismissed", reviewed_at: new Date().toISOString() })
+    .in("id", uniqueIds)
+    .eq("status", "pending")
+    .select("id");
+  if (error) throw new Error(error.message);
+
+  const { data: { user } } = await supabase.auth.getUser();
+  for (const row of data ?? []) {
+    await logSystemAction(supabase, {
+      entityType: "person_duplicate_candidate",
+      entityId: row.id,
+      action: "dismissed",
+      actor: user?.email ?? user?.id ?? "unknown",
+    });
+  }
+
+  revalidatePath("/duplicates");
+  return { completed: data?.length ?? 0 };
 }

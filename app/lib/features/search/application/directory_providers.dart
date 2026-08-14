@@ -48,8 +48,10 @@ Future<Map<String, String>> _coverImagesByOriginId(String originType) async {
 
 /// Nutzt das Galerie-Titelbild ausschließlich als Fallback. Ein vorhandenes
 /// `photo_url` ist das verbindliche Profilfoto und muss in kleinen wie großen
-/// Künstler-/Ensemble-Miniaturen Vorrang behalten. Dadurch bleibt auch der
-/// zu diesem Profilfoto gespeicherte Avatar-Ausschnitt gültig.
+/// Künstler-Miniaturen Vorrang behalten. Dadurch bleibt auch der zu diesem
+/// Profilfoto gespeicherte Avatar-Ausschnitt gültig. Nur für Personen — bei
+/// Ensembles/Venues gilt umgekehrt die Galerie als verbindlich, siehe
+/// [applyDirectoryCoverGalleryFirst].
 List<Map<String, dynamic>> applyDirectoryCoverFallback(
   List<Map<String, dynamic>> rows,
   Map<String, String> covers,
@@ -67,6 +69,23 @@ List<Map<String, dynamic>> applyDirectoryCoverFallback(
       'avatar_crop_width': null,
       'avatar_crop_height': null,
     };
+  }).toList();
+}
+
+/// Für Ensembles/Venues: das in der Admin-Galerie an Position 0 einsortierte
+/// Bild (per Pfeil-Reihenfolge oder "Als Titelbild") ist verbindlich für
+/// Miniaturansicht UND Detailansicht — anders als bei Personen hat ein
+/// älteres, separates `photo_url`-Feld hier keinen Vorrang mehr, sonst
+/// änderte "Als Titelbild" in der Galerie sichtbar nichts in der App.
+List<Map<String, dynamic>> applyDirectoryCoverGalleryFirst(
+  List<Map<String, dynamic>> rows,
+  Map<String, String> covers,
+) {
+  return rows.map((r) {
+    final coverUrl = covers[r['id']];
+    final photoUrl = coverUrl ?? (r['photo_url'] as String?);
+    if (photoUrl == (r['photo_url'] as String?)) return r;
+    return {...r, 'photo_url': photoUrl};
   }).toList();
 }
 
@@ -95,9 +114,10 @@ final allEnsemblesProvider =
           .select(
             'id, slug, name, type, photo_url, avatar_crop_x, avatar_crop_y, avatar_crop_width, avatar_crop_height',
           )
+          .eq('is_resolution_placeholder', false)
           .order('name', ascending: true);
       final covers = await _coverImagesByOriginId('ensemble');
-      return applyDirectoryCoverFallback(
+      return applyDirectoryCoverGalleryFirst(
         (rawRows as List).cast<Map<String, dynamic>>(),
         covers,
       );
@@ -106,9 +126,13 @@ final allEnsemblesProvider =
 /// Alle Orte alphabetisch nach Name.
 final allVenuesProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
-      final rows = await Supabase.instance.client
+      final rawRows = await Supabase.instance.client
           .from('venues')
-          .select('id, slug, name, address_city')
+          .select('id, slug, name, address_city, photo_url')
           .order('name', ascending: true);
-      return (rows as List).cast<Map<String, dynamic>>();
+      final covers = await _coverImagesByOriginId('venue');
+      return applyDirectoryCoverGalleryFirst(
+        (rawRows as List).cast<Map<String, dynamic>>(),
+        covers,
+      );
     });

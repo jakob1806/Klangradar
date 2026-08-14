@@ -57,6 +57,33 @@ Legend: ✅ scaffolded and working · 🟡 partial · ⬜ not started
 
 Verification: iPhone 17 Pro (iOS 26.5) and iPad mini (iOS 18.6) simulator builds succeeded, live Supabase work queries returned HTTP 200, and all 4 automated tests passed.
 
+## Tappable genre chips and Editorial event editor cleanup (2026-08-14)
+
+- ✅ Event detail genre chips are tappable — mirrors the Flutter app's
+  `eventFiltersProvider` behavior. Tapping a genre (not the free-text
+  `category` label, which stays plain) switches to the Search tab and shows a
+  genre-filtered event list with a "Filter entfernen" action. New pieces:
+  `GenreFilterRouter` (shared `@EnvironmentObject`, `Core/GenreFilterRouter.swift`),
+  `EventRepository.events(genreID:limit:)` (live + preview), and a genre
+  filter section in `SearchView`. Tappable chips are visually distinguished
+  with an accent tint; the static category chip stays neutral.
+- ✅ `EditorialEventEditorView` (Redaktion → Veranstaltung bearbeiten) no
+  longer uses a custom `ScrollView`/`VStack`/card layout with a hand-rolled
+  section-picker tab bar — it is now a single `Form` with native `Section`s
+  (Basisdaten, Weitere Angaben, Mitwirkende, Programm, KI-Recherche, Löschen),
+  matching the existing `EditorialEntityEditorView` pattern. Removed the
+  now-unused `EditorialEventEditorSection`/`EditorialEventSectionPicker` and
+  the custom `EditorialTextField` wrapper; the toolbar `Menu` for the single
+  delete action became a plain destructive Form section button.
+
+Verification: iPhone 17 Pro (iOS 26.5) simulator build and full test suite
+succeeded; live-tested tapping a genre chip on a real event ("Orgel") →
+correct tab switch and filtered event list, and "Filter entfernen" restoring
+the normal Search view. Editorial portal change verified by successful build
++ tests only (Redaktionsmodus requires sign-in, not exercised live this
+session) — same Form pattern is already proven live in
+`EditorialEntityEditorView`.
+
 ## Entity links, ticket truth and search thumbnails #1–#7 (2026-08-09)
 
 - ✅ #1 Program composers and all participant rows navigate to person/ensemble details. Participant rows prefer real circular `photo_url` images, then licensed gallery images, and use initials only when no real image exists.
@@ -90,6 +117,15 @@ Verification: `xcodebuild build`/`xcodebuild test` succeeded (4/4 tests passing)
 - ✅ Admin person, ensemble, venue and event details have a read-only AI inconsistency audit for possible duplicates, shortened/unusual names, spelling variants, incomplete structured names, contradictory fields and implausible values. Possible duplicate records link directly to their edit page; the audit never mutates data.
 
 Deployment/verification: iOS simulator build and all 7 tests passed; the current Home build was visually verified on the iOS 18.6 simulator. Admin production build and all 15 Vitest tests passed. Vercel production deployment `dpl_2qJz4noBwGUGvQi8qhsghRJXbaj5` is `READY` at `https://ko-kal-x-claude.vercel.app`. Supabase migrations `20261007000006` and `20261007000007` are applied; `parse-event-participants` and the read-only `audit-entity` function are `ACTIVE` with JWT verification enabled.
+
+## Editorial delete (2026-08-14)
+
+- ✅ Admin can delete venues, ensembles, persons and events from the native Editorial portal (`EditorialEntityEditorView`/`EditorialEventEditorView`), gated behind a `.confirmationDialog` with a destructive confirm button — same `is_admin_or_editor()` access check as the rest of the Editorial tab.
+- ✅ Deletion runs through new Postgres RPCs (`delete_venue`, `delete_ensemble`, `delete_person`, `delete_event`, see `20261013000012`/`20261013000013_editorial_delete_rpcs*.sql`) that replicate the web admin's cascade-detach steps (`admin/src/app/(dashboard)/{venues,ensembles,persons}/actions.ts`) server-side — the native client makes a single `rpc()` call instead of re-implementing the multi-step detach order in Swift, where a missed step could leave orphaned foreign keys. `delete_event` also cleans up a now-empty event group (`programs` row), matching the admin-side fix for the "0 Termine" group bug.
+- ⬜ Works are intentionally NOT deletable from native (or web admin's per-entity delete) — the existing works-duplicate-merge flow is the supported way to remove one.
+- ✅ Full field-parity editing is done: `EditorialEntityEditorView` gained an "Weitere Angaben" section per kind (venue address/geo/capacity via the existing `update_venue` RPC, person first/middle/last name + roles + nationality + birth/death dates + ensemble link + verification, ensemble type/founded_year/member_count/home venue/parent ensemble) and `EditorialEventEditorView` gained a "Weitere Angaben" card (description, duration, intermission, organizer, genres, pricing, ticket info, status) saved via new `updatePersonDetails`/`updateEnsembleDetails`/`updateEventDetails`/`updateVenue` repository functions. Avatar crop (`avatar_crop_x/y/width/height`) is intentionally still out of scope — it needs a dedicated native crop tool matching the admin's `CropTool`, tracked as follow-up. Create flows were not extended (parity request was scoped to editing).
+
+Verification: `xcodebuild build` and the full `xcodebuild test` suite (including 4 new field-parity `HTTPClient`-mocked tests plus the 3 existing delete tests) succeeded. Visually confirmed the app launches and renders live production data on iPhone 17 Pro after the change; the new form fields themselves were not clicked through live (no test editor account/credentials available in this environment to reach the signed-in-only Editorial tab).
 
 ## Definition of feature parity
 

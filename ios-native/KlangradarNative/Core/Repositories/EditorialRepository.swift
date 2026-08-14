@@ -9,6 +9,12 @@ enum EditorialEntityKind: String, CaseIterable, Identifiable, Sendable {
     var table: String { switch self { case .venue: "venues"; case .person: "persons"; case .ensemble: "ensembles"; case .work: "works" } }
 }
 
+/// Feldparität mit dem Web-Admin (admin/src/app/(dashboard)/{venues,persons,
+/// ensembles}/*-form.tsx) — flache optionale Felder statt pro-Kind-Varianten,
+/// analog zum bereits bestehenden composerID (nur bei .work befüllt). Avatar-
+/// Zuschnitt (avatar_crop_x/y/width/height) bewusst NICHT mit aufgenommen:
+/// bräuchte ein eigenes natives Zuschneide-Werkzeug wie admin's CropTool,
+/// als separate Folgearbeit zurückgestellt (siehe MIGRATION_STATUS.md).
 struct EditorialEntity: Identifiable, Hashable, Sendable {
     let id: UUID
     let kind: EditorialEntityKind
@@ -18,6 +24,33 @@ struct EditorialEntity: Identifiable, Hashable, Sendable {
     let description: String?
     let imageURL: String?
     let composerID: UUID?
+    // Gemeinsam
+    var slug: String? = nil
+    var isVerified: Bool? = nil
+    var websiteURL: String? = nil
+    // Venue
+    var addressStreet: String? = nil
+    var addressZip: String? = nil
+    var addressCity: String? = nil
+    var latitude: Double? = nil
+    var longitude: Double? = nil
+    var capacity: Int? = nil
+    // Person
+    var firstName: String? = nil
+    var middleName: String? = nil
+    var lastName: String? = nil
+    var roles: [String]? = nil
+    var nationality: String? = nil
+    var birthDate: String? = nil
+    var deathDate: String? = nil
+    var isDeceased: Bool? = nil
+    var memberOfEnsembleID: UUID? = nil
+    // Ensemble
+    var ensembleType: String? = nil
+    var foundedYear: Int? = nil
+    var memberCount: Int? = nil
+    var homeVenueID: UUID? = nil
+    var parentEnsembleID: UUID? = nil
 }
 
 struct EditorialEvent: Identifiable, Hashable, Sendable {
@@ -30,6 +63,21 @@ struct EditorialEvent: Identifiable, Hashable, Sendable {
     let venueName: String
     let imageURL: String?
     let status: String
+    // Feldparität mit event-form.tsx
+    var descriptionDe: String? = nil
+    var durationMinutes: Int? = nil
+    var hasIntermission: Bool = false
+    var organizerID: UUID? = nil
+    var ticketURL: String? = nil
+    var priceMin: Double? = nil
+    var priceMax: Double? = nil
+    var isFree: Bool = false
+    var remainingTicketsStatus: String? = nil
+    var doorsInfo: String? = nil
+    var ageRestriction: String? = nil
+    var discountInfo: String? = nil
+    var presaleFeeInfo: String? = nil
+    var genreIDs: [UUID] = []
 }
 
 struct EditorialOption: Identifiable, Hashable, Sendable {
@@ -69,12 +117,50 @@ struct EditorialEventDetail: Sendable {
     let works: [EditorialWorkLink]
 }
 
+struct EditorialAIProposal: Identifiable, Hashable, Sendable {
+    let id = UUID()
+    let field: String
+    let value: JSONValue
+    let confidence: String
+    let rationale: String?
+    let sourceURLs: [String]
+}
+
+struct EditorialAIReply: Sendable {
+    let answer: String
+    let proposals: [EditorialAIProposal]
+}
+
 struct EditorialRepository: Sendable {
     let client: SupabaseRESTClient
 
     func hasAccess(token: String) async -> Bool {
         let result: Bool? = try? await client.rpc("is_admin_or_editor", accessToken: token)
         return result == true
+    }
+
+    func askEditorialAI(entityType: String, entityID: UUID, message: String, token: String) async throws -> EditorialAIReply {
+        let response: JSONObject = try await client.edgeFunction("editorial-ai-assistant", body: [
+            "action": .string("chat"), "entityType": .string(entityType),
+            "entityId": .string(entityID.uuidString), "message": .string(message)
+        ], accessToken: token)
+        let proposals = response.objects("proposals").compactMap { row -> EditorialAIProposal? in
+            guard let field = row.string("field"), let value = row["value"], let confidence = row.string("confidence") else { return nil }
+            return EditorialAIProposal(field: field, value: value, confidence: confidence, rationale: row.string("rationale"), sourceURLs: row.strings("sourceUrls"))
+        }
+        return EditorialAIReply(answer: response.string("answer") ?? "Keine belastbare Antwort gefunden.", proposals: proposals)
+    }
+
+    func applyEditorialAI(entityType: String, entityID: UUID, proposals: [EditorialAIProposal], token: String) async throws {
+        let values: [JSONValue] = proposals.map { proposal in
+            .object(["field": .string(proposal.field), "value": proposal.value, "confidence": .string(proposal.confidence),
+                     "rationale": proposal.rationale.map(JSONValue.string) ?? .null,
+                     "sourceUrls": .array(proposal.sourceURLs.map(JSONValue.string))])
+        }
+        let _: JSONObject = try await client.edgeFunction("editorial-ai-assistant", body: [
+            "action": .string("apply"), "entityType": .string(entityType), "entityId": .string(entityID.uuidString),
+            "proposals": .array(values)
+        ], accessToken: token)
     }
 
     func uploadEditorialImage(data: Data, originType: String, originID: UUID, token: String) async throws -> URL {
@@ -181,20 +267,36 @@ struct EditorialRepository: Sendable {
         return rows.compactMap(Self.event)
     }
 
+    /// select-Listen erweitert für Feldparität mit den Web-Admin-Formularen
+    /// (venue-form.tsx/person-form.tsx/ensemble-form.tsx) — siehe
+    /// EditorialEntity-Kommentar. lat/lng kommen NICHT aus dieser Tabellen-
+    /// Query (venues.location ist eine PostGIS geography-Spalte, kein
+    /// direktes Feld), sondern separat über die schon bestehende
+    /// venues_with_latlng-RPC (siehe ContentRepository.venueLocations()) und
+    /// werden unten per id gemerged.
     func entities(kind: EditorialEntityKind, token: String) async throws -> [EditorialEntity] {
         let selection: String
         let order: String
         switch kind {
-        case .venue: selection = "id,name,address_city,description_de,photo_url"; order = "name.asc"
-        case .person: selection = "id,full_name,instrument,biography_de,photo_url"; order = "full_name.asc"
-        case .ensemble: selection = "id,name,type,description_de,photo_url"; order = "name.asc"
+        case .venue: selection = "id,slug,name,address_street,address_zip,address_city,capacity,website_url,description_de,photo_url"; order = "name.asc"
+        case .person: selection = "id,slug,full_name,first_name,middle_name,last_name,roles,instrument,nationality,birth_date,death_date,is_deceased,member_of_ensemble_id,website_url,is_verified,biography_de,photo_url"; order = "full_name.asc"
+        case .ensemble: selection = "id,slug,name,type,founded_year,member_count,home_venue_id,parent_ensemble_id,website_url,is_verified,description_de,photo_url"; order = "name.asc"
         case .work: selection = "id,title,catalog_number,description_de,composer_id,composer:persons(full_name)"; order = "title.asc"
         }
-        let rows: [JSONObject] = try await client.get(table: kind.table, queryItems: [
+        async let rowsTask: [JSONObject] = client.get(table: kind.table, queryItems: [
             URLQueryItem(name: "select", value: selection),
             URLQueryItem(name: "order", value: order),
             URLQueryItem(name: "limit", value: "3000")
         ], accessToken: token)
+        async let latLngTask: [JSONObject] = kind == .venue ? (try? await client.rpc("venues_with_latlng", accessToken: token)) ?? [] : []
+        let rows = try await rowsTask
+        let latLngByID: [String: (Double, Double)] = kind == .venue
+            ? Dictionary(uniqueKeysWithValues: (await latLngTask).compactMap { row -> (String, (Double, Double))? in
+                guard let id = row.string("id"), let lat = row.number("lat"), let lng = row.number("lng") else { return nil }
+                return (id, (lat, lng))
+            })
+            : [:]
+
         return rows.compactMap { row in
             guard let id = row.string("id").flatMap(UUID.init(uuidString:)), let title = row.string(kind == .person ? "full_name" : kind == .work ? "title" : "name") else { return nil }
             let subtitle: String? = switch kind {
@@ -203,14 +305,31 @@ struct EditorialRepository: Sendable {
             case .ensemble: row.string("type")
             case .work: [row.object("composer")?.string("full_name"), row.string("catalog_number")].compactMap { $0 }.joined(separator: " · ").nilIfEmpty
             }
+            let latLng = latLngByID[id.uuidString]
             return EditorialEntity(
                 id: id, kind: kind, title: title, subtitle: subtitle, editableSubtitle: kind == .work ? row.string("catalog_number") : subtitle,
                 description: row.string(kind == .person ? "biography_de" : "description_de"),
-                imageURL: row.string("photo_url"), composerID: row.string("composer_id").flatMap(UUID.init(uuidString:))
+                imageURL: row.string("photo_url"), composerID: row.string("composer_id").flatMap(UUID.init(uuidString:)),
+                slug: row.string("slug"), isVerified: row.bool("is_verified"), websiteURL: row.string("website_url"),
+                addressStreet: row.string("address_street"), addressZip: row.string("address_zip"), addressCity: kind == .venue ? row.string("address_city") : nil,
+                latitude: latLng?.0, longitude: latLng?.1, capacity: row.integer("capacity"),
+                firstName: row.string("first_name"), middleName: row.string("middle_name"), lastName: row.string("last_name"),
+                roles: row.array("roles").isEmpty ? nil : row.strings("roles"),
+                nationality: row.string("nationality"), birthDate: row.string("birth_date"), deathDate: row.string("death_date"), isDeceased: row.bool("is_deceased"),
+                memberOfEnsembleID: row.string("member_of_ensemble_id").flatMap(UUID.init(uuidString:)),
+                ensembleType: kind == .ensemble ? row.string("type") : nil, foundedYear: row.integer("founded_year"), memberCount: row.integer("member_count"),
+                homeVenueID: row.string("home_venue_id").flatMap(UUID.init(uuidString:)), parentEnsembleID: row.string("parent_ensemble_id").flatMap(UUID.init(uuidString:))
             )
         }
     }
 
+    /// Basisfelder (Name/Titel, Kurztext, Beschreibung, Bild, Komponist bei
+    /// Werken) — für Venues siehe stattdessen updateVenue() (eigene RPC
+    /// wegen der PostGIS-Geodaten). Erweiterte Personen-/Ensemble-Felder
+    /// (Feldparität mit person-form.tsx/ensemble-form.tsx) siehe
+    /// updatePersonDetails()/updateEnsembleDetails() darunter — bewusst
+    /// eigene Funktionen statt eines einzigen riesigen Parametersatzes hier,
+    /// leichter lesbar und die Basis-Speicherung bleibt unverändert nutzbar.
     func updateEntity(entity: EditorialEntity, title: String, subtitle: String, description: String, imageURL: String, composerID: UUID?, actor: UUID, token: String) async throws {
         let cleanTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleanTitle.isEmpty else { throw EditorialError.validation("Der Name bzw. Titel darf nicht leer sein.") }
@@ -241,6 +360,113 @@ struct EditorialRepository: Sendable {
         await logEntity(entity: entity, action: "native_editor_update_\(entity.kind.rawValue)", actor: actor, after: values, token: token)
     }
 
+    /// Feldparität mit venue-form.tsx — läuft bewusst über die bereits im
+    /// Web-Admin genutzte update_venue()-RPC (siehe
+    /// 20260825000001_entity_photo_uploads.sql), weil venues.location eine
+    /// PostGIS-geography-Spalte ist, die ein einfaches PATCH nicht aus
+    /// lat/lng zusammensetzen kann — die RPC übernimmt ST_MakePoint.
+    func updateVenue(
+        entity: EditorialEntity, name: String, slug: String, description: String,
+        addressStreet: String, addressZip: String, addressCity: String,
+        latitude: Double, longitude: Double, capacity: Int?, websiteURL: String, imageURL: String,
+        actor: UUID, token: String
+    ) async throws {
+        let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanSlug = slug.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanName.isEmpty else { throw EditorialError.validation("Der Venue-Name darf nicht leer sein.") }
+        guard !cleanSlug.isEmpty else { throw EditorialError.validation("Der Slug darf nicht leer sein.") }
+        guard !addressStreet.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              !addressZip.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              !addressCity.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else { throw EditorialError.validation("Straße, PLZ und Stadt dürfen nicht leer sein.") }
+        let cleanImage = imageURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !cleanImage.isEmpty, URL(string: cleanImage)?.scheme?.hasPrefix("http") != true {
+            throw EditorialError.validation("Die Bildadresse muss mit http:// oder https:// beginnen.")
+        }
+        let parameters: JSONObject = [
+            "p_id": .string(entity.id.uuidString),
+            "p_slug": .string(cleanSlug),
+            "p_name": .string(cleanName),
+            "p_description_de": description.nilIfEmpty.map(JSONValue.string) ?? .null,
+            "p_address_street": .string(addressStreet.trimmingCharacters(in: .whitespacesAndNewlines)),
+            "p_address_zip": .string(addressZip.trimmingCharacters(in: .whitespacesAndNewlines)),
+            "p_address_city": .string(addressCity.trimmingCharacters(in: .whitespacesAndNewlines)),
+            "p_lat": .number(latitude),
+            "p_lng": .number(longitude),
+            "p_capacity": capacity.map { .number(Double($0)) } ?? .null,
+            "p_website_url": websiteURL.nilIfEmpty.map(JSONValue.string) ?? .null,
+            "p_photo_url": cleanImage.nilIfEmpty.map(JSONValue.string) ?? .null
+        ]
+        let _: JSONObject = try await client.rpc("update_venue", parameters: parameters, accessToken: token)
+        await logEntity(entity: entity, action: "native_editor_update_venue", actor: actor, after: parameters, token: token)
+    }
+
+    /// Feldparität mit person-form.tsx — full_name wird wie im Web-Admin aus
+    /// den drei Namensfeldern zusammengesetzt (full_name bleibt die einzige
+    /// Quelle für Fuzzy-Matching, siehe dortiger Kommentar).
+    /// Deckt ALLE Personenfelder ab (Basis + erweitert) — anders als bei
+    /// Venue/Ensemble kein separater Aufruf für Name/Instrument/Bio/Foto,
+    /// weil full_name aus firstName/middleName/lastName zusammengesetzt wird
+    /// (siehe unten) und die generische updateEntity() sonst mit dem
+    /// veralteten `title`-Zustand full_name überschreiben würde.
+    func updatePersonDetails(
+        entity: EditorialEntity, firstName: String, middleName: String, lastName: String, slug: String,
+        instrument: String, biographyDe: String, imageURL: String,
+        roles: [String], nationality: String, birthDate: String, deathDate: String, isDeceased: Bool,
+        memberOfEnsembleID: UUID?, websiteURL: String, isVerified: Bool, actor: UUID, token: String
+    ) async throws {
+        let first = firstName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let middle = middleName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let last = lastName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !first.isEmpty, !last.isEmpty else { throw EditorialError.validation("Vor- und Nachname dürfen nicht leer sein.") }
+        let cleanImage = imageURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !cleanImage.isEmpty, URL(string: cleanImage)?.scheme?.hasPrefix("http") != true {
+            throw EditorialError.validation("Die Bildadresse muss mit http:// oder https:// beginnen.")
+        }
+        let fullName = [first, middle, last].filter { !$0.isEmpty }.joined(separator: " ")
+        let values: JSONObject = [
+            "first_name": .string(first),
+            "middle_name": middle.isEmpty ? .null : .string(middle),
+            "last_name": .string(last),
+            "full_name": .string(fullName),
+            "slug": .string(slug.trimmingCharacters(in: .whitespacesAndNewlines)),
+            "instrument": instrument.nilIfEmpty.map(JSONValue.string) ?? .null,
+            "biography_de": biographyDe.nilIfEmpty.map(JSONValue.string) ?? .null,
+            "photo_url": cleanImage.nilIfEmpty.map(JSONValue.string) ?? .null,
+            "roles": .array(roles.map(JSONValue.string)),
+            "nationality": nationality.nilIfEmpty.map(JSONValue.string) ?? .null,
+            "birth_date": birthDate.nilIfEmpty.map(JSONValue.string) ?? .null,
+            "death_date": deathDate.nilIfEmpty.map(JSONValue.string) ?? .null,
+            "is_deceased": .bool(isDeceased),
+            "member_of_ensemble_id": memberOfEnsembleID.map { .string($0.uuidString) } ?? .null,
+            "website_url": websiteURL.nilIfEmpty.map(JSONValue.string) ?? .null,
+            "is_verified": .bool(isVerified),
+            "updated_at": .string(Self.isoString(from: .now))
+        ]
+        try await client.update(table: "persons", values: values, filters: [URLQueryItem(name: "id", value: "eq.\(entity.id.uuidString)")], accessToken: token)
+        await logEntity(entity: entity, action: "native_editor_update_person_details", actor: actor, after: values, token: token)
+    }
+
+    /// Feldparität mit ensemble-form.tsx.
+    func updateEnsembleDetails(
+        entity: EditorialEntity, slug: String, type: String, foundedYear: Int?, memberCount: Int?,
+        homeVenueID: UUID?, parentEnsembleID: UUID?, websiteURL: String, isVerified: Bool, actor: UUID, token: String
+    ) async throws {
+        let values: JSONObject = [
+            "slug": .string(slug.trimmingCharacters(in: .whitespacesAndNewlines)),
+            "type": .string(type),
+            "founded_year": foundedYear.map { .number(Double($0)) } ?? .null,
+            "member_count": memberCount.map { .number(Double($0)) } ?? .null,
+            "home_venue_id": homeVenueID.map { .string($0.uuidString) } ?? .null,
+            "parent_ensemble_id": parentEnsembleID.map { .string($0.uuidString) } ?? .null,
+            "website_url": websiteURL.nilIfEmpty.map(JSONValue.string) ?? .null,
+            "is_verified": .bool(isVerified),
+            "updated_at": .string(Self.isoString(from: .now))
+        ]
+        try await client.update(table: "ensembles", values: values, filters: [URLQueryItem(name: "id", value: "eq.\(entity.id.uuidString)")], accessToken: token)
+        await logEntity(entity: entity, action: "native_editor_update_ensemble_details", actor: actor, after: values, token: token)
+    }
+
     func createEntity(kind: EditorialEntityKind, title: String, subtitle: String, description: String, imageURL: String, composerID: UUID?, actor: UUID, token: String) async throws -> EditorialEntity {
         guard kind == .person || kind == .ensemble || kind == .work else {
             throw EditorialError.validation("Dieser Eintragstyp kann hier nicht neu angelegt werden.")
@@ -250,6 +476,57 @@ struct EditorialRepository: Sendable {
         let cleanImage = imageURL.trimmingCharacters(in: .whitespacesAndNewlines)
         if !cleanImage.isEmpty, URL(string: cleanImage)?.scheme?.hasPrefix("http") != true {
             throw EditorialError.validation("Die Bildadresse muss mit http:// oder https:// beginnen.")
+        }
+
+        if kind == .ensemble {
+            let resolved: [JSONObject] = try await client.rpc(
+                "resolve_ensemble_entities",
+                parameters: ["p_name": .string(cleanTitle)],
+                accessToken: token
+            )
+            let canonical = resolved.filter { $0.string("id") != nil }
+            if resolved.contains(where: { $0.string("resolution") == "ignore" }) {
+                throw EditorialError.validation("Diese Bezeichnung beschreibt kein festes Ensemble und wird deshalb nicht als Stammdatensatz angelegt.")
+            }
+            if resolved.contains(where: { $0.string("resolution") == "ambiguous" }) {
+                throw EditorialError.validation("Diese Bezeichnung ist innerhalb der Ensemblefamilie nicht eindeutig. Bitte das konkrete Unterensemble auswählen.")
+            }
+            if canonical.count > 1 {
+                let names = canonical.compactMap { $0.string("name") }.joined(separator: ", ")
+                throw EditorialError.validation("Diese Sammelbezeichnung wird bereits automatisch aufgelöst: \(names). Bitte die Unterensembles einzeln auswählen.")
+            }
+            if let match = canonical.first,
+               let id = match.string("id").flatMap(UUID.init(uuidString:)),
+               let canonicalName = match.string("name") {
+                return EditorialEntity(
+                    id: id, kind: kind, title: canonicalName,
+                    subtitle: nil, editableSubtitle: nil, description: nil,
+                    imageURL: nil, composerID: nil
+                )
+            }
+        }
+
+        // Eine in der nativen Redaktion eingegebene Alternativschreibweise
+        // darf keinen zweiten Stammdatensatz erzeugen. Personen und noch nicht
+        // als Familie erkannte Ensemble-Namen werden zentral aufgelöst.
+        if kind == .person || kind == .ensemble {
+            let matches: [JSONObject] = try await client.rpc(
+                "resolve_entity_alias",
+                parameters: [
+                    "p_entity_type": .string(kind.rawValue),
+                    "p_name": .string(cleanTitle)
+                ],
+                accessToken: token
+            )
+            if let match = matches.first,
+               let id = match.string("id").flatMap(UUID.init(uuidString:)),
+               let canonicalName = match.string("canonical_name") {
+                return EditorialEntity(
+                    id: id, kind: kind, title: canonicalName,
+                    subtitle: nil, editableSubtitle: nil, description: nil,
+                    imageURL: nil, composerID: nil
+                )
+            }
         }
 
         var values: JSONObject
@@ -291,13 +568,46 @@ struct EditorialRepository: Sendable {
         )
     }
 
+    /// Löscht Venue/Person/Ensemble über die serverseitigen delete_*-RPCs
+    /// (siehe 20261013000012/13_editorial_delete_rpcs*.sql) — die lösen dort
+    /// zentral alle Fremdschlüssel-Bezüge, statt die mehrschrittige
+    /// Reihenfolge hier in Swift zu duplizieren (Fehlerrisiko bei fehlenden
+    /// ON DELETE CASCADE-Constraints). Werke sind hier bewusst nicht
+    /// löschbar (Nutzervorgabe nannte nur Venues/Ensembles/Personen/
+    /// Veranstaltungen) — die Duplikate-Zusammenführung im Web-Admin bleibt
+    /// der richtige Weg, ein Werk verschwinden zu lassen.
+    func deleteEntity(_ entity: EditorialEntity, actor: UUID, token: String) async throws {
+        let function: String
+        let parameterKey: String
+        switch entity.kind {
+        case .venue: function = "delete_venue"; parameterKey = "p_venue_id"
+        case .person: function = "delete_person"; parameterKey = "p_person_id"
+        case .ensemble: function = "delete_ensemble"; parameterKey = "p_ensemble_id"
+        case .work: throw EditorialError.validation("Werke können hier nicht gelöscht werden — dafür die Werk-Duplikate-Zusammenführung im Web-Admin-Portal nutzen.")
+        }
+        let _: Bool = try await client.rpc(function, parameters: [parameterKey: .string(entity.id.uuidString)], accessToken: token)
+        await logEntity(entity: entity, action: "native_editor_delete_\(entity.kind.rawValue)", actor: actor, after: [:], token: token)
+    }
+
+    /// Löscht eine Veranstaltung über delete_event() — räumt dabei auch eine
+    /// jetzt leer gewordene Event-Gruppe (programs) mit auf, siehe
+    /// Kommentar in der Migration.
+    func deleteEvent(_ event: EditorialEvent, actor: UUID, token: String) async throws {
+        let _: Bool = try await client.rpc("delete_event", parameters: ["p_event_id": .string(event.id.uuidString)], accessToken: token)
+        await log(eventID: event.id, action: "native_editor_delete_event", actor: actor, before: snapshot(event), after: nil, token: token)
+    }
+
+    /// select um Feldparität mit event-form.tsx erweitert; event_genres ist
+    /// eine separate Verknüpfungstabelle (kein Spaltenwert), daher ein
+    /// eigener paralleler Abruf, dessen genre_ids anschließend ins Event
+    /// gemergt werden.
     func detail(eventID: UUID, token: String) async throws -> EditorialEventDetail {
         let eventRows: [JSONObject] = try await client.get(table: "events", queryItems: [
-            URLQueryItem(name: "select", value: "id,slug,title,subtitle,start_datetime,venue_id,image_urls,status,venues(name)"),
+            URLQueryItem(name: "select", value: "id,slug,title,subtitle,description_de,start_datetime,duration_minutes,has_intermission,venue_id,organizer_id,image_urls,ticket_url,price_min,price_max,is_free,remaining_tickets_status,doors_info,age_restriction,discount_info,presale_fee_info,status,venues(name)"),
             URLQueryItem(name: "id", value: "eq.\(eventID.uuidString)"),
             URLQueryItem(name: "limit", value: "1")
         ], accessToken: token)
-        guard let event = eventRows.first.flatMap(Self.event) else { throw APIError.invalidResponse }
+        guard var event = eventRows.first.flatMap(Self.event) else { throw APIError.invalidResponse }
 
         async let participantRows: [JSONObject] = client.get(table: "event_participants", queryItems: [
             URLQueryItem(name: "select", value: "id,person_id,ensemble_id,role,role_label,display_order,persons(full_name),ensembles(name)"),
@@ -309,6 +619,12 @@ struct EditorialRepository: Sendable {
             URLQueryItem(name: "event_id", value: "eq.\(eventID.uuidString)"),
             URLQueryItem(name: "order", value: "position.asc")
         ], accessToken: token)
+        async let genreRows: [JSONObject] = client.get(table: "event_genres", queryItems: [
+            URLQueryItem(name: "select", value: "genre_id"),
+            URLQueryItem(name: "event_id", value: "eq.\(eventID.uuidString)")
+        ], accessToken: token)
+
+        event.genreIDs = try await genreRows.compactMap { $0.string("genre_id").flatMap(UUID.init(uuidString:)) }
 
         return try await EditorialEventDetail(
             event: event,
@@ -326,7 +642,21 @@ struct EditorialRepository: Sendable {
     }
 
     func ensembles(token: String) async throws -> [EditorialOption] {
-        try await options(table: "ensembles", selection: "id,name,type", titleKey: "name", subtitleKey: "type", token: token)
+        try await options(
+            table: "ensembles", selection: "id,name,type", titleKey: "name", subtitleKey: "type", token: token,
+            filters: [
+                URLQueryItem(name: "is_resolution_placeholder", value: "eq.false"),
+                URLQueryItem(name: "is_family_root", value: "eq.false")
+            ]
+        )
+    }
+
+    func organizers(token: String) async throws -> [EditorialOption] {
+        try await options(table: "organizers", selection: "id,name", titleKey: "name", token: token)
+    }
+
+    func genres(token: String) async throws -> [EditorialOption] {
+        try await options(table: "genres", selection: "id,label_de", titleKey: "label_de", token: token)
     }
 
     func works(token: String) async throws -> [EditorialOption] {
@@ -372,6 +702,46 @@ struct EditorialRepository: Sendable {
         await log(eventID: event.id, action: "native_editor_quick_update", actor: actor, before: before, after: values, token: token)
     }
 
+    /// Feldparität mit event-form.tsx, ergänzend zu updateBasics() (dort
+    /// bleiben Titel/Untertitel/Termin/Venue/Bild als "Schnellkorrektur"
+    /// unverändert) — eigene Funktion für die übrigen Felder (Beschreibung,
+    /// Dauer, Pause, Veranstalter, Genres, Preise, Ticket-Infos, Status),
+    /// damit die bestehende Schnellkorrektur nicht mit einem noch größeren
+    /// Parametersatz überladen wird. genre_ids werden komplett neu
+    /// geschrieben (löschen + neu einfügen), wie syncGenres() im Web-Admin.
+    func updateEventDetails(
+        event: EditorialEvent, descriptionDe: String, durationMinutes: Int?, hasIntermission: Bool,
+        organizerID: UUID?, genreIDs: [UUID], priceMin: Double?, priceMax: Double?, isFree: Bool,
+        ticketURL: String, remainingTicketsStatus: String, doorsInfo: String, ageRestriction: String,
+        discountInfo: String, presaleFeeInfo: String, status: String, actor: UUID, token: String
+    ) async throws {
+        let values: JSONObject = [
+            "description_de": descriptionDe.nilIfEmpty.map(JSONValue.string) ?? .null,
+            "duration_minutes": durationMinutes.map { .number(Double($0)) } ?? .null,
+            "has_intermission": .bool(hasIntermission),
+            "organizer_id": organizerID.map { .string($0.uuidString) } ?? .null,
+            "price_min": priceMin.map(JSONValue.number) ?? .null,
+            "price_max": priceMax.map(JSONValue.number) ?? .null,
+            "is_free": .bool(isFree),
+            "ticket_url": ticketURL.nilIfEmpty.map(JSONValue.string) ?? .null,
+            "remaining_tickets_status": remainingTicketsStatus.nilIfEmpty.map(JSONValue.string) ?? .null,
+            "doors_info": doorsInfo.nilIfEmpty.map(JSONValue.string) ?? .null,
+            "age_restriction": ageRestriction.nilIfEmpty.map(JSONValue.string) ?? .null,
+            "discount_info": discountInfo.nilIfEmpty.map(JSONValue.string) ?? .null,
+            "presale_fee_info": presaleFeeInfo.nilIfEmpty.map(JSONValue.string) ?? .null,
+            "status": .string(status),
+            "updated_at": .string(Self.isoString(from: .now))
+        ]
+        try await client.update(table: "events", values: values, filters: [URLQueryItem(name: "id", value: "eq.\(event.id.uuidString)")], accessToken: token)
+
+        try await client.delete(table: "event_genres", filters: [URLQueryItem(name: "event_id", value: "eq.\(event.id.uuidString)")], accessToken: token)
+        for genreID in genreIDs {
+            _ = try await client.insert(table: "event_genres", values: ["event_id": .string(event.id.uuidString), "genre_id": .string(genreID.uuidString)], accessToken: token)
+        }
+
+        await log(eventID: event.id, action: "native_editor_update_event_details", actor: actor, before: nil, after: values, token: token)
+    }
+
     func deleteEventImages(event: EditorialEvent, actor: UUID, token: String) async throws {
         let before: JSONObject = ["image_urls": .array(event.imageURL.map { [.string($0)] } ?? [])]
         try await client.update(
@@ -414,12 +784,12 @@ struct EditorialRepository: Sendable {
         await log(eventID: eventID, action: "native_editor_remove_work", actor: actor, before: ["title": .string(link.title)], after: nil, token: token)
     }
 
-    private func options(table: String, selection: String, titleKey: String, subtitleKey: String? = nil, token: String) async throws -> [EditorialOption] {
+    private func options(table: String, selection: String, titleKey: String, subtitleKey: String? = nil, token: String, filters: [URLQueryItem] = []) async throws -> [EditorialOption] {
         let rows: [JSONObject] = try await client.get(table: table, queryItems: [
             URLQueryItem(name: "select", value: selection),
             URLQueryItem(name: "order", value: "\(titleKey).asc"),
             URLQueryItem(name: "limit", value: "2000")
-        ], accessToken: token)
+        ] + filters, accessToken: token)
         return rows.compactMap { row in
             guard let id = row.string("id").flatMap(UUID.init(uuidString:)), let title = row.string(titleKey) else { return nil }
             return EditorialOption(id: id, title: title, subtitle: subtitleKey.flatMap(row.string))
@@ -503,9 +873,23 @@ struct EditorialRepository: Sendable {
         guard let id = row.string("id").flatMap(UUID.init(uuidString:)), let slug = row.string("slug"),
               let title = row.string("title"), let date = row.string("start_datetime").flatMap(FlexibleDateParser.date),
               let venueID = row.string("venue_id").flatMap(UUID.init(uuidString:)) else { return nil }
-        return EditorialEvent(id: id, slug: slug, title: title, subtitle: row.string("subtitle"), startDate: date,
+        var event = EditorialEvent(id: id, slug: slug, title: title, subtitle: row.string("subtitle"), startDate: date,
                               venueID: venueID, venueName: row.object("venues")?.string("name") ?? "Unbekannter Ort",
                               imageURL: row.strings("image_urls").first, status: row.string("status") ?? "scheduled")
+        event.descriptionDe = row.string("description_de")
+        event.durationMinutes = row.integer("duration_minutes")
+        event.hasIntermission = row.bool("has_intermission") ?? false
+        event.organizerID = row.string("organizer_id").flatMap(UUID.init(uuidString:))
+        event.ticketURL = row.string("ticket_url")
+        event.priceMin = row.number("price_min")
+        event.priceMax = row.number("price_max")
+        event.isFree = row.bool("is_free") ?? false
+        event.remainingTicketsStatus = row.string("remaining_tickets_status")
+        event.doorsInfo = row.string("doors_info")
+        event.ageRestriction = row.string("age_restriction")
+        event.discountInfo = row.string("discount_info")
+        event.presaleFeeInfo = row.string("presale_fee_info")
+        return event
     }
 
     private static func participant(_ row: JSONObject) -> EditorialParticipant? {

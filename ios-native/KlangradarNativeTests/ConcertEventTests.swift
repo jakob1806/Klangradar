@@ -55,4 +55,10 @@ final class ConcertEventTests: XCTestCase {
         XCTAssertEqual(KlangradarDateTime.string(summer, format: "HH:mm"), "19:00")
         XCTAssertEqual(KlangradarDateTime.string(winter, format: "HH:mm"), "19:00")
     }
+
+    func testParsesPostgresDateOnlyBirthday() throws {
+        let birthday = try XCTUnwrap(FlexibleDateParser.date(from: "1990-05-17"))
+
+        XCTAssertEqual(KlangradarDateTime.string(birthday, format: "yyyy-MM-dd"), "1990-05-17")
+    }
 }

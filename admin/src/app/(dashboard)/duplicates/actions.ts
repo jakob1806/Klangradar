@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { repointFieldProvenance } from "@/lib/merge-provenance";
 import { logSystemAction } from "@/lib/system-log";
+import { cleanupEventGroupIfEmpty } from "@/lib/event-group-cleanup";
 
 type Supa = Awaited<ReturnType<typeof createClient>>;
 
@@ -137,6 +138,7 @@ export async function resolveDuplicateAsMerged(candidateId: string, keepEventId:
     throw new Error("Ausgewähltes Event gehört nicht zu diesem Kandidaten");
   }
   const deleteEventId = keepEventId === candidate.event_a_id ? candidate.event_b_id : candidate.event_a_id;
+  const { data: loserEvent } = await supabase.from("events").select("program_id").eq("id", deleteEventId).maybeSingle();
 
   await repointEventReferences(supabase, deleteEventId, keepEventId);
   await carryOverComposerOnMerge(supabase, keepEventId);
@@ -149,6 +151,13 @@ export async function resolveDuplicateAsMerged(candidateId: string, keepEventId:
 
   const { error: deleteError } = await supabase.from("events").delete().eq("id", deleteEventId);
   if (deleteError) throw new Error(deleteError.message);
+
+  // War das gelöschte Event das letzte Mitglied seiner Event-Gruppe, bliebe
+  // die Gruppe sonst leer stehen (Nutzer-Meldung "0 Termine"), siehe
+  // event-group-cleanup.ts. Nur relevant, wenn keepEventId in einer anderen
+  // Gruppe war/keiner — sonst hat die Gruppe durch keepEventId weiterhin
+  // Mitglieder.
+  await cleanupEventGroupIfEmpty(supabase, loserEvent?.program_id ?? null);
 
   const { data: { user } } = await supabase.auth.getUser();
   await logSystemAction(supabase, {
@@ -180,4 +189,34 @@ export async function resolveDuplicateAsDistinct(candidateId: string) {
   });
 
   revalidatePath("/duplicates");
+}
+
+/** Mehrfachauswahl-Variante für die konsolidierte Duplikate-Seite —
+ * Zusammenführen bleibt bewusst Einzelfall-Aktion (braucht pro Paar eine
+ * Entscheidung, welche Version bleibt), aber "als unterschiedlich
+ * markieren" ist für mehrere ausgewählte Paare auf einmal sicher. */
+export async function resolveDuplicatesAsDistinct(candidateIds: string[]): Promise<{ completed: number }> {
+  const uniqueIds = [...new Set(candidateIds)].slice(0, 200);
+  if (uniqueIds.length === 0) return { completed: 0 };
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("duplicate_candidates")
+    .update({ status: "dismissed", reviewed_at: new Date().toISOString() })
+    .in("id", uniqueIds)
+    .eq("status", "pending")
+    .select("id");
+  if (error) throw new Error(error.message);
+
+  const { data: { user } } = await supabase.auth.getUser();
+  for (const row of data ?? []) {
+    await logSystemAction(supabase, {
+      entityType: "duplicate_candidate",
+      entityId: row.id,
+      action: "dismissed",
+      actor: user?.email ?? user?.id ?? "unknown",
+    });
+  }
+
+  revalidatePath("/duplicates");
+  return { completed: data?.length ?? 0 };
 }

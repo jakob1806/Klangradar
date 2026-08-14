@@ -157,6 +157,7 @@ export async function rejectEntityCandidate(candidateId: string) {
   });
 
   revalidatePath("/entity-candidates");
+  revalidatePath("/duplicates");
 }
 
 // Legt die echte persons/ensembles/organizers-Zeile an (is_verified: false —
@@ -239,20 +240,22 @@ export async function approveEntityCandidate(candidateId: string) {
   });
 
   revalidatePath("/entity-candidates");
+  revalidatePath("/duplicates");
 }
 
 // Für Kandidaten mit einem discovery_context.possible_match (Fuzzy-Match
 // aus find_matching_person/find_matching_ensemble, siehe
-// 20260722000002_find_matching_person_ensemble.sql): verlinkt den Kandidaten
-// mit der BEREITS VORHANDENEN Person/dem Ensemble statt einen neuen
-// Stammdaten-Eintrag anzulegen. Legt bewusst NICHTS in persons/ensembles an
-// — der Hauptname der vorhandenen Zeile bleibt unverändert (Nutzeranfrage:
-// "im Zweifel soll beim Zusammenführen der Hauptname nicht geändert werden,
-// sondern das einfach nur als alternative Schreibweise hinzugefügt
-// werden"); der Kandidatenname landet stattdessen als Alias in
-// entity_aliases (20260907000001_field_provenance_and_aliases.sql), damit
-// er z. B. bei der Suche weiter auffindbar bleibt.
-export async function mergeEntityCandidate(candidateId: string, matchedEntityId: string) {
+// 20260722000002_find_matching_person_ensemble.sql): Nutzeranfrage, "man
+// soll auswählen können, welche Version man beim Zusammenführen behält,
+// wie normalerweise bei den Duplikaten" — vorher entschied diese Funktion
+// das automatisch (Hauptname der vorhandenen Zeile blieb IMMER erhalten,
+// der Kandidatenname landete nur als Alias). Jetzt legt sie den Kandidaten
+// stattdessen als echte zweite Stammdaten-Zeile an und schickt beide in die
+// bestehende Duplikate-Review (person_duplicate_candidates/
+// ensemble_duplicate_candidates, siehe duplicates/persons und
+// duplicates/ensembles) — dort wählt die Redaktion pro Fall, welche der
+// beiden Versionen bestehen bleibt, exakt wie bei jedem anderen Duplikat.
+export async function sendEntityCandidateToDuplicateReview(candidateId: string, matchedEntityId: string) {
   const supabase = await createClient();
 
   const { data: candidate, error: fetchError } = await supabase
@@ -266,30 +269,55 @@ export async function mergeEntityCandidate(candidateId: string, matchedEntityId:
   if (candidate.entity_type !== "person" && candidate.entity_type !== "ensemble") {
     throw new Error(`Zusammenführen nur für person/ensemble unterstützt, nicht "${candidate.entity_type}"`);
   }
+  const entityType = candidate.entity_type as "person" | "ensemble";
 
-  const createdIdColumn = candidate.entity_type === "person" ? "created_person_id" : "created_ensemble_id";
+  const slug = await generateUniqueSlug(supabase, TABLE_FOR_ENTITY_TYPE[entityType], candidate.name);
+  let newId: string;
+  if (entityType === "person") {
+    const { data, error } = await supabase
+      .from("persons")
+      .insert({ full_name: candidate.name, slug, is_verified: false })
+      .select("id")
+      .single();
+    if (error || !data) throw new Error(error?.message ?? "persons insert fehlgeschlagen");
+    newId = data.id;
+  } else {
+    const { data, error } = await supabase
+      .from("ensembles")
+      .insert({ name: candidate.name, slug, type: "sonstiges", is_verified: false })
+      .select("id")
+      .single();
+    if (error || !data) throw new Error(error?.message ?? "ensembles insert fehlgeschlagen");
+    newId = data.id;
+  }
+
+  const duplicateTable = entityType === "person" ? "person_duplicate_candidates" : "ensemble_duplicate_candidates";
+  const columnPrefix = entityType === "person" ? "person" : "ensemble";
+  const { error: duplicateInsertError } = await supabase.from(duplicateTable).insert({
+    [`${columnPrefix}_a_id`]: matchedEntityId,
+    [`${columnPrefix}_b_id`]: newId,
+    status: "pending",
+  });
+  if (duplicateInsertError) throw new Error(duplicateInsertError.message);
+
+  const createdIdColumn = entityType === "person" ? "created_person_id" : "created_ensemble_id";
   const { error: updateError } = await supabase
     .from("entity_candidates")
-    .update({ status: "approved", reviewed_at: new Date().toISOString(), [createdIdColumn]: matchedEntityId })
+    .update({ status: "approved", reviewed_at: new Date().toISOString(), [createdIdColumn]: newId })
     .eq("id", candidateId);
   if (updateError) throw new Error(updateError.message);
-
-  await supabase
-    .from("entity_aliases")
-    .insert({ entity_type: candidate.entity_type, entity_id: matchedEntityId, alias: candidate.name })
-    .select("id")
-    .maybeSingle(); // best effort — unique-Constraint-Konflikt (Alias existiert schon) ist kein Fehlerfall
 
   const { data: { user } } = await supabase.auth.getUser();
   await logSystemAction(supabase, {
     entityType: "entity_candidate",
     entityId: candidateId,
-    action: "merged",
+    action: "sent_to_duplicate_review",
     actor: user?.email ?? user?.id ?? "unknown",
-    after: { [createdIdColumn]: matchedEntityId, alias_added: candidate.name },
+    after: { [createdIdColumn]: newId, matched_entity_id: matchedEntityId, duplicate_table: duplicateTable },
   });
 
   revalidatePath("/entity-candidates");
+  revalidatePath("/duplicates");
 }
 
 /** Mehrfachauswahl-Variante von approveEntityCandidate — für die
@@ -328,4 +356,5 @@ export async function bulkRejectEntityCandidates(candidateIds: string[]) {
   }
 
   revalidatePath("/entity-candidates");
+  revalidatePath("/duplicates");
 }

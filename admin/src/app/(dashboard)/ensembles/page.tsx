@@ -9,6 +9,7 @@ import {
   BioStatusBadge,
 } from "@/components/bio-select";
 import { ImageStatusBadge } from "@/components/image-status-badge";
+import { ListThumbnail } from "@/components/list-thumbnail";
 import { TableSearchFilter } from "@/components/table-search-filter";
 import { bulkDeleteEnsembles, bulkSetEnsemblesVerified } from "./actions";
 
@@ -21,6 +22,10 @@ interface EnsembleRow {
   is_verified: boolean;
   description_de: string | null;
   photo_url: string | null;
+  parent_ensemble_id: string | null;
+  family_role: string | null;
+  is_family_root: boolean;
+  is_resolution_placeholder: boolean;
 }
 
 const TYPE_LABEL: Record<string, string> = {
@@ -31,13 +36,15 @@ const TYPE_LABEL: Record<string, string> = {
   sonstiges: "Sonstiges",
 };
 
-export default async function EnsemblesPage() {
+export default async function EnsemblesPage({ searchParams }: { searchParams: Promise<{ ansicht?: string }> }) {
+  const { ansicht = "aktiv" } = await searchParams;
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const { data: rawData, error } = await supabase
     .from("ensembles")
-    .select("id, name, type, is_verified, description_de, photo_url")
+    .select("id, name, type, is_verified, description_de, photo_url, parent_ensemble_id, family_role, is_family_root, is_resolution_placeholder")
     .order("name")
     .returns<EnsembleRow[]>();
+  const data = (rawData ?? []).filter((ensemble) => ansicht === "technisch" ? ensemble.is_resolution_placeholder : !ensemble.is_resolution_placeholder);
 
   const missingBioIds = (data ?? []).filter((e) => !e.description_de).map((e) => e.id);
 
@@ -54,11 +61,12 @@ export default async function EnsemblesPage() {
           </p>
         </div>
         <Link
-          href="/ensembles/new"
-          className="rounded-lg bg-[#0071e3] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#0077ed]"
+          href="/ensemble-families"
+          className="border border-neutral-300 bg-white px-4 py-2 text-sm font-medium transition-colors hover:bg-neutral-50"
         >
-          Neu anlegen
+          Familien verwalten
         </Link>
+        <Link href="/ensembles/new" className="rounded-lg bg-[#0071e3] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#0077ed]">Neu anlegen</Link>
       </div>
 
       {error && (
@@ -68,6 +76,10 @@ export default async function EnsemblesPage() {
       {!error && (
         <BioSelectionProvider>
           <div className="mt-6">
+            <div className="mb-4 flex gap-2">
+              <Link href="/ensembles?ansicht=aktiv" className={`px-3 py-1.5 text-sm ${ansicht !== "technisch" ? "bg-[#0071e3] text-white" : "bg-neutral-100 text-neutral-600"}`}>Aktive Ensembles</Link>
+              <Link href="/ensembles?ansicht=technisch" className={`px-3 py-1.5 text-sm ${ansicht === "technisch" ? "bg-amber-600 text-white" : "bg-neutral-100 text-neutral-600"}`}>Technische Sammelbegriffe</Link>
+            </div>
             <div className="flex items-center justify-between">
               <TableSearchFilter containerId="ensembles-table" placeholder="Name durchsuchen…" />
               <BioSelectMissingButton ids={missingBioIds} />
@@ -103,7 +115,12 @@ export default async function EnsemblesPage() {
                         <td className="px-4 py-3">
                           <BioRowCheckbox id={ensemble.id} />
                         </td>
-                        <td className="px-4 py-3 font-medium text-neutral-900">{ensemble.name}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <ListThumbnail src={ensemble.photo_url} alt={ensemble.name} />
+                            <div><span className="font-medium text-neutral-900">{ensemble.name}</span><div className="mt-1 flex flex-wrap gap-1">{ensemble.is_family_root && <span className="type-label border border-violet-200 bg-violet-50 px-1.5 py-0.5 !text-violet-700">Dachorganisation</span>}{ensemble.parent_ensemble_id && <span className="type-label border border-blue-200 bg-blue-50 px-1.5 py-0.5 !text-blue-700">Unterensemble</span>}{ensemble.is_resolution_placeholder && <span className="type-label border border-amber-200 bg-amber-50 px-1.5 py-0.5 !text-amber-700">Sammelbegriff</span>}</div></div>
+                          </div>
+                        </td>
                         <td className="px-4 py-3 text-neutral-600">
                           {TYPE_LABEL[ensemble.type] ?? ensemble.type}
                         </td>

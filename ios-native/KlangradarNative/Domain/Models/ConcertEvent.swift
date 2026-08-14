@@ -229,6 +229,19 @@ struct ParticipantPhoto: Codable, Hashable, Sendable {
 
 enum FlexibleDateParser {
     static func date(from value: String) -> Date? {
+        // Postgres-`date`-Spalten (z. B. profiles.birth_date) kommen ohne
+        // Uhrzeit als "yyyy-MM-dd". ISO8601DateFormatter akzeptiert dieses
+        // Format nicht und ließ deshalb einen korrekt gespeicherten
+        // Geburtstag beim nächsten Laden wieder wie `nil` aussehen.
+        if value.count == 10 {
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.calendar = KlangradarDateTime.calendar
+            formatter.timeZone = KlangradarDateTime.timeZone
+            formatter.dateFormat = "yyyy-MM-dd"
+            if let date = formatter.date(from: value) { return date }
+        }
+
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         if let date = formatter.date(from: value) {

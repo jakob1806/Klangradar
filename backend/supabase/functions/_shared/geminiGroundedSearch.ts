@@ -36,6 +36,65 @@ export interface GeminiGroundedResult {
   title: string | null;
 }
 
+export interface GeminiGroundedResearch {
+  text: string;
+  sources: GeminiGroundedResult[];
+  searchQueries: string[];
+}
+
+/** Lässt Gemini die Webrecherche selbst durchführen und behält – anders als
+ * searchViaGeminiGrounding() – auch die auf Basis der Google-Treffer
+ * erzeugte, belegte Rechercheantwort. Das ist für redaktionelle Fragen
+ * wichtig: Ein bloßer URL-Fund plus eigener fetchPageText kann an
+ * robots.txt, JavaScript-Seiten oder Paywalls scheitern, obwohl Gemini den
+ * Suchtreffer bereits lesen und zusammenfassen konnte. */
+export async function researchViaGeminiGrounding(
+  apiKey: string,
+  prompt: string,
+): Promise<GeminiGroundedResearch | null> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 25000);
+  let res: Response;
+  try {
+    res = await fetch(`${GEMINI_API_BASE}/${GEMINI_MODEL}:generateContent`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
+      body: JSON.stringify({
+        tools: [{ google_search: {} }],
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.1 },
+      }),
+      signal: controller.signal,
+    });
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+  if (!res.ok) return null;
+  // deno-lint-ignore no-explicit-any
+  let data: any;
+  try { data = await res.json(); } catch { return null; }
+  const candidate = data?.candidates?.[0];
+  const text = Array.isArray(candidate?.content?.parts)
+    // deno-lint-ignore no-explicit-any
+    ? candidate.content.parts.map((p: any) => typeof p?.text === "string" ? p.text : "").join("\n").trim()
+    : "";
+  const chunks = candidate?.groundingMetadata?.groundingChunks;
+  const sources: GeminiGroundedResult[] = Array.isArray(chunks)
+    // deno-lint-ignore no-explicit-any
+    ? chunks.filter((c: any) => typeof c?.web?.uri === "string").map((c: any) => ({
+      url: c.web.uri as string,
+      title: typeof c.web.title === "string" ? c.web.title : null,
+    }))
+    : [];
+  const searchQueries = Array.isArray(candidate?.groundingMetadata?.webSearchQueries)
+    ? candidate.groundingMetadata.webSearchQueries.filter((q: unknown): q is string => typeof q === "string")
+    : [];
+  if (!text && sources.length === 0) return null;
+  return { text, sources: [...new Map(sources.map((s) => [s.url, s])).values()], searchQueries };
+}
+
 /** Führt `query` über Geminis Google-Search-Grounding aus und gibt die
  * tatsächlich zitierten Quellen-URLs zurück (nicht die generierte
  * Textantwort), oder null bei jedem Fehler (Netzwerk, HTTP-Fehler,

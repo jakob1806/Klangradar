@@ -11,6 +11,8 @@ import {
   recheckGalleryImage,
   rejectGalleryImage,
   saveGalleryImageCrop,
+  setEventFallbackImage,
+  setGalleryImageVenue,
   setPrimaryGalleryImage,
   type GalleryImage,
   type GalleryOriginType,
@@ -49,16 +51,37 @@ export function GalleryEditor({
   originId,
   path,
   images,
+  onChanged,
+  venueId = null,
+  venues,
+  showEventFallbackToggle = false,
 }: {
   originType: GalleryOriginType;
   originId: string;
   path: string;
   images: GalleryImage[];
+  /** Optional: wird nach jeder erfolgreichen Änderung aufgerufen — nötig für
+   * Aufrufer, die `images` nicht aus einem serverseitig gerenderten Baum
+   * beziehen (revalidatePath() aktualisiert dann nichts von selbst), z.B.
+   * die manuelle Werk-Bild-Verknüpfung auf /work-image-reuse. */
+  onChanged?: () => void;
+  /** Nur für originType "work": Venue, die NEU hinzugefügten Bildern
+   * zugeordnet wird (null = werkweit, jede Venue). */
+  venueId?: string | null;
+  /** Nur für originType "work": Liste zur Auswahl, gleichzeitig das Signal,
+   * den Venue-Selector pro Bild überhaupt anzuzeigen. */
+  venues?: { id: string; name: string }[];
+  /** Nur für originType "person"/"ensemble": zeigt pro Bild einen Umschalter
+   * "Als Veranstaltungs-Standardbild verwenden" (siehe
+   * setEventFallbackImage()). */
+  showEventFallbackToggle?: boolean;
 }) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cropTarget, setCropTarget] = useState<GalleryImage | null>(null);
   const [pending, startTransition] = useTransition();
+  const [linkUrl, setLinkUrl] = useState("");
+  const [addingLink, setAddingLink] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -93,7 +116,8 @@ export function GalleryEditor({
         if (uploadError) throw uploadError;
 
         const { data } = supabase.storage.from(BUCKET).getPublicUrl(path_);
-        await addGalleryImage(originType, originId, data.publicUrl, path);
+        await addGalleryImage(originType, originId, data.publicUrl, path, venueId);
+        onChanged?.();
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Upload fehlgeschlagen.");
@@ -103,10 +127,34 @@ export function GalleryEditor({
     }
   }
 
+  async function handleAddLink() {
+    const url = linkUrl.trim();
+    if (!url) return;
+    setError(null);
+    setAddingLink(true);
+    try {
+      new URL(url);
+    } catch {
+      setError(`"${url}" ist keine gültige URL.`);
+      setAddingLink(false);
+      return;
+    }
+    try {
+      await addGalleryImage(originType, originId, url, path, venueId);
+      setLinkUrl("");
+      onChanged?.();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Verknüpfen fehlgeschlagen.");
+    } finally {
+      setAddingLink(false);
+    }
+  }
+
   function handleDelete(imageId: string) {
     startTransition(async () => {
       try {
         await deleteGalleryImage(imageId, path);
+        onChanged?.();
       } catch (e) {
         setError(e instanceof Error ? e.message : "Löschen fehlgeschlagen.");
       }
@@ -117,6 +165,7 @@ export function GalleryEditor({
     startTransition(async () => {
       try {
         await moveGalleryImage(originType, originId, imageId, direction, path);
+        onChanged?.();
       } catch (e) {
         setError(e instanceof Error ? e.message : "Verschieben fehlgeschlagen.");
       }
@@ -127,6 +176,7 @@ export function GalleryEditor({
     startTransition(async () => {
       try {
         await setPrimaryGalleryImage(originType, originId, imageId, path);
+        onChanged?.();
       } catch (e) {
         setError(e instanceof Error ? e.message : "Als Miniaturansicht festlegen fehlgeschlagen.");
       }
@@ -137,6 +187,7 @@ export function GalleryEditor({
     startTransition(async () => {
       try {
         await confirmGalleryImage(imageId, path);
+        onChanged?.();
       } catch (e) {
         setError(e instanceof Error ? e.message : "Bestätigen fehlgeschlagen.");
       }
@@ -147,6 +198,7 @@ export function GalleryEditor({
     startTransition(async () => {
       try {
         await rejectGalleryImage(imageId, path);
+        onChanged?.();
       } catch (e) {
         setError(e instanceof Error ? e.message : "Ablehnen fehlgeschlagen.");
       }
@@ -157,6 +209,7 @@ export function GalleryEditor({
     startTransition(async () => {
       try {
         await markGalleryImageTooSmall(imageId, path);
+        onChanged?.();
       } catch (e) {
         setError(e instanceof Error ? e.message : "Markieren fehlgeschlagen.");
       }
@@ -167,8 +220,31 @@ export function GalleryEditor({
     startTransition(async () => {
       try {
         await recheckGalleryImage(imageId, path);
+        onChanged?.();
       } catch (e) {
         setError(e instanceof Error ? e.message : "Erneute Prüfung fehlgeschlagen.");
+      }
+    });
+  }
+
+  function handleSetVenue(imageId: string, newVenueId: string) {
+    startTransition(async () => {
+      try {
+        await setGalleryImageVenue(imageId, newVenueId || null, path);
+        onChanged?.();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Venue-Zuordnung fehlgeschlagen.");
+      }
+    });
+  }
+
+  function handleToggleEventFallback(imageId: string, flag: boolean) {
+    startTransition(async () => {
+      try {
+        await setEventFallbackImage(originType, originId, imageId, flag, path);
+        onChanged?.();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Standardbild-Markierung fehlgeschlagen.");
       }
     });
   }
@@ -206,6 +282,25 @@ export function GalleryEditor({
         </div>
       </div>
 
+      <div className="flex items-center gap-2">
+        <input
+          type="url"
+          value={linkUrl}
+          onChange={(e) => setLinkUrl(e.target.value)}
+          placeholder="Bild-URL einfügen…"
+          disabled={addingLink}
+          className="w-full max-w-xs rounded-md border border-neutral-300 px-2 py-1 text-xs disabled:opacity-50"
+        />
+        <button
+          type="button"
+          disabled={addingLink || !linkUrl.trim()}
+          onClick={handleAddLink}
+          className="shrink-0 rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+        >
+          {addingLink ? "Fügt hinzu…" : "Per Link hinzufügen"}
+        </button>
+      </div>
+
       {error && <p className="text-xs text-red-600">{error}</p>}
 
       {sorted.length === 0 ? (
@@ -240,7 +335,39 @@ export function GalleryEditor({
                       {reviewBadge.label}
                     </span>
                   )}
+                  {image.use_as_event_fallback && (
+                    <span className="w-fit rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-medium text-violet-800">
+                      Veranstaltungs-Standardbild
+                    </span>
+                  )}
                 </div>
+                {venues && (
+                  <select
+                    value={image.venue_id ?? ""}
+                    disabled={pending}
+                    onChange={(e) => handleSetVenue(image.id, e.target.value)}
+                    className="rounded-md border border-neutral-300 px-1.5 py-1 text-[11px] disabled:opacity-50"
+                  >
+                    <option value="">Alle Venues (werkweit)</option>
+                    {venues.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {showEventFallbackToggle && (
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => handleToggleEventFallback(image.id, !image.use_as_event_fallback)}
+                    className="w-fit text-[11px] font-medium text-violet-700 hover:text-violet-900 disabled:opacity-50"
+                  >
+                    {image.use_as_event_fallback
+                      ? "Nicht mehr als Veranstaltungs-Standardbild verwenden"
+                      : "Als Veranstaltungs-Standardbild verwenden"}
+                  </button>
+                )}
                 {(image.source_name || image.confidence_score != null) && (
                   <p className="truncate text-[10px] text-neutral-400" title={image.source_name ?? undefined}>
                     {image.source_name}

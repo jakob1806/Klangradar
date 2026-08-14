@@ -15,7 +15,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { logSystemAction } from "@/lib/system-log";
 
-export type GalleryOriginType = "person" | "ensemble" | "event" | "venue";
+export type GalleryOriginType = "person" | "ensemble" | "event" | "venue" | "work";
 
 export interface GalleryCrop {
   x: number;
@@ -48,6 +48,14 @@ export interface GalleryImage {
   license_status: string | null;
   last_checked_at: string | null;
   warnings: string[] | null;
+  /** Nur bei originType "work" befüllt/angezeigt — bindet das Bild an eine
+   * bestimmte Venue (z.B. Zauberflöte NUR am Nationaltheater) statt werkweit
+   * für jede Venue zu gelten (null). */
+  venue_id?: string | null;
+  /** Nur bei originType "person"/"ensemble" — als Standardbild für alle
+   * Veranstaltungen dieser Entität ohne eigenes Bild markiert, siehe
+   * setEventFallbackImage(). */
+  use_as_event_fallback?: boolean;
 }
 
 export async function addGalleryImage(
@@ -55,6 +63,7 @@ export async function addGalleryImage(
   originId: string,
   sourceUrl: string,
   path: string,
+  venueId?: string | null,
 ) {
   const supabase = await createClient();
 
@@ -73,6 +82,7 @@ export async function addGalleryImage(
     origin_type: originType,
     origin_id: originId,
     source_url: sourceUrl,
+    venue_id: venueId ?? null,
     // NICHT storage_path: sourceUrl — storage_path wird von der App
     // (entity_gallery_providers.dart) als RELATIVER Pfad INNERHALB des
     // "ingested-images"-Buckets interpretiert (getPublicUrl(storagePath)).
@@ -348,4 +358,47 @@ export async function recheckGalleryImage(imageId: string, path: string): Promis
 
   revalidatePath(path);
   return quality;
+}
+
+/** Bindet ein bereits verknüpftes Werk-Bild nachträglich an eine bestimmte
+ * Venue (oder löst die Bindung mit venueId=null wieder, dann gilt es wieder
+ * werkweit) — Nutzervorgabe "Zauberflöte an der Bayerischen Staatsoper" vs.
+ * "das Bild für das Werk, egal an welcher Venue". */
+export async function setGalleryImageVenue(imageId: string, venueId: string | null, path: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("images").update({ venue_id: venueId }).eq("id", imageId);
+  if (error) throw new Error(error.message);
+  revalidatePath(path);
+}
+
+/** Markiert ein Galeriebild als Standardbild für alle Veranstaltungen dieser
+ * Person/dieses Ensembles ohne eigenes Bild (write.ts ensureEntityCoverImage
+ * bevorzugt es dann vor dem allgemeinen photo_url-Profilfoto). Höchstens
+ * eines pro Entität — der Partial-Unique-Index (siehe Migration
+ * 20261013000011) erzwingt das auch auf DB-Ebene, hier zusätzlich explizit
+ * erst die alte Markierung lösen, damit kein Unique-Constraint-Fehler bei
+ * zwei parallelen Updates entsteht. flag=false entfernt die Markierung
+ * wieder (dann greift wieder photo_url). */
+export async function setEventFallbackImage(
+  originType: GalleryOriginType,
+  originId: string,
+  imageId: string,
+  flag: boolean,
+  path: string,
+) {
+  const supabase = await createClient();
+  const { error: clearError } = await supabase
+    .from("images")
+    .update({ use_as_event_fallback: false })
+    .eq("origin_type", originType)
+    .eq("origin_id", originId)
+    .eq("use_as_event_fallback", true);
+  if (clearError) throw new Error(clearError.message);
+
+  if (flag) {
+    const { error } = await supabase.from("images").update({ use_as_event_fallback: true }).eq("id", imageId);
+    if (error) throw new Error(error.message);
+  }
+
+  revalidatePath(path);
 }

@@ -598,22 +598,21 @@ Deno.serve(async (req) => {
     // heißt "unbekannt, bereits als entity_candidate geflaggt" — auch das
     // wird gecacht, um nicht zweimal denselben Kandidaten anzulegen.
     const personCache = new Map<string, string | null>();
-    const ensembleCache = new Map<string, string | null>();
+    const ensembleCache = new Map<string, string[] | null>();
 
-    // Unbekannte Namen werden NICHT mehr ungeprüft in persons/ensembles
-    // angelegt (das hat früher ohne jede Prüfung neue Stammdaten erzeugt).
-    // ABER: wenn die Tavily+LLM-Anreicherung (enrichCandidateContext) mit
-    // confident=true eindeutig bestätigt, dass der Name zu einem/einer
-    // echten klassischen Musiker*in/Ensemble gehört, UND es keinen
-    // ambivalenten possibleMatch (Namensvetter-Risiko) gibt, legt die KI
-    // den Stammdaten-Eintrag selbst an, statt ihn liegen zu lassen — das
-    // war laut Nutzer-Feedback zu viel manueller Aufwand für eindeutige
-    // Fälle. Bleibt trotzdem konservativ: bei jeder Unklarheit (nicht
-    // confident, oder ein möglicher Namensvetter bereits bekannt) landet
-    // der Kandidat wie bisher als entity_candidates zur redaktionellen
-    // Freigabe (siehe 20260818000004_entity_candidates.sql). Rückgabe null
-    // heißt "noch keine ID verfügbar" — der Aufrufer verknüpft dann (noch)
-    // nichts.
+    // Personen (entityType "person") werden bei einem neuen Namen IMMER
+    // automatisch angelegt, sobald kein Namensvetter-Risiko (possibleMatch)
+    // besteht — die explizite Redaktions-Freigabe für neu importierte
+    // Künstler:innen entfällt (Nutzer-Feedback: zu viel manueller Aufwand).
+    // Die Tavily+LLM-Anreicherung (enrichCandidateContext) wird weiterhin
+    // versucht und liefert, falls vorhanden, Bio-Snippet/Website-URL mit,
+    // ist aber keine Voraussetzung mehr fürs Anlegen. Ensembles bleiben auf
+    // dem konservativen Pfad: dort ist weiterhin eine bestätigende
+    // Anreicherung nötig. Bei jedem Namensvetter-Risiko (möglicher
+    // Verwechslung mit bestehender Person/Ensemble) landet der Kandidat wie
+    // bisher als entity_candidates zur redaktionellen Freigabe (siehe
+    // 20260818000004_entity_candidates.sql). Rückgabe null heißt "noch
+    // keine ID verfügbar" — der Aufrufer verknüpft dann (noch) nichts.
     async function flagEntityCandidate(
       entityType: "person" | "ensemble",
       name: string,
@@ -636,8 +635,17 @@ Deno.serve(async (req) => {
 
       const enrichment = await enrichCandidateContext(entityType, name);
 
-      if (enrichment && !possibleMatch) {
-        const newId = await autoCreateEntity(entityType, name, enrichment);
+      // Für Personen entfällt die explizite Redaktions-Freigabe komplett
+      // (Nutzer-Feedback: zu viel manueller Aufwand) — auch ohne
+      // bestätigende Anreicherung wird direkt angelegt, solange kein
+      // Namensvetter-Risiko besteht. Ensembles bleiben auf dem
+      // konservativen Pfad (Anreicherungs-Bestätigung nötig).
+      if (!possibleMatch && (entityType === "person" || enrichment)) {
+        const newId = await autoCreateEntity(
+          entityType,
+          name,
+          enrichment ?? { bioSnippet: null, websiteUrl: null },
+        );
         if (newId) return newId;
         // Anlegen fehlgeschlagen (z.B. Slug-Kollision, DB-Fehler) — als
         // Fallback trotzdem als Kandidat parken statt den Namen zu verlieren.
@@ -800,6 +808,10 @@ Deno.serve(async (req) => {
         similarity: number;
       } | undefined;
       if (bestMatch && bestMatch.similarity >= FUZZY_AUTO_THRESHOLD) {
+        await supabase.from("entity_aliases").upsert(
+          { entity_type: "person", entity_id: bestMatch.id, alias: name.trim() },
+          { onConflict: "entity_type,entity_id,alias_normalized" },
+        );
         await logSystemAction(
           supabase,
           "person",
@@ -858,6 +870,21 @@ Deno.serve(async (req) => {
         return existing.id;
       }
 
+      // Auch offizielle Programme verwenden häufig nur den Nachnamen oder
+      // leicht verkürzte Vornamen ("Rossini", "Wolfgang Amade Mozart").
+      // Vor dem Anlegen deshalb immer den zentralen, eindeutigkeits-
+      // gesicherten Komponisten-Matcher verwenden.
+      const { data: composerMatches } = await supabase.rpc("find_matching_person", { p_name: trimmed });
+      const composerMatch = composerMatches?.[0] as { id: string; full_name: string; similarity: number } | undefined;
+      if (composerMatch && composerMatch.similarity >= FUZZY_AUTO_THRESHOLD) {
+        personCache.set(key, composerMatch.id);
+        await supabase.from("entity_aliases").upsert({ entity_type: "person", entity_id: composerMatch.id, alias: trimmed }, { onConflict: "entity_type,entity_id,alias_normalized" });
+        await logSystemAction(supabase, "person", composerMatch.id, "composer_alias_auto_link", {
+          matched_name: trimmed, linked_to: composerMatch.full_name, similarity: composerMatch.similarity, event_id: event.id,
+        });
+        return composerMatch.id;
+      }
+
       // Nur Vor- und Nachname (mindestens zwei Wörter), niemals einen bloßen
       // Nachnamen automatisch als neue Person anlegen.
       if (trimmed.split(/\s+/).length < 2) {
@@ -898,17 +925,32 @@ Deno.serve(async (req) => {
     async function getOrCreateEnsemble(
       name: string,
       _type: string | null,
-    ): Promise<string | null> {
+    ): Promise<string[] | null> {
       const key = name.toLowerCase();
       if (ensembleCache.has(key)) return ensembleCache.get(key) ?? null;
+      const { data: resolvedEntities } = await supabase.rpc(
+        "resolve_ensemble_entities",
+        { p_name: name },
+      );
+      if (resolvedEntities?.some((row: { resolution: string }) => ["ignore", "ambiguous"].includes(row.resolution))) {
+        ensembleCache.set(key, []);
+        return [];
+      }
+      const resolvedIDs = (resolvedEntities ?? [])
+        .map((row: { id: string | null }) => row.id)
+        .filter((id: string | null): id is string => id !== null);
+      if (resolvedIDs.length > 0) {
+        ensembleCache.set(key, resolvedIDs);
+        return resolvedIDs;
+      }
       const { data: existing } = await supabase
         .from("ensembles")
         .select("id")
         .ilike("name", name)
         .maybeSingle();
       if (existing) {
-        ensembleCache.set(key, existing.id);
-        return existing.id;
+        ensembleCache.set(key, [existing.id]);
+        return [existing.id];
       }
 
       const { data: fuzzyMatches } = await supabase.rpc(
@@ -921,6 +963,10 @@ Deno.serve(async (req) => {
         similarity: number;
       } | undefined;
       if (bestMatch && bestMatch.similarity >= FUZZY_AUTO_THRESHOLD) {
+        await supabase.from("entity_aliases").upsert(
+          { entity_type: "ensemble", entity_id: bestMatch.id, alias: name.trim() },
+          { onConflict: "entity_type,entity_id,alias_normalized" },
+        );
         await logSystemAction(
           supabase,
           "ensemble",
@@ -933,8 +979,8 @@ Deno.serve(async (req) => {
             event_id: event.id,
           },
         );
-        ensembleCache.set(key, bestMatch.id);
-        return bestMatch.id;
+        ensembleCache.set(key, [bestMatch.id]);
+        return [bestMatch.id];
       }
 
       const autoCreatedId = await flagEntityCandidate(
@@ -949,8 +995,8 @@ Deno.serve(async (req) => {
           : undefined,
       );
       if (autoCreatedId) {
-        ensembleCache.set(key, autoCreatedId);
-        return autoCreatedId;
+        ensembleCache.set(key, [autoCreatedId]);
+        return [autoCreatedId];
       }
       ensemblesFlagged++;
       ensembleCache.set(key, null);
@@ -1101,6 +1147,12 @@ Deno.serve(async (req) => {
         if (existingWork || fuzzyIsSameWork) {
           const matched = existingWork ?? fuzzyMatch!;
           workId = matched.id;
+          if (normalizeTitleForMatch(matched.title) !== w.title.trim().toLowerCase()) {
+            await supabase.from("entity_aliases").upsert(
+              { entity_type: "work", entity_id: workId, alias: w.title.trim() },
+              { onConflict: "entity_type,entity_id,alias_normalized" },
+            );
+          }
           // Opus/Tonart/Komponist nur NACHTRÄGLICH ergänzen, wenn das Werk
           // sie noch nicht hat — nie eine bereits vorhandene (ggf.
           // redaktionell gepflegte) Angabe überschreiben. composer_id fehlte
@@ -1246,14 +1298,14 @@ Deno.serve(async (req) => {
       for (const [i, p] of extracted.participants.entries()) {
         if (!p.name?.trim()) continue;
         const isEnsemble = p.type === "ensemble";
-        const entityId = isEnsemble
+        const entityIDs = isEnsemble
           ? await getOrCreateEnsemble(p.name.trim(), p.ensembleType ?? null)
-          : await getOrCreatePerson(p.name.trim());
+          : [await getOrCreatePerson(p.name.trim())].filter((id): id is string => id !== null);
 
         // Unbekannter Act — als entity_candidate geflaggt, aber noch keine
         // ID vorhanden. Verknüpfung unterbleibt bis zur Freigabe (siehe
         // getOrCreatePerson/getOrCreateEnsemble oben); kein Fehler.
-        if (entityId === null) continue;
+        if (entityIDs === null || entityIDs.length === 0) continue;
 
         // Existenzprüfung wie bei event_works oben — ohne die legt ein
         // erneuter Lauf für dasselbe Event (z.B. nach einem gezielten
@@ -1262,29 +1314,31 @@ Deno.serve(async (req) => {
         // Eintrag für dieselbe Person/dasselbe Ensemble an — genau das ist
         // hier passiert und zeigte sich als doppelte "Mitwirkende"-Chips
         // in der App.
-        const { data: existingParticipant } = await supabase
-          .from("event_participants")
-          .select("id")
-          .eq("event_id", event.id)
-          .eq(isEnsemble ? "ensemble_id" : "person_id", entityId)
-          .maybeSingle();
-        if (existingParticipant) continue;
+        for (const [resolvedIndex, entityId] of entityIDs.entries()) {
+          const { data: existingParticipant } = await supabase
+            .from("event_participants")
+            .select("id")
+            .eq("event_id", event.id)
+            .eq(isEnsemble ? "ensemble_id" : "person_id", entityId)
+            .maybeSingle();
+          if (existingParticipant) continue;
 
-        const { error: linkError } = await supabase
-          .from("event_participants")
-          .insert({
-            event_id: event.id,
-            person_id: isEnsemble ? null : entityId,
-            ensemble_id: isEnsemble ? entityId : null,
-            role: p.role ?? null,
-            display_order: i,
-          });
-        if (linkError) {
-          throw new Error(
-            `event_participants link "${p.name}": ${linkError.message}`,
-          );
+          const { error: linkError } = await supabase
+            .from("event_participants")
+            .insert({
+              event_id: event.id,
+              person_id: isEnsemble ? null : entityId,
+              ensemble_id: isEnsemble ? entityId : null,
+              role: p.role ?? null,
+              display_order: i + resolvedIndex,
+            });
+          if (linkError) {
+            throw new Error(
+              `event_participants link "${p.name}": ${linkError.message}`,
+            );
+          }
+          linksCreated++;
         }
-        linksCreated++;
       }
 
       for (const tagName of extracted.tags) {

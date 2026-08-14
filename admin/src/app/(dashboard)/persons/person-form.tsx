@@ -6,6 +6,7 @@ import { ImageUploadField } from "@/components/image-upload-field";
 import { AvatarCropButton } from "@/components/entity-gallery/avatar-crop-button";
 import type { CropRect } from "@/components/entity-gallery/crop-math";
 import { SubmitButton } from "@/components/submit-button";
+import { TagInput } from "@/components/tag-input";
 
 function slugify(value: string) {
   return value
@@ -18,12 +19,19 @@ function slugify(value: string) {
     .replace(/(^-|-$)/g, "");
 }
 
-const ROLE_OPTIONS = [
+// Nur Schnellauswahl-Vorschläge im TagInput unten — persons.roles ist seit
+// der Umstellung von einem festen Enum auf text[] (Nutzervorgabe, siehe
+// 20261013000014_persons_roles_free_text.sql) keine geschlossene Liste mehr,
+// z.B. "regisseur" oder "schauspieler" sind genauso gültig.
+const ROLE_SUGGESTIONS = [
   { value: "komponist", label: "Komponist:in" },
   { value: "dirigent", label: "Dirigent:in" },
   { value: "solist", label: "Solist:in" },
   { value: "chorleiter", label: "Chorleiter:in" },
   { value: "moderator", label: "Moderator:in" },
+  { value: "regisseur", label: "Regisseur:in" },
+  { value: "schauspieler", label: "Schauspieler:in" },
+  { value: "choreograf", label: "Choreograf:in" },
 ];
 
 export interface PersonFormValues {
@@ -127,19 +135,12 @@ export function PersonForm({
       </Field>
 
       <Field label="Rollen">
-        <div className="flex flex-wrap gap-x-4 gap-y-2 border border-neutral-300 px-3 py-2.5">
-          {ROLE_OPTIONS.map((r) => (
-            <label key={r.value} className="flex items-center gap-1.5 text-sm text-neutral-700">
-              <input
-                type="checkbox"
-                name="roles"
-                value={r.value}
-                defaultChecked={initial?.roles.includes(r.value)}
-              />
-              {r.label}
-            </label>
-          ))}
-        </div>
+        <TagInput
+          name="roles"
+          defaultValue={initial?.roles ?? []}
+          suggestions={ROLE_SUGGESTIONS}
+          placeholder="Rolle eingeben und Enter/Komma drücken…"
+        />
       </Field>
 
       <Field label="Instrument (bei Solist:innen)">

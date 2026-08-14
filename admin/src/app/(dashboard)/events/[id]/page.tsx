@@ -5,6 +5,7 @@ import { DeleteButton } from "@/components/delete-button";
 import { GalleryEditor } from "@/components/entity-gallery/gallery-editor";
 import { AiEnrichButton } from "@/components/ai-enrich-button";
 import { EntityAuditButton } from "@/components/entity-audit-button";
+import { EditorialAiAssistant } from "@/components/editorial-ai-assistant";
 import type { GalleryImage } from "@/lib/gallery-actions";
 import { deleteEvent, updateEvent } from "../actions";
 import { EventForm, type EventFormValues } from "../event-form";
@@ -115,6 +116,7 @@ export default async function EditEventPage({
         <AiEnrichButton entityType="event" entityId={id} />
         <EntityAuditButton entityType="event" entityId={id} />
       </div>
+      <div className="mt-4"><EditorialAiAssistant entityType="event" entityId={id} /></div>
       {group && (
         <div className="mt-4 flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm">
           <span className="text-amber-800">

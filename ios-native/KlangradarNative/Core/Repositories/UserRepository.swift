@@ -9,9 +9,9 @@ struct NotificationPreferences: Sendable {
 }
 
 enum InterestCategory: String, CaseIterable, Sendable {
-    case genre, person, ensemble, venue
-    var title: String { switch self { case .genre: "Genres"; case .person: "Personen"; case .ensemble: "Ensembles"; case .venue: "Orte" } }
-    var systemImage: String { switch self { case .genre: "music.quarternote.3"; case .person: "person"; case .ensemble: "person.3"; case .venue: "building.columns" } }
+    case genre, work, person, ensemble, venue
+    var title: String { switch self { case .genre: "Genres"; case .work: "Werke"; case .person: "Personen"; case .ensemble: "Ensembles"; case .venue: "Orte" } }
+    var systemImage: String { switch self { case .genre: "music.quarternote.3"; case .work: "music.note.list"; case .person: "person"; case .ensemble: "person.3"; case .venue: "building.columns" } }
 }
 struct InterestOption: Identifiable, Hashable, Sendable { let id: String; let label: String }
 
@@ -123,7 +123,10 @@ struct UserRepository: Sendable {
 
     func favoriteEvents(userID: UUID, token: String) async throws -> [ConcertEvent] {
         let rows: [JSONObject] = try await client.get(table: "favorites", queryItems: [
-            URLQueryItem(name: "select", value: "events(id,slug,title,subtitle,start_datetime,image_urls,status,venues(id,name))"),
+            URLQueryItem(
+                name: "select",
+                value: "events(id,slug,title,subtitle,start_datetime,image_urls,status,category,is_free,venues(id,name,photo_url),event_genres(genres(id,slug,label_de)),event_participants(persons(id,full_name,photo_url),ensembles(id,name,photo_url)))"
+            ),
             URLQueryItem(name: "user_id", value: "eq.\(userID.uuidString)")
         ], accessToken: token)
         return rows.compactMap { $0.object("events") }.compactMap(ConcertEvent.init(json:))
@@ -273,6 +276,7 @@ struct UserRepository: Sendable {
         let specification: (String, String, String)
         switch category {
         case .genre: specification = ("genres", "id,label_de", "sort_order")
+        case .work: specification = ("works", "id,title,composer:persons(full_name)", "title")
         case .person: specification = ("persons", "id,full_name", "full_name")
         case .ensemble: specification = ("ensembles", "id,name", "name")
         case .venue: specification = ("venues", "id,name", "name")
@@ -289,7 +293,18 @@ struct UserRepository: Sendable {
             rows.append(contentsOf: page)
             if page.count < pageSize { break }
         }
-        return rows.compactMap { row in guard let id = row.string("id"), let label = row.string("label_de") ?? row.string("full_name") ?? row.string("name") else { return nil }; return InterestOption(id: id, label: label) }
+        return rows.compactMap { row in
+            guard let id = row.string("id"),
+                  let baseLabel = row.string("label_de") ?? row.string("title") ?? row.string("full_name") ?? row.string("name")
+            else { return nil }
+            let label: String
+            if category == .work, let composer = row.object("composer")?.string("full_name") {
+                label = "\(baseLabel) — \(composer)"
+            } else {
+                label = baseLabel
+            }
+            return InterestOption(id: id, label: label)
+        }
             .sorted { $0.label.localizedStandardCompare($1.label) == .orderedAscending }
     }
 
@@ -337,7 +352,7 @@ struct UserRepository: Sendable {
     }
 
     private func interestStorage(_ category: InterestCategory) -> (String, String) {
-        switch category { case .genre: ("profile_interest_genres", "genre_id"); case .person: ("user_favorite_persons", "person_id"); case .ensemble: ("user_favorite_ensembles", "ensemble_id"); case .venue: ("user_favorite_venues", "venue_id") }
+        switch category { case .genre: ("profile_interest_genres", "genre_id"); case .work: ("user_favorite_works", "work_id"); case .person: ("user_favorite_persons", "person_id"); case .ensemble: ("user_favorite_ensembles", "ensemble_id"); case .venue: ("user_favorite_venues", "venue_id") }
     }
 }
 

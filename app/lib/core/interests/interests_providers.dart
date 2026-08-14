@@ -49,6 +49,8 @@ final ensembleOptionsProvider =
       final rows = await Supabase.instance.client
           .from('ensembles')
           .select('id, name')
+          .eq('is_resolution_placeholder', false)
+          .eq('is_family_root', false)
           .order('name', ascending: true);
       return (rows as List)
           .map(

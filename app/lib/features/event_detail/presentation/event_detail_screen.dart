@@ -296,9 +296,10 @@ class EventDetailScreen extends ConsumerWidget {
               (event['accessibility'] as Map<String, dynamic>?) ?? {};
           final statusBadge = _statusLabels(l10n)[event['status']];
           final imageUrls = event['image_urls'] as List?;
-          final photoUrl = (imageUrls != null && imageUrls.isNotEmpty)
+          final eventPhotoUrl = (imageUrls != null && imageUrls.isNotEmpty)
               ? imageUrls.first as String?
               : null;
+          final photoUrl = eventPhotoUrl ?? venue?['photo_url'] as String?;
           final gallery = ref.watch(
             entityGalleryProvider((
               originType: 'event',
@@ -331,6 +332,14 @@ class EventDetailScreen extends ConsumerWidget {
             fallbackGalleryKey = (originType: parts[0], originId: parts[1]);
           } else if (workIds.length == 1) {
             fallbackGalleryKey = (originType: 'work', originId: workIds.first);
+          } else if (venue?['id'] != null) {
+            // Letzte Stufe: hochauflösende Venue-Galerie. Der Provider
+            // schließt low_resolution explizit aus; photo_url bleibt unten
+            // nur als Altbestands-Fallback, falls keine Galerie existiert.
+            fallbackGalleryKey = (
+              originType: 'venue',
+              originId: venue!['id'] as String,
+            );
           }
           final fallbackGallery = fallbackGalleryKey != null
               ? ref.watch(entityGalleryProvider(fallbackGalleryKey))

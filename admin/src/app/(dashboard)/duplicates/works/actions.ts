@@ -93,7 +93,7 @@ export async function resolveWorkDuplicateAsMerged(candidateId: string, keepWork
     before: { deleted_work_id: workBId, kept_work_id: workAId },
   });
 
-  revalidatePath("/duplicates/works");
+  revalidatePath("/duplicates");
 }
 
 export async function resolveWorkDuplicateAsDistinct(candidateId: string) {
@@ -113,5 +113,32 @@ export async function resolveWorkDuplicateAsDistinct(candidateId: string) {
     actor: user?.email ?? user?.id ?? "unknown",
   });
 
-  revalidatePath("/duplicates/works");
+  revalidatePath("/duplicates");
+}
+
+/** Mehrfachauswahl-Variante für die konsolidierte Duplikate-Seite. */
+export async function resolveWorkDuplicatesAsDistinct(candidateIds: string[]): Promise<{ completed: number }> {
+  const uniqueIds = [...new Set(candidateIds)].slice(0, 200);
+  if (uniqueIds.length === 0) return { completed: 0 };
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("work_duplicate_candidates")
+    .update({ status: "dismissed", reviewed_at: new Date().toISOString() })
+    .in("id", uniqueIds)
+    .eq("status", "pending")
+    .select("id");
+  if (error) throw new Error(error.message);
+
+  const { data: { user } } = await supabase.auth.getUser();
+  for (const row of data ?? []) {
+    await logSystemAction(supabase, {
+      entityType: "work_duplicate_candidate",
+      entityId: row.id,
+      action: "dismissed",
+      actor: user?.email ?? user?.id ?? "unknown",
+    });
+  }
+
+  revalidatePath("/duplicates");
+  return { completed: data?.length ?? 0 };
 }

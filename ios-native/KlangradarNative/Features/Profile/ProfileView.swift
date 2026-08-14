@@ -82,6 +82,7 @@ struct ProfileView: View {
                         Text("Hell").tag("light")
                         Text("Dunkel").tag("dark")
                     }
+                    AccentColorSettingsView()
                 }
 
                 Section("Über Klangradar") {
@@ -139,6 +140,147 @@ struct ProfileView: View {
             Button("Erneut versuchen") {
                 Task { await auth.bootstrap() }
             }
+        }
+    }
+}
+
+private struct AccentColorSettingsView: View {
+    private struct AccentOption: Identifiable {
+        let name: String
+        let hex: String
+        var id: String { hex }
+    }
+
+    private static let suggestions: [AccentOption] = [
+        .init(name: "Klangradar Blau", hex: "#146194"),
+        .init(name: "Indigo", hex: "#5856D6"),
+        .init(name: "Violett", hex: "#AF52DE"),
+        .init(name: "Pink", hex: "#D94F70"),
+        .init(name: "Orange", hex: "#D96B2B"),
+        .init(name: "Grün", hex: "#248A5B"),
+        .init(name: "Türkis", hex: "#008C95")
+    ]
+
+    @AppStorage(KlangradarTheme.accentStorageKey) private var storedHex = KlangradarTheme.defaultAccentHex
+    @State private var draftHex: String
+    @FocusState private var hexFieldFocused: Bool
+
+    init() {
+        let current = UserDefaults.standard.string(forKey: KlangradarTheme.accentStorageKey)
+            ?? KlangradarTheme.defaultAccentHex
+        _draftHex = State(initialValue: current)
+    }
+
+    private var normalizedDraft: String? { KlangradarTheme.normalizedHex(draftHex) }
+    private var normalizedStored: String {
+        KlangradarTheme.normalizedHex(storedHex) ?? KlangradarTheme.defaultAccentHex
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Label("Akzentfarbe", systemImage: "paintpalette.fill")
+                Spacer()
+                Circle()
+                    .fill(KlangradarTheme.color(hex: normalizedStored) ?? KlangradarTheme.accent)
+                    .frame(width: 22, height: 22)
+                    .overlay { Circle().stroke(.white.opacity(0.8), lineWidth: 2) }
+                    .shadow(color: .black.opacity(0.12), radius: 3, y: 1)
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 13) {
+                    ForEach(Self.suggestions) { option in
+                        Button {
+                            apply(option.hex)
+                        } label: {
+                            VStack(spacing: 6) {
+                                ZStack {
+                                    Circle()
+                                        .fill(KlangradarTheme.color(hex: option.hex) ?? .clear)
+                                        .frame(width: 38, height: 38)
+                                    if normalizedStored == option.hex {
+                                        Image(systemName: "checkmark")
+                                            .font(.caption.bold())
+                                            .foregroundStyle(.white)
+                                    }
+                                }
+                                .overlay {
+                                    Circle().stroke(
+                                        normalizedStored == option.hex ? Color.primary.opacity(0.25) : Color.clear,
+                                        lineWidth: 3
+                                    ).padding(-3)
+                                }
+                                Text(option.name)
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                            .frame(width: 62)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(option.name)
+                        .accessibilityValue(normalizedStored == option.hex ? "Ausgewählt" : "")
+                    }
+                }
+                .padding(.horizontal, 3)
+                .padding(.vertical, 4)
+            }
+
+            ColorPicker(
+                "Farbe frei wählen",
+                selection: Binding(
+                    get: { KlangradarTheme.color(hex: normalizedStored) ?? KlangradarTheme.accent },
+                    set: { color in
+                        guard let hex = KlangradarTheme.hex(color: color) else { return }
+                        apply(hex)
+                    }
+                ),
+                supportsOpacity: false
+            )
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text("Eigener Hex-Code").font(.caption).foregroundStyle(.secondary)
+                HStack(spacing: 8) {
+                    TextField("#146194", text: $draftHex)
+                        .font(.system(.body, design: .monospaced))
+                        .textInputAutocapitalization(.characters)
+                        .autocorrectionDisabled()
+                        .keyboardType(.asciiCapable)
+                        .submitLabel(.done)
+                        .focused($hexFieldFocused)
+                        .onSubmit { commitDraft() }
+                    Button("Übernehmen") { commitDraft() }
+                        .font(.subheadline.weight(.semibold))
+                        .disabled(normalizedDraft == nil || normalizedDraft == normalizedStored)
+                }
+                if !draftHex.isEmpty, normalizedDraft == nil {
+                    Text("Bitte sechs Hex-Zeichen eingeben, z. B. #146194.")
+                        .font(.caption2).foregroundStyle(.red)
+                } else {
+                    Text("Die Farbe gilt sofort für Navigation, Buttons und Auswahlzustände.")
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(.vertical, 4)
+        .onChange(of: storedHex) { _, newValue in
+            guard !hexFieldFocused else { return }
+            draftHex = KlangradarTheme.normalizedHex(newValue) ?? KlangradarTheme.defaultAccentHex
+        }
+    }
+
+    private func commitDraft() {
+        guard let normalizedDraft else { return }
+        apply(normalizedDraft)
+        hexFieldFocused = false
+    }
+
+    private func apply(_ hex: String) {
+        guard let normalized = KlangradarTheme.normalizedHex(hex) else { return }
+        withAnimation(.easeInOut(duration: 0.2)) {
+            storedHex = normalized
+            draftHex = normalized
         }
     }
 }
@@ -358,6 +500,14 @@ private struct HomeCategoryOrderView: View {
         .navigationTitle("Homepage anordnen")
         .navigationBarTitleDisplayMode(.inline)
         .environment(\.editMode, .constant(.active))
+        .onAppear {
+            categories = HomeCategoryPreferences.order(for: userID)
+        }
+        .onDisappear {
+            // Zusätzlich zum sofortigen Speichern nach jedem Drag: schützt
+            // vor einem SwiftUI-Neuaufbau während der Move-Animation.
+            HomeCategoryPreferences.save(categories, for: userID)
+        }
     }
 
     private func move(from source: IndexSet, to destination: Int) {
@@ -814,15 +964,66 @@ private struct FavoriteEventsView: View {
 
     var body: some View {
         List(events) { event in
-            NavigationLink(value: event) {
-                Label(event.title, systemImage: "heart.fill")
+            NavigationLink {
+                EventDetailView(
+                    event: event,
+                    repository: eventRepository,
+                    contentRepository: contentRepository
+                )
+            } label: {
+                FavoriteEventRow(event: event)
             }
         }
             .overlay { if events.isEmpty { ContentUnavailableView("Noch keine Favoriten", systemImage: "heart", description: Text("Markierte Veranstaltungen erscheinen hier.")) } }
             .navigationTitle("Favoriten")
             .task {
                 guard let repository, let id = auth.userID, let token = auth.accessToken else { return }
-                events = (try? await repository.favoriteEvents(userID: id, token: token)) ?? []
+                let loaded = (try? await repository.favoriteEvents(userID: id, token: token)) ?? []
+                events = (try? await eventRepository.enrichingImages(in: loaded)) ?? loaded
+            }
+    }
+}
+
+private struct FavoriteEventRow: View {
+    let event: ConcertEvent
+
+    var body: some View {
+        HStack(spacing: 12) {
+            AsyncImage(url: event.primaryImageURL) { phase in
+                switch phase {
+                case let .success(image):
+                    image.resizable().scaledToFill()
+                case .failure:
+                    placeholder
+                default:
+                    placeholder.overlay { ProgressView().controlSize(.small) }
+                }
+            }
+            .frame(width: 68, height: 68)
+            .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+            .clipped()
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(event.title)
+                    .font(.headline)
+                    .lineLimit(2)
+                Text(event.dateLine)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+            Spacer(minLength: 4)
+        }
+        .padding(.vertical, 3)
+        .contentShape(Rectangle())
+    }
+
+    private var placeholder: some View {
+        RoundedRectangle(cornerRadius: 11, style: .continuous)
+            .fill(KlangradarTheme.accent.opacity(0.1))
+            .overlay {
+                Image(systemName: "music.note")
+                    .foregroundStyle(KlangradarTheme.accent)
             }
     }
 }

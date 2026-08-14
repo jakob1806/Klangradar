@@ -80,7 +80,7 @@ export async function resolveVenueDuplicateAsMerged(candidateId: string, keepVen
     before: { deleted_venue_id: deleteVenueId, kept_venue_id: keepVenueId, alias_added: deletedVenue?.name },
   });
 
-  revalidatePath("/duplicates/venues");
+  revalidatePath("/duplicates");
 }
 
 export async function resolveVenueDuplicateAsDistinct(candidateId: string) {
@@ -100,5 +100,32 @@ export async function resolveVenueDuplicateAsDistinct(candidateId: string) {
     actor: user?.email ?? user?.id ?? "unknown",
   });
 
-  revalidatePath("/duplicates/venues");
+  revalidatePath("/duplicates");
+}
+
+/** Mehrfachauswahl-Variante für die konsolidierte Duplikate-Seite. */
+export async function resolveVenueDuplicatesAsDistinct(candidateIds: string[]): Promise<{ completed: number }> {
+  const uniqueIds = [...new Set(candidateIds)].slice(0, 200);
+  if (uniqueIds.length === 0) return { completed: 0 };
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("venue_duplicate_candidates")
+    .update({ status: "dismissed", reviewed_at: new Date().toISOString() })
+    .in("id", uniqueIds)
+    .eq("status", "pending")
+    .select("id");
+  if (error) throw new Error(error.message);
+
+  const { data: { user } } = await supabase.auth.getUser();
+  for (const row of data ?? []) {
+    await logSystemAction(supabase, {
+      entityType: "venue_duplicate_candidate",
+      entityId: row.id,
+      action: "dismissed",
+      actor: user?.email ?? user?.id ?? "unknown",
+    });
+  }
+
+  revalidatePath("/duplicates");
+  return { completed: data?.length ?? 0 };
 }

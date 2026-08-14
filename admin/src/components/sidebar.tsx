@@ -25,10 +25,11 @@ const NAV_GROUPS = [
     label: "Qualität",
     items: [
       { href: "/data-quality", label: "Datenqualität" },
-      { href: "/duplicates", label: "Duplikate-Review" },
-      { href: "/duplicates/persons", label: "Personen-Duplikate" },
-      { href: "/duplicates/works", label: "Werk-Duplikate" },
+      { href: "/duplicates", label: "Duplikate" },
       { href: "/entity-candidates", label: "Entity-Kandidaten" },
+      { href: "/qualitaetspruefung", label: "Qualitätsprüfung" },
+      { href: "/work-image-reuse", label: "Werk-Bild-Verknüpfungen" },
+      { href: "/aliases", label: "Schreibweisen & Aliasse" },
       { href: "/reports", label: "Fehlerberichte" },
     ],
   },
@@ -38,6 +39,7 @@ const NAV_GROUPS = [
       { href: "/venues", label: "Venues" },
       { href: "/persons", label: "Personen" },
       { href: "/ensembles", label: "Ensembles" },
+      { href: "/ensemble-families", label: "Ensemblefamilien" },
       { href: "/festivals", label: "Festivals" },
       { href: "/editorial-collections", label: "Redaktionelle Sammlungen" },
       { href: "/tags", label: "Tags" },
@@ -61,8 +63,31 @@ const NAV_GROUPS = [
   },
 ];
 
+// Ermittelt den am genauesten passenden Nav-Eintrag statt jeden Präfix-Treffer
+// separat aktiv zu markieren — sonst blieb z.B. "Duplikate-Review" (/duplicates)
+// dauerhaft blau hervorgehoben, auch auf /duplicates/persons oder
+// /duplicates/works, weil deren Pfad ebenfalls mit "/duplicates" beginnt und
+// jeder Eintrag unabhängig voneinander geprüft wurde (Nutzerfeedback: "der
+// blaue hintergrund hängt immer bei duplikate review fest, auch wenn man zu
+// einer anderen kategorie wechselt").
+function bestMatchingHref(pathname: string, hrefs: string[]): string | null {
+  let best: string | null = null;
+  for (const href of hrefs) {
+    if (pathname === href || pathname.startsWith(`${href}/`)) {
+      if (!best || href.length > best.length) best = href;
+    }
+  }
+  return best;
+}
+
 export function Sidebar({ userEmail }: { userEmail?: string }) {
   const pathname = usePathname();
+  const activeHref = pathname
+    ? bestMatchingHref(
+        pathname,
+        NAV_GROUPS.flatMap((group) => group.items.map((item) => item.href)),
+      )
+    : null;
 
   return (
     <aside className="flex w-64 shrink-0 flex-col gap-6 border-r border-black/[0.06] bg-[#f5f5f7]/80 px-3 py-6 backdrop-blur-xl">
@@ -76,7 +101,7 @@ export function Sidebar({ userEmail }: { userEmail?: string }) {
             <p className="type-label mb-1.5 px-3">{group.label}</p>
             <div className="flex flex-col gap-0.5">
               {group.items.map((item) => {
-                const active = pathname === item.href || pathname?.startsWith(`${item.href}/`);
+                const active = item.href === activeHref;
                 return (
                   <Link
                     key={item.href}

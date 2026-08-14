@@ -26,6 +26,20 @@ const TYPE_OPTIONS = [
   { value: "sonstiges", label: "Sonstiges" },
 ];
 
+const FAMILY_ROLE_OPTIONS = [
+  ["", "— keine Familienrolle —"],
+  ["institution", "Dachorganisation"],
+  ["orchestra", "Orchester"],
+  ["choir", "Chor"],
+  ["childrens_choir", "Kinderchor"],
+  ["extra_choir", "Extra-/Zusatzchor"],
+  ["ballet", "Ballett"],
+  ["opera_studio", "Opernstudio"],
+  ["statisterie", "Statisterie"],
+  ["child_statisterie", "Kinderstatisterie"],
+  ["other", "Sonstige Untergruppe"],
+] as const;
+
 export interface EnsembleFormValues {
   slug: string;
   name: string;
@@ -35,6 +49,9 @@ export interface EnsembleFormValues {
   member_count: number | null;
   home_venue_id: string | null;
   parent_ensemble_id: string | null;
+  family_role: string | null;
+  is_family_root: boolean;
+  is_resolution_placeholder: boolean;
   website_url: string | null;
   photo_url: string | null;
   avatar_crop_x: number | null;
@@ -122,18 +139,30 @@ export function EnsembleForm({
         </Select>
       </Field>
 
-      <Field label="Gehört zu Ensemble">
-        <Select name="parent_ensemble_id" defaultValue={initial?.parent_ensemble_id ?? ""}>
-          <option value="">— kein übergeordnetes Ensemble —</option>
-          {ensembles
-            .filter((e) => e.id !== ensembleId)
-            .map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.name}
-              </option>
-            ))}
-        </Select>
-      </Field>
+      <fieldset className="space-y-4 border border-black/[0.08] bg-neutral-50 p-4">
+        <legend className="type-label px-2 !text-neutral-700">Ensemblefamilie</legend>
+        <Field label="Gehört zu Ensemble" hint="Ordnet das Ensemble einer Dachorganisation oder einem übergeordneten Klangkörper zu.">
+          <Select name="parent_ensemble_id" defaultValue={initial?.parent_ensemble_id ?? ""}>
+            <option value="">— kein übergeordnetes Ensemble —</option>
+            {ensembles
+              .filter((e) => e.id !== ensembleId)
+              .map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.name}
+                </option>
+              ))}
+          </Select>
+        </Field>
+        <Field label="Rolle innerhalb der Familie">
+          <Select name="family_role" defaultValue={initial?.family_role ?? ""}>
+            {FAMILY_ROLE_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </Select>
+        </Field>
+        <label className="flex items-center gap-2 text-sm text-neutral-700">
+          <input type="checkbox" name="is_family_root" defaultChecked={initial?.is_family_root} />
+          Als Dachorganisation/Familienwurzel führen
+        </label>
+      </fieldset>
 
       <ImageUploadField name="photo_url" initialUrl={initial?.photo_url} entityType="ensembles" shape="rounded" label="Foto" />
 

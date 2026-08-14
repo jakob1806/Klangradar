@@ -74,7 +74,7 @@ export default async function EventProgramPage({
       .order("title")
       .returns<{ id: string; title: string; composer: { full_name: string } | null }[]>(),
     supabase.from("persons").select("id, full_name").order("full_name"),
-    supabase.from("ensembles").select("id, name").order("name"),
+    supabase.from("ensembles").select("id, name").eq("is_resolution_placeholder", false).eq("is_family_root", false).order("name"),
   ]);
 
   if (!event) notFound();
