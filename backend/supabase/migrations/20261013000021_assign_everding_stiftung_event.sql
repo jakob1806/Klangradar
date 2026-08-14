@@ -19,4 +19,3 @@ where s.id in (
   where e.organizer_id = (select id from public.organizers where slug = 'august-everding-stiftung')
     and e.source_id is not null
 );
-
