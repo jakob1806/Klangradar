@@ -58,6 +58,7 @@ struct LiveEventRepository: EventRepository {
                 URLQueryItem(name: "select", value: "origin_id,storage_path,source_url,sort_order"),
                 URLQueryItem(name: "origin_id", value: "in.(\(chunk.map(\.uuidString).joined(separator: ",")))"),
                 URLQueryItem(name: "license_status", value: "in.(confirmed_free,confirmed_licensed)"),
+                URLQueryItem(name: "quality_status", value: "eq.valid"),
                 URLQueryItem(name: "order", value: "sort_order.asc")
             ])
             rows.append(contentsOf: page)

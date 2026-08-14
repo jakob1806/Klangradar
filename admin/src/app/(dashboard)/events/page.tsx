@@ -8,6 +8,7 @@ import {
   SelectAllCheckbox,
 } from "./bulk-select";
 import { ImageStatusBadge } from "@/components/image-status-badge";
+import { ListThumbnail } from "@/components/list-thumbnail";
 import { formatMunichDateTime } from "@/lib/munich-time";
 
 // Event-Daten ändern sich häufig (Preise, Restkarten) — nie statisch cachen.
@@ -85,14 +86,23 @@ export default async function EventsPage({
   // mindestens ein freigegebenes Galeriebild haben.
   const idsWithoutOwnImage = (data ?? []).filter((e) => (e.image_urls?.length ?? 0) === 0).map((e) => e.id);
   let galleryImageEventIds = new Set<string>();
+  const galleryThumbByEventId = new Map<string, string>();
   if (idsWithoutOwnImage.length > 0) {
     const { data: galleryRows } = await supabase
       .from("images")
-      .select("origin_id")
+      .select("origin_id, thumbnail_path, storage_path, source_url")
       .eq("origin_type", "event")
       .in("origin_id", idsWithoutOwnImage)
       .in("license_status", ["confirmed_free", "confirmed_licensed"]);
     galleryImageEventIds = new Set((galleryRows ?? []).map((r) => r.origin_id as string));
+    for (const row of galleryRows ?? []) {
+      if (galleryThumbByEventId.has(row.origin_id as string)) continue;
+      const path = row.thumbnail_path ?? row.storage_path;
+      const url = path
+        ? supabase.storage.from("ingested-images").getPublicUrl(path).data.publicUrl
+        : row.source_url;
+      if (url) galleryThumbByEventId.set(row.origin_id as string, url);
+    }
   }
 
   const { data: statusCounts } = await supabase.from("events").select("status");
@@ -213,7 +223,15 @@ export default async function EventsPage({
                       <td className="px-4 py-3">
                         <RowCheckbox eventId={event.id} />
                       </td>
-                      <td className="px-4 py-3 font-medium text-neutral-900">{event.title}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <ListThumbnail
+                            src={event.image_urls?.[0] ?? galleryThumbByEventId.get(event.id) ?? null}
+                            alt={event.title}
+                          />
+                          <span className="font-medium text-neutral-900">{event.title}</span>
+                        </div>
+                      </td>
                       <td className="px-4 py-3 text-neutral-600">{event.venues?.name ?? "—"}</td>
                       <td className="px-4 py-3 text-neutral-600 tabular-nums">
                         {formatMunichDateTime(event.start_datetime)}

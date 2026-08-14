@@ -20,8 +20,8 @@ import {
   approveEntityCandidate,
   bulkApproveEntityCandidates,
   bulkRejectEntityCandidates,
-  mergeEntityCandidate,
   rejectEntityCandidate,
+  sendEntityCandidateToDuplicateReview,
 } from "./actions";
 
 const ENTITY_TYPE_LABEL: Record<string, string> = {
@@ -137,7 +137,6 @@ function ScoreBadge({ score }: { score: number }) {
 
 function MergeCandidateCard({ candidate, onDone }: { candidate: UiCandidate; onDone: () => void }) {
   const match = candidate.possibleMatch!;
-  const lowConfidence = match.similarity < 0.7;
 
   return (
     <div className="rounded-xl border border-black/[0.06] bg-white p-4 shadow-sm">
@@ -147,8 +146,8 @@ function MergeCandidateCard({ candidate, onDone }: { candidate: UiCandidate; onD
       <CandidateMeta candidate={candidate} />
       <p className="mt-2 rounded bg-amber-50 px-2 py-1 text-xs text-amber-800">
         Möglicherweise identisch mit „{match.name}“ ({Math.round(match.similarity * 100)}% Namens-Ähnlichkeit) — bereits
-        vorhanden. Beim Zusammenführen bleibt „{match.name}“ als Hauptname erhalten, „{candidate.name}“ wird als
-        alternative Schreibweise gespeichert.
+        vorhanden. Wird zur Duplikat-Prüfung geschickt ({candidate.entityType === "person" ? "Personen" : "Ensemble"}
+        -Duplikate), wo du auswählst, welche der beiden Versionen erhalten bleibt.
       </p>
       <div className="mt-4 flex items-center justify-end gap-4">
         <InstantButton
@@ -160,19 +159,16 @@ function MergeCandidateCard({ candidate, onDone }: { candidate: UiCandidate; onD
         >
           Ablehnen
         </InstantButton>
-        {lowConfidence ? (
-          <ConfirmMerge candidate={candidate} match={match} onDone={onDone} />
-        ) : (
-          <InstantButton
-            onClick={async () => {
-              await mergeEntityCandidate(candidate.id, match.id);
-              onDone();
-            }}
-            className="text-sm font-medium text-amber-700 hover:text-amber-900 disabled:opacity-50"
-          >
-            Zusammenführen
-          </InstantButton>
-        )}
+        <InstantButton
+          onClick={async () => {
+            await sendEntityCandidateToDuplicateReview(candidate.id, match.id);
+            onDone();
+          }}
+          className="text-sm font-medium text-amber-700 hover:text-amber-900 disabled:opacity-50"
+          pendingLabel="Sende…"
+        >
+          Zur Duplikat-Prüfung schicken
+        </InstantButton>
         <InstantButton
           onClick={async () => {
             await approveEntityCandidate(candidate.id);
@@ -184,69 +180,6 @@ function MergeCandidateCard({ candidate, onDone }: { candidate: UiCandidate; onD
         </InstantButton>
       </div>
     </div>
-  );
-}
-
-/** Einziger verbliebener Bestätigungs-Dialog: Ähnlichkeit < 70% ist der
- * "sehr abwägige Sonderfall", bei dem ein Klick daneben zwei verschiedene
- * Personen versehentlich zusammenlegen würde. */
-function ConfirmMerge({
-  candidate,
-  match,
-  onDone,
-}: {
-  candidate: UiCandidate;
-  match: { id: string; name: string; similarity: number };
-  onDone: () => void;
-}) {
-  const [confirming, setConfirming] = useState(false);
-  const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-
-  if (confirming) {
-    return (
-      <span className="inline-flex items-center gap-2 text-sm">
-        <span className="text-neutral-600">Nur {Math.round(match.similarity * 100)}% sicher — wirklich zusammenführen?</span>
-        <button
-          type="button"
-          disabled={pending}
-          onClick={() =>
-            startTransition(async () => {
-              try {
-                await mergeEntityCandidate(candidate.id, match.id);
-                onDone();
-              } catch (err) {
-                setError(err instanceof Error ? err.message : "Aktion fehlgeschlagen.");
-                setConfirming(false);
-              }
-            })
-          }
-          className="font-medium text-amber-700 hover:text-amber-900 disabled:opacity-50"
-        >
-          {pending ? "Speichere…" : "Ja, sicher"}
-        </button>
-        <button
-          type="button"
-          onClick={() => setConfirming(false)}
-          className="font-medium text-neutral-500 hover:text-neutral-700"
-        >
-          Abbrechen
-        </button>
-      </span>
-    );
-  }
-
-  return (
-    <span className="inline-flex flex-col items-end gap-1">
-      <button
-        type="button"
-        onClick={() => setConfirming(true)}
-        className="text-sm font-medium text-amber-700 hover:text-amber-900"
-      >
-        Zusammenführen
-      </button>
-      {error && <span className="max-w-xs text-right text-xs text-red-600">{error}</span>}
-    </span>
   );
 }
 

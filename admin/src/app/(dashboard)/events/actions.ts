@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { munichLocalToISOString } from "@/lib/munich-time";
+import { cleanupEventGroupIfEmpty } from "@/lib/event-group-cleanup";
 
 function readEventFields(formData: FormData) {
   // datetime-local enthält absichtlich keine Zone. Server Actions laufen auf
@@ -241,8 +242,15 @@ export async function bulkUpdateEvents(
 
 export async function deleteEvent(eventId: string) {
   const supabase = await createClient();
+  const { data: existing } = await supabase.from("events").select("program_id").eq("id", eventId).maybeSingle();
+
   const { error } = await supabase.from("events").delete().eq("id", eventId);
   if (error) throw new Error(error.message);
+
+  // War dieses Event das letzte Mitglied einer Event-Gruppe, bliebe die
+  // Gruppe sonst leer stehen (Nutzer-Meldung "0 Termine"), siehe
+  // event-group-cleanup.ts.
+  await cleanupEventGroupIfEmpty(supabase, existing?.program_id ?? null);
 
   revalidatePath("/events");
   redirect("/events");

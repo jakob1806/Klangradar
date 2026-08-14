@@ -1,3 +1,4 @@
+import MapKit
 import SwiftUI
 
 struct EntityRoute: Hashable {
@@ -23,6 +24,7 @@ struct EntityDetailView: View {
                         if detail.kind == .venue {
                             venueHeader(detail)
                             followButton(detail)
+                            venueLocationMap(detail)
                             if !detail.events.isEmpty { linkedEvents(detail.events, kind: detail.kind) }
                             metadata(detail)
                             if let biography = biography(in: detail) {
@@ -74,7 +76,7 @@ struct EntityDetailView: View {
 
         case .ensemble:
             VStack(alignment: .leading, spacing: 14) {
-                if let imageURL = detail.primaryImageURL ?? detail.gallery.first?.url {
+                if let imageURL = detail.gallery.first?.url ?? detail.primaryImageURL {
                     Button {
                         showImage(imageURL, title: detail.title)
                     } label: {
@@ -190,6 +192,25 @@ struct EntityDetailView: View {
         }
     }
 
+    /// Nutzerwunsch: zwischen "Folgen" und "Kommende Veranstaltungen" soll
+    /// eine bewegliche Karte zeigen, wo der Konzertort ungefähr liegt — im
+    /// selben Format wie das Titelbild oben. `Map` (MapKit/SwiftUI) ist per
+    /// Default pan-/zoombar, kein zusätzliches Gesture-Handling nötig.
+    @ViewBuilder private func venueLocationMap(_ detail: EntityDetail) -> some View {
+        if let lat = detail.venueLatitude, let lng = detail.venueLongitude {
+            let coordinate = CLLocationCoordinate2D(latitude: lat, longitude: lng)
+            Map(initialPosition: .region(
+                MKCoordinateRegion(center: coordinate, span: MKCoordinateSpan(latitudeDelta: 0.012, longitudeDelta: 0.012))
+            )) {
+                Marker(detail.title, coordinate: coordinate)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 210)
+            .clipShape(.rect(cornerRadius: 22))
+            .accessibilityLabel("Karte: Lage von \(detail.title)")
+        }
+    }
+
     @ViewBuilder private func metadata(_ detail: EntityDetail) -> some View {
         let rows = metadataRows(detail)
         if !rows.isEmpty || detail.fields.string("website_url") != nil {
@@ -244,6 +265,13 @@ struct EntityDetailView: View {
         }
     }
 
+    /// Nutzerwunsch: Konzertlisten auf Venue-/Ensemble-/Personen-Detailseiten
+    /// nach Monaten gruppiert, jeder Monat einzeln ein-/ausklappbar. Der
+    /// vorherige, nur bei Venues aktive "Weitere X Konzerte anzeigen"-
+    /// DisclosureGroup-Button behielt nach dem Ausklappen denselben Text,
+    /// obwohl dann bereits alles sichtbar war — MonthGroupedEventList
+    /// (unten) ersetzt ihn durch einen Button, der nach dem Ausklappen zu
+    /// "Alle einklappen" wechselt.
     @ViewBuilder private func linkedEvents(_ events: [LinkedEvent], kind: EntityKind) -> some View {
         let sorted = events
             .filter { kind != .venue || ($0.startDate ?? .distantPast) >= KlangradarDateTime.calendar.startOfDay(for: .now) }
@@ -251,47 +279,8 @@ struct EntityDetailView: View {
 
         if !sorted.isEmpty {
             section(kind == .venue ? "Kommende Veranstaltungen" : "Veranstaltungen") {
-                if kind == .venue {
-                    venueEventGroups(Array(sorted.prefix(6)))
-                    if sorted.count > 6 {
-                        DisclosureGroup("Weitere \(sorted.count - 6) Konzerte anzeigen") {
-                            venueEventGroups(Array(sorted.dropFirst(6)))
-                                .padding(.top, 12)
-                        }
-                        .font(.headline)
-                        .tint(KlangradarTheme.accent)
-                        .padding(.top, 4)
-                    }
-                } else {
-                    LiquidGlassSurface(cornerRadius: 22) {
-                        VStack(spacing: 0) {
-                            ForEach(Array(sorted.enumerated()), id: \.element.id) { index, event in
-                                linkedEventRow(event, showsVenue: true)
-                                if index < sorted.count - 1 { Divider().padding(.leading, 78) }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private func venueEventGroups(_ events: [LinkedEvent]) -> some View {
-        let groups = monthGroups(events)
-        return VStack(alignment: .leading, spacing: 18) {
-            ForEach(groups) { group in
-                VStack(alignment: .leading, spacing: 9) {
-                    Text(KlangradarDateTime.string(group.month, format: "MMMM yyyy"))
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                    LiquidGlassSurface(cornerRadius: 22) {
-                        VStack(spacing: 0) {
-                            ForEach(Array(group.events.enumerated()), id: \.element.id) { index, event in
-                                linkedEventRow(event, showsVenue: false)
-                                if index < group.events.count - 1 { Divider().padding(.leading, 78) }
-                            }
-                        }
-                    }
+                MonthGroupedEventList(groups: monthGroups(sorted)) { event in
+                    AnyView(linkedEventRow(event, showsVenue: kind != .venue))
                 }
             }
         }
@@ -437,4 +426,100 @@ private struct LinkedEventMonthGroup: Identifiable {
     let month: Date
     let events: [LinkedEvent]
     var id: Date { month }
+}
+
+/// Monatsweise gruppierte, einzeln ein-/ausklappbare Konzertliste (Nutzer-
+/// wunsch, siehe EntityDetailView.linkedEvents). Standardmäßig ist nur der
+/// erste Monat sichtbar/ausgeklappt; weitere Monate kommen erst nach Tippen
+/// auf den Sammel-Button dazu, dessen Beschriftung danach zu "Alle
+/// einklappen" wechselt statt (wie zuvor bei DisclosureGroup) unverändert
+/// zu bleiben. Unabhängig davon lässt sich jeder einzelne sichtbare Monat
+/// über seine Kopfzeile ein-/ausklappen.
+private struct MonthGroupedEventList: View {
+    let groups: [LinkedEventMonthGroup]
+    let rowContent: (LinkedEvent) -> AnyView
+
+    private static let initiallyVisibleMonths = 1
+
+    @State private var expandedMonths: Set<Date>
+    @State private var showingAll: Bool
+
+    init(groups: [LinkedEventMonthGroup], rowContent: @escaping (LinkedEvent) -> AnyView) {
+        self.groups = groups
+        self.rowContent = rowContent
+        _expandedMonths = State(initialValue: Set(groups.prefix(Self.initiallyVisibleMonths).map(\.month)))
+        _showingAll = State(initialValue: groups.count <= Self.initiallyVisibleMonths)
+    }
+
+    private var visibleGroups: [LinkedEventMonthGroup] {
+        showingAll ? groups : Array(groups.prefix(Self.initiallyVisibleMonths))
+    }
+
+    private var hiddenEventCount: Int {
+        groups.dropFirst(Self.initiallyVisibleMonths).reduce(0) { $0 + $1.events.count }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            ForEach(visibleGroups) { group in
+                monthSection(group)
+            }
+            if groups.count > Self.initiallyVisibleMonths {
+                Button {
+                    withAnimation {
+                        if showingAll {
+                            showingAll = false
+                            expandedMonths = Set(groups.prefix(Self.initiallyVisibleMonths).map(\.month))
+                        } else {
+                            showingAll = true
+                            expandedMonths = Set(groups.map(\.month))
+                        }
+                    }
+                } label: {
+                    Text(showingAll ? "Alle einklappen" : "Weitere \(hiddenEventCount) Konzerte anzeigen")
+                }
+                .font(.headline)
+                .tint(KlangradarTheme.accent)
+                .padding(.top, 4)
+            }
+        }
+    }
+
+    @ViewBuilder private func monthSection(_ group: LinkedEventMonthGroup) -> some View {
+        let isExpanded = expandedMonths.contains(group.month)
+        VStack(alignment: .leading, spacing: 9) {
+            Button {
+                withAnimation {
+                    if isExpanded { expandedMonths.remove(group.month) } else { expandedMonths.insert(group.month) }
+                }
+            } label: {
+                HStack {
+                    Text(KlangradarDateTime.string(group.month, format: "MMMM yyyy"))
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("\(group.events.count)")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                    Image(systemName: "chevron.right")
+                        .font(.caption.bold())
+                        .foregroundStyle(.tertiary)
+                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                }
+                .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+
+            if isExpanded {
+                LiquidGlassSurface(cornerRadius: 22) {
+                    VStack(spacing: 0) {
+                        ForEach(Array(group.events.enumerated()), id: \.element.id) { index, event in
+                            rowContent(event)
+                            if index < group.events.count - 1 { Divider().padding(.leading, 78) }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

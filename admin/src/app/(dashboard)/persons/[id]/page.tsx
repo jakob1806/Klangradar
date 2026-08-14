@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { GalleryEditor } from "@/components/entity-gallery/gallery-editor";
 import { AiEnrichButton } from "@/components/ai-enrich-button";
 import { EntityAuditButton } from "@/components/entity-audit-button";
+import { EditorialAiAssistant } from "@/components/editorial-ai-assistant";
 import type { GalleryImage } from "@/lib/gallery-actions";
 import { updatePerson } from "../actions";
 import { PersonDeleteControl } from "../person-delete-control";
@@ -37,7 +38,7 @@ export default async function EditPersonPage({
   // abgelehntes Bild einsortiert/zugeschnitten werden.
   const { data: images } = await supabase
     .from("images")
-    .select("id, source_url, sort_order, crop_x, crop_y, crop_width, crop_height, review_status, quality_status, confidence_score, source_name, license_status, last_checked_at, warnings")
+    .select("id, source_url, sort_order, crop_x, crop_y, crop_width, crop_height, review_status, quality_status, confidence_score, source_name, license_status, last_checked_at, warnings, use_as_event_fallback")
     .eq("origin_type", "person")
     .eq("origin_id", id)
     .in("license_status", ["confirmed_free", "confirmed_licensed"])
@@ -54,6 +55,7 @@ export default async function EditPersonPage({
         <AiEnrichButton entityType="person" entityId={id} />
         <EntityAuditButton entityType="person" entityId={id} />
       </div>
+      <div className="mt-4"><EditorialAiAssistant entityType="person" entityId={id} /></div>
       {parentEnsemble && (
         <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
           Gehört zum Ensemble{" "}
@@ -66,7 +68,13 @@ export default async function EditPersonPage({
         <PersonForm action={updatePerson.bind(null, id)} initial={data} ensembles={ensembles ?? []} personId={id} />
       </div>
       <div className="mt-8 max-w-xl border-t border-neutral-200 pt-6">
-        <GalleryEditor originType="person" originId={id} path={`/persons/${id}`} images={images ?? []} />
+        <GalleryEditor
+          originType="person"
+          originId={id}
+          path={`/persons/${id}`}
+          images={images ?? []}
+          showEventFallbackToggle
+        />
       </div>
     </div>
   );

@@ -178,6 +178,10 @@ Deno.serve(async (req) => {
         const bestMatch = fuzzyMatches?.[0] as { id: string; full_name: string; similarity: number } | undefined;
         if (bestMatch && bestMatch.similarity >= FUZZY_AUTO_THRESHOLD) {
           composerId = bestMatch.id;
+          await supabase.from("entity_aliases").upsert(
+            { entity_type: "person", entity_id: bestMatch.id, alias: name },
+            { onConflict: "entity_type,entity_id,alias" },
+          );
           await logSystemAction(supabase, "person", bestMatch.id, "fuzzy_auto_link", {
             matched_name: name,
             linked_to: bestMatch.full_name,

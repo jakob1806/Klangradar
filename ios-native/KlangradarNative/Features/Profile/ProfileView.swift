@@ -358,6 +358,14 @@ private struct HomeCategoryOrderView: View {
         .navigationTitle("Homepage anordnen")
         .navigationBarTitleDisplayMode(.inline)
         .environment(\.editMode, .constant(.active))
+        .onAppear {
+            categories = HomeCategoryPreferences.order(for: userID)
+        }
+        .onDisappear {
+            // Zusätzlich zum sofortigen Speichern nach jedem Drag: schützt
+            // vor einem SwiftUI-Neuaufbau während der Move-Animation.
+            HomeCategoryPreferences.save(categories, for: userID)
+        }
     }
 
     private func move(from source: IndexSet, to destination: Int) {

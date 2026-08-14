@@ -74,6 +74,7 @@ final entityGalleryProvider = FutureProvider.autoDispose
           .eq('origin_type', key.originType)
           .eq('origin_id', key.originId)
           .inFilter('license_status', ['confirmed_free', 'confirmed_licensed'])
+          .eq('quality_status', 'valid')
           .order('sort_order', ascending: true);
 
       return (rows as List)

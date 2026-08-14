@@ -9,6 +9,7 @@ import {
   BioStatusBadge,
 } from "@/components/bio-select";
 import { ImageStatusBadge } from "@/components/image-status-badge";
+import { ListThumbnail } from "@/components/list-thumbnail";
 import { TableSearchFilter } from "@/components/table-search-filter";
 import { bulkDeleteEnsembles, bulkSetEnsemblesVerified } from "./actions";
 
@@ -103,7 +104,12 @@ export default async function EnsemblesPage() {
                         <td className="px-4 py-3">
                           <BioRowCheckbox id={ensemble.id} />
                         </td>
-                        <td className="px-4 py-3 font-medium text-neutral-900">{ensemble.name}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <ListThumbnail src={ensemble.photo_url} alt={ensemble.name} />
+                            <span className="font-medium text-neutral-900">{ensemble.name}</span>
+                          </div>
+                        </td>
                         <td className="px-4 py-3 text-neutral-600">
                           {TYPE_LABEL[ensemble.type] ?? ensemble.type}
                         </td>

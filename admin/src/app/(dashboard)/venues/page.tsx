@@ -9,6 +9,7 @@ import {
   BioStatusBadge,
 } from "@/components/bio-select";
 import { ImageStatusBadge } from "@/components/image-status-badge";
+import { ListThumbnail } from "@/components/list-thumbnail";
 import { TableSearchFilter } from "@/components/table-search-filter";
 import { bulkDeleteVenues, bulkSetVenuesVerified } from "./actions";
 
@@ -90,7 +91,12 @@ export default async function VenuesPage() {
                         <td className="px-4 py-3">
                           <BioRowCheckbox id={venue.id} />
                         </td>
-                        <td className="px-4 py-3 font-medium text-neutral-900">{venue.name}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <ListThumbnail src={venue.photo_url} alt={venue.name} />
+                            <span className="font-medium text-neutral-900">{venue.name}</span>
+                          </div>
+                        </td>
                         <td className="px-4 py-3 text-neutral-600">{venue.address_city}</td>
                         <td className="px-4 py-3 text-neutral-600 tabular-nums">
                           {venue.capacity ?? "—"}

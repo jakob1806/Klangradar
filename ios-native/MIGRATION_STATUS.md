@@ -91,6 +91,15 @@ Verification: `xcodebuild build`/`xcodebuild test` succeeded (4/4 tests passing)
 
 Deployment/verification: iOS simulator build and all 7 tests passed; the current Home build was visually verified on the iOS 18.6 simulator. Admin production build and all 15 Vitest tests passed. Vercel production deployment `dpl_2qJz4noBwGUGvQi8qhsghRJXbaj5` is `READY` at `https://ko-kal-x-claude.vercel.app`. Supabase migrations `20261007000006` and `20261007000007` are applied; `parse-event-participants` and the read-only `audit-entity` function are `ACTIVE` with JWT verification enabled.
 
+## Editorial delete (2026-08-14)
+
+- ✅ Admin can delete venues, ensembles, persons and events from the native Editorial portal (`EditorialEntityEditorView`/`EditorialEventEditorView`), gated behind a `.confirmationDialog` with a destructive confirm button — same `is_admin_or_editor()` access check as the rest of the Editorial tab.
+- ✅ Deletion runs through new Postgres RPCs (`delete_venue`, `delete_ensemble`, `delete_person`, `delete_event`, see `20261013000012`/`20261013000013_editorial_delete_rpcs*.sql`) that replicate the web admin's cascade-detach steps (`admin/src/app/(dashboard)/{venues,ensembles,persons}/actions.ts`) server-side — the native client makes a single `rpc()` call instead of re-implementing the multi-step detach order in Swift, where a missed step could leave orphaned foreign keys. `delete_event` also cleans up a now-empty event group (`programs` row), matching the admin-side fix for the "0 Termine" group bug.
+- ⬜ Works are intentionally NOT deletable from native (or web admin's per-entity delete) — the existing works-duplicate-merge flow is the supported way to remove one.
+- ✅ Full field-parity editing is done: `EditorialEntityEditorView` gained an "Weitere Angaben" section per kind (venue address/geo/capacity via the existing `update_venue` RPC, person first/middle/last name + roles + nationality + birth/death dates + ensemble link + verification, ensemble type/founded_year/member_count/home venue/parent ensemble) and `EditorialEventEditorView` gained a "Weitere Angaben" card (description, duration, intermission, organizer, genres, pricing, ticket info, status) saved via new `updatePersonDetails`/`updateEnsembleDetails`/`updateEventDetails`/`updateVenue` repository functions. Avatar crop (`avatar_crop_x/y/width/height`) is intentionally still out of scope — it needs a dedicated native crop tool matching the admin's `CropTool`, tracked as follow-up. Create flows were not extended (parity request was scoped to editing).
+
+Verification: `xcodebuild build` and the full `xcodebuild test` suite (including 4 new field-parity `HTTPClient`-mocked tests plus the 3 existing delete tests) succeeded. Visually confirmed the app launches and renders live production data on iPhone 17 Pro after the change; the new form fields themselves were not clicked through live (no test editor account/credentials available in this environment to reach the signed-in-only Editorial tab).
+
 ## Definition of feature parity
 
 A row can be marked complete only when it:

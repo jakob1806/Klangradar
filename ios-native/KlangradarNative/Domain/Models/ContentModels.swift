@@ -132,6 +132,12 @@ struct EntityDetail: Identifiable, Sendable {
     let gallery: [GalleryImage]
     let events: [LinkedEvent]
     let similar: [DirectoryItem]
+    // Nur für kind == .venue befüllt (siehe ContentRepository.detail) — die
+    // Adresse allein zeigt nicht, wo genau das Gebäude liegt, deshalb eine
+    // kleine, bewegliche Kartenvorschau zwischen Folgen-Button und
+    // Veranstaltungsliste (Nutzerwunsch).
+    var venueLatitude: Double? = nil
+    var venueLongitude: Double? = nil
 }
 
 struct EditorialCollection: Identifiable, Hashable, Sendable {

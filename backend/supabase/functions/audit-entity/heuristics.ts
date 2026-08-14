@@ -250,3 +250,217 @@ export function deduplicateIssues(issues: AuditIssue[]): AuditIssue[] {
     return true;
   });
 }
+
+// Tabellen-/Feld-Konfiguration und die Regelprüfung pro Entitätstyp — nach
+// heuristics.ts verschoben (statt in index.ts), damit audit-entities-bulk
+// (Massenprüfung über alle Personen/Ensembles/Venues/Events) dieselbe Logik
+// wiederverwenden kann, ohne index.ts zu importieren (dort läuft
+// Deno.serve() auf Modulebene, ein Import würde also einen zweiten
+// Server-Handler registrieren).
+
+export const AUDIT_TABLE: Record<AuditEntityType, string> = {
+  person: "persons",
+  ensemble: "ensembles",
+  venue: "venues",
+  event: "events",
+};
+
+export const AUDIT_NAME_FIELD: Record<AuditEntityType, string> = {
+  person: "full_name",
+  ensemble: "name",
+  venue: "name",
+  event: "title",
+};
+
+export const AUDIT_ENTITY_SELECT: Record<AuditEntityType, string> = {
+  person:
+    "id,slug,full_name,first_name,middle_name,last_name,roles,instrument,nationality,birth_date,death_date,website_url,is_verified",
+  ensemble:
+    "id,slug,name,type,founded_year,member_count,home_venue_id,website_url,is_verified",
+  venue:
+    "id,slug,name,address_street,address_zip,address_city,capacity,website_url",
+  event:
+    "id,slug,title,subtitle,start_datetime,end_datetime,duration_minutes,venue_id,organizer_id,ticket_url,website_url,price_min,price_max,is_free,status,program_id",
+};
+
+export function entitySpecificIssues(
+  entityType: AuditEntityType,
+  entity: Record<string, unknown>,
+): AuditIssue[] {
+  const issues: AuditIssue[] = [];
+  const add = (issue: Omit<AuditIssue, "source">) =>
+    issues.push({ ...issue, source: "rule" });
+
+  if (entityType === "person") {
+    const fullName = String(entity.full_name ?? "");
+    const firstName = String(entity.first_name ?? "").trim();
+    const lastName = String(entity.last_name ?? "").trim();
+    if (!firstName || !lastName) {
+      add({
+        id: "person-name-parts",
+        severity: "warning",
+        category: "completeness",
+        message:
+          "Vor- oder Nachname fehlt in den strukturierten Namensfeldern.",
+        suggestion:
+          "Namensbestandteile anhand des vollständigen offiziellen Namens ergänzen.",
+      });
+    }
+    if (
+      lastName &&
+      !fullName.toLocaleLowerCase("de").includes(
+        lastName.toLocaleLowerCase("de"),
+      )
+    ) {
+      add({
+        id: "person-last-name-mismatch",
+        severity: "critical",
+        category: "contradiction",
+        message:
+          `Das Feld Nachname „${lastName}“ passt nicht zum vollständigen Namen „${fullName}“.`,
+        suggestion: "Namensfelder gemeinsam prüfen und konsistent speichern.",
+      });
+    }
+    const birth = typeof entity.birth_date === "string"
+      ? Date.parse(entity.birth_date)
+      : Number.NaN;
+    const death = typeof entity.death_date === "string"
+      ? Date.parse(entity.death_date)
+      : Number.NaN;
+    if (Number.isFinite(birth) && Number.isFinite(death) && birth > death) {
+      add({
+        id: "person-date-order",
+        severity: "critical",
+        category: "contradiction",
+        message: "Das Geburtsdatum liegt nach dem Sterbedatum.",
+        suggestion:
+          "Beide Lebensdaten anhand einer verlässlichen Quelle prüfen.",
+      });
+    }
+  }
+
+  if (entityType === "ensemble") {
+    const foundedYear = Number(entity.founded_year);
+    const memberCount = Number(entity.member_count);
+    const currentYear = new Date().getUTCFullYear();
+    if (
+      entity.founded_year != null &&
+      (!Number.isInteger(foundedYear) || foundedYear < 1000 ||
+        foundedYear > currentYear)
+    ) {
+      add({
+        id: "ensemble-founded-year",
+        severity: "critical",
+        category: "plausibility",
+        message: `Das Gründungsjahr „${
+          String(entity.founded_year)
+        }“ ist unplausibel.`,
+        suggestion: "Gründungsjahr anhand der Ensemble-Website prüfen.",
+      });
+    }
+    if (
+      entity.member_count != null &&
+      (!Number.isInteger(memberCount) || memberCount <= 0 || memberCount > 1000)
+    ) {
+      add({
+        id: "ensemble-member-count",
+        severity: "warning",
+        category: "plausibility",
+        message: `Die Mitgliederzahl „${
+          String(entity.member_count)
+        }“ ist auffällig.`,
+        suggestion:
+          "Prüfen, ob die Zahl aktuell ist und tatsächlich Mitglieder statt Mitwirkende eines Einzelprojekts meint.",
+      });
+    }
+  }
+
+  if (entityType === "venue") {
+    const zip = String(entity.address_zip ?? "").trim();
+    if (!entity.address_street || !zip || !entity.address_city) {
+      add({
+        id: "venue-address",
+        severity: "warning",
+        category: "completeness",
+        message: "Die Anschrift ist unvollständig.",
+        suggestion:
+          "Straße, Postleitzahl und Ort anhand der offiziellen Venue-Seite prüfen.",
+      });
+    }
+    if (zip && !/^\d{5}$/.test(zip)) {
+      add({
+        id: "venue-zip",
+        severity: "warning",
+        category: "plausibility",
+        message:
+          `Die Postleitzahl „${zip}“ entspricht nicht dem fünfstelligen deutschen Format.`,
+        suggestion: "Postleitzahl und Landeskontext prüfen.",
+      });
+    }
+    const capacity = Number(entity.capacity);
+    if (
+      entity.capacity != null &&
+      (!Number.isInteger(capacity) || capacity <= 0 || capacity > 100_000)
+    ) {
+      add({
+        id: "venue-capacity",
+        severity: "warning",
+        category: "plausibility",
+        message: `Die Kapazität „${String(entity.capacity)}“ ist auffällig.`,
+        suggestion: "Sitz-/Stehplatzkapazität und Raumbezug prüfen.",
+      });
+    }
+  }
+
+  if (entityType === "event") {
+    const priceMin = entity.price_min == null ? null : Number(entity.price_min);
+    const priceMax = entity.price_max == null ? null : Number(entity.price_max);
+    if (
+      entity.is_free === true && ((priceMin ?? 0) > 0 || (priceMax ?? 0) > 0)
+    ) {
+      add({
+        id: "event-free-price",
+        severity: "critical",
+        category: "contradiction",
+        message:
+          "Die Veranstaltung ist als kostenlos markiert, enthält aber gleichzeitig einen positiven Preis.",
+        suggestion: "Kostenlos-Markierung oder Preisfelder korrigieren.",
+      });
+    }
+    if (priceMin != null && priceMax != null && priceMin > priceMax) {
+      add({
+        id: "event-price-order",
+        severity: "critical",
+        category: "contradiction",
+        message: "Der Mindestpreis liegt über dem Höchstpreis.",
+        suggestion: "Preisbereich anhand der Ticketseite prüfen.",
+      });
+    }
+    const duration = Number(entity.duration_minutes);
+    if (
+      entity.duration_minutes != null &&
+      (!Number.isFinite(duration) || duration <= 0 || duration > 600)
+    ) {
+      add({
+        id: "event-duration",
+        severity: "warning",
+        category: "plausibility",
+        message: `Die Dauer von „${
+          String(entity.duration_minutes)
+        }“ Minuten ist auffällig.`,
+        suggestion: "Einheit und tatsächliche Gesamtdauer prüfen.",
+      });
+    }
+    if (!entity.venue_id) {
+      add({
+        id: "event-venue",
+        severity: "warning",
+        category: "completeness",
+        message: "Der Veranstaltung ist keine Venue zugeordnet.",
+        suggestion:
+          "Spielstätte oder ausdrücklich einen noch unbekannten Ort hinterlegen.",
+      });
+    }
+  }
+  return issues;
+}

@@ -8,6 +8,7 @@ import { findEventMatch, resolveVenue } from "./matching.ts";
 import type { RawEvent } from "./types.ts";
 import { detectEventCoverImage } from "../_shared/coverImageDetection.ts";
 import { ensureCoverImage } from "../_shared/imagePipeline.ts";
+import { resolveWorkImageFallback } from "../_shared/workImageReuse.ts";
 
 interface SourceRow {
   id: string;
@@ -330,7 +331,24 @@ export async function upsertRawEvent(
     await linkSourceEntity(supabase, source, created.id);
     await attachCoverImage(supabase, source, raw, created.id, venueId, null, [], true);
 
-    if (match) {
+    // Nutzerfeedback: "nach wie vor entstehen duplikate, die verschiedenes
+    // programm zu gleicher uhrzeit und gleichem standort haben" — konkret
+    // bestätigt (z.B. "G. Verdi: Macbeth" vs. "Doctor Atomic" am selben
+    // Venue, ~1h auseinander; "Opernstudio goes Halloween" vs. "Workshop
+    // »Die Zauberflöte«", ~30min auseinander). Ursache: findEventMatch()
+    // ruft find_matching_event mit p_similarity_threshold: 0 auf (siehe
+    // dortiger Kommentar zu den Concerti/IN-München-Aggregator-Quellen),
+    // wodurch die RPC JEDES Event am selben Venue im ±2h-Fenster
+    // zurückgibt — auch mit similarity_score exakt 0, also ganz ohne echtes
+    // Signal (kein Titel-Substring-Treffer, keine exakte Zeitübereinstimmung,
+    // kein Cast-Overlap), rein aus zeitlicher/räumlicher Nähe. Diese Zeile
+    // flaggte bisher jeden solchen Zufallstreffer als duplicate_candidate.
+    // similarity > 0 verlangt mindestens eines der echten Signale aus
+    // find_matching_event (Titel-Substring, exakte start_datetime-
+    // Übereinstimmung oder Cast-Ähnlichkeit) — der ursprüngliche
+    // Aggregator-Fall (exakt gleiche Uhrzeit, komplett anderer Titel) bleibt
+    // dadurch weiterhin erkannt (similarity 0.5 durch den Exact-Time-Bonus).
+    if (match && match.similarity > 0) {
       const { error: dupError } = await supabase.from("duplicate_candidates").insert({
         event_a_id: match.id,
         event_b_id: created.id,
@@ -534,14 +552,24 @@ async function attachCoverImage(
 }
 
 /** Fallback-Kaskade aus dem Architektur-Auftrag, wenn kein Veranstaltungsbild
- * gefunden/gespeichert werden konnte: 1. Ensemble  2. Künstler/Person
- * 3. Veranstaltungsort. Bevorzugt die feste Quellen-Bindung
- * (source.ensemble_id/person_id — dasselbe Signal wie linkSourceEntity()
- * oben), sonst die per event_participants verknüpften Entities, sonst die
- * Venue. Reuses ensureCoverImage() für die eigentliche Zeile: das Foto
- * gehört weiterhin der Entity (origin_type bleibt 'ensemble'/'person'/
- * 'venue'), das Event bekommt nur eine primary_image_id-Referenz darauf —
- * genau das "Bilder unabhängig vom Event speichern"-Prinzip des Auftrags. */
+ * gefunden/gespeichert werden konnte: 0. Werk-Bild-Wiederverwendung
+ * 1. Ensemble  2. Künstler/Person  3. Veranstaltungsort.
+ *
+ * Schritt 0 (Nutzervorgabe "Werk-Bild-Verknüpfung"): wird an diesem Event
+ * ein Werk aufgeführt, das an einer anderen Veranstaltung mit demselben
+ * Ensemble (unabhängig von der Venue) oder derselben Person (nur an
+ * derselben Venue) bereits mit einem echten eigenen Bild dokumentiert ist,
+ * wird dieses Bild wiederverwendet — spezifischer als ein generisches
+ * Ensemble-/Künstler-Porträtfoto, deshalb vor Schritt 1/2 einsortiert. Siehe
+ * _shared/workImageReuse.ts für das genaue Matching.
+ *
+ * Danach: bevorzugt die feste Quellen-Bindung (source.ensemble_id/person_id
+ * — dasselbe Signal wie linkSourceEntity() oben), sonst die per
+ * event_participants verknüpften Entities, sonst die Venue. Reuses
+ * ensureCoverImage() für die eigentliche Zeile: das Foto gehört weiterhin
+ * der Entity (origin_type bleibt 'ensemble'/'person'/'venue'), das Event
+ * bekommt nur eine primary_image_id-Referenz darauf — genau das "Bilder
+ * unabhängig vom Event speichern"-Prinzip des Auftrags. */
 async function resolveFallbackImage(
   // deno-lint-ignore no-explicit-any
   supabase: any,
@@ -549,6 +577,9 @@ async function resolveFallbackImage(
   eventId: string,
   venueId: string | null,
 ): Promise<string | null> {
+  const workImageId = await resolveWorkImageFallback(supabase, eventId);
+  if (workImageId) return workImageId;
+
   let ensembleId = source.ensemble_id ?? null;
   let personId = source.person_id ?? null;
 
@@ -588,12 +619,33 @@ async function resolveFallbackImage(
   return null;
 }
 
+/** Nutzervorgabe: Standardbild für Personen/Ensembles, das für ALLE deren
+ * Veranstaltungen ohne eigenes Bild verwendet wird, getrennt vom
+ * allgemeinen photo_url-Profilfoto — im Adminportal per "Als
+ * Veranstaltungs-Standardbild verwenden"-Umschalter in der Bildergalerie
+ * markierbar (siehe gallery-actions.ts setEventFallbackImage() und Migration
+ * 20261013000011). Ein so markiertes Bild ist bereits eine fertige
+ * images-Zeile — kein erneuter ensureCoverImage()-Download nötig, einfach
+ * direkt zurückgeben. Fällt mangels Markierung auf das bisherige
+ * photo_url-Verhalten zurück (unverändert für Venues, die die Markierung
+ * (noch) nicht anbieten). */
 async function ensureEntityCoverImage(
   // deno-lint-ignore no-explicit-any
   supabase: any,
   originType: "ensemble" | "person" | "venue",
   originId: string,
 ): Promise<string | null> {
+  if (originType === "ensemble" || originType === "person") {
+    const { data: fallbackImage } = await supabase
+      .from("images")
+      .select("id")
+      .eq("origin_type", originType)
+      .eq("origin_id", originId)
+      .eq("use_as_event_fallback", true)
+      .maybeSingle();
+    if (fallbackImage?.id) return fallbackImage.id;
+  }
+
   const table = originType === "ensemble" ? "ensembles" : originType === "person" ? "persons" : "venues";
   const { data: entity } = await supabase.from(table).select("photo_url").eq("id", originId).maybeSingle();
   if (!entity?.photo_url) return null;
