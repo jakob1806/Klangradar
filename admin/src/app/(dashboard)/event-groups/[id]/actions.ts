@@ -387,6 +387,15 @@ export async function createEnsembleAndAddToGroup(groupId: string, formData: For
   if (!name) return;
 
   const supabase = await createClient();
+  const eventIds = selectedEventIds(formData, await memberEventIds(supabase, groupId));
+  const { data: resolution } = await supabase.rpc("resolve_ensemble_entities", { p_name: name });
+  if (resolution?.some((row: { resolution: string }) => ["ignore", "ambiguous"].includes(row.resolution))) return;
+  const resolvedIds = (resolution ?? []).map((row: { id: string | null }) => row.id).filter((id: string | null): id is string => id !== null);
+  if (resolvedIds.length > 0) {
+    for (const ensembleId of resolvedIds) await addParticipantToEvents(supabase, eventIds, null, ensembleId, roleLabel);
+    revalidatePath(`/event-groups/${groupId}`);
+    return;
+  }
   let ensembleId = await resolveCanonicalEntity(supabase, "ensemble", name);
   if (!ensembleId) {
     const slug = await generateUniqueSlug(supabase, "ensembles", name);
@@ -399,7 +408,6 @@ export async function createEnsembleAndAddToGroup(groupId: string, formData: For
     ensembleId = ensemble.id;
   }
 
-  const eventIds = selectedEventIds(formData, await memberEventIds(supabase, groupId));
   await addParticipantToEvents(supabase, eventIds, null, ensembleId, roleLabel);
 
   revalidatePath(`/event-groups/${groupId}`);

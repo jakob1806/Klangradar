@@ -245,6 +245,14 @@ export async function createEnsembleAndAdd(eventId: string, formData: FormData) 
   const roleLabel = String(formData.get("role_label") ?? "").trim().slice(0, 160) || null;
   if (!name) return;
   const supabase = await createClient();
+  const { data: resolution } = await supabase.rpc("resolve_ensemble_entities", { p_name: name });
+  const resolvedIds = (resolution ?? []).map((row: { id: string | null }) => row.id).filter((id: string | null): id is string => id !== null);
+  if (resolution?.some((row: { resolution: string }) => ["ignore", "ambiguous"].includes(row.resolution))) return;
+  if (resolvedIds.length > 0) {
+    for (const ensembleId of resolvedIds) await linkParticipant(supabase, eventId, null, ensembleId, roleLabel);
+    revalidatePath(`/events/${eventId}/program`);
+    return;
+  }
   const existing = await findExactEntity(supabase, "ensemble", name);
   let ensembleId = existing?.id ?? null;
   if (!ensembleId) {

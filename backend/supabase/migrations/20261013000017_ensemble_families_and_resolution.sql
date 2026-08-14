@@ -52,21 +52,68 @@ begin
 end;
 $$;
 
+-- Reduziert einen Namen auf die Merkmale des Hauses. Rollenbegriffe und
+-- grammatische Varianten werden entfernt/vereinheitlicht, damit z.B.
+-- „Bayerischer Staatsopernchor“ automatisch zur „Bayerischen Staatsoper“
+-- und Gärtnerplatz-Schreibweisen zum selben Haus finden.
+create or replace function public.ensemble_family_fingerprint(p_name text)
+returns text language sql immutable parallel safe as $$
+  select trim(regexp_replace(
+    regexp_replace(
+      regexp_replace(replace(replace(replace(replace(replace(replace(
+        normalize_ensemble_resolution_name(p_name),
+        'bayerischen','bayerische'),'bayerischer','bayerische'),'bayerisches','bayerische'),
+        'staatstheaters','staatstheater'),'staatsopern','staatsoper'),'rundfunkorchester','rundfunk'),
+        '(^| )br( |$)', ' bayerische rundfunk ', 'g'),
+      '(^| )(kammerorchester|orchester|orchesters|chor|chores|kinderchor|extrachor|zusatzchor|ballett|opernstudio|statisterie|kinderstatisterie|ensemble|musikerinnen|musiker|mitglieder)( |$)',
+      ' ', 'g'
+    ), '\s+', ' ', 'g'
+  ));
+$$;
+
+-- Nutzt alle expliziten Familienwurzeln sowie bestehende „Gehört zu“-Bäume
+-- als Lernbasis. Neue Häuser benötigen dadurch keine neue fest codierte
+-- IF-Abfrage: Sobald eine Dachorganisation oder Elternbeziehung existiert,
+-- werden weitere offizielle Schreibweisen automatisch derselben Familie
+-- zugeordnet. Die Mindestschwelle verhindert Zuordnungen nur aufgrund von
+-- Wörtern wie „Chor“ oder „Orchester“.
+create or replace function public.detect_ensemble_family_root(p_name text,p_exclude_id uuid default null)
+returns uuid language sql stable as $$
+  with input as (
+    select ensemble_family_fingerprint(p_name) as fingerprint
+  ), roots as (
+    select e.id,e.name,ensemble_family_fingerprint(e.name) as fingerprint
+    from ensembles e
+    where e.id is distinct from p_exclude_id
+      and (e.is_family_root
+       or exists(select 1 from ensembles child where child.parent_ensemble_id=e.id))
+  ), scored as (
+    select r.id,
+      case
+        when length(i.fingerprint)>=6 and (i.fingerprint like '%'||r.fingerprint||'%' or r.fingerprint like '%'||i.fingerprint||'%') then 1.0+least(length(r.fingerprint),100)::numeric/1000
+        when exists(
+          select 1 from regexp_split_to_table(i.fingerprint,' ') token
+          where length(token)>=7 and token=any(regexp_split_to_array(r.fingerprint,' '))
+        ) then greatest(similarity(i.fingerprint,r.fingerprint),word_similarity(i.fingerprint,r.fingerprint))+0.22
+        else greatest(similarity(i.fingerprint,r.fingerprint),word_similarity(i.fingerprint,r.fingerprint))
+      end as score
+    from roots r cross join input i
+    where i.fingerprint<>'' and r.fingerprint<>''
+  )
+  select id from scored where score>=0.58 order by score desc,id limit 1;
+$$;
+
 create or replace function public.assign_ensemble_family()
 returns trigger language plpgsql security definer set search_path=public as $$
 declare n text := normalize_ensemble_resolution_name(new.name); root_id uuid;
 begin
-  if n in ('staatstheater am gaertnerplatz','staatstheater am gartnerplatz','bayerische staatsoper','bayerischer rundfunk') then
+  if new.is_family_root or n in ('staatstheater am gaertnerplatz','staatstheater am gartnerplatz','bayerische staatsoper','bayerischer rundfunk') then
     new.is_family_root := true; new.family_role := 'institution'; new.parent_ensemble_id := null; return new;
   end if;
   if n ~ 'kammerorchester des symphonieorchesters des bayerischen rundfunks' then
     select id into root_id from ensembles where normalize_ensemble_resolution_name(name)='symphonieorchester des bayerischen rundfunks' limit 1;
-  elsif n ~ 'gaertnerplatz|gartnerplatz' then
-    select id into root_id from ensembles where is_family_root and normalize_ensemble_resolution_name(name) in ('staatstheater am gaertnerplatz','staatstheater am gartnerplatz') limit 1;
-  elsif n ~ 'staatsoper|bayerisches staatsorchester|bayerisches staatsballett' then
-    select id into root_id from ensembles where is_family_root and normalize_ensemble_resolution_name(name)='bayerische staatsoper' limit 1;
-  elsif n ~ 'bayerischen rundfunk|bayerischer rundfunk|(^| )br( |$)|brso|muenchner rundfunkorchester|munchner rundfunkorchester' then
-    select id into root_id from ensembles where is_family_root and normalize_ensemble_resolution_name(name)='bayerischer rundfunk' limit 1;
+  else
+    root_id := detect_ensemble_family_root(new.name,new.id);
   end if;
   if root_id is not null and new.parent_ensemble_id is null then new.parent_ensemble_id := root_id; end if;
   if root_id is not null and (new.family_role is null or new.family_role='other') then new.family_role := ensemble_role_from_name(new.name); end if;
@@ -300,12 +347,10 @@ begin
   -- Noch nie gesehene Kombinationen automatisch anhand von Haus und
   -- Untergruppenbegriffen auffächern; dadurch braucht nicht jede neue
   -- Reihenfolge von „Chor/Kinderchor/Statisterie“ eine manuelle Regel.
-  if n ~ 'gaertnerplatz|gartnerplatz' then
-    select e.id into root_id from ensembles e where e.is_family_root and normalize_ensemble_resolution_name(e.name) in ('staatstheater am gaertnerplatz','staatstheater am gartnerplatz') limit 1;
-  elsif n ~ 'staatsoper|bayerisches staatsorchester|bayerisches staatsballett' then
-    select e.id into root_id from ensembles e where e.is_family_root and normalize_ensemble_resolution_name(e.name)='bayerische staatsoper' limit 1;
-  elsif n ~ 'bayerischen rundfunk|bayerischer rundfunk|(^| )br( |$)|brso|muenchner rundfunkorchester|munchner rundfunkorchester' then
-    select e.id into root_id from ensembles e where e.is_family_root and normalize_ensemble_resolution_name(e.name)='bayerischer rundfunk' limit 1;
+  if n ~ 'kammerorchester des symphonieorchesters des bayerischen rundfunks' then
+    select e.id into root_id from ensembles e where normalize_ensemble_resolution_name(e.name)='symphonieorchester des bayerischen rundfunks' limit 1;
+  else
+    root_id := detect_ensemble_family_root(p_name);
   end if;
   if root_id is not null and n ~ 'solistinnen und solisten|solisten und solistinnen' then
     return query select null::uuid,p_name,'ignore'::text; return;
