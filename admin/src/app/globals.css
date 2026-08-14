@@ -180,7 +180,6 @@ body {
   display: flex;
   min-height: 2rem;
   align-items: center;
-  gap: 0.5rem;
   border-radius: 0.55rem;
   padding: 0.4rem 0.65rem;
   color: #3a3a3c;
@@ -204,20 +203,6 @@ body {
 .dashboard-nav-item-active:hover {
   background: #0879e8;
   color: white;
-}
-
-.dashboard-nav-indicator {
-  width: 0.32rem;
-  height: 0.32rem;
-  flex: 0 0 auto;
-  border-radius: 999px;
-  background: #a7a7ac;
-  transition: transform 140ms ease, background-color 140ms ease;
-}
-
-.dashboard-nav-item-active .dashboard-nav-indicator {
-  transform: scale(1.18);
-  background: white;
 }
 
 .dashboard-account {

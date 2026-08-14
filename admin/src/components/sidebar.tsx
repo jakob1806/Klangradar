@@ -109,7 +109,6 @@ export function Sidebar({ userEmail }: { userEmail?: string }) {
                     aria-current={active ? "page" : undefined}
                     className={`dashboard-nav-item ${active ? "dashboard-nav-item-active" : ""}`}
                   >
-                    <span className="dashboard-nav-indicator" aria-hidden="true" />
                     {item.label}
                   </Link>
                 );
