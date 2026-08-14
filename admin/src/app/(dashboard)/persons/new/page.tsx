@@ -7,6 +7,8 @@ export default async function NewPersonPage() {
   const { data: ensembles } = await supabase
     .from("ensembles")
     .select("id, name")
+    .eq("is_resolution_placeholder", false)
+    .eq("is_family_root", false)
     .order("name")
     .returns<{ id: string; name: string }[]>();
 

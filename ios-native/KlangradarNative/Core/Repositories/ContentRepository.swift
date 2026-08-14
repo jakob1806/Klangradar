@@ -26,6 +26,7 @@ struct LiveContentRepository: ContentRepository {
             ]
             if kind == .ensemble {
                 queryItems.append(URLQueryItem(name: "is_resolution_placeholder", value: "eq.false"))
+                queryItems.append(URLQueryItem(name: "is_family_root", value: "eq.false"))
             }
             let page: [JSONObject] = try await client.get(
                 table: specification.table,
@@ -259,7 +260,8 @@ struct LiveContentRepository: ContentRepository {
                 queryItems: [
                     URLQueryItem(name: "select", value: "id"),
                     URLQueryItem(name: "id", value: "in.(\(ensembleIDs.joined(separator: ",")))"),
-                    URLQueryItem(name: "is_resolution_placeholder", value: "eq.false")
+                    URLQueryItem(name: "is_resolution_placeholder", value: "eq.false"),
+                    URLQueryItem(name: "is_family_root", value: "eq.false")
                 ]
             )) ?? []
             visibleEnsembleIDs = Set(visible.compactMap { $0.string("id") })

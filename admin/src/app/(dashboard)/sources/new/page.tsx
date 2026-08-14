@@ -13,7 +13,7 @@ export default async function NewSourcePage({
     supabase.from("venues").select("id, name").order("name"),
     supabase.from("organizers").select("id, name").order("name"),
     supabase.from("persons").select("id, full_name").order("full_name"),
-    supabase.from("ensembles").select("id, name").order("name"),
+    supabase.from("ensembles").select("id, name").eq("is_resolution_placeholder", false).eq("is_family_root", false).order("name"),
   ]);
 
   // Vorbelegung aus dem Onboarding-Assistenten (/sources/onboard) — der Rest

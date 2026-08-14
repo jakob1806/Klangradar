@@ -44,7 +44,11 @@ export default async function EnsemblesPage({ searchParams }: { searchParams: Pr
     .select("id, name, type, is_verified, description_de, photo_url, parent_ensemble_id, family_role, is_family_root, is_resolution_placeholder")
     .order("name")
     .returns<EnsembleRow[]>();
-  const data = (rawData ?? []).filter((ensemble) => ansicht === "technisch" ? ensemble.is_resolution_placeholder : !ensemble.is_resolution_placeholder);
+  const data = (rawData ?? []).filter((ensemble) =>
+    ansicht === "technisch"
+      ? ensemble.is_resolution_placeholder
+      : !ensemble.is_resolution_placeholder && !ensemble.is_family_root,
+  );
 
   const missingBioIds = (data ?? []).filter((e) => !e.description_de).map((e) => e.id);
 
