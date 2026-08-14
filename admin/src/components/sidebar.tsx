@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 
 // Gruppierung nach Arbeitsbereich (seit der ersten Redesign-Runde) macht
@@ -89,9 +90,11 @@ export function Sidebar({ userEmail }: { userEmail?: string }) {
   return (
     <aside className="dashboard-sidebar">
       <div className="dashboard-brand">
-        <span className="dashboard-brand-mark" aria-hidden="true">K</span>
+        <span className="dashboard-brand-mark" aria-hidden="true">
+          <Image src="/app-logo.svg" alt="" width={40} height={40} priority />
+        </span>
         <span className="min-w-0">
-          <span className="block truncate text-[15px] font-semibold tracking-[-0.014em] text-[#1d1d1f]">Klassik München</span>
+          <span className="block truncate text-[15px] font-semibold tracking-[-0.014em] text-[#1d1d1f]">Klangradar</span>
           <span className="mt-0.5 block truncate text-[11px] text-[#86868b]">Redaktions-Dashboard</span>
         </span>
       </div>

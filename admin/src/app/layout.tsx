@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Klassik München — Admin",
-  description: "Redaktions-Dashboard für die Klassik-München-Plattform",
+  title: "Klangradar — Admin",
+  description: "Redaktions-Dashboard für Klangradar",
 };
 
 export default function RootLayout({

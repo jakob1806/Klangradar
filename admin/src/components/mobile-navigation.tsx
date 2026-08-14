@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type MouseEvent, type ReactNode } from "react";
+import Image from "next/image";
 
 export function MobileNavigation({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
@@ -26,8 +27,11 @@ export function MobileNavigation({ children }: { children: ReactNode }) {
             <span className="h-0.5 w-full rounded bg-current" />
           </span>
         </button>
+        <span className="dashboard-brand-mark" aria-hidden="true">
+          <Image src="/app-logo.svg" alt="" width={40} height={40} priority />
+        </span>
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold tracking-tight">Klassik München</p>
+          <p className="truncate text-sm font-semibold tracking-tight">Klangradar</p>
           <p className="truncate text-xs text-neutral-500">Redaktions-Dashboard</p>
         </div>
       </div>

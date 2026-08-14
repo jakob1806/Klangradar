@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <rect width="1024" height="1024" fill="#FFFFFF"/>
+  <defs>
+    <clipPath id="upper-half"><rect width="1024" height="512"/></clipPath>
+    <clipPath id="lower-half"><rect y="512" width="1024" height="512"/></clipPath>
+  </defs>
+  <path d="M326 512 L738 220" fill="none" stroke="#6F7EFA" stroke-width="148" stroke-linecap="round" clip-path="url(#upper-half)"/>
+  <path d="M326 512 L738 804" fill="none" stroke="#4FCDBA" stroke-width="148" stroke-linecap="round" clip-path="url(#lower-half)"/>
+  <rect x="218" y="192" width="148" height="640" rx="74" fill="#111111"/>
+</svg>
