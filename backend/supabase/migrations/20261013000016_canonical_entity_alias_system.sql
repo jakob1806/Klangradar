@@ -68,6 +68,17 @@ begin
 end;
 $$;
 
+-- Historisch verwaiste polymorphe Aliaszeilen besitzen keinen FK und können
+-- daher nach dem Löschen ihres Zielobjekts zurückbleiben. Vor Aktivierung der
+-- strikten Validierung entfernen; sie können ohnehin nie aufgelöst werden.
+delete from public.entity_aliases a where
+  (a.entity_type = 'person' and not exists(select 1 from persons p where p.id=a.entity_id))
+  or (a.entity_type = 'ensemble' and not exists(select 1 from ensembles e where e.id=a.entity_id))
+  or (a.entity_type = 'venue' and not exists(select 1 from venues v where v.id=a.entity_id))
+  or (a.entity_type = 'work' and not exists(select 1 from works w where w.id=a.entity_id))
+  or (a.entity_type = 'organizer' and not exists(select 1 from organizers o where o.id=a.entity_id))
+  or (a.entity_type = 'festival' and not exists(select 1 from festivals f where f.id=a.entity_id));
+
 drop trigger if exists validate_entity_alias_target_trigger on public.entity_aliases;
 create trigger validate_entity_alias_target_trigger
 before insert or update on public.entity_aliases

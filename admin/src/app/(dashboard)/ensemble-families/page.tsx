@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { deleteEnsembleResolutionRule } from "../ensembles/actions";
+import { ResolutionRuleForm, type FamilyOption } from "./resolution-rule-form";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +34,7 @@ export default async function EnsembleFamiliesPage({ searchParams }: { searchPar
   const names = new Map(ensembles.map((item) => [item.id, item.name]));
   const targetsByRule = new Map<string, TargetRow[]>();
   for (const target of targetData ?? []) targetsByRule.set(target.rule_id, [...(targetsByRule.get(target.rule_id) ?? []), target]);
-  const families = roots.map((root) => ({
+  const families: FamilyOption[] = roots.map((root) => ({
     id: root.id,
     name: root.name,
     children: stable.filter((child) => child.parent_ensemble_id === root.id).map((child) => ({ id: child.id, name: child.name, role: child.family_role })),
@@ -85,10 +87,13 @@ export default async function EnsembleFamiliesPage({ searchParams }: { searchPar
             <article key={rule.id} className={`rounded-xl border bg-white p-5 shadow-sm ${rule.action === "expand" && !targetIds.length ? "border-amber-300" : "border-black/[0.06]"}`}>
               <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-medium">{rule.input_name}</p>{rule.note && <p className="mt-1 text-sm text-neutral-500">{rule.note}</p>}</div><span className="type-label border border-emerald-200 bg-emerald-50 px-2 py-1 !text-emerald-700">Automatisch erkannt</span></div>
               <div className="mt-3 border-t border-neutral-100 pt-3 text-sm text-neutral-600">{rule.action === "ignore" ? "Wird nicht als festes Ensemble gespeichert" : targetIds.length ? `→ ${targetIds.map((id) => names.get(id) ?? id).join(" + ")}` : "⚠ Konnte noch nicht eindeutig aufgelöst werden"}</div>
+              <details className="mt-4 border-t border-neutral-100 pt-3"><summary className="cursor-pointer text-sm font-medium text-[#0071e3]">Manuell korrigieren</summary><div className="mt-4"><ResolutionRuleForm families={families} rule={{ id: rule.id, familyRootId: rule.family_root_id, inputName: rule.input_name, action: rule.action, note: rule.note, targetIds }} /><form action={deleteEnsembleResolutionRule} className="mt-3 text-right"><input type="hidden" name="id" value={rule.id} /><button className="text-xs text-red-600 hover:underline">Manuelle/automatische Regel löschen</button></form></div></details>
             </article>
           );
         })}
       </section>
+
+      <section className="space-y-3"><div><h2 className="text-base font-semibold">Manuelle Ausnahme ergänzen</h2><p className="mt-1 text-sm text-neutral-500">Nur verwenden, wenn die automatische Erkennung eine offizielle Sonderbezeichnung nicht eindeutig zuordnen kann.</p></div><div className="rounded-xl border border-[#0071e3]/20 bg-[#f5f9ff] p-5"><ResolutionRuleForm families={families} /></div></section>
 
       {placeholders.length > 0 && <section><h2 className="text-base font-semibold">Technische Sammelbezeichnungen</h2><p className="mt-1 text-sm text-neutral-500">Diese Datensätze bleiben nur für die Revisionshistorie erhalten und erscheinen nicht in den Apps oder Mitwirkenden-Auswahlen.</p><div className="mt-3 flex flex-wrap gap-2">{placeholders.map((item) => <Link key={item.id} href={`/ensembles/${item.id}`} className="border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 hover:border-amber-400">{item.name}</Link>)}</div></section>}
     </div>

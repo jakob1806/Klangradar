@@ -22,6 +22,44 @@ function readEnsembleFields(formData: FormData) {
   };
 }
 
+export async function saveEnsembleResolutionRule(formData: FormData) {
+  const id = String(formData.get("id") ?? "");
+  const inputName = String(formData.get("input_name") ?? "").trim();
+  const familyRootId = String(formData.get("family_root_id") ?? "") || null;
+  const action = formData.get("action") === "ignore" ? "ignore" : "expand";
+  const note = String(formData.get("note") ?? "").trim() || null;
+  const targetIds = Array.from(new Set(formData.getAll("target_ids").map(String).filter(Boolean)));
+  if (!inputName) throw new Error("Die Eingabebezeichnung fehlt.");
+  if (action === "expand" && targetIds.length === 0) throw new Error("Mindestens ein Ziel-Ensemble auswählen.");
+
+  const supabase = await createClient();
+  const payload = { input_name: inputName, family_root_id: familyRootId, action, note };
+  const query = id
+    ? supabase.from("ensemble_resolution_rules").update(payload).eq("id", id).select("id").single()
+    : supabase.from("ensemble_resolution_rules").insert(payload).select("id").single();
+  const { data: rule, error } = await query;
+  if (error || !rule) throw new Error(error?.message ?? "Regel konnte nicht gespeichert werden.");
+
+  const { error: deleteError } = await supabase.from("ensemble_resolution_rule_targets").delete().eq("rule_id", rule.id);
+  if (deleteError) throw new Error(deleteError.message);
+  if (action === "expand") {
+    const { error: targetError } = await supabase.from("ensemble_resolution_rule_targets").insert(
+      targetIds.map((ensembleId, displayOrder) => ({ rule_id: rule.id, ensemble_id: ensembleId, display_order: displayOrder })),
+    );
+    if (targetError) throw new Error(targetError.message);
+  }
+  revalidatePath("/ensemble-families");
+}
+
+export async function deleteEnsembleResolutionRule(formData: FormData) {
+  const id = String(formData.get("id") ?? "");
+  if (!id) return;
+  const supabase = await createClient();
+  const { error } = await supabase.from("ensemble_resolution_rules").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/ensemble-families");
+}
+
 export async function createEnsemble(formData: FormData) {
   const f = readEnsembleFields(formData);
   const supabase = await createClient();
