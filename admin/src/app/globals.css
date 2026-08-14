@@ -39,6 +39,11 @@
   color-scheme: light;
 }
 
+html,
+body {
+  min-height: 100%;
+}
+
 .apple-font {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, "Segoe UI", Roboto, sans-serif;
 }
@@ -59,15 +64,357 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, "Segoe UI", sans-serif;
+  --font-mono: "SFMono-Regular", "SF Mono", ui-monospace, Menlo, monospace;
 }
 
 body {
-  background: var(--background);
+  background:
+    radial-gradient(circle at 70% -10%, rgba(0, 113, 227, 0.07), transparent 28rem),
+    var(--background);
   color: var(--foreground);
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, "Segoe UI", Roboto, sans-serif;
   letter-spacing: -0.006em;
+}
+
+::selection {
+  background: rgba(0, 113, 227, 0.18);
+}
+
+* {
+  scrollbar-color: rgba(60, 60, 67, 0.22) transparent;
+  scrollbar-width: thin;
+}
+
+/* Einheitliche App-Huelle -------------------------------------------------- */
+.dashboard-shell {
+  min-height: 100vh;
+  background: transparent;
+}
+
+.dashboard-main {
+  background: rgba(245, 245, 247, 0.72);
+  color: #1d1d1f;
+}
+
+.dashboard-topbar {
+  height: 3.75rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.055);
+  background: rgba(250, 250, 252, 0.76);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.7) inset;
+  backdrop-filter: saturate(180%) blur(22px);
+}
+
+.dashboard-content {
+  padding-bottom: 4rem;
+}
+
+.dashboard-content > div {
+  width: 100%;
+  max-width: 96rem;
+  margin-inline: auto;
+}
+
+.dashboard-content > .p-8 {
+  padding: clamp(1.5rem, 3vw, 2.75rem);
+}
+
+/* Sidebar: bewusst dieselbe visuelle Sprache wie macOS/iPadOS-Sidebars. */
+.dashboard-sidebar {
+  position: sticky;
+  top: 0;
+  display: flex;
+  width: 17rem;
+  height: 100vh;
+  flex-shrink: 0;
+  flex-direction: column;
+  gap: 1.25rem;
+  overflow: hidden;
+  border-right: 1px solid rgba(0, 0, 0, 0.065);
+  background: rgba(238, 238, 242, 0.78);
+  padding: 1.25rem 0.75rem 0.9rem;
+  box-shadow: 1px 0 0 rgba(255, 255, 255, 0.55) inset;
+  backdrop-filter: saturate(170%) blur(24px);
+}
+
+.dashboard-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.25rem 0.5rem 0.45rem;
+}
+
+.dashboard-brand-mark {
+  display: flex;
+  width: 2.15rem;
+  height: 2.15rem;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.68rem;
+  background: linear-gradient(145deg, #1683ec, #0064c8);
+  box-shadow: 0 5px 14px rgba(0, 92, 185, 0.22), 0 1px 0 rgba(255, 255, 255, 0.35) inset;
+  color: white;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+}
+
+.dashboard-sidebar-nav {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 1.05rem;
+  overflow-y: auto;
+  padding: 0 0.15rem 0.5rem;
+}
+
+.dashboard-nav-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboard-nav-item {
+  position: relative;
+  display: flex;
+  min-height: 2rem;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 0.55rem;
+  padding: 0.4rem 0.65rem;
+  color: #3a3a3c;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.2;
+  transition: background-color 140ms ease, color 140ms ease, box-shadow 140ms ease;
+}
+
+.dashboard-nav-item:hover {
+  background: rgba(0, 0, 0, 0.045);
+  color: #1d1d1f;
+}
+
+.dashboard-nav-item-active {
+  background: #0071e3;
+  box-shadow: 0 2px 7px rgba(0, 90, 180, 0.2), 0 1px 0 rgba(255, 255, 255, 0.2) inset;
+  color: white;
+}
+
+.dashboard-nav-item-active:hover {
+  background: #0879e8;
+  color: white;
+}
+
+.dashboard-nav-indicator {
+  width: 0.32rem;
+  height: 0.32rem;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #a7a7ac;
+  transition: transform 140ms ease, background-color 140ms ease;
+}
+
+.dashboard-nav-item-active .dashboard-nav-indicator {
+  transform: scale(1.18);
+  background: white;
+}
+
+.dashboard-account {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  border: 1px solid rgba(0, 0, 0, 0.055);
+  border-radius: 0.8rem;
+  background: rgba(255, 255, 255, 0.55);
+  padding: 0.55rem 0.65rem;
+}
+
+.dashboard-account-avatar {
+  display: flex;
+  width: 1.85rem;
+  height: 1.85rem;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #dedee3;
+  color: #55555a;
+  font-size: 0.72rem;
+  font-weight: 650;
+}
+
+.dashboard-sign-out {
+  min-height: 2rem;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 0.55rem;
+  background: rgba(255, 255, 255, 0.68);
+  padding: 0.35rem 0.72rem;
+  color: #0071e3;
+  font-size: 0.78rem;
+  font-weight: 600;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.dashboard-sign-out:hover {
+  background: white;
+  color: #0064c8;
+}
+
+/* Typografie und wiederkehrende Inhaltsflaechen --------------------------- */
+.dashboard-content h1 {
+  color: #1d1d1f;
+  font-size: clamp(1.55rem, 2vw, 1.85rem);
+  font-weight: 650;
+  line-height: 1.15;
+  letter-spacing: -0.026em;
+}
+
+.dashboard-content h2 {
+  color: #1d1d1f;
+  font-weight: 620;
+  letter-spacing: -0.015em;
+}
+
+.dashboard-content .type-label {
+  letter-spacing: 0.055em;
+}
+
+.dashboard-content [class*="shadow-sm"] {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.035), 0 8px 24px rgba(0, 0, 0, 0.025);
+}
+
+.dashboard-content .rounded-xl {
+  border-radius: 0.9rem;
+}
+
+.dashboard-content .rounded-lg,
+.dashboard-content .rounded-md {
+  border-radius: 0.65rem;
+}
+
+.dashboard-content .border-2:not(.border-b-2) {
+  border-width: 1px;
+  border-radius: 0.75rem;
+}
+
+.dashboard-content .type-label.border {
+  border-radius: 999px;
+}
+
+.dashboard-content [class*="border-neutral-300"][class*="bg-neutral-50"],
+.dashboard-content [class*="border-amber-700"][class*="bg-amber-50"] {
+  border-radius: 0.75rem;
+}
+
+/* Formulare: eine gemeinsame Apple-aehnliche Control-Hoehe und Fokuslogik. */
+.dashboard-content input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+.dashboard-content select,
+.dashboard-content textarea,
+.admin-login-card input {
+  min-height: 2.5rem;
+  border-color: rgba(0, 0, 0, 0.12) !important;
+  border-radius: 0.65rem !important;
+  background-color: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.025), 0 1px 0 rgba(255, 255, 255, 0.7) inset;
+  color: #1d1d1f;
+  transition: border-color 140ms ease, box-shadow 140ms ease, background-color 140ms ease;
+}
+
+.dashboard-content input:not([type="checkbox"]):not([type="radio"]):focus,
+.dashboard-content select:focus,
+.dashboard-content textarea:focus,
+.admin-login-card input:focus {
+  border-color: #0071e3 !important;
+  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.14);
+  outline: none;
+}
+
+.dashboard-content input::placeholder,
+.dashboard-content textarea::placeholder,
+.admin-login-card input::placeholder {
+  color: #a1a1a6;
+}
+
+.dashboard-content input[type="checkbox"],
+.dashboard-content input[type="radio"] {
+  accent-color: #0071e3;
+}
+
+.dashboard-content button,
+.dashboard-content a[class*="rounded"],
+.admin-login-card button {
+  transition: transform 100ms ease, background-color 140ms ease, border-color 140ms ease, color 140ms ease, opacity 140ms ease;
+}
+
+.dashboard-content button:active:not(:disabled),
+.dashboard-content a[class*="rounded"]:active,
+.admin-login-card button:active:not(:disabled) {
+  transform: scale(0.985);
+}
+
+.dashboard-content button[class*="bg-neutral-900"],
+.dashboard-content a[class*="bg-neutral-900"],
+.admin-login-card button[class*="bg-neutral-900"] {
+  background: #0071e3 !important;
+  box-shadow: 0 2px 7px rgba(0, 91, 182, 0.18);
+}
+
+.dashboard-content button[class*="bg-neutral-900"]:hover,
+.dashboard-content a[class*="bg-neutral-900"]:hover,
+.admin-login-card button[class*="bg-neutral-900"]:hover {
+  background: #0077ed !important;
+}
+
+/* Tabellen wirken wie eine einzige ruhige Inhaltsflaeche, nicht wie ein
+   separates Legacy-Widget auf jeder Route. */
+.dashboard-content table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.dashboard-content thead {
+  background: rgba(245, 245, 247, 0.78);
+}
+
+.dashboard-content thead th {
+  height: 2.75rem;
+  vertical-align: middle;
+}
+
+.dashboard-content tbody tr {
+  transition: background-color 120ms ease;
+}
+
+.dashboard-content tbody tr:hover {
+  background: rgba(0, 113, 227, 0.028);
+}
+
+.dashboard-content tbody td {
+  border-color: rgba(0, 0, 0, 0.055);
+}
+
+.dashboard-content pre {
+  border: 1px solid rgba(0, 0, 0, 0.055);
+  border-radius: 0.65rem;
+  background: #f7f7f9;
+}
+
+/* Login gehoert visuell zum selben Produkt statt wie ein nacktes Formular
+   vor dem Dashboard zu wirken. */
+.admin-login-shell {
+  background:
+    radial-gradient(circle at 50% 12%, rgba(0, 113, 227, 0.11), transparent 25rem),
+    linear-gradient(180deg, #fafafd, #f1f1f4);
+}
+
+.admin-login-card {
+  border: 1px solid rgba(0, 0, 0, 0.07);
+  border-radius: 1.25rem;
+  background: rgba(255, 255, 255, 0.82);
+  padding: 2rem;
+  box-shadow: 0 22px 65px rgba(0, 0, 0, 0.08), 0 1px 0 rgba(255, 255, 255, 0.8) inset;
+  backdrop-filter: saturate(170%) blur(24px);
 }
 
 .mobile-dashboard-header {
@@ -78,9 +425,9 @@ body {
   align-items: center;
   gap: 0.75rem;
   border-bottom: 1px solid #e5e5e5;
-  background: rgba(255, 255, 255, 0.96);
+  background: rgba(248, 248, 250, 0.88);
   padding: 0.625rem 0.75rem;
-  backdrop-filter: blur(12px);
+  backdrop-filter: saturate(180%) blur(22px);
 }
 
 @media (max-width: 767px) {
@@ -103,6 +450,10 @@ body {
     border: 0;
     padding: 0;
     gap: 0.75rem;
+    height: auto;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
   }
 
   .mobile-navigation-panel aside > div:first-child {
@@ -274,5 +625,14 @@ body {
 @media (min-width: 430px) and (max-width: 767px) {
   .mobile-navigation-panel nav {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-content *,
+  .dashboard-nav-item,
+  .dashboard-sign-out {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
   }
 }

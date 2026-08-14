@@ -87,15 +87,18 @@ export function Sidebar({ userEmail }: { userEmail?: string }) {
     : null;
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col gap-6 border-r border-black/[0.06] bg-[#f5f5f7]/80 px-3 py-6 backdrop-blur-xl">
-      <div className="px-3">
-        <p className="type-heading text-[15px] text-[#1d1d1f]">Klassik München</p>
-        <p className="mt-0.5 text-[11px] text-[#86868b]">Redaktions-Dashboard</p>
+    <aside className="dashboard-sidebar">
+      <div className="dashboard-brand">
+        <span className="dashboard-brand-mark" aria-hidden="true">K</span>
+        <span className="min-w-0">
+          <span className="block truncate text-[15px] font-semibold tracking-[-0.014em] text-[#1d1d1f]">Klassik München</span>
+          <span className="mt-0.5 block truncate text-[11px] text-[#86868b]">Redaktions-Dashboard</span>
+        </span>
       </div>
-      <nav className="flex flex-1 flex-col gap-5 overflow-y-auto">
+      <nav className="dashboard-sidebar-nav">
         {NAV_GROUPS.map((group) => (
-          <div key={group.label}>
-            <p className="type-label mb-1.5 px-3">{group.label}</p>
+          <div key={group.label} className="dashboard-nav-group">
+            <p className="type-label mb-1.5 px-2.5">{group.label}</p>
             <div className="flex flex-col gap-0.5">
               {group.items.map((item) => {
                 const active = item.href === activeHref;
@@ -103,10 +106,10 @@ export function Sidebar({ userEmail }: { userEmail?: string }) {
                   <Link
                     key={item.href}
                     href={item.href}
-                    className={`rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors ${
-                      active ? "bg-[#0071e3] text-white" : "text-[#1d1d1f] hover:bg-black/[0.04]"
-                    }`}
+                    aria-current={active ? "page" : undefined}
+                    className={`dashboard-nav-item ${active ? "dashboard-nav-item-active" : ""}`}
                   >
+                    <span className="dashboard-nav-indicator" aria-hidden="true" />
                     {item.label}
                   </Link>
                 );
@@ -116,9 +119,13 @@ export function Sidebar({ userEmail }: { userEmail?: string }) {
         ))}
       </nav>
       {userEmail && (
-        <p className="truncate px-3 pt-3 text-[11px] text-[#86868b]" title={userEmail}>
-          {userEmail}
-        </p>
+        <div className="dashboard-account" title={userEmail}>
+          <span className="dashboard-account-avatar" aria-hidden="true">{userEmail.slice(0, 1).toUpperCase()}</span>
+          <span className="min-w-0">
+            <span className="block text-[10px] font-semibold uppercase tracking-[0.06em] text-[#86868b]">Angemeldet</span>
+            <span className="block truncate text-[11px] text-[#424245]">{userEmail}</span>
+          </span>
+        </div>
       )}
     </aside>
   );
