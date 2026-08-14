@@ -57,6 +57,33 @@ Legend: ✅ scaffolded and working · 🟡 partial · ⬜ not started
 
 Verification: iPhone 17 Pro (iOS 26.5) and iPad mini (iOS 18.6) simulator builds succeeded, live Supabase work queries returned HTTP 200, and all 4 automated tests passed.
 
+## Tappable genre chips and Editorial event editor cleanup (2026-08-14)
+
+- ✅ Event detail genre chips are tappable — mirrors the Flutter app's
+  `eventFiltersProvider` behavior. Tapping a genre (not the free-text
+  `category` label, which stays plain) switches to the Search tab and shows a
+  genre-filtered event list with a "Filter entfernen" action. New pieces:
+  `GenreFilterRouter` (shared `@EnvironmentObject`, `Core/GenreFilterRouter.swift`),
+  `EventRepository.events(genreID:limit:)` (live + preview), and a genre
+  filter section in `SearchView`. Tappable chips are visually distinguished
+  with an accent tint; the static category chip stays neutral.
+- ✅ `EditorialEventEditorView` (Redaktion → Veranstaltung bearbeiten) no
+  longer uses a custom `ScrollView`/`VStack`/card layout with a hand-rolled
+  section-picker tab bar — it is now a single `Form` with native `Section`s
+  (Basisdaten, Weitere Angaben, Mitwirkende, Programm, KI-Recherche, Löschen),
+  matching the existing `EditorialEntityEditorView` pattern. Removed the
+  now-unused `EditorialEventEditorSection`/`EditorialEventSectionPicker` and
+  the custom `EditorialTextField` wrapper; the toolbar `Menu` for the single
+  delete action became a plain destructive Form section button.
+
+Verification: iPhone 17 Pro (iOS 26.5) simulator build and full test suite
+succeeded; live-tested tapping a genre chip on a real event ("Orgel") →
+correct tab switch and filtered event list, and "Filter entfernen" restoring
+the normal Search view. Editorial portal change verified by successful build
++ tests only (Redaktionsmodus requires sign-in, not exercised live this
+session) — same Form pattern is already proven live in
+`EditorialEntityEditorView`.
+
 ## Entity links, ticket truth and search thumbnails #1–#7 (2026-08-09)
 
 - ✅ #1 Program composers and all participant rows navigate to person/ensemble details. Participant rows prefer real circular `photo_url` images, then licensed gallery images, and use initials only when no real image exists.

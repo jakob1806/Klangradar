@@ -794,42 +794,6 @@ private struct EditorialSimpleOptionPicker: View {
     }
 }
 
-private enum EditorialEventEditorSection: String, CaseIterable, Identifiable {
-    case event, program, research
-    var id: Self { self }
-    var title: String {
-        switch self { case .event: "Daten"; case .program: "Besetzung"; case .research: "KI" }
-    }
-    var symbol: String {
-        switch self { case .event: "doc.text"; case .program: "person.2"; case .research: "sparkles" }
-    }
-}
-
-private struct EditorialEventSectionPicker: View {
-    @Binding var selection: EditorialEventEditorSection
-
-    var body: some View {
-        HStack(spacing: 5) {
-            ForEach(EditorialEventEditorSection.allCases) { section in
-                Button {
-                    withAnimation(.snappy(duration: 0.22)) { selection = section }
-                } label: {
-                    Label(section.title, systemImage: section.symbol)
-                        .font(.subheadline.weight(.semibold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 9)
-                        .foregroundStyle(selection == section ? Color.white : Color.secondary)
-                        .background(selection == section ? KlangradarTheme.accent : Color.clear, in: RoundedRectangle(cornerRadius: 10))
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(4)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
-        .overlay { RoundedRectangle(cornerRadius: 14).stroke(.separator.opacity(0.18)) }
-    }
-}
-
 private struct EditorialGenrePicker: View {
     let options: [EditorialOption]
     @Binding var selection: Set<UUID>
@@ -925,7 +889,6 @@ private struct EditorialEventEditorView: View {
     @State private var organizerOptions: [EditorialOption] = []
     @State private var showsOrganizerPicker = false
     @State private var showsGenrePicker = false
-    @State private var editorSection: EditorialEventEditorSection = .event
     @State private var genreOptions: [EditorialOption] = []
     @State private var selectedGenreIDs: Set<UUID> = []
     @State private var priceMinText: String = ""
@@ -975,43 +938,21 @@ private struct EditorialEventEditorView: View {
     }
 
     var body: some View {
-        ZStack {
-            EditorialBackground()
-            ScrollView {
-                VStack(spacing: 16) {
-                    EditorialModeBanner(compact: true)
-                    EditorialEventSectionPicker(selection: $editorSection)
-                    Group {
-                        switch editorSection {
-                        case .event:
-                            basicCard
-                            detailsCard
-                        case .program:
-                            participantsCard
-                            programCard
-                        case .research:
-                            EditorialAIAssistantView(auth: auth, repository: repository, entityType: "event", entityID: initialEvent.id)
-                        }
-                    }
-                    .transition(.opacity.combined(with: .move(edge: .trailing)))
-                }
-                .padding(16)
-            }
-            if isLoading || isSaving || isDeleting { Color.black.opacity(0.22).ignoresSafeArea(); ProgressView().tint(KlangradarTheme.accent).scaleEffect(1.25) }
+        Form {
+            Section { EditorialModeBanner(compact: true) }
+            basicSection
+            detailsSection
+            participantsSection
+            programSection
+            Section { EditorialAIAssistantView(auth: auth, repository: repository, entityType: "event", entityID: initialEvent.id) }
+            deleteSection
         }
+        .scrollContentBackground(.hidden)
+        .background(EditorialBackground())
+        .disabled(isLoading || isSaving || isDeleting)
+        .overlay { if isLoading || isSaving || isDeleting { ProgressView().tint(KlangradarTheme.accent) } }
         .navigationTitle("Veranstaltung bearbeiten")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Menu {
-                    Button("Veranstaltung löschen", systemImage: "trash", role: .destructive) {
-                        showsDeleteConfirmation = true
-                    }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                }
-            }
-        }
         .sheet(item: $picker) { kind in
             EditorialOptionPicker(kind: kind, repository: repository, auth: auth) { option, role in
                 Task { await apply(option: option, role: role, kind: kind) }
@@ -1048,27 +989,29 @@ private struct EditorialEventEditorView: View {
         .task { await load() }
     }
 
-    private var basicCard: some View {
-        EditorialCard(title: "Basisdaten", icon: "pencil.and.list.clipboard") {
-            EditorialTextField(label: "Titel", text: $title)
-            EditorialTextField(label: "Untertitel", text: $subtitle)
+    private var basicSection: some View {
+        Section {
+            TextField("Titel", text: $title)
+            TextField("Untertitel", text: $subtitle)
             DatePicker("Tag und Uhrzeit", selection: $startDate)
                 .datePickerStyle(.compact).tint(KlangradarTheme.accent)
             Picker("Veranstaltungsort", selection: $venueID) {
                 ForEach(venues) { Text($0.title).tag($0.id) }
             }.tint(KlangradarTheme.accent)
-            EditorialTextField(label: "Bild-URL", text: $imageURL, axis: .vertical)
+            TextField("Bild-URL", text: $imageURL, axis: .vertical)
                 .textInputAutocapitalization(.never).keyboardType(.URL)
             EditorialGalleryEditor(auth: auth, repository: repository, originType: "event", originID: initialEvent.id) { primaryURL in
                 imageURL = primaryURL ?? ""
             }
             Button { Task { await saveBasics() } } label: {
-                Label(message ?? "Änderungen zentral speichern", systemImage: message == nil ? "arrow.triangle.2.circlepath.circle.fill" : "checkmark.circle.fill")
+                Label(message ?? "Basisdaten speichern", systemImage: message == nil ? "arrow.triangle.2.circlepath.circle.fill" : "checkmark.circle.fill")
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(EditorialPrimaryButtonStyle()).disabled(isSaving)
+            .buttonStyle(.borderedProminent).tint(KlangradarTheme.accent).disabled(isSaving)
+        } header: {
+            Text("Basisdaten")
+        } footer: {
             Text("Wird direkt in Supabase gespeichert und ist damit im Admin-Portal, in der Web-/Vercel-Ausgabe sowie in Flutter und Native verfügbar.")
-                .font(.caption).foregroundStyle(.secondary)
         }
     }
 
@@ -1082,13 +1025,12 @@ private struct EditorialEventEditorView: View {
     ]
 
     /// Feldparität mit event-form.tsx, ergänzend zur "Schnellkorrektur"
-    /// (basicCard) — eigene Karte mit eigenem Speichern-Button, damit die
+    /// (basicSection) — eigene Section mit eigenem Speichern-Button, damit die
     /// bestehende Schnellkorrektur unverändert nutzbar bleibt.
-    private var detailsCard: some View {
-        EditorialCard(title: "Weitere Angaben", icon: "list.bullet.rectangle") {
-            EditorialTextField(label: "Beschreibung", text: $descriptionDe, axis: .vertical)
-            EditorialTextField(label: "Dauer (Minuten)", text: $durationMinutesText)
-                .keyboardType(.numberPad)
+    private var detailsSection: some View {
+        Section("Weitere Angaben") {
+            TextField("Beschreibung", text: $descriptionDe, axis: .vertical).lineLimit(3...8)
+            TextField("Dauer (Minuten)", text: $durationMinutesText).keyboardType(.numberPad)
             Toggle("Mit Pause", isOn: $hasIntermission).tint(KlangradarTheme.accent)
 
             HStack {
@@ -1101,52 +1043,44 @@ private struct EditorialEventEditorView: View {
                 }
             }
 
-            VStack(alignment: .leading, spacing: 10) {
-                Button { showsGenrePicker = true } label: {
-                    HStack {
-                        Label("Genres", systemImage: "music.quarternote.3")
-                        Spacer()
-                        Text(selectedGenreIDs.isEmpty ? "Auswählen" : "\(selectedGenreIDs.count) gewählt")
-                            .foregroundStyle(.secondary)
-                        Image(systemName: "chevron.right")
-                            .font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
-                    }
+            Button { showsGenrePicker = true } label: {
+                LabeledContent("Genres", value: selectedGenreIDs.isEmpty ? "Auswählen" : "\(selectedGenreIDs.count) gewählt")
                     .foregroundStyle(.primary)
-                }
-                if !selectedGenreIDs.isEmpty {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 6) {
-                            ForEach(genreOptions.filter { selectedGenreIDs.contains($0.id) }) { genre in
-                                HStack(spacing: 5) {
-                                    Text(genre.title)
-                                    Button { selectedGenreIDs.remove(genre.id) } label: {
-                                        Image(systemName: "xmark.circle.fill")
-                                    }
-                                    .buttonStyle(.plain)
+            }
+            if !selectedGenreIDs.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(genreOptions.filter { selectedGenreIDs.contains($0.id) }) { genre in
+                            HStack(spacing: 5) {
+                                Text(genre.title)
+                                Button { selectedGenreIDs.remove(genre.id) } label: {
+                                    Image(systemName: "xmark.circle.fill")
                                 }
-                                .font(.caption.weight(.medium))
-                                .padding(.horizontal, 9).padding(.vertical, 6)
-                                .background(KlangradarTheme.accent.opacity(0.12), in: Capsule())
-                                .foregroundStyle(KlangradarTheme.accent)
+                                .buttonStyle(.plain)
                             }
+                            .font(.caption.weight(.medium))
+                            .padding(.horizontal, 9).padding(.vertical, 6)
+                            .background(KlangradarTheme.accent.opacity(0.12), in: Capsule())
+                            .foregroundStyle(KlangradarTheme.accent)
                         }
                     }
                 }
+                .listRowSeparator(.hidden)
             }
 
-            EditorialTextField(label: "Preis von (€)", text: $priceMinText).keyboardType(.decimalPad)
-            EditorialTextField(label: "Preis bis (€)", text: $priceMaxText).keyboardType(.decimalPad)
+            TextField("Preis von (€)", text: $priceMinText).keyboardType(.decimalPad)
+            TextField("Preis bis (€)", text: $priceMaxText).keyboardType(.decimalPad)
             Toggle("Kostenlos", isOn: $isFree).tint(KlangradarTheme.accent)
-            EditorialTextField(label: "Ticket-Link", text: $ticketURL).textInputAutocapitalization(.never).keyboardType(.URL)
+            TextField("Ticket-Link", text: $ticketURL).textInputAutocapitalization(.never).keyboardType(.URL)
 
             Picker("Ticket-Status", selection: $remainingTicketsStatus) {
                 ForEach(Self.TICKET_STATUS_OPTIONS, id: \.value) { Text($0.label).tag($0.value) }
             }.tint(KlangradarTheme.accent)
 
-            EditorialTextField(label: "Einlass", text: $doorsInfo)
-            EditorialTextField(label: "Altersbeschränkung", text: $ageRestriction)
-            EditorialTextField(label: "Ermäßigung", text: $discountInfo)
-            EditorialTextField(label: "Vorverkaufsgebühr", text: $presaleFeeInfo)
+            TextField("Einlass", text: $doorsInfo)
+            TextField("Altersbeschränkung", text: $ageRestriction)
+            TextField("Ermäßigung", text: $discountInfo)
+            TextField("Vorverkaufsgebühr", text: $presaleFeeInfo)
 
             Picker("Status", selection: $status) {
                 ForEach(Self.STATUS_OPTIONS, id: \.value) { Text($0.label).tag($0.value) }
@@ -1156,30 +1090,28 @@ private struct EditorialEventEditorView: View {
                 Label(detailsMessage ?? "Weitere Angaben speichern", systemImage: detailsMessage == nil ? "arrow.triangle.2.circlepath.circle.fill" : "checkmark.circle.fill")
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(EditorialPrimaryButtonStyle()).disabled(isSavingDetails)
+            .buttonStyle(.borderedProminent).tint(KlangradarTheme.accent).disabled(isSavingDetails)
         }
     }
 
-    private var participantsCard: some View {
-        EditorialCard(title: "Mitwirkende", icon: "person.2.badge.gearshape") {
+    private var participantsSection: some View {
+        Section("Mitwirkende") {
             if detail?.participants.isEmpty != false { Text("Keine Mitwirkenden hinterlegt").foregroundStyle(.secondary) }
             ForEach(detail?.participants ?? []) { participant in
                 HStack {
                     VStack(alignment: .leading) { Text(participant.name); if let role = participant.roleLabel { Text(role).font(.caption).foregroundStyle(KlangradarTheme.accent) } }
                     Spacer()
                     Button(role: .destructive) { Task { await remove(participant) } } label: { Image(systemName: "trash") }
+                        .buttonStyle(.plain)
                 }
-                Divider()
             }
-            HStack {
-                Button("Person hinzufügen", systemImage: "person.badge.plus") { picker = .person }
-                Button("Ensemble", systemImage: "person.3") { picker = .ensemble }
-            }.buttonStyle(.bordered).tint(KlangradarTheme.accent)
+            Button("Person hinzufügen", systemImage: "person.badge.plus") { picker = .person }
+            Button("Ensemble hinzufügen", systemImage: "person.3") { picker = .ensemble }
         }
     }
 
-    private var programCard: some View {
-        EditorialCard(title: "Programm", icon: "music.note.list") {
+    private var programSection: some View {
+        Section("Programm") {
             if detail?.works.isEmpty != false { Text("Kein strukturiertes Programm hinterlegt").foregroundStyle(.secondary) }
             ForEach(detail?.works ?? []) { link in
                 HStack {
@@ -1195,23 +1127,29 @@ private struct EditorialEventEditorView: View {
                             composerID: link.composerID
                         )
                     } label: {
-                        HStack {
-                            VStack(alignment: .leading) {
-                                Text(link.title)
-                                if let composer = link.composer { Text(composer).font(.caption).foregroundStyle(KlangradarTheme.accent) }
-                            }
-                            Spacer()
-                            Image(systemName: "pencil.circle").foregroundStyle(KlangradarTheme.accent)
+                        VStack(alignment: .leading) {
+                            Text(link.title)
+                            if let composer = link.composer { Text(composer).font(.caption).foregroundStyle(KlangradarTheme.accent) }
                         }
                     }
                     .buttonStyle(.plain)
                     Spacer()
                     Button(role: .destructive) { Task { await remove(link) } } label: { Image(systemName: "trash") }
+                        .buttonStyle(.plain)
                 }
-                Divider()
             }
             Button("Werk hinzufügen", systemImage: "plus") { picker = .work }
-                .buttonStyle(.bordered).tint(KlangradarTheme.accent)
+        }
+    }
+
+    private var deleteSection: some View {
+        Section {
+            Button(role: .destructive) { showsDeleteConfirmation = true } label: {
+                Label("Veranstaltung löschen", systemImage: "trash")
+                    .frame(maxWidth: .infinity)
+            }
+        } footer: {
+            Text("Löscht den Eintrag dauerhaft aus allen Klangradar-Anwendungen.")
         }
     }
 
@@ -1432,19 +1370,6 @@ private struct EditorialCard<Content: View>: View {
         .background(.regularMaterial, in: .rect(cornerRadius: 20))
         .overlay { RoundedRectangle(cornerRadius: 20).stroke(.separator.opacity(0.18)) }
         .shadow(color: .black.opacity(0.04), radius: 12, y: 4)
-    }
-}
-
-private struct EditorialTextField: View {
-    let label: String; @Binding var text: String; var axis: Axis = .horizontal
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(label).font(.caption.weight(.medium)).foregroundStyle(.secondary)
-            TextField(label, text: $text, axis: axis)
-                .padding(12)
-                .background(.background.opacity(0.72), in: .rect(cornerRadius: 11))
-                .overlay { RoundedRectangle(cornerRadius: 11).stroke(.separator.opacity(0.3)) }
-        }
     }
 }
 

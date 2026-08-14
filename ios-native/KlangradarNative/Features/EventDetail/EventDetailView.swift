@@ -11,6 +11,7 @@ struct EventDetailView: View {
     @State private var loadError: String?
     @State private var fullScreenImage: FullScreenImageReference?
     @EnvironmentObject private var favorites: FavoriteStore
+    @EnvironmentObject private var genreFilter: GenreFilterRouter
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -160,24 +161,56 @@ struct EventDetailView: View {
         }
     }
 
+    /// Nutzeranfrage: Genre-Chips sollen antippbar sein — ein Tap filtert die
+    /// Suche auf dieses Genre (Parität zur Flutter-App, siehe
+    /// GenreFilterRouter). Nur echte Genres aus event_genres haben eine ID
+    /// und sind deshalb tappbar; `category` ist ein freies Textfeld ohne
+    /// eigene ID und bleibt als reines Label stehen.
     @ViewBuilder private func genres(_ value: JSONObject) -> some View {
-        let labels = value.objects("event_genres").compactMap { $0.object("genres")?.string("label_de") }
-        let category = value.string("category")
-        let allLabels = ([category] + labels).compactMap { $0 }.filter { !$0.isEmpty }
-        if !allLabels.isEmpty {
+        let tappableGenres: [(id: UUID, label: String)] = {
+            var seen = Set<String>()
+            return value.objects("event_genres").compactMap { row -> (id: UUID, label: String)? in
+                guard let genre = row.object("genres"),
+                      let idString = genre.string("id"), let id = UUID(uuidString: idString),
+                      let label = genre.string("label_de"), !label.isEmpty
+                else { return nil }
+                return (id, label)
+            }
+            .filter { seen.insert($0.label).inserted }
+            .sorted { $0.label < $1.label }
+        }()
+        let category = value.string("category").flatMap { $0.isEmpty ? nil : $0 }
+        let showsCategory = category.map { c in !tappableGenres.contains { $0.label == c } } ?? false
+
+        if !tappableGenres.isEmpty || showsCategory {
             ScrollView(.horizontal) {
                 HStack(spacing: 8) {
-                    ForEach(Array(Set(allLabels)).sorted(), id: \.self) { label in
-                        Text(label)
-                            .font(.caption.weight(.semibold))
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 7)
-                            .background(.thinMaterial, in: .capsule)
+                    if showsCategory, let category {
+                        genreChip(category, tappable: false)
+                    }
+                    ForEach(tappableGenres, id: \.id) { genre in
+                        Button { genreFilter.request(id: genre.id, label: genre.label) } label: {
+                            genreChip(genre.label, tappable: true)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
             }
             .scrollIndicators(.hidden)
         }
+    }
+
+    /// `tappable` steuert nur die Optik (Akzentfarbe statt neutralem
+    /// Material) — sichtbare Unterscheidung, welche Chips zur gefilterten
+    /// Suche führen und welche (category, ohne eigene ID) reine Labels sind.
+    private func genreChip(_ label: String, tappable: Bool) -> some View {
+        Text(label)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(tappable ? KlangradarTheme.accent : .primary)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(tappable ? KlangradarTheme.accent.opacity(0.14) : .clear, in: .capsule)
+            .background(.thinMaterial, in: .capsule)
     }
 
     private func essentialFacts(_ value: JSONObject) -> some View {

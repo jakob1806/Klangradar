@@ -5,6 +5,9 @@ protocol EventRepository: Sendable {
     func allUpcomingEvents() async throws -> [ConcertEvent]
     func enrichingImages(in events: [ConcertEvent]) async throws -> [ConcertEvent]
     func eventDetail(slug: String) async throws -> JSONObject?
+    /// Für antippbare Genre-Chips (siehe GenreFilterRouter) — kommende
+    /// Veranstaltungen, die dieses Genre über event_genres verlinkt haben.
+    func events(genreID: UUID, limit: Int) async throws -> [ConcertEvent]
 }
 
 struct LiveEventRepository: EventRepository {
@@ -95,6 +98,30 @@ struct LiveEventRepository: EventRepository {
                 isFree: event.isFree
             )
         }
+    }
+
+    func events(genreID: UUID, limit: Int = 60) async throws -> [ConcertEvent] {
+        try await client.get(
+            table: "events",
+            queryItems: [
+                URLQueryItem(
+                    name: "select",
+                    value: "id,slug,title,subtitle,start_datetime,image_urls,status,category,is_free,venues(id,name,photo_url),event_genres!inner(genre_id,genres(id,slug,label_de)),event_participants(persons(id,full_name,photo_url),ensembles(id,name,photo_url))"
+                ),
+                URLQueryItem(name: "status", value: "eq.scheduled"),
+                // Filtert direkt auf der Spalte der eingebetteten Zwischentabelle
+                // event_genres (genre_id) statt auf einer weiteren Verschachtelungs-
+                // ebene (event_genres.genres.id) — einfacher und robuster gegenüber
+                // PostgREST-Versionsunterschieden bei doppelt verschachtelten Filtern.
+                URLQueryItem(name: "event_genres.genre_id", value: "eq.\(genreID.uuidString)"),
+                URLQueryItem(
+                    name: "start_datetime",
+                    value: "gte.\(ISO8601DateFormatter().string(from: .now))"
+                ),
+                URLQueryItem(name: "order", value: "start_datetime.asc"),
+                URLQueryItem(name: "limit", value: String(limit))
+            ]
+        )
     }
 
     func eventDetail(slug: String) async throws -> JSONObject? {
@@ -343,6 +370,10 @@ struct PreviewEventRepository: EventRepository {
     func allUpcomingEvents() async throws -> [ConcertEvent] { SampleData.events }
 
     func enrichingImages(in events: [ConcertEvent]) async throws -> [ConcertEvent] { events }
+
+    func events(genreID: UUID, limit: Int = 60) async throws -> [ConcertEvent] {
+        Array(SampleData.events.filter { $0.genreIDs.contains(genreID) }.prefix(limit))
+    }
 
     func eventDetail(slug: String) async throws -> JSONObject? {
         guard let event = SampleData.events.first(where: { $0.slug == slug }) else { return nil }
