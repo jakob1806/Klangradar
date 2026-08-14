@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { ConfirmButton } from "@/components/confirm-button";
 import { DuplicateBulkSelection, DuplicateSelectCheckbox } from "@/components/duplicate-bulk-selection";
 import { createClient } from "@/lib/supabase/server";
 import { formatMunichDateTime } from "@/lib/munich-time";
@@ -173,13 +172,13 @@ async function WorkTab({ supabase }: { supabase: Supa }) {
               „Diese Version behalten“ löscht das jeweils andere Werk, alle Verlinkungen wandern auf die behaltene Version.
             </p>
             <div className="mt-3 flex items-center justify-end gap-4">
-              <ConfirmButton
+              <InstantButton
                 action={resolveWorkDuplicateAsDistinct.bind(null, candidate.id)}
-                confirmMessage="Diese beiden Werke als unterschiedlich markieren? Beide bleiben erhalten."
-                label="Als unterschiedlich markieren"
                 pendingLabel="Speichere…"
                 className="text-sm font-medium text-neutral-600 hover:text-neutral-900 disabled:opacity-50"
-              />
+              >
+                Als unterschiedlich markieren
+              </InstantButton>
             </div>
           </div>
         ))}
@@ -200,7 +199,9 @@ function WorkCard({ label, work, keepAction }: { label: string; work: CandidateW
         {work.key_signature ? ` · ${work.key_signature}` : ""}
       </p>
       {keepAction && (
-        <ConfirmButton action={keepAction} confirmMessage={`„${work.title}“ behalten? Das jeweils andere Werk wird gelöscht.`} label="Diese Version behalten" pendingLabel="Führe zusammen…" className="mt-2 self-start text-xs font-medium text-red-600 hover:text-red-800 disabled:opacity-50" />
+        <InstantButton action={keepAction} pendingLabel="Führe zusammen…" className="mt-2 self-start text-xs font-medium text-red-600 hover:text-red-800 disabled:opacity-50">
+          Diese Version behalten
+        </InstantButton>
       )}
     </div>
   );
@@ -300,7 +301,9 @@ async function PersonTab({ supabase }: { supabase: Supa }) {
                       „Diese Version behalten“ löscht die jeweils andere Person, Verknüpfungen wandern auf die behaltene Version.
                     </p>
                     <div className="mt-3 flex items-center justify-end gap-4">
-                      <ConfirmButton action={resolvePersonDuplicateAsDistinct.bind(null, candidate.id)} confirmMessage="Diese beiden Personen als unterschiedlich markieren? Beide bleiben erhalten." label="Als unterschiedlich markieren" pendingLabel="Speichere…" className="text-sm font-medium text-neutral-600 hover:text-neutral-900 disabled:opacity-50" />
+                      <InstantButton action={resolvePersonDuplicateAsDistinct.bind(null, candidate.id)} pendingLabel="Speichere…" className="text-sm font-medium text-neutral-600 hover:text-neutral-900 disabled:opacity-50">
+                        Als unterschiedlich markieren
+                      </InstantButton>
                     </div>
                   </div>
                 ))}
@@ -324,7 +327,9 @@ function PersonCard({ person, keepAction }: { person: CandidatePerson | null; ke
       </p>
       {person.biography_de && <p className="mt-2 text-xs text-neutral-600">{person.biography_de}</p>}
       {keepAction && (
-        <ConfirmButton action={keepAction} confirmMessage={`„${person.full_name}“ behalten? Die jeweils andere Person wird gelöscht.`} label="Diese Version behalten" pendingLabel="Führe zusammen…" className="mt-2 self-start text-xs font-medium text-red-600 hover:text-red-800 disabled:opacity-50" />
+        <InstantButton action={keepAction} pendingLabel="Führe zusammen…" className="mt-2 self-start text-xs font-medium text-red-600 hover:text-red-800 disabled:opacity-50">
+          Diese Version behalten
+        </InstantButton>
       )}
     </div>
   );
@@ -411,7 +416,9 @@ async function EnsembleTab({ supabase }: { supabase: Supa }) {
                       „Diese Version behalten“ löscht das jeweils andere Ensemble, Verknüpfungen wandern auf die behaltene Version.
                     </p>
                     <div className="mt-3 flex items-center justify-end gap-4">
-                      <ConfirmButton action={resolveEnsembleDuplicateAsDistinct.bind(null, candidate.id)} confirmMessage="Diese beiden Ensembles als unterschiedlich markieren? Beide bleiben erhalten." label="Als unterschiedlich markieren" pendingLabel="Speichere…" className="text-sm font-medium text-neutral-600 hover:text-neutral-900 disabled:opacity-50" />
+                      <InstantButton action={resolveEnsembleDuplicateAsDistinct.bind(null, candidate.id)} pendingLabel="Speichere…" className="text-sm font-medium text-neutral-600 hover:text-neutral-900 disabled:opacity-50">
+                        Als unterschiedlich markieren
+                      </InstantButton>
                     </div>
                   </div>
                 ))}
@@ -435,7 +442,9 @@ function EnsembleCard({ ensemble, keepAction }: { ensemble: CandidateEnsemble | 
       </p>
       {ensemble.description_de && <p className="mt-2 text-xs text-neutral-600">{ensemble.description_de}</p>}
       {keepAction && (
-        <ConfirmButton action={keepAction} confirmMessage={`„${ensemble.name}“ behalten? Das jeweils andere Ensemble wird gelöscht.`} label="Diese Version behalten" pendingLabel="Führe zusammen…" className="mt-2 self-start text-xs font-medium text-red-600 hover:text-red-800 disabled:opacity-50" />
+        <InstantButton action={keepAction} pendingLabel="Führe zusammen…" className="mt-2 self-start text-xs font-medium text-red-600 hover:text-red-800 disabled:opacity-50">
+          Diese Version behalten
+        </InstantButton>
       )}
     </div>
   );
@@ -531,7 +540,9 @@ async function VenueTab({ supabase }: { supabase: Supa }) {
               „Diese Version behalten“ löscht die jeweils andere Venue, Verknüpfungen wandern auf die behaltene Version.
             </p>
             <div className="mt-3 flex items-center justify-end gap-4">
-              <ConfirmButton action={resolveVenueDuplicateAsDistinct.bind(null, candidate.id)} confirmMessage="Diese beiden Venues als unterschiedlich markieren? Beide bleiben erhalten." label="Als unterschiedlich markieren" pendingLabel="Speichere…" className="text-sm font-medium text-neutral-600 hover:text-neutral-900 disabled:opacity-50" />
+              <InstantButton action={resolveVenueDuplicateAsDistinct.bind(null, candidate.id)} pendingLabel="Speichere…" className="text-sm font-medium text-neutral-600 hover:text-neutral-900 disabled:opacity-50">
+                Als unterschiedlich markieren
+              </InstantButton>
             </div>
           </div>
         ))}
@@ -549,7 +560,9 @@ function VenueCard({ venue, keepAction }: { venue: CandidateVenue | null; keepAc
         {venue.address_street}, {venue.address_zip} {venue.address_city}
       </p>
       {keepAction && (
-        <ConfirmButton action={keepAction} confirmMessage={`„${venue.name}“ behalten? Die jeweils andere Venue wird gelöscht.`} label="Diese Version behalten" pendingLabel="Führe zusammen…" className="mt-2 self-start text-xs font-medium text-red-600 hover:text-red-800 disabled:opacity-50" />
+        <InstantButton action={keepAction} pendingLabel="Führe zusammen…" className="mt-2 self-start text-xs font-medium text-red-600 hover:text-red-800 disabled:opacity-50">
+          Diese Version behalten
+        </InstantButton>
       )}
     </div>
   );
@@ -607,7 +620,9 @@ async function EventTab({ supabase }: { supabase: Supa }) {
               „Diese Version behalten“ löscht das jeweils andere Event, Verknüpfungen wandern auf die behaltene Version.
             </p>
             <div className="mt-3 flex items-center justify-end gap-4">
-              <ConfirmButton action={resolveDuplicateAsDistinct.bind(null, candidate.id)} confirmMessage="Diese beiden Veranstaltungen als unterschiedlich markieren? Beide bleiben erhalten." label="Als unterschiedlich markieren" pendingLabel="Speichere…" className="text-sm font-medium text-neutral-600 hover:text-neutral-900 disabled:opacity-50" />
+              <InstantButton action={resolveDuplicateAsDistinct.bind(null, candidate.id)} pendingLabel="Speichere…" className="text-sm font-medium text-neutral-600 hover:text-neutral-900 disabled:opacity-50">
+                Als unterschiedlich markieren
+              </InstantButton>
             </div>
           </div>
         ))}
@@ -626,7 +641,9 @@ function EventCard({ label, event, keepAction }: { label: string; event: Candida
         {event.venues?.name ?? "Ort unbekannt"} · {formatMunichDateTime(event.start_datetime)}
       </p>
       {keepAction && (
-        <ConfirmButton action={keepAction} confirmMessage={`„${event.title}“ behalten? Das jeweils andere Event wird gelöscht.`} label="Diese Version behalten" pendingLabel="Führe zusammen…" className="mt-2 self-start text-xs font-medium text-red-600 hover:text-red-800 disabled:opacity-50" />
+        <InstantButton action={keepAction} pendingLabel="Führe zusammen…" className="mt-2 self-start text-xs font-medium text-red-600 hover:text-red-800 disabled:opacity-50">
+          Diese Version behalten
+        </InstantButton>
       )}
     </div>
   );
