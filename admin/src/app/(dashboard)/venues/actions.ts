@@ -23,6 +23,8 @@ function readVenueFields(formData: FormData) {
 export async function createVenue(formData: FormData) {
   const f = readVenueFields(formData);
   const supabase = await createClient();
+  const { data: resolved } = await supabase.rpc("resolve_entity_alias", { p_entity_type: "venue", p_name: f.name });
+  if (resolved?.[0]?.id) redirect(`/venues/${resolved[0].id}`);
 
   const { error } = await supabase.rpc("create_venue", {
     p_slug: f.slug,

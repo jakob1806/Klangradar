@@ -122,13 +122,14 @@ final _trendingSearchesProvider = FutureProvider.autoDispose<List<String>>((
   return (rows as List).map((r) => r['query'] as String).toList();
 });
 
-const _typeKeys = ['event', 'person', 'ensemble', 'venue'];
+const _typeKeys = ['event', 'person', 'ensemble', 'venue', 'work'];
 
 String _typeLabel(AppLocalizations l10n, String type) => switch (type) {
   'event' => l10n.entityTypeEvents,
   'person' => l10n.entityTypePersons,
   'ensemble' => l10n.entityTypeEnsembles,
   'venue' => l10n.entityTypeVenues,
+  'work' => 'Werke',
   _ => type,
 };
 
@@ -137,6 +138,7 @@ const _typeIcon = {
   'person': Icons.person_rounded,
   'ensemble': Icons.groups_rounded,
   'venue': Icons.place_rounded,
+  'work': Icons.library_music_rounded,
 };
 
 const _typeRoute = {
@@ -144,7 +146,13 @@ const _typeRoute = {
   'person': '/person',
   'ensemble': '/ensemble',
   'venue': '/venue',
+  'work': '/work',
 };
+
+String _resultRoute(String type, Map<String, dynamic> row) {
+  final identifier = type == 'work' ? row['id'] : row['slug'];
+  return '${_typeRoute[type]}/$identifier';
+}
 
 /// Ausgewählter Tab im Verzeichnis-Browser ("Künstler"/"Ensembles"/"Orte"),
 /// sichtbar solange kein Suchtext eingegeben ist. Nutzt dieselben
@@ -760,7 +768,7 @@ class _DirectoryList extends StatelessWidget {
                     ),
                   )
                 : null,
-            onTap: () => context.push('${_typeRoute[type]}/${r['slug']}'),
+            onTap: () => context.push(_resultRoute(type, r)),
           ),
       ],
     );
@@ -824,7 +832,7 @@ class _ResultsList extends StatelessWidget {
                         ),
                       )
                     : null,
-                onTap: () => context.push('${_typeRoute[type]}/${r['slug']}'),
+                onTap: () => context.push(_resultRoute(type, r)),
               ),
             const SizedBox(height: AppSpacing.lg),
           ],

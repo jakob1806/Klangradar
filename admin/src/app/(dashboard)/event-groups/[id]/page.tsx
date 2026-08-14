@@ -135,7 +135,7 @@ export default async function EventGroupDetailPage({
             .order("title")
             .returns<{ id: string; title: string; composer: { full_name: string } | null }[]>(),
           supabase.from("persons").select("id, full_name").order("full_name"),
-          supabase.from("ensembles").select("id, name").order("name"),
+          supabase.from("ensembles").select("id, name").eq("is_resolution_placeholder", false).eq("is_family_root", false).order("name"),
           supabase
             .from("events")
             .select("id, title, start_datetime")

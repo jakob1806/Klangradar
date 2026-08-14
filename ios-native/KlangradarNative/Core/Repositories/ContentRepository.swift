@@ -18,14 +18,18 @@ struct LiveContentRepository: ContentRepository {
         var rows: [JSONObject] = []
         let pageSize = 500
         while true {
+            var queryItems = [
+                URLQueryItem(name: "select", value: specification.select),
+                URLQueryItem(name: "order", value: "\(specification.order).asc"),
+                URLQueryItem(name: "limit", value: String(pageSize)),
+                URLQueryItem(name: "offset", value: String(rows.count))
+            ]
+            if kind == .ensemble {
+                queryItems.append(URLQueryItem(name: "is_resolution_placeholder", value: "eq.false"))
+            }
             let page: [JSONObject] = try await client.get(
                 table: specification.table,
-                queryItems: [
-                    URLQueryItem(name: "select", value: specification.select),
-                    URLQueryItem(name: "order", value: "\(specification.order).asc"),
-                    URLQueryItem(name: "limit", value: String(pageSize)),
-                    URLQueryItem(name: "offset", value: String(rows.count))
-                ]
+                queryItems: queryItems
             )
             rows.append(contentsOf: page)
             if page.count < pageSize { break }
@@ -137,6 +141,18 @@ struct LiveContentRepository: ContentRepository {
                 row["parent"] = .object(parent)
             }
         }
+        if kind == .ensemble {
+            let children: [JSONObject] = (try? await client.get(
+                table: "ensembles",
+                queryItems: [
+                    URLQueryItem(name: "select", value: "id,slug,name,family_role"),
+                    URLQueryItem(name: "parent_ensemble_id", value: "eq.\(entityID)"),
+                    URLQueryItem(name: "is_resolution_placeholder", value: "eq.false"),
+                    URLQueryItem(name: "order", value: "name.asc")
+                ]
+            )) ?? []
+            row["children"] = .array(children.map(JSONValue.object))
+        }
 
         async let galleryResult = optionalGallery(kind: kind, entityID: entityID)
         async let eventResult = optionalLinkedEvents(kind: kind, entityID: entityID)
@@ -234,8 +250,26 @@ struct LiveContentRepository: ContentRepository {
                 "result_limit": .number(Double(limit))
             ]
         )
+        let ensembleIDs = rows.filter { $0.string("result_type") == EntityKind.ensemble.rawValue }
+            .compactMap { $0.string("id") }
+        var visibleEnsembleIDs = Set(ensembleIDs)
+        if !ensembleIDs.isEmpty {
+            let visible: [JSONObject] = (try? await client.get(
+                table: "ensembles",
+                queryItems: [
+                    URLQueryItem(name: "select", value: "id"),
+                    URLQueryItem(name: "id", value: "in.(\(ensembleIDs.joined(separator: ",")))"),
+                    URLQueryItem(name: "is_resolution_placeholder", value: "eq.false")
+                ]
+            )) ?? []
+            visibleEnsembleIDs = Set(visible.compactMap { $0.string("id") })
+        }
         return rows.compactMap { row in
             guard let id = row.string("id"), let title = row.string("title") else {
+                return nil
+            }
+            if row.string("result_type") == EntityKind.ensemble.rawValue,
+               !visibleEnsembleIDs.contains(id) {
                 return nil
             }
             return SearchHit(

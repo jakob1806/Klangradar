@@ -22,12 +22,12 @@ export default async function EditEnsemblePage({
     supabase
       .from("ensembles")
       .select(
-        "slug, name, type, description_de, founded_year, member_count, home_venue_id, parent_ensemble_id, website_url, photo_url, avatar_crop_x, avatar_crop_y, avatar_crop_width, avatar_crop_height, is_verified",
+        "slug, name, type, description_de, founded_year, member_count, home_venue_id, parent_ensemble_id, family_role, is_family_root, is_resolution_placeholder, website_url, photo_url, avatar_crop_x, avatar_crop_y, avatar_crop_width, avatar_crop_height, is_verified",
       )
       .eq("id", id)
       .maybeSingle<EnsembleFormValues>(),
     supabase.from("venues").select("id, name").order("name"),
-    supabase.from("ensembles").select("id, name").order("name").returns<{ id: string; name: string }[]>(),
+    supabase.from("ensembles").select("id, name").eq("is_resolution_placeholder", false).order("name").returns<{ id: string; name: string }[]>(),
     // Nur freigegebene Bilder — siehe Kommentar in persons/[id]/page.tsx.
     supabase
       .from("images")
@@ -60,6 +60,17 @@ export default async function EditEnsemblePage({
           <Link href={`/ensembles/${parentEnsemble.id}`} className="font-medium underline">
             {parentEnsemble.name}
           </Link>
+        </div>
+      )}
+      {data.is_family_root && (
+        <div className="mt-4 rounded-lg border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-800">
+          Diese Seite ist eine Dachorganisation. Unterensembles und Auflösungsregeln findest du in der{" "}
+          <Link href="/ensemble-families" className="font-medium underline">Familienverwaltung</Link>.
+        </div>
+      )}
+      {data.is_resolution_placeholder && (
+        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Technische Sammelbezeichnung: Sie wird bei Veranstaltungen automatisch auf ihre Ziel-Ensembles aufgeteilt.
         </div>
       )}
       <div className="mt-6">

@@ -96,6 +96,7 @@ struct EntityDetailView: View {
                     Text(detail.kind.title.uppercased()).font(.caption.bold()).tracking(1).foregroundStyle(.secondary)
                     Text(detail.title).font(.title.bold())
                     parentEnsembleLink(detail.fields.object("parent"))
+                    childEnsembleLinks(detail.fields.objects("children"))
                 }
             }
 
@@ -129,6 +130,33 @@ struct EntityDetailView: View {
 
         case .venue:
             EmptyView() // venueHeader(_:) wird stattdessen direkt aufgerufen.
+        }
+    }
+
+    @ViewBuilder private func childEnsembleLinks(_ rows: [JSONObject]) -> some View {
+        if !rows.isEmpty {
+            VStack(alignment: .leading, spacing: 7) {
+                Text("ZUGEHÖRIGE ENSEMBLES")
+                    .font(.caption2.bold())
+                    .tracking(0.8)
+                    .foregroundStyle(.secondary)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 7) {
+                        ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                            if let slug = row.string("slug"), let name = row.string("name") {
+                                NavigationLink(value: EntityRoute(kind: .ensemble, identifier: slug)) {
+                                    Text(name)
+                                        .font(.caption.weight(.semibold))
+                                        .padding(.horizontal, 10).padding(.vertical, 7)
+                                        .background(.thinMaterial, in: .capsule)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(.top, 4)
         }
     }
 

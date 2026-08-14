@@ -478,6 +478,57 @@ struct EditorialRepository: Sendable {
             throw EditorialError.validation("Die Bildadresse muss mit http:// oder https:// beginnen.")
         }
 
+        if kind == .ensemble {
+            let resolved: [JSONObject] = try await client.rpc(
+                "resolve_ensemble_entities",
+                parameters: ["p_name": .string(cleanTitle)],
+                accessToken: token
+            )
+            let canonical = resolved.filter { $0.string("id") != nil }
+            if resolved.contains(where: { $0.string("resolution") == "ignore" }) {
+                throw EditorialError.validation("Diese Bezeichnung beschreibt kein festes Ensemble und wird deshalb nicht als Stammdatensatz angelegt.")
+            }
+            if resolved.contains(where: { $0.string("resolution") == "ambiguous" }) {
+                throw EditorialError.validation("Diese Bezeichnung ist innerhalb der Ensemblefamilie nicht eindeutig. Bitte das konkrete Unterensemble auswählen.")
+            }
+            if canonical.count > 1 {
+                let names = canonical.compactMap { $0.string("name") }.joined(separator: ", ")
+                throw EditorialError.validation("Diese Sammelbezeichnung wird bereits automatisch aufgelöst: \(names). Bitte die Unterensembles einzeln auswählen.")
+            }
+            if let match = canonical.first,
+               let id = match.string("id").flatMap(UUID.init(uuidString:)),
+               let canonicalName = match.string("name") {
+                return EditorialEntity(
+                    id: id, kind: kind, title: canonicalName,
+                    subtitle: nil, editableSubtitle: nil, description: nil,
+                    imageURL: nil, composerID: nil
+                )
+            }
+        }
+
+        // Eine in der nativen Redaktion eingegebene Alternativschreibweise
+        // darf keinen zweiten Stammdatensatz erzeugen. Personen und noch nicht
+        // als Familie erkannte Ensemble-Namen werden zentral aufgelöst.
+        if kind == .person || kind == .ensemble {
+            let matches: [JSONObject] = try await client.rpc(
+                "resolve_entity_alias",
+                parameters: [
+                    "p_entity_type": .string(kind.rawValue),
+                    "p_name": .string(cleanTitle)
+                ],
+                accessToken: token
+            )
+            if let match = matches.first,
+               let id = match.string("id").flatMap(UUID.init(uuidString:)),
+               let canonicalName = match.string("canonical_name") {
+                return EditorialEntity(
+                    id: id, kind: kind, title: canonicalName,
+                    subtitle: nil, editableSubtitle: nil, description: nil,
+                    imageURL: nil, composerID: nil
+                )
+            }
+        }
+
         var values: JSONObject
         switch kind {
         case .person:
@@ -591,7 +642,13 @@ struct EditorialRepository: Sendable {
     }
 
     func ensembles(token: String) async throws -> [EditorialOption] {
-        try await options(table: "ensembles", selection: "id,name,type", titleKey: "name", subtitleKey: "type", token: token)
+        try await options(
+            table: "ensembles", selection: "id,name,type", titleKey: "name", subtitleKey: "type", token: token,
+            filters: [
+                URLQueryItem(name: "is_resolution_placeholder", value: "eq.false"),
+                URLQueryItem(name: "is_family_root", value: "eq.false")
+            ]
+        )
     }
 
     func organizers(token: String) async throws -> [EditorialOption] {
@@ -727,12 +784,12 @@ struct EditorialRepository: Sendable {
         await log(eventID: eventID, action: "native_editor_remove_work", actor: actor, before: ["title": .string(link.title)], after: nil, token: token)
     }
 
-    private func options(table: String, selection: String, titleKey: String, subtitleKey: String? = nil, token: String) async throws -> [EditorialOption] {
+    private func options(table: String, selection: String, titleKey: String, subtitleKey: String? = nil, token: String, filters: [URLQueryItem] = []) async throws -> [EditorialOption] {
         let rows: [JSONObject] = try await client.get(table: table, queryItems: [
             URLQueryItem(name: "select", value: selection),
             URLQueryItem(name: "order", value: "\(titleKey).asc"),
             URLQueryItem(name: "limit", value: "2000")
-        ], accessToken: token)
+        ] + filters, accessToken: token)
         return rows.compactMap { row in
             guard let id = row.string("id").flatMap(UUID.init(uuidString:)), let title = row.string(titleKey) else { return nil }
             return EditorialOption(id: id, title: title, subtitle: subtitleKey.flatMap(row.string))

@@ -39,6 +39,8 @@ function readPersonFields(formData: FormData) {
 export async function createPerson(formData: FormData) {
   const f = readPersonFields(formData);
   const supabase = await createClient();
+  const { data: resolved } = await supabase.rpc("resolve_entity_alias", { p_entity_type: "person", p_name: f.full_name });
+  if (resolved?.[0]?.id) redirect(`/persons/${resolved[0].id}`);
   const { error } = await supabase.from("persons").insert(f);
   if (error) throw new Error(error.message);
 

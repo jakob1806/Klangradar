@@ -180,7 +180,7 @@ Deno.serve(async (req) => {
           composerId = bestMatch.id;
           await supabase.from("entity_aliases").upsert(
             { entity_type: "person", entity_id: bestMatch.id, alias: name },
-            { onConflict: "entity_type,entity_id,alias" },
+            { onConflict: "entity_type,entity_id,alias_normalized" },
           );
           await logSystemAction(supabase, "person", bestMatch.id, "fuzzy_auto_link", {
             matched_name: name,

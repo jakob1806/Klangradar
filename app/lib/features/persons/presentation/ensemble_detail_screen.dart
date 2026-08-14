@@ -45,6 +45,12 @@ final _ensembleProvider = FutureProvider.family<Map<String, dynamic>?, String>((
         .eq('id', parentEnsembleId)
         .maybeSingle();
   }
+  ensemble['children'] = await client
+      .from('ensembles')
+      .select('slug, name, family_role')
+      .eq('parent_ensemble_id', ensemble['id'])
+      .eq('is_resolution_placeholder', false)
+      .order('name');
 
   final events = await client
       .from('event_participants')
@@ -201,6 +207,31 @@ class EnsembleDetailScreen extends ConsumerWidget {
                             fontWeight: FontWeight.w600,
                           ),
                         ),
+                      ),
+                    ],
+                    if ((ensemble['children'] as List? ?? []).isNotEmpty) ...[
+                      const SizedBox(height: AppSpacing.md),
+                      Text(
+                        'Zugehörige Ensembles',
+                        style: TextStyle(
+                          color: colors.textSecondary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.xs),
+                      Wrap(
+                        spacing: AppSpacing.xs,
+                        runSpacing: AppSpacing.xs,
+                        children: (ensemble['children'] as List)
+                            .map(
+                              (child) => ActionChip(
+                                label: Text(child['name'] as String),
+                                onPressed: () =>
+                                    context.push('/ensemble/${child['slug']}'),
+                              ),
+                            )
+                            .toList(),
                       ),
                     ],
                     if (ensemble['description_de'] != null) ...[

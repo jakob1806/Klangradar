@@ -255,7 +255,7 @@ private struct EditorialCreateEntityView: View {
             var createdEntity = entity
             if let pendingProfileImageData, (kind == .person || kind == .ensemble) {
                 let profileURL = try await repository.uploadEditorialImage(data: pendingProfileImageData, originType: "\(kind.rawValue)-profiles", originID: entity.id, token: token)
-                try await repository.updateEntity(entity: entity, title: title, subtitle: subtitle, description: description, imageURL: profileURL.absoluteString, composerID: composerID, actor: actor, token: token)
+                try await repository.updateEntity(entity: entity, title: entity.title, subtitle: subtitle, description: description, imageURL: profileURL.absoluteString, composerID: composerID, actor: actor, token: token)
                 createdEntity = EditorialEntity(id: entity.id, kind: kind, title: entity.title, subtitle: entity.subtitle, editableSubtitle: entity.editableSubtitle, description: entity.description, imageURL: profileURL.absoluteString, composerID: entity.composerID)
             }
             if !pendingImageData.isEmpty {
