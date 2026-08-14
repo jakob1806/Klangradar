@@ -24,12 +24,18 @@ interface PersonRow {
   photo_url: string | null;
 }
 
+// Nur Anzeige-Beschriftung, keine Einschränkung — persons.roles ist text[]
+// (siehe 20261013000014_persons_roles_free_text.sql), unbekannte Werte
+// werden weiter unten unverändert als Rohtext angezeigt (ROLE_LABEL[r] ?? r).
 const ROLE_LABEL: Record<string, string> = {
   komponist: "Komponist:in",
   dirigent: "Dirigent:in",
   solist: "Solist:in",
   chorleiter: "Chorleiter:in",
   moderator: "Moderator:in",
+  regisseur: "Regisseur:in",
+  schauspieler: "Schauspieler:in",
+  choreograf: "Choreograf:in",
 };
 
 export default async function PersonsPage() {

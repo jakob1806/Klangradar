@@ -76,7 +76,7 @@ export async function resolveEnsembleDuplicateAsMerged(candidateId: string, keep
     before: { deleted_ensemble_id: deleteEnsembleId, kept_ensemble_id: keepEnsembleId, alias_added: deletedEnsemble?.name },
   });
 
-  revalidatePath("/duplicates/ensembles");
+  revalidatePath("/duplicates");
 }
 
 export async function resolveEnsembleDuplicateAsDistinct(candidateId: string) {
@@ -96,5 +96,32 @@ export async function resolveEnsembleDuplicateAsDistinct(candidateId: string) {
     actor: user?.email ?? user?.id ?? "unknown",
   });
 
-  revalidatePath("/duplicates/ensembles");
+  revalidatePath("/duplicates");
+}
+
+/** Mehrfachauswahl-Variante für die konsolidierte Duplikate-Seite. */
+export async function resolveEnsembleDuplicatesAsDistinct(candidateIds: string[]): Promise<{ completed: number }> {
+  const uniqueIds = [...new Set(candidateIds)].slice(0, 200);
+  if (uniqueIds.length === 0) return { completed: 0 };
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("ensemble_duplicate_candidates")
+    .update({ status: "dismissed", reviewed_at: new Date().toISOString() })
+    .in("id", uniqueIds)
+    .eq("status", "pending")
+    .select("id");
+  if (error) throw new Error(error.message);
+
+  const { data: { user } } = await supabase.auth.getUser();
+  for (const row of data ?? []) {
+    await logSystemAction(supabase, {
+      entityType: "ensemble_duplicate_candidate",
+      entityId: row.id,
+      action: "dismissed",
+      actor: user?.email ?? user?.id ?? "unknown",
+    });
+  }
+
+  revalidatePath("/duplicates");
+  return { completed: data?.length ?? 0 };
 }

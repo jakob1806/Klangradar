@@ -19,16 +19,11 @@ struct EditorialDashboardView: View {
         ZStack {
             EditorialBackground()
             VStack(spacing: 0) {
-                Picker("Bereich", selection: $scope) {
-                    ForEach(EditorialScope.allCases) { Label($0.title, systemImage: $0.symbol).tag($0) }
-                }
-                .pickerStyle(.menu)
-                .tint(KlangradarTheme.accent)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
+                EditorialScopePicker(selection: $scope)
+                    .padding(.vertical, 8)
 
                 Group {
-                if isLoading { ProgressView("Redaktionsdaten werden geladen …").tint(.orange) }
+                if isLoading { ProgressView("Redaktionsdaten werden geladen …").tint(KlangradarTheme.accent) }
                 else if let errorMessage { ContentUnavailableView("Redaktion nicht verfügbar", systemImage: "exclamationmark.shield", description: Text(errorMessage)) }
                 else { resultList }
                 }
@@ -58,7 +53,7 @@ struct EditorialDashboardView: View {
                 .listRowBackground(Color.clear)
                 .listRowInsets(.init(top: 8, leading: 16, bottom: 8, trailing: 16))
 
-            Section(scope.title) {
+            Section {
                 if scope == .events {
                     ForEach(filteredEvents) { event in
                         NavigationLink {
@@ -82,6 +77,13 @@ struct EditorialDashboardView: View {
                             }
                         }
                     }
+                }
+            } header: {
+                HStack {
+                    Text(scope.title)
+                    Spacer()
+                    Text("\(scope == .events ? filteredEvents.count : filteredEntities.count)")
+                        .foregroundStyle(.secondary)
                 }
             }
         }
@@ -111,6 +113,34 @@ struct EditorialDashboardView: View {
             }
             errorMessage = nil
         } catch { errorMessage = error.localizedDescription }
+    }
+}
+
+private struct EditorialScopePicker: View {
+    @Binding var selection: EditorialScope
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(EditorialScope.allCases) { scope in
+                    Button {
+                        withAnimation(.snappy(duration: 0.22)) { selection = scope }
+                    } label: {
+                        Label(scope.title, systemImage: scope.symbol)
+                            .font(.subheadline.weight(selection == scope ? .semibold : .medium))
+                            .padding(.horizontal, 13)
+                            .padding(.vertical, 9)
+                            .foregroundStyle(selection == scope ? Color.white : Color.primary)
+                            .background(selection == scope ? KlangradarTheme.accent : Color.clear, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(selection == scope ? .isSelected : [])
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 4)
+        }
+        .background(.ultraThinMaterial)
     }
 }
 
@@ -249,10 +279,6 @@ private enum EditorialEntityPickerKind: Identifiable {
     }
 }
 
-private let EDITORIAL_ROLE_OPTIONS: [(value: String, label: String)] = [
-    ("komponist", "Komponist:in"), ("dirigent", "Dirigent:in"), ("solist", "Solist:in"),
-    ("chorleiter", "Chorleiter:in"), ("moderator", "Moderator:in")
-]
 private let EDITORIAL_ENSEMBLE_TYPE_OPTIONS: [(value: String, label: String)] = [
     ("chor", "Chor"), ("orchester", "Orchester"), ("kammerensemble", "Kammerensemble"),
     ("big_band", "Big Band"), ("sonstiges", "Sonstiges")
@@ -297,7 +323,7 @@ private struct EditorialEntityEditorView: View {
     @State private var firstName: String
     @State private var middleName: String
     @State private var lastName: String
-    @State private var selectedRoles: Set<String>
+    @State private var rolesText: String
     @State private var nationality: String
     @State private var birthDateText: String
     @State private var deathDateText: String
@@ -337,7 +363,7 @@ private struct EditorialEntityEditorView: View {
         _firstName = State(initialValue: entity.firstName ?? "")
         _middleName = State(initialValue: entity.middleName ?? "")
         _lastName = State(initialValue: entity.lastName ?? "")
-        _selectedRoles = State(initialValue: Set(entity.roles ?? []))
+        _rolesText = State(initialValue: (entity.roles ?? []).joined(separator: ", "))
         _nationality = State(initialValue: entity.nationality ?? "")
         _birthDateText = State(initialValue: entity.birthDate ?? "")
         _deathDateText = State(initialValue: entity.deathDate ?? "")
@@ -362,8 +388,18 @@ private struct EditorialEntityEditorView: View {
             saveSection
             if entity.kind != .work { deleteSection }
         }
+        .scrollContentBackground(.hidden)
+        .background(EditorialBackground())
         .navigationTitle(entity.kind.singularTitle + " bearbeiten")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button(saved ? "Gespeichert" : "Speichern", systemImage: saved ? "checkmark" : "icloud.and.arrow.up") {
+                    Task { await save() }
+                }
+                .disabled(isSaving || isDeleting)
+            }
+        }
         .disabled(isSaving || isDeleting)
         .overlay { if isSaving || isDeleting { ProgressView() } }
         .sheet(item: $picker) { kind in
@@ -463,12 +499,10 @@ private struct EditorialEntityEditorView: View {
             }
 
             if entity.kind == .person {
-                ForEach(EDITORIAL_ROLE_OPTIONS, id: \.value) { role in
-                    Toggle(role.label, isOn: Binding(
-                        get: { selectedRoles.contains(role.value) },
-                        set: { on in if on { selectedRoles.insert(role.value) } else { selectedRoles.remove(role.value) } }
-                    ))
-                }
+                // Freies Feld statt fester Rollen-Checkboxen (Nutzervorgabe:
+                // auch Regisseur/Schauspieler/etc. sollen möglich sein,
+                // persons.roles ist seit 20261013000014 text[] statt Enum).
+                TextField("Rollen (kommagetrennt, z.B. solist, regisseur)", text: $rolesText)
                 Button { picker = .memberOfEnsemble } label: {
                     LabeledContent("Gehört zu Ensemble", value: memberOfEnsembleName ?? "— kein Ensemble —")
                 }.foregroundStyle(.primary)
@@ -565,7 +599,8 @@ private struct EditorialEntityEditorView: View {
                 try await repository.updatePersonDetails(
                     entity: entity, firstName: firstName, middleName: middleName, lastName: lastName, slug: slug,
                     instrument: subtitle, biographyDe: description, imageURL: effectiveImageURL,
-                    roles: Array(selectedRoles), nationality: nationality, birthDate: birthDateText, deathDate: deathDateText,
+                    roles: rolesText.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces).lowercased() }.filter { !$0.isEmpty },
+                    nationality: nationality, birthDate: birthDateText, deathDate: deathDateText,
                     isDeceased: isDeceased, memberOfEnsembleID: memberOfEnsembleID, websiteURL: websiteURL, isVerified: isVerified,
                     actor: actor, token: token
                 )
@@ -668,7 +703,7 @@ private struct EditorialAIAssistantView: View {
                     if !proposal.sourceURLs.isEmpty {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack { ForEach(proposal.sourceURLs, id: \.self) { source in
-                                if let url = URL(string: source) { Link("Quelle", destination: url).font(.caption2).foregroundStyle(.orange) }
+                                if let url = URL(string: source) { Link("Quelle", destination: url).font(.caption2).foregroundStyle(KlangradarTheme.accent) }
                             } }
                         }
                     }
@@ -683,7 +718,7 @@ private struct EditorialAIAssistantView: View {
                 .lineLimit(2...5)
             Button("Recherchieren", systemImage: "sparkle.magnifyingglass") { Task { await ask() } }
                 .buttonStyle(EditorialPrimaryButtonStyle()).disabled(isWorking || prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            if isWorking { ProgressView().tint(.orange) }
+            if isWorking { ProgressView().tint(KlangradarTheme.accent) }
             if let message { Text(message).font(.caption).foregroundStyle(message.contains("übernommen") ? .green : .red) }
         }
     }
@@ -759,6 +794,105 @@ private struct EditorialSimpleOptionPicker: View {
     }
 }
 
+private enum EditorialEventEditorSection: String, CaseIterable, Identifiable {
+    case event, program, research
+    var id: Self { self }
+    var title: String {
+        switch self { case .event: "Daten"; case .program: "Besetzung"; case .research: "KI" }
+    }
+    var symbol: String {
+        switch self { case .event: "doc.text"; case .program: "person.2"; case .research: "sparkles" }
+    }
+}
+
+private struct EditorialEventSectionPicker: View {
+    @Binding var selection: EditorialEventEditorSection
+
+    var body: some View {
+        HStack(spacing: 5) {
+            ForEach(EditorialEventEditorSection.allCases) { section in
+                Button {
+                    withAnimation(.snappy(duration: 0.22)) { selection = section }
+                } label: {
+                    Label(section.title, systemImage: section.symbol)
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 9)
+                        .foregroundStyle(selection == section ? Color.white : Color.secondary)
+                        .background(selection == section ? KlangradarTheme.accent : Color.clear, in: RoundedRectangle(cornerRadius: 10))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(4)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .overlay { RoundedRectangle(cornerRadius: 14).stroke(.separator.opacity(0.18)) }
+    }
+}
+
+private struct EditorialGenrePicker: View {
+    let options: [EditorialOption]
+    @Binding var selection: Set<UUID>
+    @Environment(\.dismiss) private var dismiss
+    @State private var search = ""
+
+    private var filtered: [EditorialOption] {
+        search.isEmpty
+            ? options
+            : options.filter { $0.title.localizedStandardContains(search) || ($0.subtitle?.localizedStandardContains(search) == true) }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if selection.isEmpty {
+                    ContentUnavailableView(
+                        "Noch keine Genres gewählt",
+                        systemImage: "music.quarternote.3",
+                        description: Text("Suche frei nach einem Genre und wähle beliebig viele aus.")
+                    )
+                    .listRowBackground(Color.clear)
+                }
+                Section(selection.isEmpty ? "Alle Genres" : "Genres · \(selection.count) ausgewählt") {
+                    ForEach(filtered) { genre in
+                        Button {
+                            if selection.contains(genre.id) { selection.remove(genre.id) }
+                            else { selection.insert(genre.id) }
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: selection.contains(genre.id) ? "checkmark.circle.fill" : "circle")
+                                    .font(.title3)
+                                    .foregroundStyle(selection.contains(genre.id) ? KlangradarTheme.accent : Color.secondary)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(genre.title).foregroundStyle(.primary)
+                                    if let subtitle = genre.subtitle {
+                                        Text(subtitle).font(.caption).foregroundStyle(.secondary)
+                                    }
+                                }
+                                Spacer()
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .listStyle(.insetGrouped)
+            .searchable(text: $search, prompt: "Genre suchen")
+            .navigationTitle("Genres auswählen")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    if !selection.isEmpty { Button("Alle entfernen") { selection.removeAll() } }
+                }
+                ToolbarItem(placement: .confirmationAction) { Button("Fertig") { dismiss() }.fontWeight(.semibold) }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+    }
+}
+
 private struct EditorialEventEditorView: View {
     @ObservedObject var auth: AuthStore
     let repository: EditorialRepository
@@ -790,6 +924,8 @@ private struct EditorialEventEditorView: View {
     @State private var organizerName: String?
     @State private var organizerOptions: [EditorialOption] = []
     @State private var showsOrganizerPicker = false
+    @State private var showsGenrePicker = false
+    @State private var editorSection: EditorialEventEditorSection = .event
     @State private var genreOptions: [EditorialOption] = []
     @State private var selectedGenreIDs: Set<UUID> = []
     @State private var priceMinText: String = ""
@@ -842,21 +978,40 @@ private struct EditorialEventEditorView: View {
         ZStack {
             EditorialBackground()
             ScrollView {
-                VStack(spacing: 18) {
+                VStack(spacing: 16) {
                     EditorialModeBanner(compact: true)
-                    basicCard
-                    detailsCard
-                    EditorialAIAssistantView(auth: auth, repository: repository, entityType: "event", entityID: initialEvent.id)
-                    participantsCard
-                    programCard
-                    deleteCard
+                    EditorialEventSectionPicker(selection: $editorSection)
+                    Group {
+                        switch editorSection {
+                        case .event:
+                            basicCard
+                            detailsCard
+                        case .program:
+                            participantsCard
+                            programCard
+                        case .research:
+                            EditorialAIAssistantView(auth: auth, repository: repository, entityType: "event", entityID: initialEvent.id)
+                        }
+                    }
+                    .transition(.opacity.combined(with: .move(edge: .trailing)))
                 }
                 .padding(16)
             }
-            if isLoading || isSaving || isDeleting { Color.black.opacity(0.35).ignoresSafeArea(); ProgressView().tint(.orange).scaleEffect(1.25) }
+            if isLoading || isSaving || isDeleting { Color.black.opacity(0.22).ignoresSafeArea(); ProgressView().tint(KlangradarTheme.accent).scaleEffect(1.25) }
         }
-        .navigationTitle("Schnellkorrektur")
+        .navigationTitle("Veranstaltung bearbeiten")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Menu {
+                    Button("Veranstaltung löschen", systemImage: "trash", role: .destructive) {
+                        showsDeleteConfirmation = true
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+            }
+        }
         .sheet(item: $picker) { kind in
             EditorialOptionPicker(kind: kind, repository: repository, auth: auth) { option, role in
                 Task { await apply(option: option, role: role, kind: kind) }
@@ -874,6 +1029,9 @@ private struct EditorialEventEditorView: View {
                 organizerID = option.id; organizerName = option.title
             }
         }
+        .sheet(isPresented: $showsGenrePicker) {
+            EditorialGenrePicker(options: genreOptions, selection: $selectedGenreIDs)
+        }
         .alert("Korrektur nicht gespeichert", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
             Button("OK") { errorMessage = nil }
         } message: { Text(errorMessage ?? "") }
@@ -890,25 +1048,15 @@ private struct EditorialEventEditorView: View {
         .task { await load() }
     }
 
-    private var deleteCard: some View {
-        EditorialCard(title: "Löschen", icon: "trash") {
-            Button(role: .destructive) { showsDeleteConfirmation = true } label: {
-                Label("Veranstaltung löschen", systemImage: "trash")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered).tint(.red)
-        }
-    }
-
     private var basicCard: some View {
         EditorialCard(title: "Basisdaten", icon: "pencil.and.list.clipboard") {
             EditorialTextField(label: "Titel", text: $title)
             EditorialTextField(label: "Untertitel", text: $subtitle)
             DatePicker("Tag und Uhrzeit", selection: $startDate)
-                .datePickerStyle(.compact).tint(.orange).foregroundStyle(.white)
+                .datePickerStyle(.compact).tint(KlangradarTheme.accent)
             Picker("Veranstaltungsort", selection: $venueID) {
                 ForEach(venues) { Text($0.title).tag($0.id) }
-            }.tint(.orange)
+            }.tint(KlangradarTheme.accent)
             EditorialTextField(label: "Bild-URL", text: $imageURL, axis: .vertical)
                 .textInputAutocapitalization(.never).keyboardType(.URL)
             EditorialGalleryEditor(auth: auth, repository: repository, originType: "event", originID: initialEvent.id) { primaryURL in
@@ -941,7 +1089,7 @@ private struct EditorialEventEditorView: View {
             EditorialTextField(label: "Beschreibung", text: $descriptionDe, axis: .vertical)
             EditorialTextField(label: "Dauer (Minuten)", text: $durationMinutesText)
                 .keyboardType(.numberPad)
-            Toggle("Mit Pause", isOn: $hasIntermission).tint(.orange)
+            Toggle("Mit Pause", isOn: $hasIntermission).tint(KlangradarTheme.accent)
 
             HStack {
                 Button { showsOrganizerPicker = true } label: {
@@ -953,24 +1101,47 @@ private struct EditorialEventEditorView: View {
                 }
             }
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Genres").font(.caption).foregroundStyle(.secondary)
-                ForEach(genreOptions) { genre in
-                    Toggle(genre.title, isOn: Binding(
-                        get: { selectedGenreIDs.contains(genre.id) },
-                        set: { on in if on { selectedGenreIDs.insert(genre.id) } else { selectedGenreIDs.remove(genre.id) } }
-                    ))
+            VStack(alignment: .leading, spacing: 10) {
+                Button { showsGenrePicker = true } label: {
+                    HStack {
+                        Label("Genres", systemImage: "music.quarternote.3")
+                        Spacer()
+                        Text(selectedGenreIDs.isEmpty ? "Auswählen" : "\(selectedGenreIDs.count) gewählt")
+                            .foregroundStyle(.secondary)
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
+                    }
+                    .foregroundStyle(.primary)
+                }
+                if !selectedGenreIDs.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) {
+                            ForEach(genreOptions.filter { selectedGenreIDs.contains($0.id) }) { genre in
+                                HStack(spacing: 5) {
+                                    Text(genre.title)
+                                    Button { selectedGenreIDs.remove(genre.id) } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                                .font(.caption.weight(.medium))
+                                .padding(.horizontal, 9).padding(.vertical, 6)
+                                .background(KlangradarTheme.accent.opacity(0.12), in: Capsule())
+                                .foregroundStyle(KlangradarTheme.accent)
+                            }
+                        }
+                    }
                 }
             }
 
             EditorialTextField(label: "Preis von (€)", text: $priceMinText).keyboardType(.decimalPad)
             EditorialTextField(label: "Preis bis (€)", text: $priceMaxText).keyboardType(.decimalPad)
-            Toggle("Kostenlos", isOn: $isFree).tint(.orange)
+            Toggle("Kostenlos", isOn: $isFree).tint(KlangradarTheme.accent)
             EditorialTextField(label: "Ticket-Link", text: $ticketURL).textInputAutocapitalization(.never).keyboardType(.URL)
 
             Picker("Ticket-Status", selection: $remainingTicketsStatus) {
                 ForEach(Self.TICKET_STATUS_OPTIONS, id: \.value) { Text($0.label).tag($0.value) }
-            }.tint(.orange)
+            }.tint(KlangradarTheme.accent)
 
             EditorialTextField(label: "Einlass", text: $doorsInfo)
             EditorialTextField(label: "Altersbeschränkung", text: $ageRestriction)
@@ -979,7 +1150,7 @@ private struct EditorialEventEditorView: View {
 
             Picker("Status", selection: $status) {
                 ForEach(Self.STATUS_OPTIONS, id: \.value) { Text($0.label).tag($0.value) }
-            }.tint(.orange)
+            }.tint(KlangradarTheme.accent)
 
             Button { Task { await saveDetails() } } label: {
                 Label(detailsMessage ?? "Weitere Angaben speichern", systemImage: detailsMessage == nil ? "arrow.triangle.2.circlepath.circle.fill" : "checkmark.circle.fill")
@@ -994,7 +1165,7 @@ private struct EditorialEventEditorView: View {
             if detail?.participants.isEmpty != false { Text("Keine Mitwirkenden hinterlegt").foregroundStyle(.secondary) }
             ForEach(detail?.participants ?? []) { participant in
                 HStack {
-                    VStack(alignment: .leading) { Text(participant.name); if let role = participant.roleLabel { Text(role).font(.caption).foregroundStyle(.orange) } }
+                    VStack(alignment: .leading) { Text(participant.name); if let role = participant.roleLabel { Text(role).font(.caption).foregroundStyle(KlangradarTheme.accent) } }
                     Spacer()
                     Button(role: .destructive) { Task { await remove(participant) } } label: { Image(systemName: "trash") }
                 }
@@ -1003,7 +1174,7 @@ private struct EditorialEventEditorView: View {
             HStack {
                 Button("Person hinzufügen", systemImage: "person.badge.plus") { picker = .person }
                 Button("Ensemble", systemImage: "person.3") { picker = .ensemble }
-            }.buttonStyle(.bordered).tint(.orange)
+            }.buttonStyle(.bordered).tint(KlangradarTheme.accent)
         }
     }
 
@@ -1027,10 +1198,10 @@ private struct EditorialEventEditorView: View {
                         HStack {
                             VStack(alignment: .leading) {
                                 Text(link.title)
-                                if let composer = link.composer { Text(composer).font(.caption).foregroundStyle(.orange) }
+                                if let composer = link.composer { Text(composer).font(.caption).foregroundStyle(KlangradarTheme.accent) }
                             }
                             Spacer()
-                            Image(systemName: "pencil.circle").foregroundStyle(.orange)
+                            Image(systemName: "pencil.circle").foregroundStyle(KlangradarTheme.accent)
                         }
                     }
                     .buttonStyle(.plain)
@@ -1040,7 +1211,7 @@ private struct EditorialEventEditorView: View {
                 Divider()
             }
             Button("Werk hinzufügen", systemImage: "plus") { picker = .work }
-                .buttonStyle(.bordered).tint(.orange)
+                .buttonStyle(.bordered).tint(KlangradarTheme.accent)
         }
     }
 
@@ -1160,7 +1331,7 @@ private struct EditorialOptionPicker: View {
                     } label: {
                         Label("Noch nicht vorhanden – neu anlegen", systemImage: "plus.circle.fill")
                     }
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(KlangradarTheme.accent)
                 }
                 ForEach(filtered) { option in
                     Button { onSelect(option, role.trimmingCharacters(in: .whitespacesAndNewlines)); dismiss() } label: {
@@ -1198,13 +1369,21 @@ private struct EditorialModeBanner: View {
     var compact = false
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: "exclamationmark.shield.fill").font(.title2).foregroundStyle(.orange)
+            Image(systemName: "checkmark.shield.fill").font(.title2).foregroundStyle(.orange)
             VStack(alignment: .leading, spacing: 2) {
-                Text("REDAKTIONSMODUS").font(.caption.bold()).tracking(1.5).foregroundStyle(.orange)
+                HStack(spacing: 7) {
+                    Text("REDAKTIONSMODUS").font(.caption.bold()).tracking(1.3).foregroundStyle(.orange)
+                    Text("LIVE").font(.system(size: 9, weight: .bold, design: .rounded))
+                        .padding(.horizontal, 6).padding(.vertical, 3)
+                        .background(.orange.opacity(0.16), in: Capsule()).foregroundStyle(.orange)
+                }
                 if !compact { Text("Änderungen werden sofort plattformweit veröffentlicht.").font(.subheadline).foregroundStyle(.secondary) }
             }
             Spacer()
-        }.padding(14).background(.orange.opacity(0.12), in: .rect(cornerRadius: 16)).overlay { RoundedRectangle(cornerRadius: 16).stroke(.orange.opacity(0.45)) }
+        }
+        .padding(14)
+        .background(.regularMaterial, in: .rect(cornerRadius: 16))
+        .overlay { RoundedRectangle(cornerRadius: 16).stroke(.orange.opacity(0.35)) }
     }
 }
 
@@ -1218,7 +1397,7 @@ private struct EditorialEventRow: View {
                 Text(event.title).font(.headline).lineLimit(2)
                 Text(KlangradarDateTime.string(event.startDate, format: "EEE, d. MMM · HH:mm") + " · " + event.venueName).font(.caption).foregroundStyle(.secondary).lineLimit(2)
             }
-            Spacer(); Image(systemName: "pencil.circle.fill").font(.title2).foregroundStyle(.orange)
+            Spacer(); Image(systemName: "pencil.circle.fill").font(.title2).foregroundStyle(KlangradarTheme.accent)
         }
     }
 }
@@ -1239,15 +1418,34 @@ private struct EditorialCard<Content: View>: View {
     init(title: String, icon: String, @ViewBuilder content: () -> Content) { self.title = title; self.icon = icon; self.content = content() }
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Label(title, systemImage: icon).font(.headline).foregroundStyle(.orange)
+            HStack(spacing: 10) {
+                Image(systemName: icon)
+                    .font(.subheadline.weight(.semibold))
+                    .frame(width: 30, height: 30)
+                    .background(KlangradarTheme.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                    .foregroundStyle(KlangradarTheme.accent)
+                Text(title).font(.headline).foregroundStyle(.primary)
+            }
             content
-        }.padding(16).background(.regularMaterial, in: .rect(cornerRadius: 20)).overlay { RoundedRectangle(cornerRadius: 20).stroke(.separator.opacity(0.25)) }
+        }
+        .padding(16)
+        .background(.regularMaterial, in: .rect(cornerRadius: 20))
+        .overlay { RoundedRectangle(cornerRadius: 20).stroke(.separator.opacity(0.18)) }
+        .shadow(color: .black.opacity(0.04), radius: 12, y: 4)
     }
 }
 
 private struct EditorialTextField: View {
     let label: String; @Binding var text: String; var axis: Axis = .horizontal
-    var body: some View { TextField(label, text: $text, axis: axis).padding(12).background(.secondary.opacity(0.08), in: .rect(cornerRadius: 11)).overlay { RoundedRectangle(cornerRadius: 11).stroke(.secondary.opacity(0.16)) } }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label).font(.caption.weight(.medium)).foregroundStyle(.secondary)
+            TextField(label, text: $text, axis: axis)
+                .padding(12)
+                .background(.background.opacity(0.72), in: .rect(cornerRadius: 11))
+                .overlay { RoundedRectangle(cornerRadius: 11).stroke(.separator.opacity(0.3)) }
+        }
+    }
 }
 
 private struct EditorialGalleryEditor: View {
@@ -1295,7 +1493,7 @@ private struct EditorialGalleryEditor: View {
 
                                 if index == 0 {
                                     Label("Titelbild", systemImage: "star.fill")
-                                        .font(.caption.weight(.semibold)).foregroundStyle(.orange)
+                                        .font(.caption.weight(.semibold)).foregroundStyle(KlangradarTheme.accent)
                                 } else {
                                     Button("Als Titelbild", systemImage: "star") { Task { await makePrimary(image) } }
                                         .font(.caption)
@@ -1369,7 +1567,7 @@ private struct EditorialImagePickerButtons: View {
             Button("Dateien", systemImage: "folder") { showsFileImporter = true }
         }
         .buttonStyle(.bordered)
-        .tint(.orange)
+        .tint(KlangradarTheme.accent)
         .disabled(isPreparing)
         .overlay(alignment: .trailing) { if isPreparing { ProgressView() } }
         .onChange(of: photoItems) { _, items in
@@ -1424,7 +1622,13 @@ private enum EditorialImageError: LocalizedError {
 }
 
 private struct EditorialPrimaryButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View { configuration.label.fontWeight(.semibold).padding(13).background(.orange.opacity(configuration.isPressed ? 0.7 : 1), in: .rect(cornerRadius: 12)).foregroundStyle(.black) }
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .fontWeight(.semibold)
+            .padding(13)
+            .background(KlangradarTheme.accent.opacity(configuration.isPressed ? 0.72 : 1), in: .rect(cornerRadius: 12))
+            .foregroundStyle(.white)
+    }
 }
 
 private struct EditorialBackground: View {

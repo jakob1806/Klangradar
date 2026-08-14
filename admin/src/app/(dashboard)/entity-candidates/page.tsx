@@ -113,7 +113,16 @@ export default async function EntityCandidatesPage() {
       {!error && (
         <div className="mt-6">
           <CandidateList
-            mergeCandidates={(data ?? []).filter((c) => c.discovery_context?.possible_match).map(toUiCandidate)}
+            // Personen-/Ensemble-Namensvetter-Fälle (possible_match) ziehen
+            // auf die konsolidierte Duplikate-Seite um (siehe /duplicates,
+            // Reiter Personen/Ensemble) — Nutzervorgabe "diese sollen dann
+            // aber auch unter der Kategorie Duplikate angezeigt werden".
+            // Institutionen (organizer) haben dort keinen eigenen Reiter
+            // (keine organizer_duplicate_candidates-Tabelle), bleiben also
+            // weiterhin hier.
+            mergeCandidates={(data ?? [])
+              .filter((c) => c.discovery_context?.possible_match && c.entity_type === "organizer")
+              .map(toUiCandidate)}
             highConfidence={(data ?? [])
               .filter((c) => !c.discovery_context?.possible_match && candidateScore(c) >= HIGH_CONFIDENCE_THRESHOLD)
               .map(toUiCandidate)}

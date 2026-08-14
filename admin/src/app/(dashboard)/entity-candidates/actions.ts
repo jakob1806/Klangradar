@@ -157,6 +157,7 @@ export async function rejectEntityCandidate(candidateId: string) {
   });
 
   revalidatePath("/entity-candidates");
+  revalidatePath("/duplicates");
 }
 
 // Legt die echte persons/ensembles/organizers-Zeile an (is_verified: false —
@@ -239,6 +240,7 @@ export async function approveEntityCandidate(candidateId: string) {
   });
 
   revalidatePath("/entity-candidates");
+  revalidatePath("/duplicates");
 }
 
 // Für Kandidaten mit einem discovery_context.possible_match (Fuzzy-Match
@@ -315,7 +317,7 @@ export async function sendEntityCandidateToDuplicateReview(candidateId: string, 
   });
 
   revalidatePath("/entity-candidates");
-  revalidatePath(entityType === "person" ? "/duplicates/persons" : "/duplicates/ensembles");
+  revalidatePath("/duplicates");
 }
 
 /** Mehrfachauswahl-Variante von approveEntityCandidate — für die
@@ -354,4 +356,5 @@ export async function bulkRejectEntityCandidates(candidateIds: string[]) {
   }
 
   revalidatePath("/entity-candidates");
+  revalidatePath("/duplicates");
 }

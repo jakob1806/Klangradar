@@ -190,3 +190,33 @@ export async function resolveDuplicateAsDistinct(candidateId: string) {
 
   revalidatePath("/duplicates");
 }
+
+/** Mehrfachauswahl-Variante für die konsolidierte Duplikate-Seite —
+ * Zusammenführen bleibt bewusst Einzelfall-Aktion (braucht pro Paar eine
+ * Entscheidung, welche Version bleibt), aber "als unterschiedlich
+ * markieren" ist für mehrere ausgewählte Paare auf einmal sicher. */
+export async function resolveDuplicatesAsDistinct(candidateIds: string[]): Promise<{ completed: number }> {
+  const uniqueIds = [...new Set(candidateIds)].slice(0, 200);
+  if (uniqueIds.length === 0) return { completed: 0 };
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("duplicate_candidates")
+    .update({ status: "dismissed", reviewed_at: new Date().toISOString() })
+    .in("id", uniqueIds)
+    .eq("status", "pending")
+    .select("id");
+  if (error) throw new Error(error.message);
+
+  const { data: { user } } = await supabase.auth.getUser();
+  for (const row of data ?? []) {
+    await logSystemAction(supabase, {
+      entityType: "duplicate_candidate",
+      entityId: row.id,
+      action: "dismissed",
+      actor: user?.email ?? user?.id ?? "unknown",
+    });
+  }
+
+  revalidatePath("/duplicates");
+  return { completed: data?.length ?? 0 };
+}

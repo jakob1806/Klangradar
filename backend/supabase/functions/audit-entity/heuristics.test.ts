@@ -44,6 +44,22 @@ Deno.test("person with one name and bad whitespace gets explainable issues", () 
   }
 });
 
+Deno.test("ensemble name with markdown artifacts and generic wording gets flagged", () => {
+  const issues = basicNameIssues("ensemble", "**Chor**");
+  const ids = new Set(issues.map((issue) => issue.id));
+  if (!ids.has("name-markdown-artifact") || !ids.has("ensemble-generic-name")) {
+    throw new Error(`Missing expected issues: ${JSON.stringify(issues)}`);
+  }
+});
+
+Deno.test("real ensemble name with markdown artifacts only flags the markdown issue", () => {
+  const issues = basicNameIssues("ensemble", "**Bayerischer Staatsopernchor**");
+  const ids = new Set(issues.map((issue) => issue.id));
+  if (!ids.has("name-markdown-artifact") || ids.has("ensemble-generic-name")) {
+    throw new Error(`Unexpected issues: ${JSON.stringify(issues)}`);
+  }
+});
+
 Deno.test("deduplicateIssues removes identical report entries", () => {
   const issue = {
     id: "a",

@@ -2,22 +2,34 @@
 
 import { createContext, useContext, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import {
-  applyAllEntityAuditCorrections,
-  resolveEntityAuditFlags,
-} from "@/lib/entity-audit-actions";
 
 const SelectionContext = createContext<{
   selected: Set<string>;
   toggle: (id: string) => void;
 } | null>(null);
 
-export function EntityAuditBulkSelection({ children, ids }: { children: React.ReactNode; ids: string[] }) {
+/** Mehrfachauswahl für einen Duplikate-Reiter (Werk/Personen/Ensemble/Venue/
+ * Veranstaltungen) — Nutzervorgabe "man kann jeweils mehrere Duplikate
+ * auswählen, und dann die Optionen bei diesen durchführen". Bewusst NUR
+ * "als unterschiedlich markieren" als Sammelaktion: Zusammenführen braucht
+ * pro Paar eine Entscheidung, welche der beiden Versionen bleibt, das lässt
+ * sich nicht gefahrlos automatisieren — bleibt eine Einzelfall-Aktion direkt
+ * an der jeweiligen Karte. `onDismissMany` ist die typ-spezifische
+ * Server-Action (z.B. resolvePersonDuplicatesAsDistinct). */
+export function DuplicateBulkSelection({
+  children,
+  ids,
+  onDismissMany,
+}: {
+  children: React.ReactNode;
+  ids: string[];
+  onDismissMany: (ids: string[]) => Promise<{ completed: number }>;
+}) {
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
-  const [confirmingResolve, setConfirmingResolve] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const value = useMemo(
     () => ({
       selected,
@@ -32,27 +44,13 @@ export function EntityAuditBulkSelection({ children, ids }: { children: React.Re
     [selected],
   );
 
-  function applySelected() {
-    const ids = [...selected];
+  function dismissSelected() {
+    setConfirming(false);
+    const idsToDismiss = [...selected];
     startTransition(async () => {
       try {
-        const result = await applyAllEntityAuditCorrections(ids);
-        setMessage(`${result.completed} übernommen${result.skipped ? `, ${result.skipped} ohne sicheren Vorschlag` : ""}${result.failed ? `, ${result.failed} fehlgeschlagen` : ""}.`);
-        setSelected(new Set());
-        router.refresh();
-      } catch (error) {
-        setMessage(error instanceof Error ? error.message : "Sammelkorrektur fehlgeschlagen.");
-      }
-    });
-  }
-
-  function resolveSelected() {
-    setConfirmingResolve(false);
-    const ids = [...selected];
-    startTransition(async () => {
-      try {
-        const result = await resolveEntityAuditFlags(ids);
-        setMessage(`${result.completed} als erledigt markiert.`);
+        const result = await onDismissMany(idsToDismiss);
+        setMessage(`${result.completed} als unterschiedlich markiert.`);
         setSelected(new Set());
         router.refresh();
       } catch (error) {
@@ -64,9 +62,9 @@ export function EntityAuditBulkSelection({ children, ids }: { children: React.Re
   return (
     <SelectionContext.Provider value={value}>
       {ids.length > 0 && (
-        <div className="mt-6 flex items-center justify-between gap-3">
+        <div className="mt-4 flex items-center justify-between gap-3">
           <p className="text-xs text-neutral-500">
-            {selected.size > 0 ? `${selected.size} von ${ids.length} ausgewählt` : `${ids.length} offene Treffer`}
+            {selected.size > 0 ? `${selected.size} von ${ids.length} ausgewählt` : `${ids.length} offene Kandidaten`}
           </p>
           <button
             type="button"
@@ -81,29 +79,21 @@ export function EntityAuditBulkSelection({ children, ids }: { children: React.Re
       {selected.size > 0 && (
         <div className="sticky bottom-4 z-20 mx-auto mt-4 flex max-w-3xl flex-wrap items-center gap-2 rounded-2xl border border-neutral-200 bg-white/95 p-3 shadow-xl backdrop-blur">
           <span className="mr-auto text-sm font-semibold text-neutral-900">{selected.size} ausgewählt</span>
-          <button
-            type="button"
-            disabled={pending}
-            onClick={applySelected}
-            className="rounded-lg bg-violet-700 px-3 py-2 text-xs font-semibold text-white hover:bg-violet-800 disabled:opacity-50"
-          >
-            {pending ? "Verarbeitet…" : "KI-Korrekturen übernehmen"}
-          </button>
-          {confirmingResolve ? (
+          {confirming ? (
             <span className="flex items-center gap-2 text-xs">
-              <span className="text-neutral-600">{selected.size} wirklich als erledigt markieren?</span>
+              <span className="text-neutral-600">Wirklich als unterschiedlich markieren?</span>
               <button
                 type="button"
                 disabled={pending}
-                onClick={resolveSelected}
-                className="font-semibold text-emerald-800 hover:text-emerald-900 disabled:opacity-50"
+                onClick={dismissSelected}
+                className="font-semibold text-neutral-900 hover:text-black disabled:opacity-50"
               >
                 Ja
               </button>
               <button
                 type="button"
                 disabled={pending}
-                onClick={() => setConfirmingResolve(false)}
+                onClick={() => setConfirming(false)}
                 className="font-semibold text-neutral-500 hover:text-neutral-700 disabled:opacity-50"
               >
                 Abbrechen
@@ -113,10 +103,10 @@ export function EntityAuditBulkSelection({ children, ids }: { children: React.Re
             <button
               type="button"
               disabled={pending}
-              onClick={() => setConfirmingResolve(true)}
-              className="rounded-lg border border-emerald-300 bg-white px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-50 disabled:opacity-50"
+              onClick={() => setConfirming(true)}
+              className="rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
             >
-              Als erledigt markieren
+              {pending ? "Verarbeitet…" : "Als unterschiedlich markieren"}
             </button>
           )}
           <button type="button" onClick={() => setSelected(new Set())} className="px-2 py-2 text-xs text-neutral-500">
@@ -129,7 +119,7 @@ export function EntityAuditBulkSelection({ children, ids }: { children: React.Re
   );
 }
 
-export function EntityAuditSelectCheckbox({ id, label }: { id: string; label: string }) {
+export function DuplicateSelectCheckbox({ id, label }: { id: string; label: string }) {
   const context = useContext(SelectionContext);
   if (!context) return null;
   return (

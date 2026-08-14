@@ -25,9 +25,7 @@ const NAV_GROUPS = [
     label: "Qualität",
     items: [
       { href: "/data-quality", label: "Datenqualität" },
-      { href: "/duplicates", label: "Duplikate-Review" },
-      { href: "/duplicates/persons", label: "Personen-Duplikate" },
-      { href: "/duplicates/works", label: "Werk-Duplikate" },
+      { href: "/duplicates", label: "Duplikate" },
       { href: "/entity-candidates", label: "Entity-Kandidaten" },
       { href: "/qualitaetspruefung", label: "Qualitätsprüfung" },
       { href: "/work-image-reuse", label: "Werk-Bild-Verknüpfungen" },

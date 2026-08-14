@@ -42,6 +42,20 @@ const PLACEHOLDER_NAMES = new Set([
   "noch offen",
 ]);
 
+// Live im Bestand aufgefallen: Ensembles, die nur aus einem Gattungswort
+// bestehen ("Chor", "Orchester", …) statt einem konkreten Namen — meist
+// aus einer Rollenbezeichnung ("Chor" im Sinne von Chorleitung) statt einer
+// echten Ensemble-Nennung fehlgeleitet entstanden.
+const GENERIC_ENSEMBLE_NAMES = new Set([
+  "chor",
+  "chore",
+  "orchester",
+  "ballett",
+  "ensemble",
+  "choreographie",
+  "choreografie",
+]);
+
 export function normalizeName(value: string): string {
   return value
     .normalize("NFKD")
@@ -214,6 +228,30 @@ export function basicNameIssues(
       message:
         "Der Name enthält auffällige doppelte Satz- oder Anführungszeichen.",
       suggestion: "Zeichensetzung und offizielle Schreibweise prüfen.",
+      source: "rule",
+    });
+  }
+  // Live im Bestand aufgefallen (Nutzer-Meldung): Ensembles wie "**Chor**",
+  // aus nicht bereinigtem Markdown einer Scraping-Quelle übernommen (siehe
+  // _shared/staatsoperDetail.ts stripMarkdownEmphasis). Entity-typunabhängig,
+  // damit dieselbe Auffälligkeit unabhängig von der Importquelle erkannt wird.
+  if (/[*_`]{2,}/.test(trimmed)) {
+    issues.push({
+      id: "name-markdown-artifact",
+      severity: "critical",
+      category: "name",
+      message: "Der Name enthält Markdown-Formatierungszeichen (z. B. **) statt reinem Text.",
+      suggestion: trimmed.replace(/[*_`]{2,}/g, "").trim(),
+      source: "rule",
+    });
+  }
+  if (entityType === "ensemble" && GENERIC_ENSEMBLE_NAMES.has(normalized)) {
+    issues.push({
+      id: "ensemble-generic-name",
+      severity: "critical",
+      category: "name",
+      message: `„${trimmed}“ ist ein bloßes Gattungswort statt eines konkreten Ensemblenamens.`,
+      suggestion: "Den offiziellen Ensemblenamen recherchieren (z. B. \"Bayerischer Staatsopernchor\").",
       source: "rule",
     });
   }
