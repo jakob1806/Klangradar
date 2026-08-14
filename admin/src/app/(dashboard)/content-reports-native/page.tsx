@@ -7,7 +7,7 @@ export default function ContentReportsNativePage() {
     <ContentReportsList
       platform="native"
       title="Nutzer-Meldungen (Native)"
-      description='Von Nutzer:innen in der nativen iOS-App gemeldete Datenprobleme (falsches Bild, falsche Zeit, defekter Ticketlink etc.). Gleicher Ablauf wie bei den Flutter-Meldungen — eigene Kategorie, weil beide Apps unabhängig voneinander getestet/veröffentlicht werden und die Redaktion wissen soll, aus welcher App eine Meldung stammt.'
+      description="Offene Datenfehler aus der nativen iOS-App prüfen, automatisch reparieren oder redaktionell abschließen."
     />
   );
 }

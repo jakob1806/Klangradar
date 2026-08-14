@@ -1168,6 +1168,83 @@ const FREEFORM_FIX_FUNCTION: AiFunctionDeclaration = {
   },
 };
 
+/** Führt die bestehende Anreicherungs-Pipeline unmittelbar für genau die
+ * gemeldete Entität aus und prüft danach, ob sich tatsächlich Nutzdaten
+ * geändert haben. Ein bloßes Zurücksetzen eines checked_at-Markers ist kein
+ * erfolgreicher Reparaturversuch: Der Cron könnte den Datensatz erst viel
+ * später auswählen oder gar keine passende Feldart bearbeiten.
+ */
+async function runImmediateEntityRepair(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  supabaseUrl: string,
+  anonKey: string,
+  report: ContentReportRow,
+): Promise<FixResult> {
+  const table = ENTITY_TABLE[report.entity_type];
+  const trackedColumns = [...new Set(Object.values(ALLOWED_FIELDS[report.entity_type]))];
+  const { data: before } = await supabase.from(table).select(trackedColumns.join(", ")).eq("id", report.entity_id).maybeSingle();
+  let beforeParticipants = 0;
+  let beforeWorks = 0;
+  if (report.entity_type === "event") {
+    const participantCount = await supabase.from("event_participants").select("id", { count: "exact", head: true }).eq("event_id", report.entity_id);
+    const workCount = await supabase.from("event_works").select("work_id", { count: "exact", head: true }).eq("event_id", report.entity_id);
+    beforeParticipants = participantCount.count ?? 0;
+    beforeWorks = workCount.count ?? 0;
+  }
+
+  const functionName = report.entity_type === "event" ? "enrich-event-references" : "enrich-entity-oncall";
+  const requestBody = report.entity_type === "event"
+    ? { eventId: report.entity_id, limit: 1 }
+    : { entityType: report.entity_type, entityId: report.entity_id };
+  let response: Response;
+  try {
+    response = await fetch(`${supabaseUrl}/functions/v1/${functionName}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: anonKey, Authorization: `Bearer ${anonKey}` },
+      body: JSON.stringify(requestBody),
+    });
+  } catch (err) {
+    return { status: "error", diagnosis: `Direkte Reparatur nicht erreichbar: ${err instanceof Error ? err.message : String(err)}` };
+  }
+  const payload = await response.json().catch(() => null);
+  if (!response.ok || payload?.error) {
+    return { status: "error", diagnosis: `Direkte Reparatur fehlgeschlagen: ${payload?.error ?? `HTTP ${response.status}`}` };
+  }
+
+  const { data: after } = await supabase.from(table).select(trackedColumns.join(", ")).eq("id", report.entity_id).maybeSingle();
+  const fieldsChanged = trackedColumns
+    .filter((column) => JSON.stringify(before?.[column] ?? null) !== JSON.stringify(after?.[column] ?? null))
+    .map((column) => ({ table, id: report.entity_id, field: column, before: before?.[column] ?? null, after: after?.[column] ?? null }));
+
+  if (report.entity_type === "event") {
+    const participantCount = await supabase.from("event_participants").select("id", { count: "exact", head: true }).eq("event_id", report.entity_id);
+    const workCount = await supabase.from("event_works").select("work_id", { count: "exact", head: true }).eq("event_id", report.entity_id);
+    const afterParticipants = participantCount.count ?? 0;
+    const afterWorks = workCount.count ?? 0;
+    if (afterParticipants !== beforeParticipants) {
+      fieldsChanged.push({ table: "event_participants", id: report.entity_id, field: "count", before: beforeParticipants, after: afterParticipants });
+    }
+    if (afterWorks !== beforeWorks) {
+      fieldsChanged.push({ table: "event_works", id: report.entity_id, field: "count", before: beforeWorks, after: afterWorks });
+    }
+  }
+
+  if (fieldsChanged.length === 0) {
+    return {
+      status: "needs_manual_review",
+      diagnosis: "Die direkte Recherche- und Importpipeline wurde ausgeführt, hat nach der Prüfung aber keine Nutzdaten geändert. Es wurde nichts fälschlich als behoben markiert.",
+      actionTaken: `${functionName} unmittelbar ausgeführt und Ergebnis verifiziert (keine Änderung).`,
+    };
+  }
+  return {
+    status: "fixed",
+    diagnosis: `Die direkte Recherche- und Importpipeline hat ${fieldsChanged.length} überprüfbare Änderung(en) vorgenommen.`,
+    actionTaken: fieldsChanged.map((f) => `${f.table}.${f.field}: ${JSON.stringify(f.before)} → ${JSON.stringify(f.after)}`).join("; "),
+    fieldsChanged,
+  };
+}
+
 /** Nutzerwunsch: "bei erneut versuchen soll einfach eine KI diese fehler
  * durchgehen und beheben. das ist dann wie, als würde ich dir eine
  * chatnachricht mit der fehlerkorrektur schreiben." Läuft NUR beim
@@ -1184,25 +1261,15 @@ const FREEFORM_FIX_FUNCTION: AiFunctionDeclaration = {
  * die Beleg-Pflicht entfällt. Vermutet die KI stattdessen einen Code-Bug
  * (z.B. #b7: bestimmte Quellen schlagen strukturell fehl), kann sie das
  * zur Laufzeit nicht selbst reparieren (Edge Functions haben keinen Repo-/
- * Deploy-Zugriff). Statt einen Prompt zum manuellen Kopieren zu erzeugen,
- * setzt sie die passende Recherche-/Importmarke der Entitaet zurueck. Die
- * regulaeren Enrichment-Jobs greifen den Fall dadurch automatisch erneut
- * auf; die Diagnose bleibt im Fix-Bericht nachvollziehbar. */
-async function queueAutomaticEntityRefresh(
-  // deno-lint-ignore no-explicit-any
-  supabase: any,
-  report: ContentReportRow,
-): Promise<string> {
-  const table = ENTITY_TABLE[report.entity_type];
-  const resetColumn = report.entity_type === "event" ? "references_checked_at" : "profile_checked_at";
-  const { error } = await supabase.from(table).update({ [resetColumn]: null }).eq("id", report.entity_id);
-  if (error) throw new Error(`Neusynchronisation konnte nicht vorgemerkt werden: ${error.message}`);
-  return `${table}.${resetColumn} zurueckgesetzt; der automatische Recherche-/Importlauf verarbeitet den Datensatz erneut`;
-}
+ * Deploy-Zugriff). Statt nur einen Marker zurückzusetzen, führt sie die
+ * passende Recherche-/Importpipeline sofort aus und verifiziert das
+ * Ergebnis (runImmediateEntityRepair). */
 
 async function fixFreeform(
   // deno-lint-ignore no-explicit-any
   supabase: any,
+  supabaseUrl: string,
+  anonKey: string,
   report: ContentReportRow,
 ): Promise<FixResult> {
   const table = ENTITY_TABLE[report.entity_type];
@@ -1259,13 +1326,8 @@ async function fixFreeform(
   const { args, provider } = response;
 
   if (args.outcome === "code_bug") {
-    const queued = await queueAutomaticEntityRefresh(supabase, report);
-    return {
-      status: "needs_manual_review",
-      diagnosis: `${args.reasoning ?? ""} Automatische Wiederherstellung gestartet: ${queued}.`,
-      actionTaken: queued,
-      aiProvider: provider,
-    };
+    const repair = await runImmediateEntityRepair(supabase, supabaseUrl, anonKey, report);
+    return { ...repair, diagnosis: `${args.reasoning ?? ""} ${repair.diagnosis}`.trim(), aiProvider: provider };
   }
 
   if (args.outcome !== "data_fix") {
@@ -1307,23 +1369,23 @@ async function fixReport(
   adminInitiated: boolean,
   retry: boolean,
 ): Promise<FixResult> {
-  if (retry) {
-    return await fixFreeform(supabase, report);
-  }
   if (report.reason === "wrong_image") {
     return await fixWrongImage(supabase, supabaseUrl, anonKey, report.entity_type, report.entity_id);
   }
   if (report.reason === "wrong_artist") {
-    return await fixWrongArtist(supabase, report, adminInitiated);
+    const result = await fixWrongArtist(supabase, report, adminInitiated);
+    if (!retry || result.status === "fixed" || result.status === "error") return result;
   }
   if (report.reason === "missing_program") {
-    return await fixMissingProgram(supabase, report, adminInitiated);
+    const result = await fixMissingProgram(supabase, report, adminInitiated);
+    if (!retry || result.status === "fixed" || result.status === "error") return result;
   }
+  if (retry) return await fixFreeform(supabase, supabaseUrl, anonKey, report);
   return await fixViaSourceEvidence(supabase, report);
 }
 
 Deno.serve(async (req) => {
-  let body: { reportId?: unknown; limit?: unknown; adminInitiated?: unknown; retry?: unknown };
+  let body: { reportId?: unknown; limit?: unknown; adminInitiated?: unknown; retry?: unknown; includeTried?: unknown; platform?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -1359,13 +1421,16 @@ Deno.serve(async (req) => {
     // — verhindert, dass ein hängengebliebenes needs_manual_review/error bei
     // jedem Cron-Tick erneut (und erfolglos) verarbeitet wird. Ein manueller
     // "Erneut versuchen"-Klick über reportId oben umgeht diese Sperre bewusst.
-    const { data: pending, error } = await supabase
+    let pendingQuery = supabase
       .from("content_reports")
       .select("id, entity_type, entity_id, reason, message")
       .eq("status", "pending")
       .order("created_at", { ascending: true })
-      .limit(limit * 3)
-      .returns<ContentReportRow[]>();
+      .limit(limit * 3);
+    if (body.platform === "flutter" || body.platform === "native") {
+      pendingQuery = pendingQuery.eq("platform", body.platform);
+    }
+    const { data: pending, error } = await pendingQuery.returns<ContentReportRow[]>();
     if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500 });
 
     const { data: alreadyTried } = await supabase
@@ -1373,7 +1438,18 @@ Deno.serve(async (req) => {
       .select("report_id")
       .in("report_id", (pending ?? []).map((r) => r.id));
     const triedIds = new Set((alreadyTried ?? []).map((r: { report_id: string }) => r.report_id));
-    reports = (pending ?? []).filter((r) => !triedIds.has(r.id)).slice(0, limit);
+    reports = adminInitiated && body.includeTried === true
+      ? (pending ?? []).slice(0, limit)
+      : (pending ?? []).filter((r) => !triedIds.has(r.id)).slice(0, limit);
+
+    // Im Sammellauf ist ein bereits protokollierter Fall ebenfalls ein
+    // Retry. Der Cron erreicht diesen Zweig nie, weil er triedIds weiterhin
+    // herausfiltert.
+    if (adminInitiated && body.includeTried === true) {
+      for (const report of reports) {
+        (report as ContentReportRow & { __retry?: boolean }).__retry = triedIds.has(report.id);
+      }
+    }
   }
 
   const results: { reportId: string; status: string; diagnosis: string }[] = [];
@@ -1381,7 +1457,8 @@ Deno.serve(async (req) => {
   for (const report of reports) {
     let result: FixResult;
     try {
-      result = await fixReport(supabase, supabaseUrl, anonKey, report, adminInitiated, retry);
+      const reportRetry = retry || (report as ContentReportRow & { __retry?: boolean }).__retry === true;
+      result = await fixReport(supabase, supabaseUrl, anonKey, report, adminInitiated, reportRetry);
     } catch (err) {
       result = { status: "error", diagnosis: `Unerwarteter Fehler: ${err instanceof Error ? err.message : String(err)}` };
     }

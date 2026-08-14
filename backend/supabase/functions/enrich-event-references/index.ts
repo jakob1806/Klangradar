@@ -472,7 +472,7 @@ Deno.serve(async (req) => {
     );
   }
 
-  let body: { limit?: unknown; programOnly?: unknown };
+  let body: { limit?: unknown; programOnly?: unknown; eventId?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -482,20 +482,32 @@ Deno.serve(async (req) => {
     ? Math.min(body.limit, 50)
     : 20;
   const programOnly = body.programOnly === true;
+  const eventId = typeof body.eventId === "string" ? body.eventId : null;
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
   );
 
-  // Atomar claimen: parallele kleine Batches überschneiden sich nicht; ein
-  // abgebrochener Worker wird von der DB nach 15 Minuten wieder freigegeben.
+  // Ein gezielter Admin-Reparaturauftrag darf genau ein gemeldetes Event
+  // sofort verarbeiten. Der normale Cron verwendet weiterhin das atomare
+  // Claiming und kann sich dadurch nicht mit anderen Batches überschneiden.
   const now = new Date().toISOString();
-  const { data: claimedCandidates, error: fetchError } = await supabase
-    .rpc("claim_event_program_enrichment", { p_limit: limit });
+  const candidateQuery = eventId
+    ? supabase.from("events").select("*").eq("id", eventId).limit(1)
+    : supabase.rpc("claim_event_program_enrichment", { p_limit: limit });
+  const { data: claimedCandidates, error: fetchError } = await candidateQuery;
   const candidates = Array.isArray(claimedCandidates)
     ? claimedCandidates as EventRow[]
     : [];
+
+  if (eventId && candidates.length > 0) {
+    await supabase.from("events").update({
+      program_extraction_status: "processing",
+      program_checked_at: now,
+      program_retry_after: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+    }).eq("id", eventId);
+  }
 
   if (fetchError) {
     return new Response(JSON.stringify({ error: fetchError.message }), {

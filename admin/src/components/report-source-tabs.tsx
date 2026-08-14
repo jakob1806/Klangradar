@@ -9,15 +9,15 @@ const SOURCES = [
 
 export function ReportSourceTabs({ activeHref }: { activeHref: string }) {
   return (
-    <div className="mb-6 rounded-2xl border border-black/[0.06] bg-white p-2 shadow-sm">
-      <p className="px-2 pb-2 text-xs font-semibold uppercase tracking-[0.14em] text-neutral-400">Meldungen &amp; Fehler</p>
-      <nav className="grid grid-cols-2 gap-1 lg:grid-cols-4" aria-label="Herkunft der Meldungen">
+    <nav
+      className="mb-5 flex w-fit max-w-full gap-1 overflow-x-auto rounded-xl bg-black/[0.045] p-1"
+      aria-label="Herkunft der Meldungen"
+    >
         {SOURCES.map((source) => (
-          <Link key={source.href} href={source.href} className={`rounded-xl px-3 py-2 text-center text-sm font-medium transition-colors ${activeHref===source.href ? "bg-[#0071e3] text-white" : "text-neutral-600 hover:bg-neutral-100"}`}>
+          <Link key={source.href} href={source.href} className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${activeHref===source.href ? "bg-white text-neutral-950 shadow-sm" : "text-neutral-500 hover:text-neutral-900"}`}>
             {source.label}
           </Link>
         ))}
-      </nav>
-    </div>
+    </nav>
   );
 }

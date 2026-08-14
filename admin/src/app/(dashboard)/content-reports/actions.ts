@@ -80,18 +80,21 @@ export async function autoFixContentReport(reportId: string, retry = false): Pro
   return { status: data.results[0].status, diagnosis: data.results[0].diagnosis };
 }
 
-/** Sammel-Variante ohne reportId — verarbeitet bis zu `limit` noch nie
- * versuchte offene Meldungen, ebenfalls mit adminInitiated=true (ein
- * Klick auf diesen Button ist genauso ein bewusster Admin-Auftrag wie der
- * Einzel-Fix, nur für mehrere Meldungen auf einmal). */
-export async function autoFixAllPendingReports(limit = 10): Promise<{ processed: number }> {
+/** Sammel-Variante ohne reportId — verarbeitet bis zu `limit` offene
+ * Meldungen der sichtbaren Plattform. Bereits versuchte Fälle werden dabei
+ * bewusst erneut geprüft; nur der unbeaufsichtigte Cron überspringt sie. */
+export async function autoFixAllPendingReports(
+  platform: "flutter" | "native",
+  limit = 20,
+): Promise<{ processed: number }> {
   const res = await fetch(functionsUrl("auto-fix-content-report"), {
     method: "POST",
     headers: authHeaders(),
-    body: JSON.stringify({ limit, adminInitiated: true }),
+    body: JSON.stringify({ limit, adminInitiated: true, includeTried: true, platform }),
   });
   const data = await res.json().catch(() => null);
   if (!res.ok) throw new Error(data?.error ?? "Automatischer Fix fehlgeschlagen.");
   revalidatePath("/content-reports");
+  revalidatePath("/content-reports-native");
   return { processed: data?.processed ?? 0 };
 }
