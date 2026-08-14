@@ -11,6 +11,7 @@ final class AuthStore: ObservableObject {
     }
 
     @Published private(set) var state: State
+    @Published private(set) var enabledOAuthProviders: Set<String> = []
     private let service: AuthService?
 
     init(service: AuthService?) {
@@ -27,10 +28,13 @@ final class AuthStore: ObservableObject {
 
     var accessToken: String? { session?.accessToken }
     var userID: UUID? { session?.user.id }
+    var isGoogleSignInAvailable: Bool { enabledOAuthProviders.contains("google") }
+    var isAppleSignInAvailable: Bool { enabledOAuthProviders.contains("apple") }
 
     func bootstrap() async {
         guard let service else { return }
         do {
+            enabledOAuthProviders = (try? await service.enabledOAuthProviders()) ?? []
             apply(try await service.restoreOrCreateSession())
         } catch {
             state = .failed(error.localizedDescription)
@@ -45,6 +49,16 @@ final class AuthStore: ObservableObject {
     func verifyEmailCode(_ code: String, email: String) async throws {
         guard let service else { throw AuthStoreError.unavailable }
         apply(try await service.verifyEmailCode(code, email: email))
+    }
+
+    func signInWithGoogle() async throws {
+        guard let service else { throw AuthStoreError.unavailable }
+        apply(try await service.signInWithGoogle())
+    }
+
+    func signInWithApple() async throws {
+        guard let service else { throw AuthStoreError.unavailable }
+        apply(try await service.signInWithApple())
     }
 
     func signOut() async throws {

@@ -16,9 +16,7 @@ const NAV_GROUPS = [
       { href: "/event-groups", label: "Event-Gruppen" },
       { href: "/review-queue", label: "Review-Queue" },
       { href: "/cancellations", label: "Absage-Review" },
-      { href: "/content-reports", label: "Nutzer-Meldungen (Flutter)" },
-      { href: "/content-reports-native", label: "Nutzer-Meldungen (Native)" },
-      { href: "/code-fix-tasks", label: "Code-Aufgaben (Claude Code)" },
+      { href: "/content-reports", label: "Meldungen & Fehler" },
     ],
   },
   {
@@ -30,7 +28,6 @@ const NAV_GROUPS = [
       { href: "/qualitaetspruefung", label: "Qualitätsprüfung" },
       { href: "/work-image-reuse", label: "Werk-Bild-Verknüpfungen" },
       { href: "/aliases", label: "Schreibweisen & Aliasse" },
-      { href: "/reports", label: "Fehlerberichte" },
     ],
   },
   {

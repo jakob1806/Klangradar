@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { AssignRoleForm, RoleBadge } from "./user-roles-cell";
+import { AssignRoleForm, DeleteUserButton, RoleBadge } from "./user-roles-cell";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +41,7 @@ export default async function UsersPage() {
                 <th className="type-label px-4 py-3">Nutzer</th>
                 <th className="type-label px-4 py-3">Rollen</th>
                 <th className="type-label px-4 py-3">Registriert</th>
-                <th className="type-label px-4 py-3">Rolle zuweisen</th>
+                <th className="type-label px-4 py-3">Verwalten</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-200">
@@ -73,6 +73,7 @@ export default async function UsersPage() {
                     </td>
                     <td className="px-4 py-3">
                       <AssignRoleForm userId={u.id} existingRoles={u.roles} />
+                      <div className="mt-2"><DeleteUserButton userId={u.id} disabled={u.id === currentUser?.id} /></div>
                     </td>
                   </tr>
                 ))

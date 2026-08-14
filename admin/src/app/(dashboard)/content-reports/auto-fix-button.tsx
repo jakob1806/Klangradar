@@ -22,7 +22,7 @@ const STATUS_LABEL: Record<AutoFixResult["status"], string> = {
   fixed: "Automatisch behoben",
   needs_manual_review: "Manuelle Prüfung nötig",
   error: "Fehler beim Fix-Versuch",
-  code_bug_suspected: "Code-Bug vermutet — Aufgabe für Claude Code angelegt",
+  code_bug_suspected: "Struktureller Fehler erkannt — Neusynchronisation gestartet",
 };
 
 export function AutoFixButton({

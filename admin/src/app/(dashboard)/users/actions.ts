@@ -30,3 +30,11 @@ export async function removeRole(userId: string, role: AppRole) {
 
   revalidatePath("/users");
 }
+
+export async function deleteUser(userId: string) {
+  if (!/^[0-9a-f-]{36}$/i.test(userId)) throw new Error("Ungueltige Benutzer-ID");
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("admin_delete_user", { p_user_id: userId });
+  if (error) throw new Error(error.message);
+  revalidatePath("/users");
+}

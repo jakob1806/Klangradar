@@ -1,4 +1,9 @@
+import 'dart:convert';
+
+import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../config/env.dart';
 
 /// Kapselt Supabase-Auth-Aufrufe. E-Mail-Login läuft über einen 6-stelligen
 /// Code statt über einen Magic-Link — braucht dadurch keinen registrierten
@@ -39,6 +44,20 @@ class AuthService {
       OAuthProvider.google,
       redirectTo: _oauthRedirect,
     );
+  }
+
+  static Future<Set<String>> enabledOAuthProviders() async {
+    final response = await http.get(
+      Uri.parse('${Env.supabaseUrl}/auth/v1/settings'),
+      headers: {'apikey': Env.supabaseAnonKey},
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) return {};
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final external = body['external'] as Map<String, dynamic>? ?? const {};
+    return external.entries
+        .where((entry) => entry.value == true)
+        .map((entry) => entry.key)
+        .toSet();
   }
 
   /// Löscht zuerst die eigenen Push-Tokens — sonst würde ein zweiter Nutzer,

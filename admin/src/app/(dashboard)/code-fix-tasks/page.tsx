@@ -1,7 +1,7 @@
 import { ConfirmButton } from "@/components/confirm-button";
 import { createClient } from "@/lib/supabase/server";
 import { markCodeFixTaskDone } from "./actions";
-import { CopyPromptButton } from "./copy-prompt-button";
+import { ReportSourceTabs } from "@/components/report-source-tabs";
 
 export const dynamic = "force-dynamic";
 
@@ -18,14 +18,6 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleString("de-DE", { timeZone: "Europe/Berlin", dateStyle: "medium", timeStyle: "short" });
 }
 
-/** Nutzerwunsch: "bei erneut versuchen soll einfach eine KI diese fehler
- * durchgehen und beheben. das ist dann wie, als würde ich dir eine
- * chatnachricht mit der fehlerkorrektur schreiben." Vermutet der freiere
- * Retry-Fix (auto-fix-content-report, fixFreeform) einen Code-Bug statt
- * eines Datenproblems, kann die Edge Function das nicht selbst reparieren
- * (kein Repo-/Deploy-Zugriff zur Laufzeit) — stattdessen landet hier ein
- * fertiger, in sich geschlossener Auftragstext für Claude Code.
- */
 export default async function CodeFixTasksPage() {
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -37,12 +29,12 @@ export default async function CodeFixTasksPage() {
 
   return (
     <div className="p-8">
+      <ReportSourceTabs activeHref="/code-fix-tasks" />
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">Code-Aufgaben für Claude Code</h1>
+        <h1 className="text-xl font-semibold tracking-tight">Automatische Reparaturen</h1>
         <p className="mt-1 max-w-xl text-sm text-neutral-500">
-          Wenn der freiere Fix-Versuch einer Nutzer-Meldung (&quot;Erneut versuchen&quot;) vermutet, dass die Ursache ein Bug
-          im Scraping-/Ingest-Code ist statt eines falschen Datenwerts, landet hier ein fertiger Auftragstext —
-          Auftragstext kopieren und Claude Code damit beauftragen, danach hier abhaken.
+          Historische strukturelle Fehleraufträge und ihr Status. Neue Meldungen erzeugen keine Claude-Code-Prompts mehr:
+          die betroffene Entität wird automatisch für Recherche und Quell-Neusynchronisation vorgemerkt.
         </p>
       </div>
 
@@ -60,13 +52,12 @@ export default async function CodeFixTasksPage() {
                       <span className="text-xs text-neutral-400">{formatDate(task.created_at)}</span>
                     </div>
                     <p className="mt-2 text-sm font-medium text-neutral-900">{task.title}</p>
-                    <pre className="mt-2 whitespace-pre-wrap rounded-md bg-neutral-50 p-3 text-xs text-neutral-700">{task.prompt}</pre>
+                    <p className="mt-2 rounded-md bg-neutral-50 p-3 text-xs text-neutral-700">Automatische Neusynchronisation angefordert. Historische Diagnose: {task.title}</p>
                     <a href={`/content-reports`} className="mt-1 inline-block text-xs text-blue-700 hover:underline">
                       zugehörige Meldung in Nutzer-Meldungen ansehen
                     </a>
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-2">
-                    <CopyPromptButton prompt={task.prompt} />
                     <ConfirmButton
                       action={markCodeFixTaskDone.bind(null, task.id)}
                       confirmMessage="Als erledigt markieren?"

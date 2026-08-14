@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { assignRole, removeRole } from "./actions";
+import { assignRole, deleteUser, removeRole } from "./actions";
 
 type AppRole = "admin" | "editor";
 
@@ -123,5 +123,40 @@ export function AssignRoleForm({ userId, existingRoles }: { userId: string; exis
       </div>
       {error && <span className="text-xs text-red-600">{error}</span>}
     </form>
+  );
+}
+
+export function DeleteUserButton({ userId, disabled }: { userId: string; disabled?: boolean }) {
+  const [pending, startTransition] = useTransition();
+  const [confirming, setConfirming] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (disabled) return <span className="text-xs text-neutral-400">Aktuelles Konto</span>;
+  return (
+    <div className="flex flex-col items-start gap-1">
+      {confirming ? (
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-red-700">Konto samt App-Daten entfernen?</span>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() => startTransition(async () => {
+              setError(null);
+              try { await deleteUser(userId); }
+              catch (e) { setError(e instanceof Error ? e.message : "Benutzer konnte nicht entfernt werden."); setConfirming(false); }
+            })}
+            className="font-semibold text-red-700 underline disabled:opacity-50"
+          >
+            {pending ? "Entferne…" : "Ja, entfernen"}
+          </button>
+          <button type="button" disabled={pending} onClick={() => setConfirming(false)} className="text-neutral-500">Abbrechen</button>
+        </div>
+      ) : (
+        <button type="button" onClick={() => setConfirming(true)} className="text-xs font-medium text-red-600 hover:text-red-800">
+          Benutzer entfernen
+        </button>
+      )}
+      {error && <span className="max-w-xs text-xs text-red-600">{error}</span>}
+    </div>
   );
 }

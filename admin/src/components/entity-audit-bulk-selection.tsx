@@ -37,7 +37,7 @@ export function EntityAuditBulkSelection({ children, ids }: { children: React.Re
     startTransition(async () => {
       try {
         const result = await applyAllEntityAuditCorrections(ids);
-        setMessage(`${result.completed} übernommen${result.skipped ? `, ${result.skipped} ohne sicheren Vorschlag` : ""}${result.failed ? `, ${result.failed} fehlgeschlagen` : ""}.`);
+        setMessage(`${result.completed} übernommen${result.skipped ? `, ${result.skipped} ohne sicheren Vorschlag` : ""}${result.failed ? `, ${result.failed} fehlgeschlagen` : ""}.${result.errors?.length ? ` ${result.errors.join(" · ")}` : ""}`);
         setSelected(new Set());
         router.refresh();
       } catch (error) {

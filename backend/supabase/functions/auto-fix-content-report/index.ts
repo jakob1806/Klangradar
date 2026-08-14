@@ -1184,8 +1184,22 @@ const FREEFORM_FIX_FUNCTION: AiFunctionDeclaration = {
  * die Beleg-Pflicht entfällt. Vermutet die KI stattdessen einen Code-Bug
  * (z.B. #b7: bestimmte Quellen schlagen strukturell fehl), kann sie das
  * zur Laufzeit nicht selbst reparieren (Edge Functions haben keinen Repo-/
- * Deploy-Zugriff) — stattdessen legt sie eine fertige Aufgabe in
- * code_fix_tasks an, die Claude Code beim nächsten Mal aufgreift. */
+ * Deploy-Zugriff). Statt einen Prompt zum manuellen Kopieren zu erzeugen,
+ * setzt sie die passende Recherche-/Importmarke der Entitaet zurueck. Die
+ * regulaeren Enrichment-Jobs greifen den Fall dadurch automatisch erneut
+ * auf; die Diagnose bleibt im Fix-Bericht nachvollziehbar. */
+async function queueAutomaticEntityRefresh(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  report: ContentReportRow,
+): Promise<string> {
+  const table = ENTITY_TABLE[report.entity_type];
+  const resetColumn = report.entity_type === "event" ? "references_checked_at" : "profile_checked_at";
+  const { error } = await supabase.from(table).update({ [resetColumn]: null }).eq("id", report.entity_id);
+  if (error) throw new Error(`Neusynchronisation konnte nicht vorgemerkt werden: ${error.message}`);
+  return `${table}.${resetColumn} zurueckgesetzt; der automatische Recherche-/Importlauf verarbeitet den Datensatz erneut`;
+}
+
 async function fixFreeform(
   // deno-lint-ignore no-explicit-any
   supabase: any,
@@ -1245,15 +1259,12 @@ async function fixFreeform(
   const { args, provider } = response;
 
   if (args.outcome === "code_bug") {
-    const title = typeof args.codeBugTitle === "string" && args.codeBugTitle.trim() ? args.codeBugTitle.trim() : `Code-Bug-Verdacht: ${report.reason}`;
-    const prompt = typeof args.codeBugPrompt === "string" && args.codeBugPrompt.trim()
-      ? args.codeBugPrompt.trim()
-      : String(args.reasoning ?? "Kein Auftragstext geliefert.");
+    const queued = await queueAutomaticEntityRefresh(supabase, report);
     return {
-      status: "code_bug_suspected",
-      diagnosis: `${args.reasoning ?? ""} (Aufgabe für Claude Code angelegt: „${title}“)`,
+      status: "needs_manual_review",
+      diagnosis: `${args.reasoning ?? ""} Automatische Wiederherstellung gestartet: ${queued}.`,
+      actionTaken: queued,
       aiProvider: provider,
-      codeFixTask: { title, prompt },
     };
   }
 

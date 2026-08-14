@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { resolveContentReport, dismissContentReport } from "./actions";
 import { AutoFixAllButton } from "./auto-fix-all-button";
 import { AutoFixButton } from "./auto-fix-button";
+import { ReportSourceTabs } from "@/components/report-source-tabs";
 
 interface ReportRow {
   id: string;
@@ -15,7 +16,7 @@ interface ReportRow {
 
 interface FixRow {
   report_id: string;
-  status: "fixed" | "needs_manual_review" | "error";
+  status: "fixed" | "needs_manual_review" | "error" | "code_bug_suspected";
   diagnosis: string;
   action_taken: string | null;
   created_at: string;
@@ -25,12 +26,14 @@ const FIX_STATUS_STYLE: Record<FixRow["status"], string> = {
   fixed: "bg-green-50 text-green-800 border-green-200",
   needs_manual_review: "bg-amber-50 text-amber-800 border-amber-200",
   error: "bg-red-50 text-red-700 border-red-200",
+  code_bug_suspected: "bg-violet-50 text-violet-800 border-violet-200",
 };
 
 const FIX_STATUS_LABEL: Record<FixRow["status"], string> = {
   fixed: "Automatisch behoben",
   needs_manual_review: "Manuelle Prüfung nötig",
   error: "Fehler beim Fix-Versuch",
+  code_bug_suspected: "Historischer struktureller Fehler",
 };
 
 /** Letzter Fix-Versuch pro Meldung (falls vorhanden) — content_report_fixes
@@ -129,6 +132,7 @@ const STATUS_SORT_RANK: Record<FixRow["status"] | "none", number> = {
   fixed: 0,
   needs_manual_review: 1,
   error: 1,
+  code_bug_suspected: 1,
   none: 2,
 };
 
@@ -136,6 +140,7 @@ const CARD_BORDER_STYLE: Record<FixRow["status"] | "none", string> = {
   fixed: "border-l-4 border-l-green-400",
   needs_manual_review: "border-l-4 border-l-amber-400",
   error: "border-l-4 border-l-red-400",
+  code_bug_suspected: "border-l-4 border-l-violet-400",
   none: "border-l-4 border-l-neutral-200",
 };
 
@@ -178,12 +183,13 @@ export async function ContentReportsList({
   for (const report of data ?? []) {
     const status = latestFixes.get(report.id)?.status;
     if (status === "fixed") counts.fixed++;
-    else if (status === "needs_manual_review" || status === "error") counts.needsAttention++;
+    else if (status === "needs_manual_review" || status === "error" || status === "code_bug_suspected") counts.needsAttention++;
     else counts.untried++;
   }
 
   return (
     <div className="p-8">
+      <ReportSourceTabs activeHref={platform === "native" ? "/content-reports-native" : "/content-reports"} />
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">{title}</h1>

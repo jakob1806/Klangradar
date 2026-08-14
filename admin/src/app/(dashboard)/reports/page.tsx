@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { DeleteButton } from "@/components/delete-button";
 import { dismissReport } from "./actions";
+import { ReportSourceTabs } from "@/components/report-source-tabs";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,7 @@ export default async function ReportsPage() {
 
   return (
     <div className="p-8">
+      <ReportSourceTabs activeHref="/reports" />
       <h1 className="text-xl font-semibold tracking-tight">Fehlerberichte</h1>
       <p className="mt-1 max-w-xl text-sm text-neutral-500">
         Von der App gemeldete Fehler und Datenqualitätsprobleme.
