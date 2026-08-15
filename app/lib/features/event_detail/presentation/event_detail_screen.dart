@@ -70,7 +70,7 @@ final _eventProvider = FutureProvider.family<Map<String, dynamic>?, String>((
       .from('events')
       .select('''
         id, slug, title, subtitle, description_de,
-        start_datetime, duration_minutes, has_intermission,
+        start_datetime, duration_minutes, has_intermission, venue_detail,
         ticket_url, price_min, price_max, price_currency, is_free,
         remaining_tickets_status, doors_info, age_restriction,
         discount_info, presale_fee_info, target_audience, performance_language,
@@ -374,7 +374,7 @@ class EventDetailScreen extends ConsumerWidget {
                             start: start,
                             durationMinutes: event['duration_minutes'],
                             location: venue != null
-                                ? '${venue['name']}, ${venue['address_street']}, ${venue['address_zip']} ${venue['address_city']}'
+                                ? '${venue['name']}${event['venue_detail'] != null ? ' · ${event['venue_detail']}' : ''}, ${venue['address_street']}, ${venue['address_zip']} ${venue['address_city']}'
                                 : null,
                             url: event['website_url'] ?? event['ticket_url'],
                           ),
@@ -548,7 +548,7 @@ class EventDetailScreen extends ConsumerWidget {
                       GestureDetector(
                         onTap: () => context.push('/venue/${venue['slug']}'),
                         child: Text(
-                          '${venue['name']} — ${venue['address_street']}, ${venue['address_zip']} ${venue['address_city']}',
+                          '${venue['name']}${event['venue_detail'] != null ? ' · ${event['venue_detail']}' : ''} — ${venue['address_street']}, ${venue['address_zip']} ${venue['address_city']}',
                           style: TextStyle(
                             color: colors.accentPrimary,
                             fontSize: 13,

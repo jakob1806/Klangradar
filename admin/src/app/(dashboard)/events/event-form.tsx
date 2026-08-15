@@ -44,6 +44,7 @@ export interface EventFormValues {
   duration_minutes: number | null;
   has_intermission: boolean;
   venue_id: string;
+  venue_detail: string | null;
   organizer_id: string | null;
   ticket_url: string | null;
   price_min: number | null;
@@ -138,6 +139,9 @@ export function EventForm({
               </option>
             ))}
           </Select>
+        </Field>
+        <Field label="Saal / Bühne">
+          <TextInput name="venue_detail" placeholder="z. B. Probebühne" defaultValue={initial?.venue_detail ?? ""} />
         </Field>
         <Field label="Veranstalter">
           <Select name="organizer_id" defaultValue={initial?.organizer_id ?? ""}>

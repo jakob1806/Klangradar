@@ -34,3 +34,22 @@ Deno.test("Gärtnerplatz config excludes guest venues", () => {
   });
   assertEquals(result.events.length, 0);
 });
+
+Deno.test("Gärtnerplatz keeps a substage as event detail", () => {
+  const html = `<div class="vorstellung performance vorstellung-5477 ort-107">
+    <div class="col-xl-3"><div class="fs-3">Sa, 19.12.26</div><div class="fw-bold">14.30 Uhr</div>
+      <div class="text-produktion-font-color"><span>Probebühne</span></div></div>
+    <div class="fs-3"><a href="/workshop?ID_Vorstellung=5477">Workshop</a></div>
+  </div><div class="vorstellung performance vorstellung-5180 ort-112">
+    <div class="col-xl-3"><div class="fs-3">Sa, 27.02.27</div><div class="fw-bold">19.00 Uhr</div></div>
+    <div class="fs-3"><a href="/gastspiel">Gastspiel</a></div></div>`;
+  const result = parseScrape(html, {
+    itemSelector: ".vorstellung.performance",
+    itemAllowClassContains: ["ort-57", "ort-107"],
+    titleSelector: ".fs-3 a", urlSelector: ".fs-3 a",
+    dateSelector: ".col-xl-3 .fs-3", timeSelector: ".col-xl-3 .fw-bold",
+    venueDetailSelector: ".col-xl-3 .text-produktion-font-color span",
+  });
+  assertEquals(result.events.length, 1);
+  assertEquals(result.events[0].venueDetail, "Probebühne");
+});

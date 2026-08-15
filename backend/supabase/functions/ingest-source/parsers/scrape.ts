@@ -77,6 +77,8 @@ export interface ScrapeConfig {
    * Gasteigs Tag-Link-System. Hat Vorrang vor venueTagHrefPattern, falls
    * beide gesetzt sind. */
   venueSelector?: string;
+  /** Saal/Buehne als Zusatzangabe der Veranstaltung. */
+  venueDetailSelector?: string;
   /** Nur Items behalten, deren (kleingeschriebener) venueName mindestens
    * eine dieser Zeichenketten enthält — z.B. ["isarphilharmonie"], um von
    * einer Seite mit Tourneedaten nur Münchner Konzerte zu behalten. Leer/
@@ -118,6 +120,8 @@ export interface ScrapeConfig {
    * die Heim- und Gastspielorte mischen, obwohl die Quelle eine feste
    * venue_id besitzt (Gärtnerplatz: ort-102 = Gastspielorte). */
   itemExcludeClassContains?: string[];
+  /** Nur Karten mit mindestens einem dieser CSS-Klassenfragmente behalten. */
+  itemAllowClassContains?: string[];
 }
 
 /** Löst den "nächste Seite"-Link relativ zur AKTUELL abgerufenen Seiten-URL
@@ -185,6 +189,10 @@ export function parseScrape(html: string, config: ScrapeConfig): ParseResult {
       if (config.itemExcludeClassContains?.length) {
         const classes = item.getAttribute?.("class") ?? "";
         if (config.itemExcludeClassContains.some((value) => classes.includes(value))) return;
+      }
+      if (config.itemAllowClassContains?.length) {
+        const classes = item.getAttribute?.("class") ?? "";
+        if (!config.itemAllowClassContains.some((value) => classes.includes(value))) return;
       }
       const title = extractText(
         item,
@@ -260,6 +268,9 @@ export function parseScrape(html: string, config: ScrapeConfig): ParseResult {
       if (config.venueSelector) {
         venueName = extractText(item, config.venueSelector) ?? venueName;
       }
+      const venueDetail = config.venueDetailSelector
+        ? extractText(item, config.venueDetailSelector)
+        : null;
 
       if (config.venueAllowlist && config.venueAllowlist.length > 0) {
         const wanted = config.venueAllowlist.map((s) => s.toLowerCase());
@@ -286,6 +297,7 @@ export function parseScrape(html: string, config: ScrapeConfig): ParseResult {
         endDateTime: null,
         venueName,
         venueAddress: null,
+        venueDetail,
         url,
         imageUrl,
         priceMin: null,

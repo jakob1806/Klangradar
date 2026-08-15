@@ -11,7 +11,7 @@ import '../../../core/time/munich_time.dart';
 // das Event eins hat). Eine Quelle für die Spaltenliste statt zwei, die
 // auseinanderlaufen können.
 const homeEventColumns =
-    'id, slug, title, subtitle, is_free, remaining_tickets_status, discount_info, start_datetime, image_urls, venues(name), event_genres(genres(slug))';
+    'id, slug, title, subtitle, is_free, remaining_tickets_status, discount_info, start_datetime, venue_detail, image_urls, venues(name), event_genres(genres(slug))';
 
 String _formatDateTime(DateTime d) {
   final time =
@@ -48,7 +48,13 @@ class HomeEventItem {
 
   factory HomeEventItem.fromRow(Map<String, dynamic> row) {
     final start = MunichTime.tryParse(row['start_datetime'] as String?);
-    final venueName = row['venues']?['name'] as String?;
+    final venueBase = row['venues']?['name'] as String?;
+    final venueDetail = row['venue_detail'] as String?;
+    final venueName = venueBase == null
+        ? null
+        : venueDetail == null || venueDetail.isEmpty
+            ? venueBase
+            : '$venueBase · $venueDetail';
     final genreSlugs = (row['event_genres'] as List? ?? [])
         .map((g) => g['genres']?['slug'] as String?)
         .whereType<String>();

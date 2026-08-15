@@ -25,6 +25,7 @@ struct ConcertEvent: Codable, Identifiable, Hashable, Sendable {
     let title: String
     let subtitle: String?
     let startDatetime: String
+    let venueDetail: String?
     let imageUrls: [String]?
     let status: String?
     let venues: VenueSummary?
@@ -45,7 +46,7 @@ struct ConcertEvent: Codable, Identifiable, Hashable, Sendable {
     let isFree: Bool?
 
     private enum CodingKeys: String, CodingKey {
-        case id, slug, title, subtitle, startDatetime, imageUrls, status, venues
+        case id, slug, title, subtitle, startDatetime, venueDetail, imageUrls, status, venues
         case eventParticipants, fallbackImageUrls, ownGalleryImageUrls, category, genreIDs, genreLabels, isFree
     }
 
@@ -62,7 +63,8 @@ struct ConcertEvent: Codable, Identifiable, Hashable, Sendable {
     }
 
     var venueName: String {
-        venues?.name ?? "Ort folgt"
+        let base = venues?.name ?? "Ort folgt"
+        return venueDetail.map { "\(base) · \($0)" } ?? base
     }
 
     var dateLine: String {
@@ -89,13 +91,15 @@ struct ConcertEvent: Codable, Identifiable, Hashable, Sendable {
         category: String? = nil,
         genreIDs: [UUID] = [],
         genreLabels: [String] = [],
-        isFree: Bool? = nil
+        isFree: Bool? = nil,
+        venueDetail: String? = nil
     ) {
         self.id = id
         self.slug = slug
         self.title = title
         self.subtitle = subtitle
         self.startDatetime = startDatetime
+        self.venueDetail = venueDetail
         self.imageUrls = imageUrls
         self.status = status
         self.venues = venues
@@ -140,7 +144,8 @@ struct ConcertEvent: Codable, Identifiable, Hashable, Sendable {
             category: json.string("category"),
             genreIDs: genreRows.compactMap { $0.string("id").flatMap(UUID.init(uuidString:)) },
             genreLabels: genreRows.compactMap { $0.string("label_de") ?? $0.string("slug") },
-            isFree: json.bool("is_free")
+            isFree: json.bool("is_free"),
+            venueDetail: json.string("venue_detail")
         )
     }
 
@@ -161,7 +166,8 @@ struct ConcertEvent: Codable, Identifiable, Hashable, Sendable {
             category: try values.decodeIfPresent(String.self, forKey: .category),
             genreIDs: try values.decodeIfPresent([UUID].self, forKey: .genreIDs) ?? [],
             genreLabels: try values.decodeIfPresent([String].self, forKey: .genreLabels) ?? [],
-            isFree: try values.decodeIfPresent(Bool.self, forKey: .isFree)
+            isFree: try values.decodeIfPresent(Bool.self, forKey: .isFree),
+            venueDetail: try values.decodeIfPresent(String.self, forKey: .venueDetail)
         )
     }
 
@@ -172,6 +178,7 @@ struct ConcertEvent: Codable, Identifiable, Hashable, Sendable {
         try values.encode(title, forKey: .title)
         try values.encodeIfPresent(subtitle, forKey: .subtitle)
         try values.encode(startDatetime, forKey: .startDatetime)
+        try values.encodeIfPresent(venueDetail, forKey: .venueDetail)
         try values.encodeIfPresent(imageUrls, forKey: .imageUrls)
         try values.encodeIfPresent(status, forKey: .status)
         try values.encodeIfPresent(venues, forKey: .venues)

@@ -22,6 +22,7 @@ function readEventFields(formData: FormData) {
       : null,
     has_intermission: formData.get("has_intermission") === "on",
     venue_id: String(formData.get("venue_id") ?? ""),
+    venue_detail: String(formData.get("venue_detail") ?? "").trim() || null,
     organizer_id: String(formData.get("organizer_id") ?? "") || null,
     ticket_url: String(formData.get("ticket_url") ?? "").trim() || null,
     price_min: formData.get("price_min") ? Number(formData.get("price_min")) : null,
