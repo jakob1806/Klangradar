@@ -18,6 +18,7 @@ export interface BioEntityOption {
   id: string;
   name: string;
   hasBio: boolean;
+  currentBio?: string | null;
   bioStatus?: "pending" | "processing" | "generated" | "not_known" | "error";
   hasImage?: boolean;
   imageSearchNote?: string | null;
@@ -26,9 +27,11 @@ export interface BioEntityOption {
 export function BioResearchPicker({
   entityType,
   entities,
+  mode = "automatic",
 }: {
   entityType: BioEntityType;
   entities: BioEntityOption[];
+  mode?: "automatic" | "manual";
 }) {
   const router = useRouter();
   const [phase, setPhase] = useState<"select" | "workflow">("select");
@@ -40,10 +43,10 @@ export function BioResearchPicker({
   // Während er geöffnet ist, werden neu fertiggestellte Biografien ohne
   // manuelles Neuladen sichtbar.
   useEffect(() => {
-    if (entityType !== "person") return;
+    if (mode !== "automatic") return;
     const timer = window.setInterval(() => router.refresh(), 20_000);
     return () => window.clearInterval(timer);
-  }, [entityType, router]);
+  }, [mode, router]);
 
   const visible = entities.filter((e) => {
     if (onlyMissing && e.hasBio) return false;
@@ -51,7 +54,9 @@ export function BioResearchPicker({
     return true;
   });
 
-  if (entityType === "person") {
+  if (mode === "automatic") {
+    const detailBase = entityType === "person" ? "/persons" : entityType === "ensemble" ? "/ensembles" : "/venues";
+    const entityLabel = entityType === "person" ? "Person" : entityType === "ensemble" ? "Ensemble" : "Venue";
     const withBio = entities.filter((entity) => entity.hasBio).length;
     const withImage = entities.filter((entity) => entity.hasImage).length;
     const processing = entities.filter((entity) =>
@@ -61,16 +66,16 @@ export function BioResearchPicker({
     return (
       <div>
         <div className="grid gap-3 sm:grid-cols-3">
-          <SummaryCard label="Biografien vorhanden" value={withBio} total={entities.length} />
-          <SummaryCard label="Automatisch in Bearbeitung" value={processing} total={entities.length} />
-          <SummaryCard label="Profilbilder vorhanden" value={withImage} total={entities.length} />
+          <SummaryCard label="Biografie-Fortschritt" value={withBio} total={entities.length} />
+          <SummaryCard label="Noch in Bearbeitung" value={processing} total={entities.length} invertProgress />
+          <SummaryCard label="Bild-Fortschritt" value={withImage} total={entities.length} />
         </div>
 
         <div className="mt-5 flex flex-wrap items-center gap-3">
           <input
             value={filter}
             onChange={(event) => setFilter(event.target.value)}
-            placeholder="Person suchen…"
+            placeholder={`${entityLabel} suchen…`}
             className="min-w-64 rounded-lg border border-black/10 px-3 py-2 text-sm outline-none focus:border-[#0071e3]"
           />
           <label className="flex items-center gap-2 text-sm text-neutral-600">
@@ -89,7 +94,7 @@ export function BioResearchPicker({
           {visible.map((entity) => (
             <Link
               key={entity.id}
-              href={`/persons/${entity.id}`}
+              href={`${detailBase}/${entity.id}`}
               className="flex items-center gap-3 border-b border-neutral-100 px-4 py-3 text-sm last:border-b-0 hover:bg-neutral-50"
             >
               <span className="min-w-0 flex-1 truncate font-medium text-neutral-900">{entity.name}</span>
@@ -122,7 +127,7 @@ export function BioResearchPicker({
   if (phase === "workflow") {
     const chosen: BioWorkflowEntity[] = entities
       .filter((e) => selected.has(e.id))
-      .map((e) => ({ id: e.id, name: e.name, currentBio: null }));
+      .map((e) => ({ id: e.id, name: e.name, currentBio: e.currentBio ?? null }));
     return (
       <div>
         <button
@@ -212,13 +217,29 @@ export function BioResearchPicker({
   );
 }
 
-function SummaryCard({ label, value, total }: { label: string; value: number; total: number }) {
+function SummaryCard({
+  label,
+  value,
+  total,
+  invertProgress = false,
+}: {
+  label: string;
+  value: number;
+  total: number;
+  invertProgress?: boolean;
+}) {
+  const completed = invertProgress ? Math.max(0, total - value) : value;
+  const percentage = total > 0 ? Math.round((completed / total) * 100) : 100;
   return (
     <div className="rounded-xl border border-black/[0.06] bg-white p-4 shadow-sm">
       <p className="text-xs font-medium uppercase tracking-wide text-neutral-400">{label}</p>
       <p className="mt-1 text-2xl font-semibold tracking-tight text-neutral-900">
         {value}<span className="ml-1 text-sm font-normal text-neutral-400">/ {total}</span>
       </p>
+      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-neutral-100" aria-label={`${percentage} Prozent abgeschlossen`}>
+        <div className="h-full rounded-full bg-[#0071e3] transition-all" style={{ width: `${percentage}%` }} />
+      </div>
+      <p className="mt-1.5 text-xs text-neutral-400">{percentage}% abgeschlossen</p>
     </div>
   );
 }
@@ -238,7 +259,7 @@ function bioStatusClass(entity: BioEntityOption) {
   return "bg-neutral-100 text-neutral-500";
 }
 
-export function EntityTypeTabs({ entityType }: { entityType: BioEntityType }) {
+export function EntityTypeTabs({ entityType, mode = "automatic" }: { entityType: BioEntityType; mode?: string }) {
   const labels: Record<BioEntityType, string> = {
     person: "Personen",
     venue: "Venues",
@@ -249,7 +270,7 @@ export function EntityTypeTabs({ entityType }: { entityType: BioEntityType }) {
       {(Object.keys(labels) as BioEntityType[]).map((t) => (
         <Link
           key={t}
-          href={`/bio-research?type=${t}`}
+          href={`/bio-research?type=${t}&mode=${mode}`}
           className={`px-3 py-1.5 type-label ${
             t === entityType
               ? "rounded-lg bg-[#0071e3] !text-white"

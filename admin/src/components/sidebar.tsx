@@ -49,7 +49,7 @@ const NAV_GROUPS = [
     items: [
       { href: "/media", label: "Bilder" },
       { href: "/image-research", label: "Bilder recherchieren" },
-      { href: "/bio-research", label: "Bio-Recherche" },
+      { href: "/bio-research", label: "Recherche & Anreicherung" },
     ],
   },
   {

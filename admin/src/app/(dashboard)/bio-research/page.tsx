@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { BioResearchWorkflow, type BioWorkflowEntity } from "./bio-research-workflow";
 import { BioResearchPicker, EntityTypeTabs, type BioEntityOption } from "./bio-research-picker";
 import type { BioEntityType } from "./actions";
+import { ImageResearchClient } from "../image-research/image-research-client";
 
 export const dynamic = "force-dynamic";
 
@@ -40,9 +41,7 @@ async function loadEntities(entityType: BioEntityType): Promise<BioEntityOption[
   const supabase = await createClient();
   const nameColumn = NAME_COLUMN_FOR_TYPE[entityType];
   const bioColumn = BIO_COLUMN_FOR_TYPE[entityType];
-  const extraColumns = entityType === "person"
-    ? ", photo_url, ai_biography_status, last_image_search_note"
-    : "";
+  const extraColumns = ", photo_url, ai_biography_status, last_image_search_note";
 
   // PostgREST begrenzt Antworten projektweit auf 1.000 Zeilen. Die alte
   // feste .limit(500)-Abfrage ließ deshalb mehr als tausend Personen im
@@ -66,18 +65,19 @@ async function loadEntities(entityType: BioEntityType): Promise<BioEntityOption[
     id: row.id as string,
     name: row[nameColumn] as string,
     hasBio: Boolean((row[bioColumn] as string | null)?.trim()),
-    bioStatus: entityType === "person" ? (row.ai_biography_status as BioEntityOption["bioStatus"]) : undefined,
-    hasImage: entityType === "person" ? Boolean(row.photo_url) : undefined,
-    imageSearchNote: entityType === "person" ? (row.last_image_search_note as string | null) : undefined,
+    currentBio: (row[bioColumn] as string | null) ?? null,
+    bioStatus: row.ai_biography_status as BioEntityOption["bioStatus"],
+    hasImage: Boolean(row.photo_url),
+    imageSearchNote: row.last_image_search_note as string | null,
   }));
 }
 
 export default async function BioResearchPage({
   searchParams,
 }: {
-  searchParams: Promise<{ type?: string; ids?: string }>;
+  searchParams: Promise<{ type?: string; ids?: string; mode?: string }>;
 }) {
-  const { type, ids } = await searchParams;
+  const { type, ids, mode: requestedMode } = await searchParams;
 
   // Kein ids= in der URL: eigenständiger Tab-Einstieg (Sidebar-Link) —
   // eigene Auswahl direkt hier, statt zwingend über die Personen-/Venues-/
@@ -85,17 +85,55 @@ export default async function BioResearchPage({
   // soll auch einen eigenen Tab bekommen wie bilder recherchieren").
   if (!ids) {
     const entityType = (type && TABLE_FOR_TYPE[type as BioEntityType] ? type : "person") as BioEntityType;
+    const mode = requestedMode === "bio" || requestedMode === "image" ? requestedMode : "automatic";
     const entities = await loadEntities(entityType);
     return (
       <div className="p-8">
-        <h1 className="text-xl font-semibold tracking-tight">Bio-Recherche</h1>
+        <h1 className="text-xl font-semibold tracking-tight">Recherche &amp; Anreicherung</h1>
         <p className="mt-1 max-w-xl text-sm text-neutral-500">
-          Personen werden automatisch im Hintergrund recherchiert und direkt gespeichert. Der Tab zeigt den vollständigen
-          Bestand und aktualisiert den Fortschritt selbstständig; eine einzelne Freigabe ist nicht mehr nötig.
+          Biografien und Bilder laufen hauptsächlich automatisch. Für gezielte Korrekturen bleiben die bisherigen
+          manuellen Werkzeuge direkt an derselben Stelle verfügbar.
         </p>
-        <EntityTypeTabs entityType={entityType} />
+
+        <div className="mt-5 inline-flex rounded-xl bg-black/[0.04] p-1">
+          {([
+            ["automatic", "Automatik & Fortschritt"],
+            ["bio", "Biografie manuell"],
+            ["image", "Bild manuell"],
+          ] as const).map(([value, label]) => (
+            <Link
+              key={value}
+              href={`/bio-research?type=${entityType}&mode=${value}`}
+              className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                mode === value ? "bg-white text-neutral-900 shadow-sm" : "text-neutral-500 hover:text-neutral-900"
+              }`}
+            >
+              {label}
+            </Link>
+          ))}
+        </div>
+
+        <EntityTypeTabs entityType={entityType} mode={mode} />
         <div className="mt-6">
-          <BioResearchPicker key={entityType} entityType={entityType} entities={entities} />
+          {mode === "image" ? (
+            <ImageResearchClient
+              key={`image:${entityType}`}
+              entityType={entityType}
+              entities={entities.map((entity) => ({
+                id: entity.id,
+                name: entity.name,
+                hasImage: Boolean(entity.hasImage),
+              }))}
+              initialOnlyMissing
+            />
+          ) : (
+            <BioResearchPicker
+              key={`${mode}:${entityType}`}
+              entityType={entityType}
+              entities={entities}
+              mode={mode === "bio" ? "manual" : "automatic"}
+            />
+          )}
         </div>
       </div>
     );
