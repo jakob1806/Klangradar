@@ -5,6 +5,7 @@ import { markEventVerified } from "./actions";
 import { fetchCompletenessRows, type CompletenessRow } from "./completeness";
 import { fetchImageCoverageReport } from "./image-coverage";
 import { fetchBiographyCoverageReport } from "./biography-coverage";
+import { ResearchEnrichmentView } from "../bio-research/page";
 
 const ENTITY_TYPE_LABEL: Record<CompletenessRow["entityType"], string> = {
   venue: "Venue",
@@ -45,7 +46,9 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleString("de-DE", { timeZone: "Europe/Berlin", dateStyle: "medium", timeStyle: "short" });
 }
 
-export default async function DataQualityPage() {
+export default async function DataQualityPage({ searchParams }: { searchParams: Promise<{ view?: string; type?: string; mode?: string }> }) {
+  const params = await searchParams;
+  if (params.view === "research") return <ResearchEnrichmentView type={params.type} mode={params.mode} />;
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("events")
@@ -84,7 +87,11 @@ export default async function DataQualityPage() {
 
   return (
     <div className="p-8">
-      <h1 className="text-xl font-semibold tracking-tight">Datenqualität</h1>
+      <div className="inline-flex rounded-xl bg-black/[0.04] p-1">
+        <span className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-neutral-900 shadow-sm">Übersicht</span>
+        <Link href="/data-quality?view=research" className="rounded-lg px-4 py-2 text-sm font-medium text-neutral-500 hover:text-neutral-900">Recherche &amp; Anreicherung</Link>
+      </div>
+      <h1 className="mt-6 text-xl font-semibold tracking-tight">Datenqualität</h1>
       <p className="mt-1 max-w-xl text-sm text-neutral-500">
         Wöchentliche Review-Basis für bevorstehende Veranstaltungen: fehlende Bilder und Events, deren
         Quelle seit mehr als {STALE_AFTER_DAYS} Tagen nicht erneut geprüft wurde.

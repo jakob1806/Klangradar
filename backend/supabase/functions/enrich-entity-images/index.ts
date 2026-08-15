@@ -928,24 +928,33 @@ async function tryPersonWebImageFallback(
   name: string,
   errors: string[],
 ): Promise<boolean> {
-  const query = `"${name}" Musiker Künstler Porträt Biografie offizielle Website`;
+  const queries = [
+    `"${name}" Musiker Künstler Porträt Biografie offizielle Website`,
+    `"${name}" portrait artist agency`,
+  ];
   const pages: Array<{ url: string; title: string | null }> = [];
   const geminiKey = Deno.env.get("GEMINI_IMAGE_SEARCH_API_KEY") ?? Deno.env.get("GEMINI_SEARCH_API_KEY");
-  if (geminiKey) {
-    for (const result of await searchViaGeminiGrounding(geminiKey, query) ?? []) {
-      pages.push({ url: result.url, title: result.title ?? null });
+  for (const query of queries) {
+    if (geminiKey) {
+      for (const result of await searchViaGeminiGrounding(geminiKey, query) ?? []) {
+        if (!pages.some((page) => page.url === result.url)) pages.push({ url: result.url, title: result.title ?? null });
+      }
     }
-  }
-  if (pages.length < 3) {
-    for (const result of await searchDuckDuckGo(query, 4) ?? []) {
-      if (!pages.some((page) => page.url === result.url)) pages.push({ url: result.url, title: null });
+    if (pages.length < 5) {
+      for (const result of await searchDuckDuckGo(query, 5) ?? []) {
+        if (!pages.some((page) => page.url === result.url)) pages.push({ url: result.url, title: null });
+      }
     }
+    if (pages.length >= 6) break;
   }
 
-  for (const page of pages.slice(0, 4)) {
+  for (const page of pages.slice(0, 6)) {
     try {
       const detected = await detectEventCoverImage(page.url);
-      const imageUrl = detected?.url ?? null;
+      // Viele Agentur-/Künstlerseiten pflegen kein og:image. Dort gezielt
+      // ein mit dem Namen beschriftetes Bild suchen, statt den Treffer trotz
+      // vorhandenen Porträts wegzuwerfen.
+      const imageUrl = detected?.url ?? await extractImageNearName(page.url, name);
       if (!imageUrl || isLikelyGenericImage(imageUrl)) continue;
       const { reachable } = await checkImageUrl(imageUrl);
       if (!reachable || await isUrlUsedElsewhere(supabase, imageUrl, kind.table, id)) continue;
@@ -1164,7 +1173,7 @@ async function enrichEntityKind(
             }
           }
         }
-      } else {
+      } else if (!websiteUrl) {
         await setNote(id, "Keine Website-URL hinterlegt.");
       }
 
@@ -1373,15 +1382,13 @@ async function enrichEntityKind(
       await setNote(
         id,
         kind.useWikipediaFallback
-          ? "Kein eindeutiger Wikipedia-Artikel mit Porträtbild gefunden."
+          ? "Kein eindeutiges Porträt in Wikipedia, Wikidata oder der erweiterten Websuche gefunden."
           : "Keine passende Wikimedia-Commons-Datei gefunden.",
       );
     } catch (err) {
-      errors.push(
-        `${kind.table} "${name}": ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      );
+      const message = err instanceof Error ? err.message : String(err);
+      errors.push(`${kind.table} "${name}": ${message}`);
+      await setNote(id, `Bildrecherche vorübergehend fehlgeschlagen: ${message.slice(0, 180)}. Automatischer neuer Versuch eingeplant.`);
     }
   }
 

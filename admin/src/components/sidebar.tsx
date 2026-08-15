@@ -48,7 +48,6 @@ const NAV_GROUPS = [
     label: "Medien",
     items: [
       { href: "/media", label: "Bilderfreigabe" },
-      { href: "/bio-research", label: "Recherche & Anreicherung" },
     ],
   },
   {

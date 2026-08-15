@@ -326,7 +326,7 @@ export function EntityTypeTabs({ entityType, mode = "automatic" }: { entityType:
       {(Object.keys(labels) as BioEntityType[]).map((t) => (
         <Link
           key={t}
-          href={`/bio-research?type=${t}&mode=${mode}`}
+          href={`/data-quality?view=research&type=${t}&mode=${mode}`}
           className={`px-3 py-1.5 type-label ${
             t === entityType
               ? "rounded-lg bg-[#0071e3] !text-white"

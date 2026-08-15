@@ -93,6 +93,39 @@ async function loadEntities(entityType: BioEntityType): Promise<BioEntityOption[
   }));
 }
 
+export async function ResearchEnrichmentView({
+  type,
+  mode: requestedMode,
+}: {
+  type?: string;
+  mode?: string;
+}) {
+  const entityType = (type && TABLE_FOR_TYPE[type as BioEntityType] ? type : "person") as BioEntityType;
+  const mode = requestedMode === "bio" || requestedMode === "image" ? requestedMode : "automatic";
+  const entities = await loadEntities(entityType);
+  return (
+    <div className="p-8">
+      <div className="inline-flex rounded-xl bg-black/[0.04] p-1">
+        <Link href="/data-quality" className="rounded-lg px-4 py-2 text-sm font-medium text-neutral-500 hover:text-neutral-900">Übersicht</Link>
+        <span className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-neutral-900 shadow-sm">Recherche &amp; Anreicherung</span>
+      </div>
+      <h1 className="mt-6 text-xl font-semibold tracking-tight">Recherche &amp; Anreicherung</h1>
+      <p className="mt-1 max-w-xl text-sm text-neutral-500">
+        Biografien und Bilder laufen hauptsächlich automatisch. Für gezielte Korrekturen bleiben die manuellen Werkzeuge an derselben Stelle verfügbar.
+      </p>
+      <div className="mt-5 inline-flex rounded-xl bg-black/[0.04] p-1">
+        {([['automatic', 'Automatik & Fortschritt'], ['bio', 'Biografie manuell'], ['image', 'Bild manuell']] as const).map(([value, label]) => (
+          <Link key={value} href={`/data-quality?view=research&type=${entityType}&mode=${value}`} className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${mode === value ? 'bg-white text-neutral-900 shadow-sm' : 'text-neutral-500 hover:text-neutral-900'}`}>{label}</Link>
+        ))}
+      </div>
+      <EntityTypeTabs entityType={entityType} mode={mode} />
+      <div className="mt-6">
+        {mode === "image" ? <ImageResearchClient key={`image:${entityType}`} entityType={entityType} entities={entities.map((entity) => ({ id: entity.id, name: entity.name, hasImage: Boolean(entity.hasImage) }))} initialOnlyMissing /> : <BioResearchPicker key={`${mode}:${entityType}`} entityType={entityType} entities={entities} mode={mode === "bio" ? "manual" : "automatic"} />}
+      </div>
+    </div>
+  );
+}
+
 export default async function BioResearchPage({
   searchParams,
 }: {
@@ -105,59 +138,7 @@ export default async function BioResearchPage({
   // Ensembles-Listenseite gehen zu müssen (Nutzerwunsch: "Bio recherche
   // soll auch einen eigenen Tab bekommen wie bilder recherchieren").
   if (!ids) {
-    const entityType = (type && TABLE_FOR_TYPE[type as BioEntityType] ? type : "person") as BioEntityType;
-    const mode = requestedMode === "bio" || requestedMode === "image" ? requestedMode : "automatic";
-    const entities = await loadEntities(entityType);
-    return (
-      <div className="p-8">
-        <h1 className="text-xl font-semibold tracking-tight">Recherche &amp; Anreicherung</h1>
-        <p className="mt-1 max-w-xl text-sm text-neutral-500">
-          Biografien und Bilder laufen hauptsächlich automatisch. Für gezielte Korrekturen bleiben die bisherigen
-          manuellen Werkzeuge direkt an derselben Stelle verfügbar.
-        </p>
-
-        <div className="mt-5 inline-flex rounded-xl bg-black/[0.04] p-1">
-          {([
-            ["automatic", "Automatik & Fortschritt"],
-            ["bio", "Biografie manuell"],
-            ["image", "Bild manuell"],
-          ] as const).map(([value, label]) => (
-            <Link
-              key={value}
-              href={`/bio-research?type=${entityType}&mode=${value}`}
-              className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-                mode === value ? "bg-white text-neutral-900 shadow-sm" : "text-neutral-500 hover:text-neutral-900"
-              }`}
-            >
-              {label}
-            </Link>
-          ))}
-        </div>
-
-        <EntityTypeTabs entityType={entityType} mode={mode} />
-        <div className="mt-6">
-          {mode === "image" ? (
-            <ImageResearchClient
-              key={`image:${entityType}`}
-              entityType={entityType}
-              entities={entities.map((entity) => ({
-                id: entity.id,
-                name: entity.name,
-                hasImage: Boolean(entity.hasImage),
-              }))}
-              initialOnlyMissing
-            />
-          ) : (
-            <BioResearchPicker
-              key={`${mode}:${entityType}`}
-              entityType={entityType}
-              entities={entities}
-              mode={mode === "bio" ? "manual" : "automatic"}
-            />
-          )}
-        </div>
-      </div>
-    );
+    return <ResearchEnrichmentView type={type} mode={requestedMode} />;
   }
 
   const entityType = type as BioEntityType;
