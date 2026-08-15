@@ -46,6 +46,12 @@ begin
   update works set composer_id=p_keep_person_id where composer_id=remove_id;
   update sources set person_id=p_keep_person_id where person_id=remove_id;
   update entity_candidates set created_person_id=p_keep_person_id where created_person_id=remove_id;
+  -- Der partielle Unique-Index erlaubt je Entitaet nur ein Primaerbild.
+  -- Hat die behaltene Person bereits eines, bleiben die Bilder der
+  -- verworfenen Version erhalten, werden beim Umhaengen aber Galerie-Bilder.
+  update images set is_primary=false
+    where origin_type='person' and origin_id=remove_id and is_primary
+      and exists(select 1 from images where origin_type='person' and origin_id=p_keep_person_id and is_primary);
   update images set origin_id=p_keep_person_id where origin_type='person' and origin_id=remove_id;
 
   delete from field_provenance old where old.entity_type='person' and old.entity_id=remove_id and exists(
@@ -114,6 +120,12 @@ begin
   update entity_candidates set created_ensemble_id=p_keep_ensemble_id where created_ensemble_id=remove_id;
   update ensembles set parent_ensemble_id=p_keep_ensemble_id where parent_ensemble_id=remove_id;
   update persons set member_of_ensemble_id=p_keep_ensemble_id where member_of_ensemble_id=remove_id;
+  -- Beide Versionen koennen ein Primaerbild besitzen. Vor dem Umhaengen
+  -- den Verlierer nur dann zum Galerie-Bild herabstufen, wenn das Ziel
+  -- bereits ein Primaerbild hat; andernfalls wandert sein Primaerbild mit.
+  update images set is_primary=false
+    where origin_type='ensemble' and origin_id=remove_id and is_primary
+      and exists(select 1 from images where origin_type='ensemble' and origin_id=p_keep_ensemble_id and is_primary);
   update images set origin_id=p_keep_ensemble_id where origin_type='ensemble' and origin_id=remove_id;
   delete from ensemble_resolution_rule_targets old where old.ensemble_id=remove_id and exists(
     select 1 from ensemble_resolution_rule_targets kept where kept.rule_id=old.rule_id and kept.ensemble_id=p_keep_ensemble_id
