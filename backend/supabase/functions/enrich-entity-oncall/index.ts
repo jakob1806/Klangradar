@@ -224,7 +224,7 @@ async function enrichEntity(
         ai_biography_status: "generated",
         ai_biography_checked_at: new Date().toISOString(),
         ai_biography_error: null,
-      }).eq("id", entityId).is("biography_de", null);
+      }).eq("id", entityId).or("biography_de.is.null,biography_de.eq.");
       if (biographyError) {
         return { status: "error", diagnosis: `Biografie konnte nicht gespeichert werden: ${biographyError.message}`, filledFields: [] };
       }

@@ -40,16 +40,35 @@ async function loadEntities(entityType: BioEntityType): Promise<BioEntityOption[
   const supabase = await createClient();
   const nameColumn = NAME_COLUMN_FOR_TYPE[entityType];
   const bioColumn = BIO_COLUMN_FOR_TYPE[entityType];
-  const { data } = await supabase
-    .from(TABLE_FOR_TYPE[entityType])
-    .select(`id, ${nameColumn}, ${bioColumn}`)
-    .order(nameColumn, { ascending: true })
-    .limit(500)
-    .returns<Array<Record<string, unknown>>>();
-  return (data ?? []).map((row) => ({
+  const extraColumns = entityType === "person"
+    ? ", photo_url, ai_biography_status, last_image_search_note"
+    : "";
+
+  // PostgREST begrenzt Antworten projektweit auf 1.000 Zeilen. Die alte
+  // feste .limit(500)-Abfrage ließ deshalb mehr als tausend Personen im
+  // eigenständigen Bio-Tab vollständig verschwinden. Seitenweise laden,
+  // bis wirklich der gesamte Bestand vorliegt.
+  const rows: Array<Record<string, unknown>> = [];
+  const pageSize = 1_000;
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from(TABLE_FOR_TYPE[entityType])
+      .select(`id, ${nameColumn}, ${bioColumn}${extraColumns}`)
+      .order(nameColumn, { ascending: true })
+      .range(from, from + pageSize - 1)
+      .returns<Array<Record<string, unknown>>>();
+    if (error) throw new Error(error.message);
+    rows.push(...(data ?? []));
+    if (!data || data.length < pageSize) break;
+  }
+
+  return rows.map((row) => ({
     id: row.id as string,
     name: row[nameColumn] as string,
     hasBio: Boolean((row[bioColumn] as string | null)?.trim()),
+    bioStatus: entityType === "person" ? (row.ai_biography_status as BioEntityOption["bioStatus"]) : undefined,
+    hasImage: entityType === "person" ? Boolean(row.photo_url) : undefined,
+    imageSearchNote: entityType === "person" ? (row.last_image_search_note as string | null) : undefined,
   }));
 }
 
@@ -71,8 +90,8 @@ export default async function BioResearchPage({
       <div className="p-8">
         <h1 className="text-xl font-semibold tracking-tight">Bio-Recherche</h1>
         <p className="mt-1 max-w-xl text-sm text-neutral-500">
-          Personen, Venues oder Ensembles auswählen, dann sucht die KI für jeden Eintrag nacheinander in Wikipedia
-          nach einer Kurzbiografie/-beschreibung — vor dem Übernehmen bearbeitbar, keine automatische Speicherung.
+          Personen werden automatisch im Hintergrund recherchiert und direkt gespeichert. Der Tab zeigt den vollständigen
+          Bestand und aktualisiert den Fortschritt selbstständig; eine einzelne Freigabe ist nicht mehr nötig.
         </p>
         <EntityTypeTabs entityType={entityType} />
         <div className="mt-6">
@@ -125,8 +144,8 @@ export default async function BioResearchPage({
       </Link>
       <h1 className="mt-2 text-xl font-semibold tracking-tight">Bios recherchieren</h1>
       <p className="mt-1 max-w-xl text-sm text-neutral-500">
-        Für jeden ausgewählten Eintrag sucht die KI in Wikipedia nach einer Kurzbiografie/-beschreibung — vor dem
-        Übernehmen bearbeitbar, keine automatische Speicherung.
+        Manuelle Nachbearbeitung einer Auswahl. Neue und fehlende Personenbiografien werden unabhängig davon bereits
+        automatisch im Hintergrund recherchiert und gespeichert.
       </p>
 
       <div className="mt-8">

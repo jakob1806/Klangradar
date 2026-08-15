@@ -101,15 +101,18 @@ const WRITE_FROM_KNOWLEDGE_FUNCTION: AiFunctionDeclaration = {
         type: "string",
         description:
           "3-6 Sätze Fließtext auf Deutsch, nur gut belegte, allgemein bekannte Fakten (keine Vermutungen, keine " +
-          "erfundenen Details wie genaue Zahlen/Daten, die du nicht sicher weißt). Leerer String, wenn dir zu " +
-          "diesem Namen nichts Verlässliches bekannt ist.",
+          "erfundenen Details wie genaue Zahlen/Daten, die du nicht sicher weißt). Wenn Datenbank-Kontext mit Rollen, " +
+          "Instrument oder konkreten Auftritten geliefert wird, verfasse daraus eine zurückhaltende sachliche Bio, " +
+          "ohne darüber hinausgehende Karriereangaben zu erfinden. Nur ohne eigenes Wissen UND ohne brauchbaren Kontext leer lassen.",
       },
       recognized: {
         type: "boolean",
         description:
           "true, wenn du diese konkrete Person/dieses Ensemble/diese Venue tatsächlich kennst ODER der gelieferte " +
           "Datenbank-Kontext die Identität eindeutig genug für eine sachliche Kurzbiografie macht. false bei " +
-          "Namensverwechslung oder wenn weder Wissen noch Kontext belastbare Aussagen erlauben.",
+          "Namensverwechslung oder wenn weder Wissen noch Kontext belastbare Aussagen erlauben. Sobald der Kontext " +
+          "mindestens eine Rolle, ein Instrument oder einen konkreten Programmauftritt nennt, true setzen und diese " +
+          "gesicherten Angaben zu einer kurzen Biografie verbinden.",
       },
     },
     required: ["recognized"],
