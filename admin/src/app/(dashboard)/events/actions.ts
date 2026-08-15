@@ -34,7 +34,33 @@ function readEventFields(formData: FormData) {
     presale_fee_info: String(formData.get("presale_fee_info") ?? "").trim() || null,
     status: String(formData.get("status") ?? "scheduled"),
     genreIds: formData.getAll("genre_ids").map(String),
+    newGenres: formData.getAll("new_genres").map(String).map((value) => value.trim()).filter(Boolean),
   };
+}
+
+function genreSlug(value: string) {
+  return value.toLocaleLowerCase("de").normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss")
+    .replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+}
+
+async function ensureNewGenres(supabase: Awaited<ReturnType<typeof createClient>>, labels: string[]) {
+  const ids: string[] = [];
+  for (const label of [...new Set(labels)]) {
+    const slug = genreSlug(label);
+    if (!slug) continue;
+    const { data, error } = await supabase.from("genres").upsert(
+      { slug, label_de: label },
+      { onConflict: "slug", ignoreDuplicates: true },
+    ).select("id").maybeSingle();
+    if (error) throw new Error(`Genre „${label}“ konnte nicht angelegt werden: ${error.message}`);
+    if (data?.id) ids.push(data.id);
+    else {
+      const { data: existing } = await supabase.from("genres").select("id").eq("slug", slug).single();
+      if (existing?.id) ids.push(existing.id);
+    }
+  }
+  return ids;
 }
 
 async function syncGenres(
@@ -82,7 +108,8 @@ export async function createEvent(formData: FormData) {
 
   if (error) throw new Error(error.message);
 
-  await syncGenres(supabase, data.id, f.genreIds);
+  const newGenreIds = await ensureNewGenres(supabase, f.newGenres);
+  await syncGenres(supabase, data.id, [...new Set([...f.genreIds, ...newGenreIds])]);
 
   revalidatePath("/events");
   redirect("/events");
@@ -120,7 +147,8 @@ export async function updateEvent(eventId: string, formData: FormData) {
 
   if (error) throw new Error(error.message);
 
-  await syncGenres(supabase, eventId, f.genreIds);
+  const newGenreIds = await ensureNewGenres(supabase, f.newGenres);
+  await syncGenres(supabase, eventId, [...new Set([...f.genreIds, ...newGenreIds])]);
 
   revalidatePath("/events");
   redirect("/events");

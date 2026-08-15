@@ -13,21 +13,31 @@ const TYPES: Record<AliasEntityType, { label: string; table: string; column: str
 };
 
 async function loadEntities(supabase: Awaited<ReturnType<typeof createClient>>, type: AliasEntityType) {
+  async function allRows(table: string, columns: string, orderColumn: string) {
+    const rows: Record<string, unknown>[] = [];
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await supabase.from(table).select(columns).order(orderColumn).range(from, from + 999)
+        .returns<Record<string, unknown>[]>();
+      if (error) return { data: null, error };
+      rows.push(...(data ?? []));
+      if (!data || data.length < 1000) return { data: rows, error: null };
+    }
+  }
   switch (type) {
     case "person": {
-      const result = await supabase.from("persons").select("id, full_name").order("full_name").limit(5000);
+      const result = await allRows("persons", "id, full_name", "full_name");
       return { ...result, data: result.data?.map((row) => ({ id: row.id, name: row.full_name })) };
     }
     case "ensemble": {
-      const result = await supabase.from("ensembles").select("id, name").order("name").limit(5000);
+      const result = await allRows("ensembles", "id, name", "name");
       return { ...result, data: result.data?.map((row) => ({ id: row.id, name: row.name })) };
     }
     case "venue": {
-      const result = await supabase.from("venues").select("id, name").order("name").limit(5000);
+      const result = await allRows("venues", "id, name", "name");
       return { ...result, data: result.data?.map((row) => ({ id: row.id, name: row.name })) };
     }
     case "work": {
-      const result = await supabase.from("works").select("id, title").order("title").limit(5000);
+      const result = await allRows("works", "id, title", "title");
       return { ...result, data: result.data?.map((row) => ({ id: row.id, name: row.title })) };
     }
   }

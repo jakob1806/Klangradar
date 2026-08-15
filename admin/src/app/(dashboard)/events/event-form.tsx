@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Field, Select, TextArea, TextInput } from "@/components/form-fields";
 import { SubmitButton } from "@/components/submit-button";
 import { toMunichDatetimeLocal } from "@/lib/munich-time";
+import { GenrePicker } from "./genre-picker";
 
 function slugify(value: string) {
   return value
@@ -151,19 +152,7 @@ export function EventForm({
       </div>
 
       <Field label="Genres">
-        <div className="flex flex-wrap gap-x-4 gap-y-2 rounded-md border border-neutral-300 px-3 py-2.5">
-          {genres.map((g) => (
-            <label key={g.id} className="flex items-center gap-1.5 text-sm text-neutral-700">
-              <input
-                type="checkbox"
-                name="genre_ids"
-                value={g.id}
-                defaultChecked={initial?.genreIds.includes(g.id)}
-              />
-              {g.label_de}
-            </label>
-          ))}
-        </div>
+        <GenrePicker genres={genres} initialIds={initial?.genreIds} />
       </Field>
 
       <div className="grid grid-cols-2 gap-4">
