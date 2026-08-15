@@ -1324,42 +1324,37 @@ async function enrichEntityKind(
             id,
             "Wikipedia-Bild nicht erreichbar/kein gültiges Bildformat.",
           );
-          continue;
-        }
-        if (
+        } else if (
           await isUrlUsedElsewhere(supabase, portrait.imageUrl, kind.table, id)
         ) {
           await setNote(
             id,
             "Wikipedia-Bild ist bereits einer anderen Entität zugeordnet (Duplikat).",
           );
-          continue;
+        } else {
+          const stored = await persistCandidate(supabase, kind, id, {
+            imageUrl: portrait.imageUrl,
+            sourcePageUrl: portrait.pageUrl,
+            sourceName: "Wikipedia",
+            licenseStatus: "unknown",
+            confidenceScore: 0.86,
+            matchReason:
+              `Infobox-Bild des eindeutig aufgelösten Wikipedia-Artikels „${name}“.`,
+            warnings: [
+              "Wikipedia dient nur der Identifikation; Lizenz auf der verknüpften Bildseite prüfen.",
+            ],
+            needsReview: true,
+          });
+          if (stored) {
+            queuedForReview++;
+            await setNote(
+              id,
+              "Wikipedia-Kandidat gefunden, wartet auf Lizenzprüfung (/media).",
+            );
+            continue;
+          }
+          errors.push(`${kind.table} "${name}": Wikipedia-Kandidat konnte nicht gespeichert werden`);
         }
-        const stored = await persistCandidate(supabase, kind, id, {
-          imageUrl: portrait.imageUrl,
-          sourcePageUrl: portrait.pageUrl,
-          sourceName: "Wikipedia",
-          licenseStatus: "unknown",
-          confidenceScore: 0.86,
-          matchReason:
-            `Infobox-Bild des eindeutig aufgelösten Wikipedia-Artikels „${name}“.`,
-          warnings: [
-            "Wikipedia dient nur der Identifikation; Lizenz auf der verknüpften Bildseite prüfen.",
-          ],
-          needsReview: true,
-        });
-        if (!stored) {
-          errors.push(
-            `${kind.table} "${name}": Download/Storage fehlgeschlagen`,
-          );
-          continue;
-        }
-        queuedForReview++;
-        await setNote(
-          id,
-          "Wikipedia-Kandidat gefunden, wartet auf Lizenzprüfung (/media).",
-        );
-        continue;
       }
 
       // Priorität 4: Personen nutzen bewusst KEINE Commons-Volltextsuche
