@@ -1102,7 +1102,11 @@ async function enrichEntityKind(
     .from(kind.table)
     .select(`id, ${kind.nameColumn}, website_url`)
     .is("photo_url", null)
-    .order("image_search_checked_at", { ascending: true, nullsFirst: true });
+    .order("image_search_checked_at", { ascending: true, nullsFirst: true })
+    // Innerhalb desselben Queue-Alters zuerst Datensätze mit offizieller
+    // Website bearbeiten: Dort ist die Trefferwahrscheinlichkeit deutlich
+    // höher als bei einer reinen Namenssuche.
+    .order("website_url", { ascending: false, nullsFirst: false });
   if (entityIds.length > 0) rowQuery = rowQuery.in("id", entityIds);
   const { data: rows, error } = await rowQuery.limit(limit);
 
@@ -1160,7 +1164,11 @@ async function enrichEntityKind(
       // Priorität 2: eigene offizielle Website. Direkt übernommen, kein
       // Review — es ist die Entität selbst, die dieses Bild von sich
       // öffentlich zeigt, kein Fremdbild eines Dritten.
-      if (websiteUrl && !fastFallback) {
+      // `fastFallback` darf nur Health-Checks und URL-Discovery abkürzen,
+      // nicht die bereits bekannte offizielle Website überspringen. Genau
+      // das tat der Cron bisher und schloss hunderte Personen trotz
+      // vorhandener Primärquelle als „kein Bild gefunden“ ab.
+      if (websiteUrl) {
         if (!(await isAllowedByRobots(websiteUrl))) {
           await setNote(
             id,
