@@ -79,7 +79,7 @@ import { logSystemAction } from "../_shared/systemLog.ts";
 import { nameSearchVariants } from "../_shared/nameVariants.ts";
 import { findLikelySubpages } from "../_shared/subpageDiscovery.ts";
 import { searchOfficialSiteForImages } from "../_shared/officialSiteImageSearch.ts";
-import { ensureCoverImage } from "../_shared/imagePipeline.ts";
+import { ensureCoverImage, type ImageOriginType } from "../_shared/imagePipeline.ts";
 
 const DEFAULT_LIMIT = 8;
 const HEALTH_CHECK_LIMIT = 15;
@@ -112,7 +112,7 @@ interface CandidateMetadata {
 async function persistCandidate(
   // deno-lint-ignore no-explicit-any
   supabase: any,
-  kind: EntityKind,
+  kind: { table: string; originType: ImageOriginType },
   id: string,
   candidate: CandidateMetadata,
 ): Promise<{ imageId: string; publicUrl: string } | null> {
@@ -395,10 +395,22 @@ Deno.serve(async (req) => {
     }
   > = {};
   for (const kind of selectedKinds) {
+    // Eine Venue-Recherche lädt neben Commons/Wikidata häufig mehrere
+    // Gebäudeseiten, Pressebereiche und großformatige Hero-Bilder. Drei
+    // vollständige Kaskaden in einem Edge-Aufruf überschritten im Live-Test
+    // das Worker-Limit und verloren dadurch ALLE Treffer des Batches.
+    // Kleinere, dafür häufiger laufende Portionen liefern verlässlich
+    // Fortschritt. Gezielte Admin-Nachläufe mit entityIds behalten ihr
+    // explizites Limit.
+    const effectiveLimit = entityIds.length > 0
+      ? limit
+      : kind.originType === "venue"
+      ? Math.min(limit, 2)
+      : Math.min(limit, 4);
     perKind[kind.table] = await enrichEntityKind(
       supabase,
       kind,
-      limit,
+      effectiveLimit,
       minConfidence,
       entityIds,
       body.fastFallback === true,
@@ -960,18 +972,20 @@ async function tryWikidataFallback(
  * das dort erkannte Bild wird niemals blind
  * veröffentlicht, sondern als heruntergeladener Kandidat in die
  * redaktionelle Bildprüfung gestellt. */
-function personImagePageScore(url: string): number {
+function imagePageScore(url: string, originType: ImageOriginType): number {
   const value = url.toLowerCase();
   if (/facebook|instagram|linkedin|pinterest|youtube|tiktok|x\.com/.test(value)) return -100;
   let score = 0;
   if (/operabase\.com/.test(value)) score += 35;
-  if (/agency|agentur|management|artists|artist|biograph|biograf/.test(value)) score += 22;
+  if (/agency|agentur|management|artists|artist|biograph|biograf|press|presse|media/.test(value)) score += 22;
   if (/opera|oper\b|orchester|orchestra|philharm|symphon|festival|theater|concert/.test(value)) score += 16;
+  if (originType === "venue" && /venue|spielstaette|konzerthaus|concert-hall|theatre|architecture/.test(value)) score += 20;
+  if (originType === "ensemble" && /ensemble|choir|chor|quartet|quartett|band/.test(value)) score += 20;
   if (/ticket|shop|calendar|kalender/.test(value)) score -= 15;
   return score;
 }
 
-async function tryPersonWebImageFallback(
+async function tryMultiSourceWebImageFallback(
   // deno-lint-ignore no-explicit-any
   supabase: any,
   kind: EntityKind,
@@ -979,10 +993,18 @@ async function tryPersonWebImageFallback(
   name: string,
   errors: string[],
 ): Promise<boolean> {
+  const context = kind.queryContext ? ` ${kind.queryContext}` : "";
+  const typeTerm = kind.originType === "person"
+    ? "Musiker Künstler Porträt"
+    : kind.originType === "ensemble"
+    ? "Ensemble Orchester Chor Pressefoto"
+    : kind.originType === "venue"
+    ? "Veranstaltungsort Gebäude Pressefoto"
+    : "Pressefoto";
   const queries = [
-    `"${name}" Porträt Biografie offizielle Website Musiker`,
-    `"${name}" portrait biography artist agency management`,
-    `"${name}" site:operabase.com OR opera OR orchestra OR philharmonic`,
+    `"${name}"${context} ${typeTerm} offizielle Website`,
+    `"${name}"${context} press media photo`,
+    `"${name}" site:operabase.com OR opera OR orchestra OR philharmonic OR theater OR festival`,
   ];
   const pages: Array<{ url: string; title: string | null }> = [];
   // Wikidata P856 verweist kostenlos und strukturiert auf die offizielle
@@ -1029,11 +1051,11 @@ async function tryPersonWebImageFallback(
   // Hochwertige Fach-/Primärquellen zuerst prüfen. So verbraucht ein Lauf
   // nicht seine knappe Zeit mit sozialen Netzwerken oder Ticketshops.
   pages.sort((a, b) => {
-    const aScore = a.title === "Offizielle Website (Wikidata)" ? 100 : personImagePageScore(a.url);
-    const bScore = b.title === "Offizielle Website (Wikidata)" ? 100 : personImagePageScore(b.url);
+    const aScore = a.title === "Offizielle Website (Wikidata)" ? 100 : imagePageScore(a.url, kind.originType);
+    const bScore = b.title === "Offizielle Website (Wikidata)" ? 100 : imagePageScore(b.url, kind.originType);
     return bScore - aScore;
   });
-  for (const page of pages.filter((page) => personImagePageScore(page.url) > -100).slice(0, 6)) {
+  for (const page of pages.filter((page) => imagePageScore(page.url, kind.originType) > -100).slice(0, 8)) {
     try {
       const detected = await detectEventCoverImage(page.url);
       // Viele Agentur-/Künstlerseiten pflegen kein og:image. Dort gezielt
@@ -1065,8 +1087,8 @@ async function tryPersonWebImageFallback(
         errors.push(`persons "${name}": Webbild konnte nicht gespeichert werden`);
         continue;
       }
-      await supabase.from("persons").update({
-        last_image_search_note: "Web-Kandidat gefunden, wartet auf redaktionelle Bildprüfung (/media).",
+      await supabase.from(kind.table).update({
+        last_image_search_note: `Kandidat aus erweiterter Mehrquellen-Suche (${new URL(page.url).hostname}) gefunden, wartet auf Bilderfreigabe (/media).`,
         image_search_checked_at: new Date().toISOString(),
       }).eq("id", id);
       return true;
@@ -1520,12 +1542,10 @@ async function enrichEntityKind(
       );
       if (wikidataOutcome === "queued") queuedForReview++;
       if (wikidataOutcome !== "not_found") continue;
-      if (kind.originType === "person") {
-        const webQueued = await tryPersonWebImageFallback(supabase, kind, id, name, errors);
-        if (webQueued) {
-          queuedForReview++;
-          continue;
-        }
+      const webQueued = await tryMultiSourceWebImageFallback(supabase, kind, id, name, errors);
+      if (webQueued) {
+        queuedForReview++;
+        continue;
       }
       await setNote(
         id,
@@ -1776,6 +1796,8 @@ async function enrichEventCovers(
         }
 
         let coverImage: string | null = null;
+        let coverSourcePage: string | null = null;
+        let coverCredits: string | null = null;
         const notes: string[] = [];
         for (const pageUrl of [event.website_url, event.ticket_url]) {
           if (!pageUrl) continue;
@@ -1809,6 +1831,8 @@ async function enrichEventCovers(
             continue;
           }
           coverImage = candidate;
+          coverSourcePage = pageUrl;
+          coverCredits = detected?.credits ?? null;
           break;
         }
         if (!coverImage) {
@@ -1821,11 +1845,32 @@ async function enrichEventCovers(
           continue;
         }
 
+        // Zentral über `images` speichern, nicht nur als nackte URL im
+        // Event. So bleiben Quellseite, Anbieter, Original-URL, Credits,
+        // Lizenzstatus und Abrufzeit bei JEDEM automatischen Eventbild
+        // dauerhaft nachvollziehbar.
+        const stored = await persistCandidate(supabase, { table: "events", originType: "event" }, event.id, {
+          imageUrl: coverImage,
+          sourcePageUrl: coverSourcePage!,
+          sourceName: new URL(coverSourcePage!).hostname,
+          photographer: coverCredits,
+          licenseStatus: coverCredits ? "official_press_image" : "permission_required",
+          confidenceScore: 0.94,
+          matchReason: "Titel-/Hero-Bild der konkreten Veranstaltungsseite.",
+          warnings: coverCredits ? [] : ["Bildcredit und Nutzungserlaubnis vor Veröffentlichung prüfen."],
+          needsReview: !coverCredits,
+        });
+        if (!stored) {
+          errors.push(`event ${event.id}: Bild oder Quellenmetadaten konnten nicht zentral gespeichert werden`);
+          continue;
+        }
+
         const now = new Date().toISOString();
         const { error: updateError } = await supabase
           .from("events")
           .update({
-            image_urls: [coverImage],
+            image_urls: [stored.publicUrl],
+            primary_image_id: stored.imageId,
             images_checked_at: now,
             updated_at: now,
             last_image_search_note: null,
