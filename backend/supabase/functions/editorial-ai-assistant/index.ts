@@ -11,10 +11,10 @@ type EntityType = "event" | "person" | "ensemble" | "work" | "venue";
 type Proposal = { field: string; value: unknown; confidence: "confirmed" | "likely" | "unclear"; rationale?: string; sourceUrls?: string[] };
 
 const CONFIG: Record<EntityType, { table: string; name: string; fields: string[] }> = {
-  person: { table: "persons", name: "full_name", fields: ["full_name", "birth_date", "death_date", "nationality", "instrument", "roles", "biography_de", "education_career_de", "current_roles_de", "website_url"] },
+  person: { table: "persons", name: "full_name", fields: ["full_name", "first_name", "middle_name", "last_name", "birth_date", "death_date", "nationality", "instrument", "roles", "biography_de", "education_career_de", "current_roles_de", "website_url"] },
   ensemble: { table: "ensembles", name: "name", fields: ["name", "type", "description_de", "founded_year", "member_count", "leadership_de", "residency_de", "repertoire_de", "website_url"] },
   work: { table: "works", name: "title", fields: ["title", "composer_id", "catalog_number", "key_signature", "composition_year", "duration_minutes", "genre", "description_de", "movements", "instrumentation", "alternative_titles"] },
-  event: { table: "events", name: "title", fields: ["title", "subtitle", "description_de", "program_notes_de", "duration_minutes", "start_datetime", "end_datetime", "website_url"] },
+  event: { table: "events", name: "title", fields: ["title", "subtitle", "description_de", "program_notes_de", "duration_minutes", "start_datetime", "end_datetime", "venue_id", "price_min", "price_max", "is_free", "website_url"] },
   venue: { table: "venues", name: "name", fields: ["name", "description_de", "address_street", "address_zip", "address_city", "capacity", "website_url", "parking_info_de"] },
 };
 
@@ -88,15 +88,19 @@ function isoDate(value: unknown): string {
 
 function normalizeValue(field: string, value: unknown): unknown {
   if (["birth_date", "death_date"].includes(field)) return isoDate(value);
-  if (["founded_year", "member_count", "composition_year", "duration_minutes", "capacity"].includes(field)) {
+  if (["founded_year", "member_count", "composition_year", "duration_minutes", "capacity", "price_min", "price_max"].includes(field)) {
     const n = Number(value); if (!Number.isFinite(n)) throw new Error(`${field} ist keine Zahl`); return Math.round(n);
   }
   if (["roles", "movements", "alternative_titles"].includes(field)) {
     if (!Array.isArray(value)) throw new Error(`${field} muss eine Liste sein`); return value.map(String);
   }
-  if (field === "composer_id") {
+  if (["composer_id", "venue_id"].includes(field)) {
     if (value === null) return null;
     if (typeof value !== "string" || !/^[0-9a-f-]{36}$/i.test(value)) throw new Error("Ungültige composer_id");
+  }
+  if (field === "is_free") {
+    if (typeof value !== "boolean") throw new Error("is_free muss true oder false sein");
+    return value;
   }
   if (["biography_de", "description_de", "program_notes_de", "education_career_de", "current_roles_de", "leadership_de", "residency_de", "repertoire_de"].includes(field)) {
     const cleaned = cleanEditorialText(value);

@@ -1,9 +1,10 @@
 "use client";
 
-import { createContext, useContext, useMemo, useState, useTransition } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   applyAllEntityAuditCorrections,
+  prepareEntityAuditCorrections,
   resolveEntityAuditFlags,
 } from "@/lib/entity-audit-actions";
 
@@ -12,12 +13,14 @@ const SelectionContext = createContext<{
   toggle: (id: string) => void;
 } | null>(null);
 
-export function EntityAuditBulkSelection({ children, ids }: { children: React.ReactNode; ids: string[] }) {
+export function EntityAuditBulkSelection({ children, ids, missingSuggestionIds = [] }: { children: React.ReactNode; ids: string[]; missingSuggestionIds?: string[] }) {
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const [confirmingResolve, setConfirmingResolve] = useState(false);
+  const preparationSignature = missingSuggestionIds.slice(0, 12).join(",");
+  const preparedSignature = useRef<string | null>(null);
   const value = useMemo(
     () => ({
       selected,
@@ -31,6 +34,23 @@ export function EntityAuditBulkSelection({ children, ids }: { children: React.Re
     }),
     [selected],
   );
+
+  useEffect(() => {
+    if (!preparationSignature || preparedSignature.current === preparationSignature) return;
+    preparedSignature.current = preparationSignature;
+    const batch = missingSuggestionIds.slice(0, 12);
+    startTransition(async () => {
+      try {
+        const result = await prepareEntityAuditCorrections(batch);
+        if (result.failed > 0) {
+          setMessage(`${result.generated} KI-Vorschläge vorbereitet, ${result.failed} fehlgeschlagen.${result.errors.length ? ` ${result.errors.join(" · ")}` : ""}`);
+        }
+        router.refresh();
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : "Automatische KI-Vorbereitung fehlgeschlagen.");
+      }
+    });
+  }, [missingSuggestionIds, preparationSignature, router]);
 
   function applySelected() {
     const ids = [...selected];
@@ -75,6 +95,11 @@ export function EntityAuditBulkSelection({ children, ids }: { children: React.Re
           >
             {selected.size === ids.length ? "Auswahl aufheben" : "Alle auswählen"}
           </button>
+        </div>
+      )}
+      {pending && missingSuggestionIds.length > 0 && (
+        <div className="mt-3 rounded-xl border border-violet-100 bg-violet-50/60 px-3 py-2 text-xs text-violet-800">
+          KI-Vorschläge werden automatisch vorbereitet · noch {missingSuggestionIds.length} offen
         </div>
       )}
       {children}
