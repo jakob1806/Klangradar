@@ -1175,6 +1175,38 @@ async function enrichEntityKind(
             "Eigene Website durch robots.txt gesperrt — Zugriff verweigert.",
           );
         } else {
+          // Entitätsspezifischer Tiefencrawler: anders als der einfache
+          // Event-Cover-Parser versteht er auch data-image/data-src/srcset,
+          // schema.org Person/MusicGroup sowie Presse-, Portrait-, Galerie-,
+          // Bio- und Team-Unterseiten. Das schließt insbesondere
+          // Squarespace-/Agenturseiten, auf denen das sichtbare Porträt
+          // nicht als og:image hinterlegt ist.
+          const officialCrawl = await searchOfficialSiteForImages(name, websiteUrl, {
+            maxPages: fastFallback ? 4 : 8,
+          });
+          let officialCandidateQueued = false;
+          for (const candidate of officialCrawl.candidates.slice(0, 5)) {
+            if (candidate.confidence === "low" || isLikelyGenericImage(candidate.url)) continue;
+            const { reachable } = await checkImageUrl(candidate.url);
+            if (!reachable || await isUrlUsedElsewhere(supabase, candidate.url, kind.table, id)) continue;
+            const stored = await persistCandidate(supabase, kind, id, {
+              imageUrl: candidate.url,
+              sourcePageUrl: candidate.pageUrl,
+              sourceName: new URL(candidate.pageUrl).hostname,
+              licenseStatus: "permission_required",
+              confidenceScore: candidate.confidence === "high" ? 0.92 : 0.8,
+              matchReason: `Offizielle Website von „${name}“: ${candidate.reasons.join(" ")}`,
+              warnings: ["Bildcredit und Nutzungserlaubnis vor Veröffentlichung prüfen."],
+              needsReview: true,
+            });
+            if (!stored) continue;
+            queuedForReview++;
+            await setNote(id, "Porträt auf offizieller Website gefunden, wartet auf Bilderfreigabe (/media).");
+            officialCandidateQueued = true;
+            break;
+          }
+          if (officialCandidateQueued) continue;
+
           // Volle Kaskade (schema.org -> og:image -> twitter:image -> Hero/
           // Banner -> Bild im Content-Container) statt nur og:image/
           // twitter:image — dieselbe Erkennung, die der Ingestion-Importer
@@ -1220,7 +1252,8 @@ async function enrichEntityKind(
                 "Bild von der eigenen Website ist bereits einer anderen Entität zugeordnet (Duplikat).",
               );
             } else {
-              const stored = await persistCandidate(supabase, kind, id, {
+              let requiresReview = !detected?.credits || 0.96 < minConfidence;
+              const metadata: CandidateMetadata = {
                 imageUrl: ownImage,
                 sourcePageUrl: ownImageSourcePage,
                 sourceName: new URL(ownImageSourcePage).hostname,
@@ -1234,8 +1267,21 @@ async function enrichEntityKind(
                 warnings: detected?.credits ? [] : [
                   "Kein vollständiger Bildcredit auf der Quellseite erkannt.",
                 ],
-                needsReview: !detected?.credits || 0.96 < minConfidence,
-              });
+                needsReview: requiresReview,
+              };
+              let stored = await persistCandidate(supabase, kind, id, metadata);
+              // Große Originale können die WebP/pHash-Verarbeitung der Edge-
+              // Runtime sprengen. Der Fund darf dann nicht verloren gehen:
+              // als externer, review-pflichtiger Kandidat speichern; nach
+              // Freigabe kann er separat rehosted werden.
+              if (!stored && !requiresReview) {
+                requiresReview = true;
+                stored = await persistCandidate(supabase, kind, id, {
+                  ...metadata,
+                  needsReview: true,
+                  warnings: [...(metadata.warnings ?? []), "Automatische Bildverarbeitung fehlgeschlagen; Originalquelle vor Freigabe prüfen."],
+                });
+              }
               if (!stored) {
                 errors.push(
                   `${kind.table} "${name}": Bilddownload/Storage fehlgeschlagen`,
@@ -1244,7 +1290,7 @@ async function enrichEntityKind(
               }
               // Nur bei vollständigem Credit automatisch veröffentlichen.
               // Sonst bleibt der Storage-Kandidat ausschließlich in /media.
-              if (!detected?.credits || 0.96 < minConfidence) {
+              if (requiresReview) {
                 queuedForReview++;
                 await setNote(
                   id,
