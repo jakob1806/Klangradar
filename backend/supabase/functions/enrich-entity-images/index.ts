@@ -78,6 +78,7 @@ import { searchViaGeminiGrounding } from "../_shared/geminiGroundedSearch.ts";
 import { logSystemAction } from "../_shared/systemLog.ts";
 import { nameSearchVariants } from "../_shared/nameVariants.ts";
 import { findLikelySubpages } from "../_shared/subpageDiscovery.ts";
+import { searchOfficialSiteForImages } from "../_shared/officialSiteImageSearch.ts";
 import { ensureCoverImage } from "../_shared/imagePipeline.ts";
 
 const DEFAULT_LIMIT = 8;
@@ -988,7 +989,36 @@ async function tryPersonWebImageFallback(
   // Künstlerwebsite. Damit bleibt die Recherche auch dann funktionsfähig,
   // wenn die kostenlose HTML-Suchmaschine vorübergehend drosselt.
   const officialWebsite = await searchWikidataOfficialWebsite(name);
-  if (officialWebsite) pages.push({ url: officialWebsite, title: "Offizielle Website (Wikidata)" });
+  if (officialWebsite) {
+    // Der bereits vorhandene spezialisierte Crawler durchsucht neben der
+    // Startseite auch Presse-, Media-, Galerie-, Bio- und Team-Unterseiten
+    // und bewertet schema.org-, Meta-, Hero- und Inhaltsbilder. Im Cron
+    // bewusst auf vier Seiten begrenzen, damit mehrere Personen pro Lauf
+    // innerhalb der Edge-Ressourcen bleiben.
+    const crawl = await searchOfficialSiteForImages(name, officialWebsite, { maxPages: 4 });
+    for (const candidate of crawl.candidates.slice(0, 3)) {
+      if (isLikelyGenericImage(candidate.url)) continue;
+      const { reachable } = await checkImageUrl(candidate.url);
+      if (!reachable || await isUrlUsedElsewhere(supabase, candidate.url, kind.table, id)) continue;
+      const stored = await persistCandidate(supabase, kind, id, {
+        imageUrl: candidate.url,
+        sourcePageUrl: candidate.pageUrl,
+        sourceName: new URL(candidate.pageUrl).hostname,
+        licenseStatus: "permission_required",
+        confidenceScore: candidate.confidence === "high" ? 0.9 : candidate.confidence === "medium" ? 0.8 : 0.68,
+        matchReason: `Porträt auf der offiziellen Website von „${name}“: ${candidate.reasons.join(" ")}`,
+        warnings: ["Bildcredit und Nutzungserlaubnis vor Veröffentlichung prüfen."],
+        needsReview: true,
+      });
+      if (!stored) continue;
+      await supabase.from("persons").update({
+        last_image_search_note: "Kandidat von der offiziellen Website gefunden, wartet auf Bilderfreigabe (/media).",
+        image_search_checked_at: new Date().toISOString(),
+      }).eq("id", id);
+      return true;
+    }
+    pages.push({ url: officialWebsite, title: "Offizielle Website (Wikidata)" });
+  }
   for (const query of queries) {
     for (const result of await searchDuckDuckGo(query, 4) ?? []) {
       if (!pages.some((page) => page.url === result.url)) pages.push({ url: result.url, title: null });
