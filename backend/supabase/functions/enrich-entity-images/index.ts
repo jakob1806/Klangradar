@@ -115,6 +115,44 @@ async function persistCandidate(
   id: string,
   candidate: CandidateMetadata,
 ): Promise<{ imageId: string; publicUrl: string } | null> {
+  // Review-pflichtige Recherchetreffer zunächst nur mit ihrer externen
+  // Quelle vormerken. Das Laden + WebP/pHash-WASM für jedes Fundstück ließ
+  // die kleine Edge-Runtime bei großen Künstlerbildern mit
+  // WORKER_RESOURCE_LIMIT sterben, bevor überhaupt ein Kandidat sichtbar
+  // wurde. Die Freigabeansicht unterstützt storage_path=null bereits und
+  // zeigt source_url; erst bestätigte Bilder werden regulär veröffentlicht.
+  if (candidate.needsReview) {
+    const { data: existing } = await supabase.from("images")
+      .select("id")
+      .eq("origin_type", kind.originType)
+      .eq("origin_id", id)
+      .eq("source_url", candidate.imageUrl)
+      .neq("license_status", "rejected")
+      .maybeSingle();
+    if (existing?.id) return { imageId: existing.id, publicUrl: candidate.imageUrl };
+
+    const { data, error } = await supabase.from("images").insert({
+      source_url: candidate.imageUrl,
+      original_image_url: candidate.imageUrl,
+      storage_path: null,
+      origin_type: kind.originType,
+      origin_id: id,
+      source_page_url: candidate.sourcePageUrl,
+      source_name: candidate.sourceName,
+      photographer: candidate.photographer ?? null,
+      credits: candidate.photographer ?? null,
+      license_name: candidate.licenseName ?? null,
+      license_url: candidate.licenseUrl ?? null,
+      license_status: candidate.licenseStatus,
+      confidence_score: candidate.confidenceScore,
+      match_reason: candidate.matchReason,
+      warnings: candidate.warnings ?? [],
+      needs_review: true,
+    }).select("id").single();
+    if (error || !data) return null;
+    return { imageId: data.id, publicUrl: candidate.imageUrl };
+  }
+
   const imageId = await ensureCoverImage(supabase, {
     sourceUrl: candidate.imageUrl,
     originType: kind.originType,
