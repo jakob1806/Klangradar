@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { createClient } from "@/lib/supabase/server";
 
 export type ImageEntityType = "person" | "venue" | "ensemble" | "event" | "work" | "editorial_collection";
 
@@ -31,13 +32,30 @@ function functionsUrl(path: string) {
   return `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/${path}`;
 }
 
-function authHeaders() {
+async function authHeaders() {
+  const supabase = await createClient();
+  const [{ data: userData, error: userError }, { data: sessionData, error: sessionError }] = await Promise.all([
+    supabase.auth.getUser(),
+    supabase.auth.getSession(),
+  ]);
+  const accessToken = sessionData.session?.access_token;
+  if (userError || sessionError || !userData.user || userData.user.is_anonymous || !accessToken) {
+    throw new Error("Die Admin-Sitzung ist abgelaufen. Bitte erneut anmelden.");
+  }
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
   return {
     "Content-Type": "application/json",
     apikey: anonKey,
-    Authorization: `Bearer ${anonKey}`,
+    Authorization: `Bearer ${accessToken}`,
   };
+}
+
+function requestError(err: unknown, operation: string) {
+  const timedOut = err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError");
+  if (timedOut) {
+    return `${operation} dauert länger als erwartet. Bitte erneut versuchen oder einen konkreten Bild-/Seitenlink angeben.`;
+  }
+  return err instanceof Error ? err.message : String(err);
 }
 
 /** Ein Rechercheschritt für EINE Entität — analog zu bio-research/actions.ts
@@ -53,12 +71,15 @@ export async function searchEntityImage(
   try {
     res = await fetch(functionsUrl("research-entity-image"), {
       method: "POST",
-      headers: authHeaders(),
+      headers: await authHeaders(),
       body: JSON.stringify({ mode: "search", entityType, entityId, sourceUrl }),
-      signal: AbortSignal.timeout(30_000),
+      // Offizielle Websites werden über mehrere Unterseiten (Presse,
+      // Biografie, Galerie) durchsucht. 30 Sekunden waren dafür zu knapp
+      // und ließen die UI so aussehen, als funktioniere die Suche nicht.
+      signal: AbortSignal.timeout(90_000),
     });
   } catch (err) {
-    return { found: false, error: err instanceof Error ? err.message : String(err) };
+    return { found: false, error: requestError(err, "Die Bildsuche") };
   }
 
   let body: Record<string, unknown>;
@@ -91,12 +112,12 @@ export async function commitEntityImage(
   try {
     res = await fetch(functionsUrl("research-entity-image"), {
       method: "POST",
-      headers: authHeaders(),
+      headers: await authHeaders(),
       body: JSON.stringify({ mode: "commit", entityType, entityId, ...input }),
-      signal: AbortSignal.timeout(60_000),
+      signal: AbortSignal.timeout(120_000),
     });
   } catch (err) {
-    return { committed: false, error: err instanceof Error ? err.message : String(err) };
+    return { committed: false, error: requestError(err, "Das Speichern") };
   }
 
   let body: Record<string, unknown>;
@@ -124,12 +145,12 @@ export async function commitManualImage(
   try {
     res = await fetch(functionsUrl("research-entity-image"), {
       method: "POST",
-      headers: authHeaders(),
+      headers: await authHeaders(),
       body: JSON.stringify({ mode: "commit", entityType, entityId, imageBase64, licenseStatus }),
-      signal: AbortSignal.timeout(60_000),
+      signal: AbortSignal.timeout(120_000),
     });
   } catch (err) {
-    return { committed: false, error: err instanceof Error ? err.message : String(err) };
+    return { committed: false, error: requestError(err, "Der Upload") };
   }
 
   let body: Record<string, unknown>;

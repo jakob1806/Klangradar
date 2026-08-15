@@ -549,7 +549,10 @@ async function searchWithoutPreview(
   // Admin hat einen konkreten Link gegeben — nur DIESE Seite auswerten,
   // keine eigenständige Recherche.
   if (sourceUrlOverride) {
-    const imageUrl = await extractOgImage(sourceUrlOverride);
+    // Ein direkt kopierter Bildlink besitzt naturgemäß kein og:image.
+    // Früher wurde er deshalb immer als "nichts gefunden" abgelehnt.
+    const directImage = await checkImageUrl(sourceUrlOverride);
+    const imageUrl = directImage.reachable ? sourceUrlOverride : await extractOgImage(sourceUrlOverride);
     if (!imageUrl) {
       log({ source: "Manueller Link", outcome: "not_found", detail: sourceUrlOverride });
       return { found: false, error: "Auf dieser Seite wurde kein verwendbares Bild gefunden." };
@@ -560,7 +563,7 @@ async function searchWithoutPreview(
       imageUrl,
       sourcePageUrl: sourceUrlOverride,
       sourceName: new URL(sourceUrlOverride).hostname,
-      matchReason: "Manuell angegebener Link",
+      matchReason: directImage.reachable ? "Manuell angegebener direkter Bildlink" : "Bild der manuell angegebenen Seite",
     };
   }
 
@@ -580,6 +583,17 @@ async function searchWithoutPreview(
 
   switch (entityType) {
     case "person": {
+      // Eine bereits redaktionell hinterlegte offizielle Website ist die
+      // präziseste Identitätsquelle. Sie muss vor gleichnamigen Wikipedia-
+      // oder Wikidata-Treffern kommen, sonst wird ein formal vorhandenes,
+      // aber falsches Personenbild voreilig zurückgegeben.
+      if (entity.websiteUrl) {
+        const official = await searchOfficialSite(entity.name, entity.websiteUrl, "Künstlerseite", log);
+        if (official) return official;
+      } else {
+        log({ source: "Offizielle Website", outcome: "skipped", detail: "keine website_url hinterlegt" });
+      }
+
       // Schritt 2: Wikipedia/Wikidata — die zuverlässigste Quelle für
       // Personen mit eigenem Artikel, kein Kontingent/Konto nötig.
       const portrait = await fetchWikipediaPortrait(entity.name);
@@ -610,15 +624,6 @@ async function searchWithoutPreview(
       }
       log({ source: "Wikidata/Wikimedia Commons", outcome: "not_found" });
 
-      // Schritt 3: offizielle Website (Agentur-/Künstlerseite), falls
-      // hinterlegt.
-      if (entity.websiteUrl) {
-        const official = await searchOfficialSite(entity.name, entity.websiteUrl, "Künstlerseite", log);
-        if (official) return official;
-      } else {
-        log({ source: "Offizielle Website", outcome: "skipped", detail: "keine website_url hinterlegt" });
-      }
-
       // Schritt 4: breite KI-/Websuche als letzter automatischer Versuch
       // (Nutzerfeedback: "wikipedia commons ist so ungenau und hat oft
       // keine bilder" — deckt Musiker:innen ohne eigenen Wikipedia-Artikel
@@ -645,6 +650,18 @@ async function searchWithoutPreview(
       // auf München verengt werden.
       const queryContext = entityType === "venue" ? "München" : undefined;
       const commonsQuery = queryContext ? `${entity.name} ${queryContext}` : entity.name;
+
+      if (entity.websiteUrl) {
+        const official = await searchOfficialSite(
+          entity.name,
+          entity.websiteUrl,
+          entityType === "venue" ? "Veranstaltungsort" : "Ensemble",
+          log,
+        );
+        if (official) return official;
+      } else {
+        log({ source: "Offizielle Website", outcome: "skipped", detail: "keine website_url hinterlegt" });
+      }
 
       const candidate = await searchCommonsImage(commonsQuery);
       if (candidate) {
@@ -673,18 +690,6 @@ async function searchWithoutPreview(
         };
       }
       log({ source: "Wikidata/Wikimedia Commons", outcome: "not_found" });
-
-      if (entity.websiteUrl) {
-        const official = await searchOfficialSite(
-          entity.name,
-          entity.websiteUrl,
-          entityType === "venue" ? "Veranstaltungsort" : "Ensemble",
-          log,
-        );
-        if (official) return official;
-      } else {
-        log({ source: "Offizielle Website", outcome: "skipped", detail: "keine website_url hinterlegt" });
-      }
 
       const grounded = await searchImageViaGroundedWeb(
         `${entity.name} München Foto`,

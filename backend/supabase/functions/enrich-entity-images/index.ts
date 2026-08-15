@@ -1345,7 +1345,14 @@ async function enrichEntityKind(
       // Veranstaltung, bei der diese Person/dieses Ensemble mitwirkt —
       // präziser als eine blinde Namenssuche, aber Seite eines Dritten
       // ohne bekannte Lizenz, daher immer review-pflichtig.
-      if (kind.participantColumn && !fastFallback) {
+      // Auch im regulären Cron-Lauf ausführen: `fastFallback` hatte diesen
+      // wichtigsten kostenlosen Rückfall komplett deaktiviert. Damit
+      // blieben gerade neue Künstler:innen ohne Wikipedia und ohne bereits
+      // hinterlegte Website dauerhaft ohne jeden Kandidaten, obwohl ihre
+      // Veranstaltungs-/Besetzungsseite häufig ein Porträt enthält. Die
+      // Cron-Batches sind klein genug, dass ein einzelner zielgerichteter
+      // Seitenabruf pro Entität vertretbar bleibt.
+      if (kind.participantColumn) {
         const eventPageUrl = await findUpcomingEventPageUrl(
           supabase,
           kind.participantColumn,
