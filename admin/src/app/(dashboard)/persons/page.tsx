@@ -22,6 +22,8 @@ interface PersonRow {
   is_verified: boolean;
   biography_de: string | null;
   photo_url: string | null;
+  ai_biography_status: "pending" | "processing" | "generated" | "not_known" | "error";
+  last_image_search_note: string | null;
 }
 
 // Nur Anzeige-Beschriftung, keine Einschränkung — persons.roles ist text[]
@@ -42,7 +44,7 @@ export default async function PersonsPage() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("persons")
-    .select("id, full_name, roles, is_verified, biography_de, photo_url")
+    .select("id, full_name, roles, is_verified, biography_de, photo_url, ai_biography_status, last_image_search_note")
     .order("full_name")
     .returns<PersonRow[]>();
 
@@ -139,10 +141,10 @@ export default async function PersonsPage() {
                           </span>
                         </td>
                         <td className="px-4 py-3">
-                          <BioStatusBadge hasBio={!!person.biography_de} />
+                          <BioStatusBadge hasBio={!!person.biography_de} aiStatus={person.ai_biography_status} />
                         </td>
                         <td className="px-4 py-3">
-                          <ImageStatusBadge hasImage={!!person.photo_url} />
+                          <ImageStatusBadge hasImage={!!person.photo_url} searchNote={person.last_image_search_note} />
                         </td>
                         <td className="px-4 py-3 text-right">
                           <Link

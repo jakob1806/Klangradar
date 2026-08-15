@@ -324,7 +324,7 @@ Deno.serve(async (req) => {
     { checked: number; brokenCleared: number }
   > = {};
   for (const kind of selectedKinds) {
-    healthCheck[kind.table] = entityIds.length > 0
+    healthCheck[kind.table] = entityIds.length > 0 || body.fastFallback === true
       ? { checked: 0, brokenCleared: 0 }
       : await healthCheckEntityKind(supabase, kind);
   }
@@ -341,11 +341,9 @@ Deno.serve(async (req) => {
     { attempted: number; found: number }
   > = {};
   for (const kind of selectedKinds) {
-    entityUrlDiscovery[kind.table] = await discoverMissingEntityWebsites(
-      supabase,
-      kind,
-      entityIds,
-    );
+    entityUrlDiscovery[kind.table] = body.fastFallback === true
+      ? { attempted: 0, found: 0 }
+      : await discoverMissingEntityWebsites(supabase, kind, entityIds);
   }
 
   const perKind: Record<
@@ -810,13 +808,47 @@ async function isUrlUsedElsewhere(
   // fälschlich als Bild mehrerer verschiedener Mitwirkender erkannt
   // wurde) mehrfach parallel zur Prüfung vorgelegt werden, bevor eine
   // Redakteurin den ersten Fall überhaupt gesehen hat.
-  const { count: queuedCount } = await supabase
+  const { data: queuedImages } = await supabase
     .from("images")
-    .select("id", { count: "exact", head: true })
+    .select("id, origin_type, origin_id")
     .eq("source_url", url)
     .neq("license_status", "rejected")
-    .neq("origin_id", excludeId);
-  if (queuedCount && queuedCount > 0) return true;
+    .limit(25);
+
+  // Zusammengeführte/gelöschte Personen hinterließen früher vereinzelt
+  // polymorphe images-Zeilen. Diese verwaisten Zeilen dürfen einen erneut
+  // gefundenen, korrekten Kandidaten nicht dauerhaft blockieren. Das war
+  // live u. a. bei Beethoven der Fall: Das Commons-Porträt war genehmigt,
+  // sein origin_id zeigte aber auf die beim Merge entfernte Dublette und die
+  // kanonische Person blieb deshalb ohne Foto.
+  const originTable: Record<string, string> = {
+    event: "events",
+    venue: "venues",
+    ensemble: "ensembles",
+    person: "persons",
+    organizer: "organizers",
+    festival: "festivals",
+    work: "works",
+    editorial_collection: "editorial_collections",
+  };
+  for (const image of queuedImages ?? []) {
+    const imageOriginType = String(image.origin_type ?? "");
+    const imageOriginId = String(image.origin_id ?? "");
+    const currentKind = ENTITY_KINDS.find((kind) => kind.table === excludeTable);
+    const currentOriginType = currentKind?.originType ??
+      (excludeTable === "events" ? "event" : "");
+    if (imageOriginType === currentOriginType && imageOriginId === excludeId) {
+      continue;
+    }
+
+    const table = originTable[imageOriginType];
+    // Unbekannte künftige Origin-Typen konservativ weiter als belegt
+    // behandeln; nur nachweislich verwaiste Zuordnungen ignorieren.
+    if (!table || !imageOriginId) return true;
+    const { data: owner, error } = await supabase.from(table).select("id")
+      .eq("id", imageOriginId).maybeSingle();
+    if (error || owner) return true;
+  }
   return false;
 }
 
@@ -883,6 +915,68 @@ async function tryWikidataFallback(
   return "queued";
 }
 
+/** Breiter Web-Fallback nur für Personen, wenn Wikipedia und Wikidata kein
+ * Porträt liefern. Gemini-Grounding sucht Agentur-, Künstler- und
+ * Veranstalterseiten; das dort erkannte Bild wird niemals blind
+ * veröffentlicht, sondern als heruntergeladener Kandidat in die
+ * redaktionelle Bildprüfung gestellt. */
+async function tryPersonWebImageFallback(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  kind: EntityKind,
+  id: string,
+  name: string,
+  errors: string[],
+): Promise<boolean> {
+  const query = `"${name}" Musiker Künstler Porträt Biografie offizielle Website`;
+  const pages: Array<{ url: string; title: string | null }> = [];
+  const geminiKey = Deno.env.get("GEMINI_IMAGE_SEARCH_API_KEY") ?? Deno.env.get("GEMINI_SEARCH_API_KEY");
+  if (geminiKey) {
+    for (const result of await searchViaGeminiGrounding(geminiKey, query) ?? []) {
+      pages.push({ url: result.url, title: result.title ?? null });
+    }
+  }
+  if (pages.length < 3) {
+    for (const result of await searchDuckDuckGo(query, 4) ?? []) {
+      if (!pages.some((page) => page.url === result.url)) pages.push({ url: result.url, title: null });
+    }
+  }
+
+  for (const page of pages.slice(0, 4)) {
+    try {
+      const detected = await detectEventCoverImage(page.url);
+      const imageUrl = detected?.url ?? null;
+      if (!imageUrl || isLikelyGenericImage(imageUrl)) continue;
+      const { reachable } = await checkImageUrl(imageUrl);
+      if (!reachable || await isUrlUsedElsewhere(supabase, imageUrl, kind.table, id)) continue;
+      const stored = await persistCandidate(supabase, kind, id, {
+        imageUrl,
+        sourcePageUrl: page.url,
+        sourceName: new URL(page.url).hostname,
+        photographer: detected?.credits ?? null,
+        licenseStatus: detected?.credits ? "official_press_image" : "permission_required",
+        confidenceScore: 0.72,
+        matchReason: `Websuche nach „${name}“${page.title ? ` — Treffer „${page.title}“` : ""}.`,
+        warnings: ["Identität, Bildcredit und Nutzungserlaubnis vor Veröffentlichung prüfen."],
+        needsReview: true,
+      });
+      if (!stored) {
+        errors.push(`persons "${name}": Webbild konnte nicht gespeichert werden`);
+        continue;
+      }
+      await supabase.from("persons").update({
+        last_image_search_note: "Web-Kandidat gefunden, wartet auf redaktionelle Bildprüfung (/media).",
+        image_search_checked_at: new Date().toISOString(),
+      }).eq("id", id);
+      return true;
+    } catch {
+      // Einzelne blockierte/kaputte Treffer überspringen; weitere Quelle
+      // versuchen, ohne den gesamten Personenbatch abzubrechen.
+    }
+  }
+  return false;
+}
+
 async function enrichEntityKind(
   // deno-lint-ignore no-explicit-any
   supabase: any,
@@ -899,18 +993,15 @@ async function enrichEntityKind(
     errors: string[];
   }
 > {
-  // Ohne Sortierung liefert Postgres bei jedem Lauf dieselben ersten Zeilen
-  // (physische Tabellenreihenfolge) — bei mehr Zeilen mit photo_url=null als
-  // `limit` verhungerten dadurch alle Zeilen nach den ersten `limit`
-  // permanent (live beobachtet: 266/302 persons, 46/91 ensembles, 19/46
-  // venues mit last_image_search_note=null trotz Cron alle 15 Minuten seit
-  // Wochen). nullsFirst sorgt dafür, dass noch nie versuchte Zeilen
-  // (note ist null) immer vor bereits (erfolglos) versuchten Zeilen drankommen.
+  // Fairer Queue-Zeitstempel statt Sortierung nach dem Diagnose-Text: Die
+  // alte Reihenfolge konnte nach dem ersten vollständigen Umlauf immer
+  // wieder dieselben erfolglosen Zeilen auswählen. Älteste/nie geprüfte
+  // Entitäten kommen nun zuverlässig zuerst.
   let rowQuery = supabase
     .from(kind.table)
     .select(`id, ${kind.nameColumn}, website_url`)
     .is("photo_url", null)
-    .order("last_image_search_note", { ascending: true, nullsFirst: true });
+    .order("image_search_checked_at", { ascending: true, nullsFirst: true });
   if (entityIds.length > 0) rowQuery = rowQuery.in("id", entityIds);
   const { data: rows, error } = await rowQuery.limit(limit);
 
@@ -929,7 +1020,10 @@ async function enrichEntityKind(
   const errors: string[] = [];
 
   const setNote = (id: string, note: string | null) =>
-    supabase.from(kind.table).update({ last_image_search_note: note }).eq(
+    supabase.from(kind.table).update({
+      last_image_search_note: note,
+      image_search_checked_at: new Date().toISOString(),
+    }).eq(
       "id",
       id,
     );
@@ -1055,6 +1149,7 @@ async function enrichEntityKind(
                 .update({
                   photo_url: stored.publicUrl,
                   photo_checked_at: now,
+                  image_search_checked_at: now,
                   last_image_search_note: null,
                 })
                 .eq("id", id);
@@ -1268,6 +1363,13 @@ async function enrichEntityKind(
       );
       if (wikidataOutcome === "queued") queuedForReview++;
       if (wikidataOutcome !== "not_found") continue;
+      if (kind.originType === "person") {
+        const webQueued = await tryPersonWebImageFallback(supabase, kind, id, name, errors);
+        if (webQueued) {
+          queuedForReview++;
+          continue;
+        }
+      }
       await setNote(
         id,
         kind.useWikipediaFallback

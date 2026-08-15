@@ -113,14 +113,35 @@ export function BioSelectMissingButton({ ids }: { ids: string[] }) {
 /** Sichtbarer Hinweis, ob bereits eine Bio/Beschreibung vorliegt —
  * Nutzeranfrage: "alle, die bereits eine bio haben, sollen sichtbar zeigen,
  * dass sie eine besitzen". */
-export function BioStatusBadge({ hasBio }: { hasBio: boolean }) {
+export function BioStatusBadge({
+  hasBio,
+  aiStatus,
+}: {
+  hasBio: boolean;
+  aiStatus?: "pending" | "processing" | "generated" | "not_known" | "error";
+}) {
+  const label = hasBio
+    ? "Bio vorhanden"
+    : aiStatus === "processing"
+    ? "KI recherchiert"
+    : aiStatus === "not_known"
+    ? "Kein sicherer KI-Treffer"
+    : aiStatus === "error"
+    ? "KI versucht erneut"
+    : "In KI-Warteschlange";
   return (
     <span
       className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-        hasBio ? "bg-blue-50 text-blue-700" : "bg-neutral-100 text-neutral-400"
+        hasBio
+          ? "bg-blue-50 text-blue-700"
+          : aiStatus === "processing"
+          ? "bg-violet-50 text-violet-700"
+          : aiStatus === "error"
+          ? "bg-red-50 text-red-700"
+          : "bg-neutral-100 text-neutral-500"
       }`}
     >
-      {hasBio ? "Bio vorhanden" : "Keine Bio"}
+      {label}
     </span>
   );
 }

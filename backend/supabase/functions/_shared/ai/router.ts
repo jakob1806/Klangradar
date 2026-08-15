@@ -18,7 +18,8 @@ import { cerebrasProvider } from "./providers/cerebras.ts";
 import { nvidiaProvider } from "./providers/nvidia.ts";
 import { createGeminiProvider } from "./providers/gemini.ts";
 
-const PROVIDERS = [cerebrasProvider, nvidiaProvider, createGeminiProvider()];
+const geminiProvider = createGeminiProvider();
+const PROVIDERS = [cerebrasProvider, nvidiaProvider, geminiProvider];
 
 export type { AiFunctionDeclaration };
 
@@ -39,6 +40,23 @@ export async function callAiFunction(
   // deno-lint-ignore no-explicit-any
 ): Promise<{ args: Record<string, any>; provider: string } | null> {
   for (const provider of PROVIDERS) {
+    const args = await provider.callFunction(system, user, fn);
+    if (args) return { args, provider: provider.name };
+  }
+  return null;
+}
+
+/** Wissensfragen profitieren stärker von Geminis breitem Trainingswissen als
+ * von den auf schnelle strukturierte Extraktion optimierten Erstprovidern.
+ * Gemini wird hierfür bevorzugt, die robuste Fallback-Kette bleibt erhalten.
+ */
+export async function callAiFunctionPreferGemini(
+  system: string,
+  user: string,
+  fn: AiFunctionDeclaration,
+  // deno-lint-ignore no-explicit-any
+): Promise<{ args: Record<string, any>; provider: string } | null> {
+  for (const provider of [geminiProvider, cerebrasProvider, nvidiaProvider]) {
     const args = await provider.callFunction(system, user, fn);
     if (args) return { args, provider: provider.name };
   }

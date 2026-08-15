@@ -17,7 +17,7 @@
 // geparste Ergebnisse). Für klassische Musik ist Wikipedia ohnehin oft die
 // verlässlichere Quelle.
 
-import { callAiFunction, type AiFunctionDeclaration } from "./ai/router.ts";
+import { callAiFunction, callAiFunctionPreferGemini, type AiFunctionDeclaration } from "./ai/router.ts";
 import { searchWikipediaExtract } from "./wikipedia.ts";
 
 export type BioEntityType = "person" | "ensemble" | "venue";
@@ -107,8 +107,9 @@ const WRITE_FROM_KNOWLEDGE_FUNCTION: AiFunctionDeclaration = {
       recognized: {
         type: "boolean",
         description:
-          "true nur, wenn du diese konkrete Person/dieses Ensemble/diese Venue (im Kontext klassischer Musik in " +
-          "München) tatsächlich kennst. false, wenn dir der Name nichts sagt — dann NICHTS erfinden.",
+          "true, wenn du diese konkrete Person/dieses Ensemble/diese Venue tatsächlich kennst ODER der gelieferte " +
+          "Datenbank-Kontext die Identität eindeutig genug für eine sachliche Kurzbiografie macht. false bei " +
+          "Namensverwechslung oder wenn weder Wissen noch Kontext belastbare Aussagen erlauben.",
       },
     },
     required: ["recognized"],
@@ -121,16 +122,17 @@ const KIND_LABEL: Record<BioEntityType, string> = {
   venue: "Konzert-/Veranstaltungsort",
 };
 
-async function researchFromKnowledge(
+export async function researchBiographyFromKnowledge(
   entityType: BioEntityType,
   name: string,
   context?: string | null,
 ): Promise<BioResearchResult | null> {
   const kind = KIND_LABEL[entityType];
-  const response = await callAiFunction(
+  const response = await callAiFunctionPreferGemini(
     `Du schreibst eine Kurzbiografie/-beschreibung für ${kind} für eine Münchner Konzert-Datenbank, rein aus ` +
-      "deinem eigenen Wissen (keine Websuche verfügbar). Sei konservativ: kennst du den Namen nicht sicher oder " +
-      "bist du dir bei Details unsicher, recognized=false bzw. lass unsichere Details weg. Erfinde nichts.",
+      "deinem eigenen Wissen (keine Websuche verfügbar). Der zusätzliche Kontext stammt aus der bestehenden " +
+      "Klangradar-Datenbank und darf als Faktengrundlage verwendet werden. Schreibe lieber eine kurze, konkrete " +
+      "Bio aus sicheren Angaben als gar keine; lasse unsichere Einzelheiten weg und erfinde nichts.",
     `Name: "${name}"${context ? `\nZusätzlicher Kontext: ${context}` : ""}`,
     WRITE_FROM_KNOWLEDGE_FUNCTION,
   );
@@ -143,18 +145,10 @@ async function researchFromKnowledge(
 }
 
 /** `context` sind zusätzliche bekannte Anhaltspunkte (z.B. Rolle/Instrument
- * bei Personen, Stadtteil bei Venues) — verbessert die Suchtrefferqualität,
- * rein optional. `knownFacts` sind dieselbe Art Anhaltspunkt, aber für einen
- * deterministischen Gegencheck NACH der LLM-Zusage genutzt (siehe
- * contradictsKnownYear oben) — ein Namensvetter-Artikel kann die KI trotzdem
- * überzeugen, ein klar falsches Geburts-/Sterbejahr aber nicht. Versucht
- * zuerst Wikipedia (belegbare Quelle); findet sich dort nichts Verlässliches
- * oder widerspricht der Treffer den bekannten Fakten, schreibt die KI
- * ersatzweise aus eigenem Wissen (researchFromKnowledge) — klar als
- * "ai_knowledge" markiert, damit die Redaktion weiß, dass hier nichts
- * gegengeprüft wurde. Gibt nur dann null zurück, wenn auch das nichts
- * liefert; Aufrufer zeigen das als "keine Recherche möglich" an, nie als
- * technischen Fehler. */
+ * bei Personen, Stadtteil bei Venues) und helfen gegen Namensverwechslungen.
+ * Der schnelle KI-Wissenspfad läuft zuerst. Nur wenn das Modell die Entität
+ * nicht sicher kennt, folgt Wikipedia als belegbarer Fallback; bekannte
+ * Lebensjahre bleiben dabei ein deterministischer Gegencheck. */
 export async function researchBiography(
   entityType: BioEntityType,
   name: string,
@@ -162,6 +156,15 @@ export async function researchBiography(
   knownFacts?: KnownFacts,
 ): Promise<BioResearchResult | null> {
   const kind = KIND_LABEL[entityType];
+  // Schneller Standardpfad: Die KI formuliert direkt aus ihrem eigenen
+  // Wissen. Das entspricht einer normalen Gemini-/LLM-Abfrage und spart den
+  // vorher obligatorischen Wikipedia-Roundtrip. Wikipedia bleibt als
+  // belegbarer Rückfall erhalten, wenn das Modell den Namen nicht sicher
+  // erkennt — der interaktive Workflow muss dadurch im Regelfall nur noch
+  // einen einzigen KI-Aufruf abwarten.
+  const knowledgeResult = await researchBiographyFromKnowledge(entityType, name, context);
+  if (knowledgeResult) return knowledgeResult;
+
   const hit = await searchWikipediaExtract(context ? `${name} ${context}` : name);
 
   if (hit?.extract) {
@@ -184,5 +187,5 @@ export async function researchBiography(
     }
   }
 
-  return researchFromKnowledge(entityType, name, context);
+  return null;
 }

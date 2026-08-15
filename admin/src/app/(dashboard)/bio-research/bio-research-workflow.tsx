@@ -193,12 +193,12 @@ function BioStep({
 
       <div className="mt-4">
         {step.status === "loading" && (
-          <p className="text-sm text-neutral-500">KI recherchiert (Wikipedia, sonst eigenes Wissen)…</p>
+          <p className="text-sm text-neutral-500">KI erstellt die Biografie direkt aus ihrem Wissen…</p>
         )}
 
         {step.status === "not_found" && (
           <p className="text-sm text-amber-700">
-            Weder in Wikipedia noch aus KI-Wissen etwas Verlässliches gefunden — Text unten manuell eintragen oder
+            Weder aus KI-Wissen noch im Quellen-Fallback etwas Verlässliches gefunden — Text unten manuell eintragen oder
             überspringen.
           </p>
         )}
@@ -216,8 +216,7 @@ function BioStep({
 
         {step.status === "found" && step.source === "ai_knowledge" && (
           <p className="rounded bg-amber-50 px-2 py-1 text-xs text-amber-800">
-            ⚠ Von der KI aus eigenem Wissen geschrieben, kein Wikipedia-Artikel gefunden — nicht gegen eine Quelle
-            geprüft. Vor dem Übernehmen besonders sorgfältig kontrollieren.
+            KI-Entwurf aus eigenem Wissen ohne langsamen Webabruf. Vor der Übernahme frei bearbeiten und inhaltlich prüfen.
           </p>
         )}
 
