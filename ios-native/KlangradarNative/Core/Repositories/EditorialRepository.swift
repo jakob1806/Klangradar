@@ -251,20 +251,36 @@ struct EditorialRepository: Sendable {
         return remaining
     }
 
+    /// Nutzeranfrage: "es sollen alle verfügbaren Veranstaltungen angezeigt
+    /// werden" — vorher war hier ein hartes limit=150 gesetzt, sodass bei
+    /// mehr offenen/zukünftigen Events die Redaktionsliste (die client-
+    /// seitig über EditorialDashboardView.filteredEvents durchsucht wird)
+    /// unvollständig blieb. Paginiert jetzt analog zu
+    /// LiveEventRepository.allUpcomingEvents(), bis eine Seite kleiner als
+    /// die Seitengröße zurückkommt.
     func events(search: String, token: String) async throws -> [EditorialEvent] {
-        var query = [
-            URLQueryItem(name: "select", value: "id,slug,title,subtitle,start_datetime,venue_id,image_urls,status,venues(name)"),
-            URLQueryItem(name: "start_datetime", value: "gte.\(Self.isoString(from: KlangradarDateTime.calendar.startOfDay(for: .now)))"),
-            URLQueryItem(name: "order", value: "start_datetime.asc"),
-            URLQueryItem(name: "limit", value: "150")
-        ]
         let clean = search.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !clean.isEmpty {
-            let escaped = clean.replacingOccurrences(of: ",", with: " ")
-            query.append(URLQueryItem(name: "or", value: "(title.ilike.*\(escaped)*,subtitle.ilike.*\(escaped)*)"))
+        let pageSize = 500
+        var result: [EditorialEvent] = []
+        var offset = 0
+        while true {
+            var query = [
+                URLQueryItem(name: "select", value: "id,slug,title,subtitle,start_datetime,venue_id,image_urls,status,venues(name)"),
+                URLQueryItem(name: "start_datetime", value: "gte.\(Self.isoString(from: KlangradarDateTime.calendar.startOfDay(for: .now)))"),
+                URLQueryItem(name: "order", value: "start_datetime.asc"),
+                URLQueryItem(name: "limit", value: String(pageSize)),
+                URLQueryItem(name: "offset", value: String(offset))
+            ]
+            if !clean.isEmpty {
+                let escaped = clean.replacingOccurrences(of: ",", with: " ")
+                query.append(URLQueryItem(name: "or", value: "(title.ilike.*\(escaped)*,subtitle.ilike.*\(escaped)*)"))
+            }
+            let rows: [JSONObject] = try await client.get(table: "events", queryItems: query, accessToken: token)
+            let page = rows.compactMap(Self.event)
+            result.append(contentsOf: page)
+            if page.count < pageSize { return result }
+            offset += pageSize
         }
-        let rows: [JSONObject] = try await client.get(table: "events", queryItems: query, accessToken: token)
-        return rows.compactMap(Self.event)
     }
 
     /// select-Listen erweitert für Feldparität mit den Web-Admin-Formularen

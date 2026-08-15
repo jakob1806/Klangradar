@@ -198,63 +198,85 @@ export async function bulkSetLicenseStatus(imageIds: string[], status: LicenseSt
 
 export interface EnrichImagesResult {
   status: "ok" | "failed";
-  perKind?: Record<string, { found: number; queued: number; errors: string[] }>;
-  events?: { found: number; updated: number; errors: string[] };
+  perKind?: Record<string, {
+    found: number;
+    autoApplied: number;
+    queuedForReview: number;
+    errors: string[];
+  }>;
   error?: string;
 }
 
-// Ruft die enrich-entity-images Edge Function auf: sucht Wikimedia-Commons-
-// Bilder für Venues/Personen/Ensembles/Festivals ohne eigenes Foto (landen
-// hier zur Prüfung, needs_review=true) und übernimmt Venue-Fotos als
-// Titelbild für bevorstehende Events ohne eigenes Bild.
+type EnrichmentKindResult = NonNullable<EnrichImagesResult["perKind"]>[string];
+
+function isEnrichmentKindResult(value: unknown): value is EnrichmentKindResult {
+  if (!value || typeof value !== "object") return false;
+  const row = value as Record<string, unknown>;
+  return typeof row.found === "number"
+    && typeof row.autoApplied === "number"
+    && typeof row.queuedForReview === "number"
+    && Array.isArray(row.errors);
+}
+
+// Der manuelle Lauf auf der Medienseite arbeitet bewusst nur die beiden
+// großen Profilbild-Lücken ab. Die übrigen Bildarten behalten ihre eigenen
+// Recherchewege; so verbraucht ein Klick nicht wieder fast sein gesamtes
+// Zeitbudget für Venues/Festivals, während Personen und Ensembles liegen
+// bleiben. Beide Edge-Aufrufe laufen innerhalb dieser einen Server Action
+// parallel (Next dispatcht mehrere Client-Actions dagegen sequenziell).
 export async function enrichEntityImages(): Promise<EnrichImagesResult> {
   const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!baseUrl || !anonKey) {
+    return { status: "failed", error: "Supabase-Konfiguration fehlt." };
+  }
+  // Eigene Konstanten halten die erfolgte Null-Prüfung auch innerhalb der
+  // verschachtelten runKind()-Funktion für TypeScript eindeutig fest.
+  const functionUrl = `${baseUrl}/functions/v1/enrich-entity-images`;
+  const publicAnonKey = anonKey;
 
-  let res: Response;
-  try {
-    res = await fetch(`${baseUrl}/functions/v1/enrich-entity-images`, {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { status: "failed", error: "Nicht angemeldet." };
+
+  async function runKind(type: "person" | "ensemble", table: "persons" | "ensembles") {
+    const res = await fetch(functionUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        apikey: anonKey ?? "",
-        Authorization: `Bearer ${anonKey ?? ""}`,
+        apikey: publicAnonKey,
+        Authorization: `Bearer ${publicAnonKey}`,
       },
-      // Ohne limit läuft die Function mit ihrem Default (8) über alle 4
-      // Entity-Kinds (venues/persons/ensembles/festivals) UND die Event-
-      // Cover-Suche nacheinander durch — jeder Eintrag mit eigenen externen
-      // Websuchen. Das dauert live regelmäßig länger als 60s (Nutzerfeedback:
-      // "The operation was aborted due to timeout"). limit:3 hält den
-      // manuellen Button-Klick verlässlich innerhalb des Zeitlimits; der
-      // automatische Cron läuft ohnehin weiter im Hintergrund mit eigenem
-      // Takt für den Rest.
-      body: JSON.stringify({ limit: 3 }),
+      body: JSON.stringify({ type, limit: 8 }),
       signal: AbortSignal.timeout(90_000),
     });
+    const body = await res.json() as Record<string, unknown>;
+    if (!res.ok || body.error) {
+      throw new Error((body.error as string) ?? `${type}: HTTP ${res.status}`);
+    }
+    const result = body[table];
+    if (!isEnrichmentKindResult(result)) {
+      throw new Error(`${type}: Unerwartete Antwort der Bildsuche.`);
+    }
+    return [table, result] as const;
+  }
+
+  let entries: Array<readonly [string, EnrichmentKindResult]>;
+  try {
+    entries = await Promise.all([
+      runKind("person", "persons"),
+      runKind("ensemble", "ensembles"),
+    ]);
   } catch (err) {
     return {
       status: "failed",
-      error: `enrich-entity-images nicht erreichbar: ${err instanceof Error ? err.message : String(err)}`,
+      error: `Bildsuche fehlgeschlagen: ${err instanceof Error ? err.message : String(err)}`,
     };
   }
 
-  let body: Record<string, unknown>;
-  try {
-    body = await res.json();
-  } catch {
-    return { status: "failed", error: `Unerwartete Antwort (HTTP ${res.status}).` };
-  }
-
-  if (!res.ok || body.error) {
-    return { status: "failed", error: (body.error as string) ?? `HTTP ${res.status}` };
-  }
-
   revalidatePath("/media");
-
-  const { events, ...perKind } = body;
   return {
     status: "ok",
-    perKind: perKind as Record<string, { found: number; queued: number; errors: string[] }>,
-    events: events as { found: number; updated: number; errors: string[] },
+    perKind: Object.fromEntries(entries),
   };
 }

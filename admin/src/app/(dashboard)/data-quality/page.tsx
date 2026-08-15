@@ -48,7 +48,7 @@ function formatDate(iso: string) {
 
 export default async function DataQualityPage({ searchParams }: { searchParams: Promise<{ view?: string; type?: string; mode?: string }> }) {
   const params = await searchParams;
-  if (params.view === "research") return <ResearchEnrichmentView type={params.type} mode={params.mode} />;
+  if (params.view !== "overview") return <ResearchEnrichmentView type={params.type} mode={params.mode} />;
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("events")

@@ -926,14 +926,12 @@ private struct EmailCodeLoginView: View {
                 }
 
                 Section("Oder anmelden mit") {
-                    if auth.isAppleSignInAvailable {
-                        Button {
-                            Task { await oauth(provider: "Apple") { try await auth.signInWithApple() } }
-                        } label: {
-                            Label("Mit Apple anmelden", systemImage: "apple.logo")
-                        }
-                        .disabled(isWorking)
+                    Button {
+                        Task { await oauth(provider: "Apple") { try await auth.signInWithApple() } }
+                    } label: {
+                        Label("Mit Apple anmelden", systemImage: "apple.logo")
                     }
+                    .disabled(isWorking)
 
                     if auth.isGoogleSignInAvailable {
                         Button {

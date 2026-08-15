@@ -23,7 +23,7 @@ const NAV_GROUPS = [
   {
     label: "Qualität",
     items: [
-      { href: "/data-quality", label: "Datenqualität" },
+      { href: "/data-quality", label: "Recherche & Anreicherung" },
       { href: "/duplicates", label: "Duplikate" },
       { href: "/entity-candidates", label: "Entity-Kandidaten" },
       { href: "/qualitaetspruefung", label: "Qualitätsprüfung" },

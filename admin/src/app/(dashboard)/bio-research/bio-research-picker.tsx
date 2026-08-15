@@ -14,6 +14,8 @@ import { useRouter } from "next/navigation";
 import { BioResearchWorkflow, type BioWorkflowEntity } from "./bio-research-workflow";
 import type { BioEntityType } from "./actions";
 
+export type ResearchEntityType = BioEntityType | "event";
+
 export interface BioEntityOption {
   id: string;
   name: string;
@@ -31,7 +33,7 @@ export function BioResearchPicker({
   entities,
   mode = "automatic",
 }: {
-  entityType: BioEntityType;
+  entityType: ResearchEntityType;
   entities: BioEntityOption[];
   mode?: "automatic" | "manual";
 }) {
@@ -51,18 +53,19 @@ export function BioResearchPicker({
   }, [mode, router]);
 
   const visible = entities.filter((e) => {
-    if (onlyMissing && e.hasBio) return false;
+    if (onlyMissing && (entityType === "event" ? e.hasImage : e.hasBio)) return false;
     if (filter && !e.name.toLowerCase().includes(filter.toLowerCase())) return false;
     return true;
   });
 
   if (mode === "automatic") {
-    const detailBase = entityType === "person" ? "/persons" : entityType === "ensemble" ? "/ensembles" : "/venues";
-    const entityLabel = entityType === "person" ? "Person" : entityType === "ensemble" ? "Ensemble" : "Venue";
+    const isEvent = entityType === "event";
+    const detailBase = entityType === "person" ? "/persons" : entityType === "ensemble" ? "/ensembles" : entityType === "event" ? "/events" : "/venues";
+    const entityLabel = entityType === "person" ? "Person" : entityType === "ensemble" ? "Ensemble" : entityType === "event" ? "Veranstaltung" : "Venue";
     const withBio = entities.filter((entity) => entity.hasBio).length;
     const withImage = entities.filter((entity) => entity.hasImage).length;
     const imageProcessed = entities.filter((entity) =>
-      entity.hasImage || entity.hasImageCandidate || entity.imageSearchCheckedAt
+      entity.hasImage || entity.hasImageCandidate || entity.imageSearchCheckedAt || entity.imageSearchNote
     ).length;
     const imageCandidates = entities.filter((entity) => !entity.hasImage && isImageCandidate(entity)).length;
     const processing = entities.filter((entity) =>
@@ -71,9 +74,9 @@ export function BioResearchPicker({
 
     return (
       <div>
-        <div className="grid gap-3 sm:grid-cols-3">
-          <SummaryCard label="Biografie-Fortschritt" value={withBio} total={entities.length} />
-          <SummaryCard label="Noch in Bearbeitung" value={processing} total={entities.length} invertProgress />
+        <div className={`grid gap-3 ${isEvent ? "sm:grid-cols-1" : "sm:grid-cols-3"}`}>
+          {!isEvent && <SummaryCard label="Biografie-Fortschritt" value={withBio} total={entities.length} />}
+          {!isEvent && <SummaryCard label="Noch in Bearbeitung" value={processing} total={entities.length} invertProgress />}
           <ImageProgressCard
             processed={imageProcessed}
             published={withImage}
@@ -96,7 +99,7 @@ export function BioResearchPicker({
               onChange={(event) => setOnlyMissing(event.target.checked)}
               className="h-4 w-4 rounded border-neutral-300"
             />
-            Nur ohne Biografie
+            {isEvent ? "Nur ohne Bild" : "Nur ohne Biografie"}
           </label>
           <span className="ml-auto text-xs text-neutral-400">Aktualisiert sich alle 20 Sekunden</span>
         </div>
@@ -109,9 +112,9 @@ export function BioResearchPicker({
               className="flex items-center gap-3 border-b border-neutral-100 px-4 py-3 text-sm last:border-b-0 hover:bg-neutral-50"
             >
               <span className="min-w-0 flex-1 truncate font-medium text-neutral-900">{entity.name}</span>
-              <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${bioStatusClass(entity)}`}>
+              {!isEvent && <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${bioStatusClass(entity)}`}>
                 {bioStatusLabel(entity)}
-              </span>
+              </span>}
               <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${imageStatusClass(entity)}`}
                 title={entity.imageSearchNote ?? undefined}>
                 {imageStatusLabel(entity)}
@@ -148,7 +151,7 @@ export function BioResearchPicker({
           ← Zurück zur Auswahl
         </button>
         <div className="mt-4">
-          <BioResearchWorkflow entityType={entityType} entities={chosen} />
+          <BioResearchWorkflow entityType={entityType as BioEntityType} entities={chosen} />
         </div>
       </div>
     );
@@ -315,18 +318,19 @@ function bioStatusClass(entity: BioEntityOption) {
   return "bg-neutral-100 text-neutral-500";
 }
 
-export function EntityTypeTabs({ entityType, mode = "automatic" }: { entityType: BioEntityType; mode?: string }) {
-  const labels: Record<BioEntityType, string> = {
+export function EntityTypeTabs({ entityType, mode = "automatic" }: { entityType: ResearchEntityType; mode?: string }) {
+  const labels: Record<ResearchEntityType, string> = {
     person: "Personen",
     venue: "Venues",
     ensemble: "Ensembles",
+    event: "Veranstaltungen",
   };
   return (
     <div className="mt-4 flex gap-2">
-      {(Object.keys(labels) as BioEntityType[]).map((t) => (
+      {(Object.keys(labels) as ResearchEntityType[]).map((t) => (
         <Link
           key={t}
-          href={`/data-quality?view=research&type=${t}&mode=${mode}`}
+          href={`/data-quality?view=research&type=${t}&mode=${t === "event" && mode === "bio" ? "automatic" : mode}`}
           className={`px-3 py-1.5 type-label ${
             t === entityType
               ? "rounded-lg bg-[#0071e3] !text-white"
