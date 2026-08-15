@@ -22,6 +22,8 @@ export interface BioEntityOption {
   bioStatus?: "pending" | "processing" | "generated" | "not_known" | "error";
   hasImage?: boolean;
   imageSearchNote?: string | null;
+  imageSearchCheckedAt?: string | null;
+  hasImageCandidate?: boolean;
 }
 
 export function BioResearchPicker({
@@ -59,6 +61,10 @@ export function BioResearchPicker({
     const entityLabel = entityType === "person" ? "Person" : entityType === "ensemble" ? "Ensemble" : "Venue";
     const withBio = entities.filter((entity) => entity.hasBio).length;
     const withImage = entities.filter((entity) => entity.hasImage).length;
+    const imageProcessed = entities.filter((entity) =>
+      entity.hasImage || entity.hasImageCandidate || entity.imageSearchCheckedAt
+    ).length;
+    const imageCandidates = entities.filter((entity) => !entity.hasImage && isImageCandidate(entity)).length;
     const processing = entities.filter((entity) =>
       !entity.hasBio && ["pending", "processing", "error", "not_known"].includes(entity.bioStatus ?? "pending")
     ).length;
@@ -68,7 +74,12 @@ export function BioResearchPicker({
         <div className="grid gap-3 sm:grid-cols-3">
           <SummaryCard label="Biografie-Fortschritt" value={withBio} total={entities.length} />
           <SummaryCard label="Noch in Bearbeitung" value={processing} total={entities.length} invertProgress />
-          <SummaryCard label="Bild-Fortschritt" value={withImage} total={entities.length} />
+          <ImageProgressCard
+            processed={imageProcessed}
+            published={withImage}
+            candidates={imageCandidates}
+            total={entities.length}
+          />
         </div>
 
         <div className="mt-5 flex flex-wrap items-center gap-3">
@@ -101,10 +112,9 @@ export function BioResearchPicker({
               <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${bioStatusClass(entity)}`}>
                 {bioStatusLabel(entity)}
               </span>
-              <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                entity.hasImage ? "bg-emerald-50 text-emerald-700" : "bg-neutral-100 text-neutral-500"
-              }`} title={entity.imageSearchNote ?? undefined}>
-                {entity.hasImage ? "Bild vorhanden" : entity.imageSearchNote?.includes("wartet") ? "Bildkandidat" : "Bildsuche läuft"}
+              <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${imageStatusClass(entity)}`}
+                title={entity.imageSearchNote ?? undefined}>
+                {imageStatusLabel(entity)}
               </span>
               <span aria-hidden className="text-neutral-300">›</span>
             </Link>
@@ -215,6 +225,52 @@ export function BioResearchPicker({
       </div>
     </div>
   );
+}
+
+function ImageProgressCard({
+  processed,
+  published,
+  candidates,
+  total,
+}: {
+  processed: number;
+  published: number;
+  candidates: number;
+  total: number;
+}) {
+  const percentage = total > 0 ? Math.round((processed / total) * 100) : 100;
+  return (
+    <div className="rounded-xl border border-black/[0.06] bg-white p-4 shadow-sm">
+      <p className="text-xs font-medium uppercase tracking-wide text-neutral-400">Bildrecherche-Fortschritt</p>
+      <p className="mt-1 text-2xl font-semibold tracking-tight text-neutral-900">
+        {processed}<span className="ml-1 text-sm font-normal text-neutral-400">/ {total} geprüft</span>
+      </p>
+      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-neutral-100" aria-label={`${percentage} Prozent geprüft`}>
+        <div className="h-full rounded-full bg-[#0071e3] transition-all" style={{ width: `${percentage}%` }} />
+      </div>
+      <p className="mt-1.5 text-xs text-neutral-400">
+        {percentage}% geprüft · {published} veröffentlicht · {candidates} warten auf Freigabe
+      </p>
+    </div>
+  );
+}
+
+function isImageCandidate(entity: BioEntityOption) {
+  return entity.hasImageCandidate === true;
+}
+
+function imageStatusLabel(entity: BioEntityOption) {
+  if (entity.hasImage) return "Bild vorhanden";
+  if (isImageCandidate(entity)) return "Bild wartet auf Freigabe";
+  if (entity.imageSearchCheckedAt) return "Geprüft · kein Treffer";
+  return "In Bild-Warteschlange";
+}
+
+function imageStatusClass(entity: BioEntityOption) {
+  if (entity.hasImage) return "bg-emerald-50 text-emerald-700";
+  if (isImageCandidate(entity)) return "bg-blue-50 text-blue-700";
+  if (entity.imageSearchCheckedAt) return "bg-amber-50 text-amber-700";
+  return "bg-neutral-100 text-neutral-500";
 }
 
 function SummaryCard({

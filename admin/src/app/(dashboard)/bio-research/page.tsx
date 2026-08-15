@@ -41,7 +41,7 @@ async function loadEntities(entityType: BioEntityType): Promise<BioEntityOption[
   const supabase = await createClient();
   const nameColumn = NAME_COLUMN_FOR_TYPE[entityType];
   const bioColumn = BIO_COLUMN_FOR_TYPE[entityType];
-  const extraColumns = ", photo_url, ai_biography_status, last_image_search_note";
+  const extraColumns = ", photo_url, ai_biography_status, last_image_search_note, image_search_checked_at";
 
   // PostgREST begrenzt Antworten projektweit auf 1.000 Zeilen. Die alte
   // feste .limit(500)-Abfrage ließ deshalb mehr als tausend Personen im
@@ -61,6 +61,25 @@ async function loadEntities(entityType: BioEntityType): Promise<BioEntityOption[
     if (!data || data.length < pageSize) break;
   }
 
+  // Ein recherchiertes Bild kann bereits sicher in unserem Storage liegen,
+  // aber noch auf die redaktionelle Lizenzfreigabe warten. photo_url allein
+  // bildet diesen Zustand nicht ab. Die echte offene Review-Queue deshalb
+  // separat laden, statt Kandidaten aus einem möglicherweise alten
+  // Diagnose-Text zu erraten.
+  const candidateIds = new Set<string>();
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from("images")
+      .select("origin_id")
+      .eq("origin_type", entityType)
+      .eq("needs_review", true)
+      .range(from, from + pageSize - 1)
+      .returns<Array<{ origin_id: string }>>();
+    if (error) throw new Error(error.message);
+    for (const image of data ?? []) candidateIds.add(image.origin_id);
+    if (!data || data.length < pageSize) break;
+  }
+
   return rows.map((row) => ({
     id: row.id as string,
     name: row[nameColumn] as string,
@@ -69,6 +88,8 @@ async function loadEntities(entityType: BioEntityType): Promise<BioEntityOption[
     bioStatus: row.ai_biography_status as BioEntityOption["bioStatus"],
     hasImage: Boolean(row.photo_url),
     imageSearchNote: row.last_image_search_note as string | null,
+    imageSearchCheckedAt: row.image_search_checked_at as string | null,
+    hasImageCandidate: candidateIds.has(row.id as string),
   }));
 }
 
