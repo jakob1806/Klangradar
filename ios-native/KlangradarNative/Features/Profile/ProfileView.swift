@@ -61,6 +61,16 @@ struct ProfileView: View {
                     }
                 }
 
+                Section {
+                    NavigationLink {
+                        PartnerApplicationView()
+                    } label: {
+                        Label("Als Partner bewerben", systemImage: "sparkles")
+                    }
+                } footer: {
+                    Text("Spielstätte, Veranstalter oder Ensemble? Bewirb dich für eine Aufnahme in Klangradar.")
+                }
+
                 if hasEditorialAccess, let editorialRepository {
                     Section {
                         NavigationLink {
