@@ -64,7 +64,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { searchCommonsImage } from "../_shared/wikimediaCommons.ts";
-import { searchWikidataImage } from "../_shared/wikidataImage.ts";
+import { searchWikidataImage, searchWikidataOfficialWebsite } from "../_shared/wikidataImage.ts";
 import { fetchWikipediaPortrait } from "../_shared/wikipediaPortrait.ts";
 import { detectEventCoverImage } from "../_shared/coverImageDetection.ts";
 import { extractImageNearName } from "../_shared/imageNearName.ts";
@@ -953,11 +953,23 @@ async function tryWikidataFallback(
   return "queued";
 }
 
-/** Breiter Web-Fallback nur für Personen, wenn Wikipedia und Wikidata kein
- * Porträt liefern. Gemini-Grounding sucht Agentur-, Künstler- und
- * Veranstalterseiten; das dort erkannte Bild wird niemals blind
+/** Breiter, vollständig kostenloser Web-Fallback nur für Personen, wenn
+ * Wikipedia und Wikidata kein Porträt liefern. Die DuckDuckGo-Websuche
+ * findet offizielle, Agentur-, Operabase-, Orchester- und Veranstalterseiten;
+ * das dort erkannte Bild wird niemals blind
  * veröffentlicht, sondern als heruntergeladener Kandidat in die
  * redaktionelle Bildprüfung gestellt. */
+function personImagePageScore(url: string): number {
+  const value = url.toLowerCase();
+  if (/facebook|instagram|linkedin|pinterest|youtube|tiktok|x\.com/.test(value)) return -100;
+  let score = 0;
+  if (/operabase\.com/.test(value)) score += 35;
+  if (/agency|agentur|management|artists|artist|biograph|biograf/.test(value)) score += 22;
+  if (/opera|oper\b|orchester|orchestra|philharm|symphon|festival|theater|concert/.test(value)) score += 16;
+  if (/ticket|shop|calendar|kalender/.test(value)) score -= 15;
+  return score;
+}
+
 async function tryPersonWebImageFallback(
   // deno-lint-ignore no-explicit-any
   supabase: any,
@@ -967,32 +979,44 @@ async function tryPersonWebImageFallback(
   errors: string[],
 ): Promise<boolean> {
   const queries = [
-    `"${name}" Musiker Künstler Porträt Biografie offizielle Website`,
-    `"${name}" portrait artist agency`,
+    `"${name}" Porträt Biografie offizielle Website Musiker`,
+    `"${name}" portrait biography artist agency management`,
+    `"${name}" site:operabase.com OR opera OR orchestra OR philharmonic`,
   ];
   const pages: Array<{ url: string; title: string | null }> = [];
-  const geminiKey = Deno.env.get("GEMINI_IMAGE_SEARCH_API_KEY") ?? Deno.env.get("GEMINI_SEARCH_API_KEY");
+  // Wikidata P856 verweist kostenlos und strukturiert auf die offizielle
+  // Künstlerwebsite. Damit bleibt die Recherche auch dann funktionsfähig,
+  // wenn die kostenlose HTML-Suchmaschine vorübergehend drosselt.
+  const officialWebsite = await searchWikidataOfficialWebsite(name);
+  if (officialWebsite) pages.push({ url: officialWebsite, title: "Offizielle Website (Wikidata)" });
   for (const query of queries) {
-    if (geminiKey) {
-      for (const result of await searchViaGeminiGrounding(geminiKey, query) ?? []) {
-        if (!pages.some((page) => page.url === result.url)) pages.push({ url: result.url, title: result.title ?? null });
-      }
+    for (const result of await searchDuckDuckGo(query, 4) ?? []) {
+      if (!pages.some((page) => page.url === result.url)) pages.push({ url: result.url, title: null });
     }
-    if (pages.length < 5) {
-      for (const result of await searchDuckDuckGo(query, 5) ?? []) {
-        if (!pages.some((page) => page.url === result.url)) pages.push({ url: result.url, title: null });
-      }
-    }
-    if (pages.length >= 6) break;
+    if (pages.length >= 9) break;
   }
 
-  for (const page of pages.slice(0, 6)) {
+  // Hochwertige Fach-/Primärquellen zuerst prüfen. So verbraucht ein Lauf
+  // nicht seine knappe Zeit mit sozialen Netzwerken oder Ticketshops.
+  pages.sort((a, b) => {
+    const aScore = a.title === "Offizielle Website (Wikidata)" ? 100 : personImagePageScore(a.url);
+    const bScore = b.title === "Offizielle Website (Wikidata)" ? 100 : personImagePageScore(b.url);
+    return bScore - aScore;
+  });
+  for (const page of pages.filter((page) => personImagePageScore(page.url) > -100).slice(0, 6)) {
     try {
       const detected = await detectEventCoverImage(page.url);
       // Viele Agentur-/Künstlerseiten pflegen kein og:image. Dort gezielt
       // ein mit dem Namen beschriftetes Bild suchen, statt den Treffer trotz
       // vorhandenen Porträts wegzuwerfen.
-      const imageUrl = detected?.url ?? await extractImageNearName(page.url, name);
+      // Auch bei einem generisch wirkenden og:image weiter suchen: Dateinamen
+      // wie "artist-events.jpg" können auf der offiziellen Künstlerseite
+      // trotzdem ein korrektes Porträt sein. Der namensbezogene Treffer ist
+      // in diesem Fall die sicherere Wahl.
+      let imageUrl = detected?.url ?? null;
+      if (!imageUrl || isLikelyGenericImage(imageUrl)) {
+        imageUrl = await extractImageNearName(page.url, name);
+      }
       if (!imageUrl || isLikelyGenericImage(imageUrl)) continue;
       const { reachable } = await checkImageUrl(imageUrl);
       if (!reachable || await isUrlUsedElsewhere(supabase, imageUrl, kind.table, id)) continue;
@@ -1003,7 +1027,7 @@ async function tryPersonWebImageFallback(
         photographer: detected?.credits ?? null,
         licenseStatus: detected?.credits ? "official_press_image" : "permission_required",
         confidenceScore: 0.72,
-        matchReason: `Websuche nach „${name}“${page.title ? ` — Treffer „${page.title}“` : ""}.`,
+        matchReason: `Kostenfreie Websuche nach „${name}“${page.title ? ` — Treffer „${page.title}“` : ""}.`,
         warnings: ["Identität, Bildcredit und Nutzungserlaubnis vor Veröffentlichung prüfen."],
         needsReview: true,
       });
