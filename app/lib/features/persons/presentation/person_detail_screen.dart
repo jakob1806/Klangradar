@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/constants/role_labels.dart';
 import '../../../core/gallery/entity_gallery_providers.dart';
+import '../../../core/interests/interests_providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/time/munich_time.dart';
@@ -14,6 +15,7 @@ import '../../../core/widgets/detail_hero_background.dart';
 import '../../../core/widgets/entity_event_row.dart';
 import '../../../core/widgets/entity_photo_gallery.dart';
 import '../../../core/widgets/external_links_row.dart';
+import '../../../core/widgets/follow_button.dart';
 import '../../../core/widgets/genre_artwork.dart';
 import '../../../core/widgets/past_events_expansion.dart';
 import '../../../core/widgets/report_content_sheet.dart';
@@ -174,6 +176,12 @@ class PersonDetailScreen extends ConsumerWidget {
                 pinned: true,
                 backgroundColor: colors.backgroundPrimary,
                 iconTheme: const IconThemeData(color: Colors.white),
+                actions: [
+                  FollowButton(
+                    category: InterestCategory.person,
+                    entityId: person['id'] as String,
+                  ),
+                ],
                 flexibleSpace: FlexibleSpaceBar(
                   background: gallery.maybeWhen(
                     data: (images) {

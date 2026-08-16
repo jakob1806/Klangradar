@@ -871,6 +871,45 @@ class AppLocalizationsEn extends AppLocalizations {
   String get interestsNoResults => 'No matches.';
 
   @override
+  String get followSignInPrompt =>
+      'Please sign in on the Profile tab to follow.';
+
+  @override
+  String get followLabelActive => 'Following';
+
+  @override
+  String get followLabelInactive => 'Not following';
+
+  @override
+  String get myFollowsAppBarTitle => 'Following';
+
+  @override
+  String get myFollowsSignInPrompt =>
+      'Please sign in on the Profile tab to see who you follow.';
+
+  @override
+  String get myFollowsEmptyState =>
+      'You\'re not following anyone yet. Tap the bookmark icon on a person, ensemble or venue page.';
+
+  @override
+  String get myFollowsSectionPersons => 'People';
+
+  @override
+  String get myFollowsSectionEnsembles => 'Ensembles';
+
+  @override
+  String get myFollowsSectionVenues => 'Venues';
+
+  @override
+  String get myFollowsNotifyTooltipOn => 'Notifications for new concerts on';
+
+  @override
+  String get myFollowsNotifyTooltipOff => 'Notifications for new concerts off';
+
+  @override
+  String get myFollowsUnfollowTooltip => 'Unfollow';
+
+  @override
   String get mapAttribution => '© OpenStreetMap contributors';
 
   @override
@@ -1069,6 +1108,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get profileMyFavorites => 'My favorites';
+
+  @override
+  String get profileMyFollows => 'Following';
 
   @override
   String get profileInterests => 'Interests';

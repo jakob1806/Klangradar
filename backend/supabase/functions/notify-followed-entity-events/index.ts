@@ -77,29 +77,35 @@ Deno.serve(async (req) => {
       const ensembleIDs = (participantRows ?? []).map((r) => r.ensemble_id).filter((v): v is string => !!v);
 
       // Alle Nutzer sammeln, die MINDESTENS eine der beteiligten Entitäten
-      // folgen — Set statt Array, ein Nutzer soll pro Event nur einmal
-      // benachrichtigt werden, auch wenn er z.B. Venue UND Solist:in folgt.
+      // folgen UND für diese konkrete Entität Benachrichtigungen nicht
+      // abgeschaltet haben (notify_new_events, siehe
+      // 20261016000010_follow_per_entity_notifications.sql) — Set statt
+      // Array, ein Nutzer soll pro Event nur einmal benachrichtigt werden,
+      // auch wenn er z.B. Venue UND Solist:in folgt.
       const followerIDs = new Set<string>();
 
       if (event.venue_id) {
         const { data } = await supabase
           .from("user_favorite_venues")
           .select("user_id")
-          .eq("venue_id", event.venue_id);
+          .eq("venue_id", event.venue_id)
+          .eq("notify_new_events", true);
         for (const row of data ?? []) followerIDs.add(row.user_id as string);
       }
       if (personIDs.length > 0) {
         const { data } = await supabase
           .from("user_favorite_persons")
           .select("user_id")
-          .in("person_id", personIDs);
+          .in("person_id", personIDs)
+          .eq("notify_new_events", true);
         for (const row of data ?? []) followerIDs.add(row.user_id as string);
       }
       if (ensembleIDs.length > 0) {
         const { data } = await supabase
           .from("user_favorite_ensembles")
           .select("user_id")
-          .in("ensemble_id", ensembleIDs);
+          .in("ensemble_id", ensembleIDs)
+          .eq("notify_new_events", true);
         for (const row of data ?? []) followerIDs.add(row.user_id as string);
       }
 

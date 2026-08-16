@@ -319,6 +319,19 @@
   "@interestsSelectedCount": {"placeholders": {"count": {"type": "int"}}},
   "interestsNoResults": "Keine Treffer.",
 
+  "followSignInPrompt": "Zum Folgen bitte im Profil-Tab anmelden.",
+  "followLabelActive": "Gefolgt",
+  "followLabelInactive": "Nicht gefolgt",
+  "myFollowsAppBarTitle": "Meine Verfolgungen",
+  "myFollowsSignInPrompt": "Bitte im Profil-Tab anmelden, um deine Verfolgungen zu sehen.",
+  "myFollowsEmptyState": "Du folgst noch niemandem. Tippe auf einer Personen-, Ensemble- oder Venue-Seite auf das Lesezeichen-Symbol.",
+  "myFollowsSectionPersons": "Personen",
+  "myFollowsSectionEnsembles": "Ensembles",
+  "myFollowsSectionVenues": "Venues",
+  "myFollowsNotifyTooltipOn": "Benachrichtigungen bei neuen Konzerten an",
+  "myFollowsNotifyTooltipOff": "Benachrichtigungen bei neuen Konzerten aus",
+  "myFollowsUnfollowTooltip": "Entfolgen",
+
   "mapAttribution": "© OpenStreetMap-Mitwirkende",
   "mapFilterLabel": "Filter",
   "mapFilterLabelCount": "Filter ({count})",
@@ -386,6 +399,7 @@
 
   "profileSignedIn": "Angemeldet",
   "profileMyFavorites": "Meine Favoriten",
+  "profileMyFollows": "Meine Verfolgungen",
   "profileInterests": "Interessen",
   "profileNotifications": "Benachrichtigungen",
   "profileMyLists": "Meine Listen",

@@ -5,6 +5,7 @@ import '../../features/calendar/presentation/calendar_screen.dart';
 import '../../features/collections/presentation/collection_detail_screen.dart';
 import '../../features/event_detail/presentation/event_detail_screen.dart';
 import '../../features/favorites/presentation/favorites_screen.dart';
+import '../../features/follows/presentation/my_follows_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
 import '../../features/interests/presentation/interests_screen.dart';
 import '../../features/map/presentation/map_screen.dart';
@@ -131,6 +132,11 @@ GoRouter buildAppRouter({String initialLocation = '/home'}) => GoRouter(
       path: '/interests',
       parentNavigatorKey: rootNavigatorKey,
       builder: (context, state) => const InterestsScreen(),
+    ),
+    GoRoute(
+      path: '/follows',
+      parentNavigatorKey: rootNavigatorKey,
+      builder: (context, state) => const MyFollowsScreen(),
     ),
     GoRoute(
       path: '/notification-settings',
