@@ -54,6 +54,7 @@ const NAV_GROUPS = [
     label: "System",
     items: [
       { href: "/sources", label: "Datenquellen & Import" },
+      { href: "/source-health", label: "Quellen-Gesundheit" },
       { href: "/users", label: "Benutzer" },
     ],
   },
