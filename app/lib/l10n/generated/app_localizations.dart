@@ -158,6 +158,18 @@ abstract class AppLocalizations {
   /// **'Demnächst ausverkauft'**
   String get homeSectionAlmostSoldOut;
 
+  /// No description provided for @homeSectionEntityNews.
+  ///
+  /// In de, this message translates to:
+  /// **'Deine Orte & Ensembles haben Neuigkeiten'**
+  String get homeSectionEntityNews;
+
+  /// No description provided for @homeSectionFestival.
+  ///
+  /// In de, this message translates to:
+  /// **'Festival gerade in München'**
+  String get homeSectionFestival;
+
   /// No description provided for @homeSectionFree.
   ///
   /// In de, this message translates to:

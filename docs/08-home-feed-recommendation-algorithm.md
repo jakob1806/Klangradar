@@ -1,5 +1,29 @@
 # 08 – Home-Feed: Empfehlungsalgorithmus & redaktionelles Kuratieren
 
+> **Umsetzungsstatus (2026-08-16):** Phase A und Phase B (Abschnitt 10) sind
+> vollständig umgesetzt — alle 9 Module aus Abschnitt 3 laufen live
+> (inkl. Hero-Personalisierung, "Dein Ort/Ensemble hat Neuigkeiten",
+> Saisonal/Festival), Diversitätsregeln 1–4 aus Abschnitt 5 sind aktiv,
+> Ticketklick-/Verweildauer-Tracking läuft im Client. Details:
+> `backend/supabase/migrations/20261016000009_home_feed_phase_b.sql`,
+> `app/lib/features/home/application/home_providers.dart`. Zwei bewusste
+> Abweichungen vom Entwurf: (1) `profile_interest_ensembles` aus Abschnitt 9
+> wurde NICHT angelegt — Ensemble-Interesse existiert bereits als
+> `user_favorite_ensembles` seit dem MVP; (2) Ticketklick-/Verweildauer-
+> Signale sind keine eigenen additiven Summanden, sondern zusätzliche
+> Evidenz für die bestehenden Venue-/Personen-/Ensemble-Interesse-Signale
+> (siehe Kommentar in der Migration). Diversitätsregel 5 (Greedy-MMR-
+> Re-Ranking) und die `home_feed_modules`-Konfigurationstabelle (Abschnitt
+> 9, macht neue Module deploy-frei) sind bewusst NICHT gebaut — beide sind
+> Verfeinerungen ohne unmittelbaren Nutzerwert bei der aktuellen Modulzahl
+> (9 fest codierte Module wie bisher), nicht Blocker für ein vollständiges
+> Kuratieren. Phase C (Abschnitt 8/10, ML-Ranking, zweite Stadt) bleibt wie
+> geplant zurückgestellt. Das Festival-Modul ist technisch live, aber
+> praktisch noch inaktiv: die einzige `festivals`-Zeile ("Münchner
+> Opernfestspiele") hat noch kein `start_date`/`end_date` gesetzt — das ist
+> jetzt eine redaktionelle Aufgabe (`/festivals` im Admin-Dashboard), keine
+> Code-Aufgabe.
+
 Ziel: der Home-Feed wird von einer festen Abfolge generischer Event-Listen
 (Ist-Zustand) zu einem täglich frischen, personalisierten "digitalen
 Kulturmagazin" — kuratiert wie Spotifys Startseite, nicht durchsucht wie

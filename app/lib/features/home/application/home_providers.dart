@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -53,8 +55,8 @@ class HomeEventItem {
     final venueName = venueBase == null
         ? null
         : venueDetail == null || venueDetail.isEmpty
-            ? venueBase
-            : '$venueBase · $venueDetail';
+        ? venueBase
+        : '$venueBase · $venueDetail';
     final genreSlugs = (row['event_genres'] as List? ?? [])
         .map((g) => g['genres']?['slug'] as String?)
         .whereType<String>();
@@ -108,41 +110,49 @@ class HomeData {
     required this.heute,
     required this.empfehlungen,
     required this.entdecken,
+    required this.entityNews,
     required this.beliebt,
     required this.kostenlos,
     required this.ausverkauft,
+    required this.festival,
+    this.festivalName,
   });
 
   final Map<String, dynamic>? hero;
   final List<HomeEventItem> heute;
   final List<HomeEventItem> empfehlungen;
   final List<HomeEventItem> entdecken;
+  final List<HomeEventItem> entityNews;
   final List<HomeEventItem> beliebt;
   final List<HomeEventItem> kostenlos;
   final List<HomeEventItem> ausverkauft;
+  final List<HomeEventItem> festival;
+  final String? festivalName;
 }
 
 /// Modul-Reihenfolge nach docs/08-home-feed-recommendation-algorithm.md,
 /// Abschnitt 3 — bestimmt gleichzeitig die Priorität fürs Cross-Modul-
 /// Dedup in [_applyDiversity]: ein Event, das in einem früheren Modul
-/// schon gezeigt wurde, verschwindet aus allen späteren.
-/// "Dein Ort hat Neuigkeiten" und "Saisonal/Festival" (ebenfalls in
-/// Abschnitt 3 vorgesehen) fehlen hier bewusst — beide brauchen laut
-/// Abschnitt 9 noch nicht existierendes Schema (Phase B), nicht Teil
-/// dieser ersten Umsetzung.
+/// schon gezeigt wurde, verschwindet aus allen späteren. "Dein Ort/
+/// Ensemble hat Neuigkeiten" (5.) und "Saisonal/Festival" (7.) sind jetzt
+/// Teil der Reihenfolge (Phase B, entity_news_events()/festival_events()).
 @visibleForTesting
 List<List<HomeEventItem>> orderedModulesForTesting(
   List<HomeEventItem> heute,
   List<HomeEventItem> empfehlungen,
   List<HomeEventItem> entdecken,
+  List<HomeEventItem> entityNews,
   List<HomeEventItem> ausverkauft,
+  List<HomeEventItem> festival,
   List<HomeEventItem> kostenlos,
   List<HomeEventItem> beliebt,
 ) => _orderedModules(
   heute,
   empfehlungen,
   entdecken,
+  entityNews,
   ausverkauft,
+  festival,
   kostenlos,
   beliebt,
 );
@@ -151,10 +161,21 @@ List<List<HomeEventItem>> _orderedModules(
   List<HomeEventItem> heute,
   List<HomeEventItem> empfehlungen,
   List<HomeEventItem> entdecken,
+  List<HomeEventItem> entityNews,
   List<HomeEventItem> ausverkauft,
+  List<HomeEventItem> festival,
   List<HomeEventItem> kostenlos,
   List<HomeEventItem> beliebt,
-) => [heute, empfehlungen, entdecken, ausverkauft, kostenlos, beliebt];
+) => [
+  heute,
+  empfehlungen,
+  entdecken,
+  entityNews,
+  ausverkauft,
+  festival,
+  kostenlos,
+  beliebt,
+];
 
 /// Diversitätsregeln 1–3 aus docs/08, Abschnitt 5: kein Event doppelt im
 /// selben Feed (modulübergreifend, [seenEventIds] wird beim Aufrufer über
@@ -227,13 +248,11 @@ final homeDataProvider = FutureProvider.autoDispose<HomeData>((ref) async {
   final nowIso = now.toIso8601String();
 
   final results = await Future.wait<dynamic>([
-    client
-        .from('events')
-        .select(homeEventColumns)
-        .eq('status', 'scheduled')
-        .gte('start_datetime', nowIso)
-        .order('start_datetime', ascending: true)
-        .limit(1),
+    // Hero (docs/08, Abschnitt 4.2): personalisiertes Scoring + Bildbonus +
+    // Wiederholungs-Malus statt des bisherigen reinen "nächstes Event".
+    // Fällt ohne Login serverseitig automatisch auf "nächstes Event" zurück
+    // (Cold-Start-Stufe 0, Abschnitt 6) — kein Sonderfall hier nötig.
+    client.rpc('hero_event'),
     client
         .from('events')
         .select(homeEventColumns)
@@ -251,6 +270,10 @@ final homeDataProvider = FutureProvider.autoDispose<HomeData>((ref) async {
     // liefert ohne Login oder ohne jede Historie bewusst eine leere Liste
     // (RPC-seitig, kein Sonderfall hier nötig).
     client.rpc('discovery_events', params: {'p_result_limit': 10}),
+    // "Dein Ort/Ensemble hat Neuigkeiten" (docs/08, Abschnitt 3.5): neu
+    // hinzugekommene Events an gefolgten Venues/Personen/Ensembles. Ohne
+    // Login leer.
+    client.rpc('entity_news_events', params: {'p_result_limit': 10}),
     client
         .from('events')
         .select(homeEventColumns)
@@ -259,6 +282,10 @@ final homeDataProvider = FutureProvider.autoDispose<HomeData>((ref) async {
         .gte('start_datetime', nowIso)
         .order('start_datetime', ascending: true)
         .limit(10),
+    // Saisonal/Festival (docs/08, Abschnitt 4.4): nur aktiv, wenn now()
+    // in einem Festival-Zeitfenster liegt — sonst leer und das Modul wird
+    // wie jedes andere zu schwache Modul übersprungen.
+    client.rpc('festival_events', params: {'p_result_limit': 10}),
     client
         .from('events')
         .select(homeEventColumns)
@@ -280,13 +307,24 @@ final homeDataProvider = FutureProvider.autoDispose<HomeData>((ref) async {
   final entdecken = (results[3] as List)
       .map((r) => HomeEventItem.fromRow(r as Map<String, dynamic>))
       .toList();
-  final ausverkauft = (results[4] as List)
+  final entityNews = (results[4] as List)
       .map((r) => HomeEventItem.fromRow(r as Map<String, dynamic>))
       .toList();
-  final kostenlos = (results[5] as List)
+  final ausverkauft = (results[5] as List)
       .map((r) => HomeEventItem.fromRow(r as Map<String, dynamic>))
       .toList();
-  final beliebt = (results[6] as List)
+  final festivalRows = results[6] as List;
+  final festival = festivalRows
+      .map((r) => HomeEventItem.fromRow(r as Map<String, dynamic>))
+      .toList();
+  final festivalName = festivalRows.isEmpty
+      ? null
+      : (festivalRows.first as Map<String, dynamic>)['festival_name']
+            as String?;
+  final kostenlos = (results[7] as List)
+      .map((r) => HomeEventItem.fromRow(r as Map<String, dynamic>))
+      .toList();
+  final beliebt = (results[8] as List)
       .map((r) => HomeEventItem.fromRow(r as Map<String, dynamic>))
       .toList();
 
@@ -294,7 +332,9 @@ final homeDataProvider = FutureProvider.autoDispose<HomeData>((ref) async {
     heute,
     empfehlungen,
     entdecken,
+    entityNews,
     ausverkauft,
+    festival,
     kostenlos,
     beliebt,
   );
@@ -312,13 +352,33 @@ final homeDataProvider = FutureProvider.autoDispose<HomeData>((ref) async {
       _applyDiversity(module, seenEventIds, composerIdsByEvent),
   ];
 
+  // Diversitätsregel 4 (docs/08, Abschnitt 5): protokolliert, was Hero/
+  // "Für dich" gerade gezeigt wurde, damit recommended_events()/hero_event()
+  // dieselbe Auswahl 7 bzw. 3 Tage lang nicht wiederholen. Fire-and-forget,
+  // nur für eingeloggte Nutzer (RLS würde anonyme Inserts ohnehin ablehnen).
+  final userId = client.auth.currentUser?.id;
+  if (userId != null) {
+    final impressions = [
+      if (heroId != null)
+        {'user_id': userId, 'event_id': heroId, 'module_key': 'hero'},
+      for (final item in diversified[1])
+        {'user_id': userId, 'event_id': item.id, 'module_key': 'fuer_dich'},
+    ];
+    if (impressions.isNotEmpty) {
+      unawaited(client.from('home_feed_impressions').insert(impressions));
+    }
+  }
+
   return HomeData(
     hero: heroRows.isEmpty ? null : heroRows.first as Map<String, dynamic>,
     heute: diversified[0],
     empfehlungen: diversified[1],
     entdecken: diversified[2],
-    ausverkauft: diversified[3],
-    kostenlos: diversified[4],
-    beliebt: diversified[5],
+    entityNews: diversified[3],
+    ausverkauft: diversified[4],
+    festival: diversified[5],
+    festivalName: festivalName,
+    kostenlos: diversified[6],
+    beliebt: diversified[7],
   );
 });

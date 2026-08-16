@@ -8,14 +8,22 @@ interface FestivalRow {
   id: string;
   name: string;
   recurring: boolean;
+  start_date: string | null;
+  end_date: string | null;
   organizer: { name: string } | null;
+}
+
+function formatDateRange(start: string | null, end: string | null): string {
+  if (!start || !end) return "—";
+  const fmt = (d: string) => new Date(d).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
+  return `${fmt(start)} – ${fmt(end)}`;
 }
 
 export default async function FestivalsPage() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("festivals")
-    .select("id, name, recurring, organizer:organizers(name)")
+    .select("id, name, recurring, start_date, end_date, organizer:organizers(name)")
     .order("name")
     .returns<FestivalRow[]>();
 
@@ -47,6 +55,7 @@ export default async function FestivalsPage() {
               <tr>
                 <th className="type-label px-4 py-3">Name</th>
                 <th className="type-label px-4 py-3">Veranstalter</th>
+                <th className="type-label px-4 py-3">Zeitraum</th>
                 <th className="type-label px-4 py-3">Wiederkehrend</th>
               </tr>
             </thead>
@@ -60,12 +69,13 @@ export default async function FestivalsPage() {
                       </Link>
                     </td>
                     <td className="px-4 py-3 text-neutral-600">{f.organizer?.name ?? "—"}</td>
+                    <td className="px-4 py-3 text-neutral-600">{formatDateRange(f.start_date, f.end_date)}</td>
                     <td className="px-4 py-3 text-neutral-600">{f.recurring ? "Ja" : "Nein"}</td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={3} className="px-4 py-10 text-center text-neutral-400">
+                  <td colSpan={4} className="px-4 py-10 text-center text-neutral-400">
                     Keine Festivals angelegt.
                   </td>
                 </tr>

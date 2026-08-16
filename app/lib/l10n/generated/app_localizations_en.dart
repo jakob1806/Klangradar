@@ -39,6 +39,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homeSectionAlmostSoldOut => 'Selling out soon';
 
   @override
+  String get homeSectionEntityNews => 'News from your places & ensembles';
+
+  @override
+  String get homeSectionFestival => 'Festival happening now in Munich';
+
+  @override
   String get homeSectionFree => 'Free concerts';
 
   @override

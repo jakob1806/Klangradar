@@ -14,7 +14,7 @@ export default async function EditFestivalPage({
   const [{ data, error }, { data: organizers }] = await Promise.all([
     supabase
       .from("festivals")
-      .select("name, slug, description_de, organizer_id, recurring, website_url, photo_url")
+      .select("name, slug, description_de, organizer_id, recurring, website_url, photo_url, start_date, end_date")
       .eq("id", id)
       .maybeSingle<FestivalFormValues>(),
     supabase.from("organizers").select("id, name").order("name"),

@@ -39,6 +39,13 @@ class AppLocalizationsDe extends AppLocalizations {
   String get homeSectionAlmostSoldOut => 'Demnächst ausverkauft';
 
   @override
+  String get homeSectionEntityNews =>
+      'Deine Orte & Ensembles haben Neuigkeiten';
+
+  @override
+  String get homeSectionFestival => 'Festival gerade in München';
+
+  @override
   String get homeSectionFree => 'Kostenlose Konzerte';
 
   @override

@@ -345,369 +345,377 @@ class EventDetailScreen extends ConsumerWidget {
               ? ref.watch(entityGalleryProvider(fallbackGalleryKey))
               : null;
 
-          return CustomScrollView(
-            slivers: [
-              SliverAppBar(
-                expandedHeight: 260,
-                pinned: true,
-                backgroundColor: colors.backgroundPrimary,
-                iconTheme: const IconThemeData(color: Colors.white),
-                actions: [
-                  FavoriteButton(
-                    eventId: event['id'],
-                    activeColor: colors.accentPrimary,
-                    inactiveColor: Colors.white,
-                  ),
-                  IconButton(
-                    icon: const Icon(
-                      Icons.calendar_month_rounded,
-                      color: Colors.white,
-                      size: 20,
+          return _DwellTimeTracker(
+            eventId: event['id'] as String,
+            child: CustomScrollView(
+              slivers: [
+                SliverAppBar(
+                  expandedHeight: 260,
+                  pinned: true,
+                  backgroundColor: colors.backgroundPrimary,
+                  iconTheme: const IconThemeData(color: Colors.white),
+                  actions: [
+                    FavoriteButton(
+                      eventId: event['id'],
+                      activeColor: colors.accentPrimary,
+                      inactiveColor: Colors.white,
                     ),
-                    tooltip: l10n.eventAddToCalendarTooltip,
-                    onPressed: start == null
-                        ? null
-                        : () => _addEventToDeviceCalendar(
-                            context: context,
-                            title: event['title'] ?? '',
-                            description: event['description_de'],
-                            start: start,
-                            durationMinutes: event['duration_minutes'],
-                            location: venue != null
-                                ? '${venue['name']}${event['venue_detail'] != null ? ' · ${event['venue_detail']}' : ''}, ${venue['address_street']}, ${venue['address_zip']} ${venue['address_city']}'
-                                : null,
-                            url: event['website_url'] ?? event['ticket_url'],
-                          ),
-                  ),
-                  IconButton(
-                    icon: const Icon(
-                      Icons.ios_share_rounded,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                    tooltip: l10n.eventShareTooltip,
-                    onPressed: () => Share.share(
-                      '${event['title']}${venue != null ? ' · ${venue['name']}' : ''}'
-                      '${event['website_url'] != null ? '\n${event['website_url']}' : ''}',
-                      sharePositionOrigin: sharePositionOriginFor(context),
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                ],
-                flexibleSpace: FlexibleSpaceBar(
-                  background: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      Builder(
-                        builder: (context) {
-                          final ownImages = gallery.valueOrNull ?? const [];
-                          if (ownImages.isNotEmpty) {
-                            return EntityPhotoGallery(
-                              images: ownImages,
-                              fallbackGenre: primaryGenre,
-                              showGradient: false,
-                            );
-                          }
-                          final fallbackImages =
-                              fallbackGallery?.valueOrNull ?? const [];
-                          if (fallbackImages.isNotEmpty) {
-                            return EntityPhotoGallery(
-                              images: fallbackImages,
-                              fallbackGenre: primaryGenre,
-                              showGradient: false,
-                            );
-                          }
-                          return DetailHeroBackground(
-                            photoUrl: photoUrl,
-                            fallbackGenre: primaryGenre,
-                            showGradient: false,
-                          );
-                        },
+                    IconButton(
+                      icon: const Icon(
+                        Icons.calendar_month_rounded,
+                        color: Colors.white,
+                        size: 20,
                       ),
-                      Container(
-                        decoration: const BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Color(0x59000000),
-                              Colors.transparent,
-                              Color(0xBF000000),
-                            ],
-                            stops: [0.0, 0.35, 1.0],
-                          ),
-                        ),
-                      ),
-                      if (statusBadge != null)
-                        Positioned(
-                          left: 16,
-                          bottom: 16,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 5,
+                      tooltip: l10n.eventAddToCalendarTooltip,
+                      onPressed: start == null
+                          ? null
+                          : () => _addEventToDeviceCalendar(
+                              context: context,
+                              title: event['title'] ?? '',
+                              description: event['description_de'],
+                              start: start,
+                              durationMinutes: event['duration_minutes'],
+                              location: venue != null
+                                  ? '${venue['name']}${event['venue_detail'] != null ? ' · ${event['venue_detail']}' : ''}, ${venue['address_street']}, ${venue['address_zip']} ${venue['address_city']}'
+                                  : null,
+                              url: event['website_url'] ?? event['ticket_url'],
                             ),
-                            decoration: BoxDecoration(
-                              color: colors.error,
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Text(
-                              statusBadge,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.screenPaddingMobile,
-                  AppSpacing.lg,
-                  AppSpacing.screenPaddingMobile,
-                  0,
-                ),
-                sliver: SliverList.list(
-                  children: [
-                    Text(
-                      event['title'] ?? '',
-                      style: Theme.of(context).textTheme.headlineLarge,
                     ),
-                    if (event['subtitle'] != null) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        event['subtitle'],
-                        style: TextStyle(
-                          color: colors.textSecondary,
-                          fontSize: 14,
-                        ),
+                    IconButton(
+                      icon: const Icon(
+                        Icons.ios_share_rounded,
+                        color: Colors.white,
+                        size: 20,
                       ),
-                    ],
-                    const SizedBox(height: AppSpacing.sm),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: [
-                        // Antippbar (Nutzerwunsch: "schön wäre es, dass man
-                        // sie antippen kann und dann alle Veranstaltungen mit
-                        // dieser Kategorie sehen kann") — setzt denselben
-                        // eventFiltersProvider, den auch die Filter-Sheet/
-                        // Karten-Chips nutzen, und wechselt zum Suche-Tab,
-                        // der bei aktivem Filter automatisch die gefilterte
-                        // Liste statt der Sucheingabe zeigt.
-                        for (final genre in genrePairs)
-                          ActionChip(
-                            label: Text(
-                              genre.label,
-                              style: const TextStyle(fontSize: 11),
-                            ),
-                            visualDensity: VisualDensity.compact,
-                            onPressed: () {
-                              ref.read(eventFiltersProvider.notifier).state =
-                                  EventFilters(genreIds: {genre.id});
-                              context.go('/search');
-                            },
-                          ),
-                        if (event['is_free'] == true)
-                          Chip(
-                            label: Text(
-                              l10n.eventFree,
-                              style: const TextStyle(fontSize: 11),
-                            ),
-                            backgroundColor: colors.success.withValues(
-                              alpha: 0.15,
-                            ),
-                            visualDensity: VisualDensity.compact,
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    Text(
-                      [
-                        if (start != null)
-                          l10n.eventDateTimeLine(
-                            _weekday(l10n, start),
-                            '${start.day}.${start.month}.${start.year}',
-                            _time(start),
-                          ),
-                        if (event['duration_minutes'] != null)
-                          '${l10n.eventMinutes(event['duration_minutes'])}${event['has_intermission'] == true ? l10n.eventIncludingIntermission : ''}',
-                      ].join(' — '),
-                      style: TextStyle(
-                        color: colors.textSecondary,
-                        fontSize: 13,
+                      tooltip: l10n.eventShareTooltip,
+                      onPressed: () => Share.share(
+                        '${event['title']}${venue != null ? ' · ${venue['name']}' : ''}'
+                        '${event['website_url'] != null ? '\n${event['website_url']}' : ''}',
+                        sharePositionOrigin: sharePositionOriginFor(context),
                       ),
                     ),
-                    if (venue != null) ...[
-                      const SizedBox(height: 4),
-                      GestureDetector(
-                        onTap: () => context.push('/venue/${venue['slug']}'),
-                        child: Text(
-                          '${venue['name']}${event['venue_detail'] != null ? ' · ${event['venue_detail']}' : ''} — ${venue['address_street']}, ${venue['address_zip']} ${venue['address_city']}',
-                          style: TextStyle(
-                            color: colors.accentPrimary,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                    _ChangesNotice(
-                      changes: (event['_changes'] as List?) ?? const [],
-                      colors: colors,
-                    ),
-                    _TicketInfoSection(event: event, colors: colors),
-                    // description_de kommt bei vielen Quellen als reine
-                    // Komma-Aufzählung der Werke/Komponisten (die
-                    // Quell-Website selbst schreibt sie so, keine
-                    // KI-Erfindung) — sobald ein geparstes Programm
-                    // existiert, würde die Ansicht dieselbe Information
-                    // zweimal zeigen (einmal als Fließtext, einmal als
-                    // "Programm"-Liste direkt darunter). Nur ohne
-                    // Programm zeigen.
-                    if (event['description_de'] != null && works.isEmpty) ...[
-                      const SizedBox(height: AppSpacing.lg),
-                      Text(
-                        event['description_de'],
-                        style: TextStyle(
-                          color: colors.textPrimary,
-                          fontSize: 14,
-                          height: 1.5,
-                        ),
-                      ),
-                    ],
-                    if (event['program_id'] != null)
-                      _OtherDatesSection(
-                        programId: event['program_id'] as String,
-                        currentEventId: event['id'] as String,
-                        colors: colors,
-                      ),
-                    if (works.isNotEmpty) ...[
-                      const SizedBox(height: AppSpacing.xl),
-                      Text(
-                        l10n.eventProgramTitle,
-                        style: Theme.of(context).textTheme.headlineSmall,
-                      ),
-                      const SizedBox(height: AppSpacing.sm),
-                      DetailCard(
-                        children: [
-                          for (final w in works)
-                            Padding(
-                              padding: const EdgeInsets.all(AppSpacing.md),
-                              child: _ProgramRow(
-                                work: w,
-                                colors: colors,
-                                sources:
-                                    workSources[w['works']?['id']] ?? const {},
-                              ),
-                            ),
-                        ],
-                      ),
-                    ],
-                    if (participants.isNotEmpty) ...[
-                      const SizedBox(height: AppSpacing.xl),
-                      Text(
-                        l10n.eventParticipantsTitle,
-                        style: Theme.of(context).textTheme.headlineSmall,
-                      ),
-                      const SizedBox(height: AppSpacing.sm),
-                      DetailCard(
-                        children: [
-                          for (final p in participants)
-                            _ParticipantRow(participant: p, colors: colors),
-                        ],
-                      ),
-                    ],
-                    if (accessibility.values.any((v) => v == true)) ...[
-                      const SizedBox(height: AppSpacing.xl),
-                      Text(
-                        l10n.eventAccessibilityTitle,
-                        style: Theme.of(context).textTheme.headlineSmall,
-                      ),
-                      const SizedBox(height: AppSpacing.sm),
-                      Wrap(
-                        spacing: 8,
-                        children: [
-                          if (accessibility['wheelchair'] == true)
-                            Chip(
-                              label: Text(l10n.eventAccessibilityWheelchair),
-                            ),
-                          if (accessibility['hearing_loop'] == true)
-                            Chip(
-                              label: Text(l10n.eventAccessibilityHearingLoop),
-                            ),
-                          if (accessibility['sign_language'] == true)
-                            Chip(
-                              label: Text(l10n.eventAccessibilitySignLanguage),
-                            ),
-                        ],
-                      ),
-                    ],
-                    if (event['attribution_notice'] != null ||
-                        event['last_verified_at'] != null) ...[
-                      const SizedBox(height: AppSpacing.xl),
-                      if (event['attribution_notice'] != null)
-                        _AttributionNotice(
-                          notice: event['attribution_notice'] as String,
-                          licenseUrl:
-                              event['attribution_license_url'] as String?,
-                          colors: colors,
-                        ),
-                      if (event['last_verified_at'] != null) ...[
-                        if (event['attribution_notice'] != null)
-                          const SizedBox(height: 2),
-                        Text(
-                          l10n.eventLastVerified(
-                            _formatVerifiedDate(
-                              DateTime.parse(
-                                event['last_verified_at'] as String,
-                              ),
-                            ),
-                          ),
-                          style: TextStyle(
-                            color: colors.textTertiary,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
-                    ],
-                    const SizedBox(height: AppSpacing.sm),
-                    ReportContentLink(
-                      entityType: 'event',
-                      entityId: event['id'] as String,
-                    ),
+                    const SizedBox(width: 4),
                   ],
+                  flexibleSpace: FlexibleSpaceBar(
+                    background: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Builder(
+                          builder: (context) {
+                            final ownImages = gallery.valueOrNull ?? const [];
+                            if (ownImages.isNotEmpty) {
+                              return EntityPhotoGallery(
+                                images: ownImages,
+                                fallbackGenre: primaryGenre,
+                                showGradient: false,
+                              );
+                            }
+                            final fallbackImages =
+                                fallbackGallery?.valueOrNull ?? const [];
+                            if (fallbackImages.isNotEmpty) {
+                              return EntityPhotoGallery(
+                                images: fallbackImages,
+                                fallbackGenre: primaryGenre,
+                                showGradient: false,
+                              );
+                            }
+                            return DetailHeroBackground(
+                              photoUrl: photoUrl,
+                              fallbackGenre: primaryGenre,
+                              showGradient: false,
+                            );
+                          },
+                        ),
+                        Container(
+                          decoration: const BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Color(0x59000000),
+                                Colors.transparent,
+                                Color(0xBF000000),
+                              ],
+                              stops: [0.0, 0.35, 1.0],
+                            ),
+                          ),
+                        ),
+                        if (statusBadge != null)
+                          Positioned(
+                            left: 16,
+                            bottom: 16,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: colors.error,
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                statusBadge,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
-              if (venue != null)
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(
                     AppSpacing.screenPaddingMobile,
-                    AppSpacing.xl,
+                    AppSpacing.lg,
                     AppSpacing.screenPaddingMobile,
                     0,
                   ),
-                  sliver: SliverToBoxAdapter(
-                    child: _VenueSection(venue: venue, colors: colors),
+                  sliver: SliverList.list(
+                    children: [
+                      Text(
+                        event['title'] ?? '',
+                        style: Theme.of(context).textTheme.headlineLarge,
+                      ),
+                      if (event['subtitle'] != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          event['subtitle'],
+                          style: TextStyle(
+                            color: colors.textSecondary,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: AppSpacing.sm),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          // Antippbar (Nutzerwunsch: "schön wäre es, dass man
+                          // sie antippen kann und dann alle Veranstaltungen mit
+                          // dieser Kategorie sehen kann") — setzt denselben
+                          // eventFiltersProvider, den auch die Filter-Sheet/
+                          // Karten-Chips nutzen, und wechselt zum Suche-Tab,
+                          // der bei aktivem Filter automatisch die gefilterte
+                          // Liste statt der Sucheingabe zeigt.
+                          for (final genre in genrePairs)
+                            ActionChip(
+                              label: Text(
+                                genre.label,
+                                style: const TextStyle(fontSize: 11),
+                              ),
+                              visualDensity: VisualDensity.compact,
+                              onPressed: () {
+                                ref.read(eventFiltersProvider.notifier).state =
+                                    EventFilters(genreIds: {genre.id});
+                                context.go('/search');
+                              },
+                            ),
+                          if (event['is_free'] == true)
+                            Chip(
+                              label: Text(
+                                l10n.eventFree,
+                                style: const TextStyle(fontSize: 11),
+                              ),
+                              backgroundColor: colors.success.withValues(
+                                alpha: 0.15,
+                              ),
+                              visualDensity: VisualDensity.compact,
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      Text(
+                        [
+                          if (start != null)
+                            l10n.eventDateTimeLine(
+                              _weekday(l10n, start),
+                              '${start.day}.${start.month}.${start.year}',
+                              _time(start),
+                            ),
+                          if (event['duration_minutes'] != null)
+                            '${l10n.eventMinutes(event['duration_minutes'])}${event['has_intermission'] == true ? l10n.eventIncludingIntermission : ''}',
+                        ].join(' — '),
+                        style: TextStyle(
+                          color: colors.textSecondary,
+                          fontSize: 13,
+                        ),
+                      ),
+                      if (venue != null) ...[
+                        const SizedBox(height: 4),
+                        GestureDetector(
+                          onTap: () => context.push('/venue/${venue['slug']}'),
+                          child: Text(
+                            '${venue['name']}${event['venue_detail'] != null ? ' · ${event['venue_detail']}' : ''} — ${venue['address_street']}, ${venue['address_zip']} ${venue['address_city']}',
+                            style: TextStyle(
+                              color: colors.accentPrimary,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                      _ChangesNotice(
+                        changes: (event['_changes'] as List?) ?? const [],
+                        colors: colors,
+                      ),
+                      _TicketInfoSection(event: event, colors: colors),
+                      // description_de kommt bei vielen Quellen als reine
+                      // Komma-Aufzählung der Werke/Komponisten (die
+                      // Quell-Website selbst schreibt sie so, keine
+                      // KI-Erfindung) — sobald ein geparstes Programm
+                      // existiert, würde die Ansicht dieselbe Information
+                      // zweimal zeigen (einmal als Fließtext, einmal als
+                      // "Programm"-Liste direkt darunter). Nur ohne
+                      // Programm zeigen.
+                      if (event['description_de'] != null && works.isEmpty) ...[
+                        const SizedBox(height: AppSpacing.lg),
+                        Text(
+                          event['description_de'],
+                          style: TextStyle(
+                            color: colors.textPrimary,
+                            fontSize: 14,
+                            height: 1.5,
+                          ),
+                        ),
+                      ],
+                      if (event['program_id'] != null)
+                        _OtherDatesSection(
+                          programId: event['program_id'] as String,
+                          currentEventId: event['id'] as String,
+                          colors: colors,
+                        ),
+                      if (works.isNotEmpty) ...[
+                        const SizedBox(height: AppSpacing.xl),
+                        Text(
+                          l10n.eventProgramTitle,
+                          style: Theme.of(context).textTheme.headlineSmall,
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        DetailCard(
+                          children: [
+                            for (final w in works)
+                              Padding(
+                                padding: const EdgeInsets.all(AppSpacing.md),
+                                child: _ProgramRow(
+                                  work: w,
+                                  colors: colors,
+                                  sources:
+                                      workSources[w['works']?['id']] ??
+                                      const {},
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
+                      if (participants.isNotEmpty) ...[
+                        const SizedBox(height: AppSpacing.xl),
+                        Text(
+                          l10n.eventParticipantsTitle,
+                          style: Theme.of(context).textTheme.headlineSmall,
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        DetailCard(
+                          children: [
+                            for (final p in participants)
+                              _ParticipantRow(participant: p, colors: colors),
+                          ],
+                        ),
+                      ],
+                      if (accessibility.values.any((v) => v == true)) ...[
+                        const SizedBox(height: AppSpacing.xl),
+                        Text(
+                          l10n.eventAccessibilityTitle,
+                          style: Theme.of(context).textTheme.headlineSmall,
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        Wrap(
+                          spacing: 8,
+                          children: [
+                            if (accessibility['wheelchair'] == true)
+                              Chip(
+                                label: Text(l10n.eventAccessibilityWheelchair),
+                              ),
+                            if (accessibility['hearing_loop'] == true)
+                              Chip(
+                                label: Text(l10n.eventAccessibilityHearingLoop),
+                              ),
+                            if (accessibility['sign_language'] == true)
+                              Chip(
+                                label: Text(
+                                  l10n.eventAccessibilitySignLanguage,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
+                      if (event['attribution_notice'] != null ||
+                          event['last_verified_at'] != null) ...[
+                        const SizedBox(height: AppSpacing.xl),
+                        if (event['attribution_notice'] != null)
+                          _AttributionNotice(
+                            notice: event['attribution_notice'] as String,
+                            licenseUrl:
+                                event['attribution_license_url'] as String?,
+                            colors: colors,
+                          ),
+                        if (event['last_verified_at'] != null) ...[
+                          if (event['attribution_notice'] != null)
+                            const SizedBox(height: 2),
+                          Text(
+                            l10n.eventLastVerified(
+                              _formatVerifiedDate(
+                                DateTime.parse(
+                                  event['last_verified_at'] as String,
+                                ),
+                              ),
+                            ),
+                            style: TextStyle(
+                              color: colors.textTertiary,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ],
+                      const SizedBox(height: AppSpacing.sm),
+                      ReportContentLink(
+                        entityType: 'event',
+                        entityId: event['id'] as String,
+                      ),
+                    ],
                   ),
                 ),
-              if (similarEvents.isNotEmpty)
-                SliverPadding(
-                  padding: const EdgeInsets.only(top: AppSpacing.xl),
-                  sliver: SliverToBoxAdapter(
-                    child: EventSection(
-                      title: l10n.eventSimilarEvents,
-                      events: similarEvents,
+                if (venue != null)
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.screenPaddingMobile,
+                      AppSpacing.xl,
+                      AppSpacing.screenPaddingMobile,
+                      0,
+                    ),
+                    sliver: SliverToBoxAdapter(
+                      child: _VenueSection(venue: venue, colors: colors),
                     ),
                   ),
+                if (similarEvents.isNotEmpty)
+                  SliverPadding(
+                    padding: const EdgeInsets.only(top: AppSpacing.xl),
+                    sliver: SliverToBoxAdapter(
+                      child: EventSection(
+                        title: l10n.eventSimilarEvents,
+                        events: similarEvents,
+                      ),
+                    ),
+                  ),
+                const SliverToBoxAdapter(
+                  child: SizedBox(height: AppSpacing.xl),
                 ),
-              const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.xl)),
-            ],
+              ],
+            ),
           );
         },
       ),
@@ -764,6 +772,54 @@ List<String> _fullMonthNames(AppLocalizations l10n) => [
   l10n.monthNovember,
   l10n.monthDecember,
 ];
+
+/// Verweildauer-Tracking (docs/08-home-feed-recommendation-algorithm.md,
+/// Abschnitt 4.1/9) — misst, wie lange die Detailseite offen war, und
+/// schreibt das bei dispose() in event_views.duration_seconds nach. Der
+/// event_views-Insert selbst passiert weiter fire-and-forget in
+/// _eventProvider (dort kennen wir nur den Startzeitpunkt); hier wird nur
+/// die zuletzt offene, noch nicht abgeschlossene Zeile derselben Person für
+/// dieses Event aktualisiert — kein neuer Nachschlag nach einer konkreten
+/// Zeilen-ID nötig. Nur für eingeloggte Nutzer:innen, gleiche Einschränkung
+/// wie der event_views-Insert.
+class _DwellTimeTracker extends StatefulWidget {
+  const _DwellTimeTracker({required this.eventId, required this.child});
+  final String eventId;
+  final Widget child;
+
+  @override
+  State<_DwellTimeTracker> createState() => _DwellTimeTrackerState();
+}
+
+class _DwellTimeTrackerState extends State<_DwellTimeTracker> {
+  late final DateTime _openedAt;
+
+  @override
+  void initState() {
+    super.initState();
+    _openedAt = DateTime.now();
+  }
+
+  @override
+  void dispose() {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId != null) {
+      final seconds = DateTime.now().difference(_openedAt).inSeconds;
+      unawaited(
+        Supabase.instance.client
+            .from('event_views')
+            .update({'duration_seconds': seconds})
+            .eq('user_id', userId)
+            .eq('event_id', widget.eventId)
+            .isFilter('duration_seconds', null),
+      );
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
 
 /// "Weitere Termine": andere Aufführungen desselben Konzerts (gleiches
 /// events.program_id), tappable zum jeweils anderen Event — Nutzeranfrage:
@@ -1523,10 +1579,29 @@ class _TicketBar extends StatelessWidget {
               ),
               if (link != null)
                 ElevatedButton(
-                  onPressed: () => launchUrl(
-                    Uri.parse(link),
-                    mode: LaunchMode.externalApplication,
-                  ),
+                  onPressed: () {
+                    // Ticketklick-Signal (docs/08-home-feed-recommendation-
+                    // algorithm.md, Abschnitt 4.1/9) — stärkeres Intent-
+                    // Signal als ein reiner Seitenaufruf, fließt in
+                    // recommended_events()/hero_event() als zusätzliche
+                    // Venue-/Mitwirkenden-Interesse-Evidenz ein. Nur für
+                    // eingeloggte Nutzer (gleiche Einschränkung wie der
+                    // event_views-Insert oben im Provider).
+                    final userId =
+                        Supabase.instance.client.auth.currentUser?.id;
+                    if (userId != null) {
+                      unawaited(
+                        Supabase.instance.client.from('ticket_clicks').insert({
+                          'user_id': userId,
+                          'event_id': event['id'],
+                        }),
+                      );
+                    }
+                    launchUrl(
+                      Uri.parse(link),
+                      mode: LaunchMode.externalApplication,
+                    );
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: colors.accentPrimary,
                   ),
