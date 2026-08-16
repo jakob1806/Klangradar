@@ -129,6 +129,14 @@ export async function checkImageUrl(url: string): Promise<ImageCheckResult> {
  * Fälle anhand des URL-Musters. */
 export function isLikelyGenericImage(url: string): boolean {
   const path = url.toLowerCase();
+  // .svg zusätzlich zur URL-Muster-Erkennung: in der Praxis (siehe
+  // officialSiteImageSearch.ts/isDecorative und readerProxyImage.ts, die
+  // beide unabhängig auf dieselbe Regel kamen) sind SVGs auf diesen Seiten
+  // praktisch nie echte Event-/Personenfotos, sondern Icons/Logos/
+  // Illustrationen — z.B. mphil.de setzt für JEDE Konzertseite dasselbe
+  // generische ".../Icons/Logos/default.svg" als og:image, das die reinen
+  // Namensmuster unten (kein "logo" als eigenes Wort) nicht fangen.
+  if (/\.svg(?:[?#]|$)/.test(path)) return true;
   return /default[-_]*[-_]og[-_]image|og[-_]image[-_]*default|\blogo\b|logo[-_.]|[-_.]logo\b|placeholder|\bbanner\b/
     .test(path);
 }

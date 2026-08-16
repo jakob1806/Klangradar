@@ -20,6 +20,7 @@ import { extractMetaImages, readHeadHtml } from "./ogImage.ts";
 import { extractFirstEventImageFromJsonLd } from "../ingest-source/parsers/schema_org.ts";
 import { isLikelyGenericImage } from "./imageValidation.ts";
 import { extractStaatsoperProductionImage } from "./staatsoperDetail.ts";
+import { extractHeroImageFromMarkdown, extractMarkdownImageCredit, fetchViaReaderProxy } from "./readerProxyImage.ts";
 
 export interface DetectedCoverImage {
   url: string;
@@ -39,14 +40,21 @@ export async function detectEventCoverImage(pageUrl: string): Promise<DetectedCo
   let html: string;
   try {
     const res = await fetch(pageUrl, { headers: { "User-Agent": USER_AGENT } });
-    if (!res.ok && new URL(pageUrl).hostname.endsWith("staatsoper.de")) {
-      const reader = await fetch(`https://r.jina.ai/${pageUrl}`, { headers: { "User-Agent": USER_AGENT } });
-      if (!reader.ok) return null;
-      const markdown = await reader.text();
-      const imageUrl = extractStaatsoperProductionImage(markdown);
-      return imageUrl ? { url: imageUrl, credits: "© Bayerische Staatsoper", tier: "hero" } : null;
+    if (!res.ok) {
+      // Generischer Rückfall für JEDE Domain, die den normalen Fetch
+      // blockiert (Bot-Schutz, 403/503, ...) — vorher nur für staatsoper.de,
+      // siehe readerProxyImage.ts für die Begründung. Domain-spezifische
+      // Extraktoren bleiben bevorzugt, wo sie existieren.
+      const markdown = await fetchViaReaderProxy(pageUrl);
+      if (!markdown) return null;
+      const hostname = new URL(pageUrl).hostname;
+      if (hostname.endsWith("staatsoper.de")) {
+        const imageUrl = extractStaatsoperProductionImage(markdown);
+        return imageUrl ? { url: imageUrl, credits: "© Bayerische Staatsoper", tier: "hero" } : null;
+      }
+      const imageUrl = extractHeroImageFromMarkdown(markdown, pageUrl);
+      return imageUrl ? { url: imageUrl, credits: extractMarkdownImageCredit(markdown), tier: "hero" } : null;
     }
-    if (!res.ok) return null;
     html = await readHeadHtml(res, MAX_HTML_BYTES);
   } catch {
     return null;

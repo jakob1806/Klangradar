@@ -62,3 +62,8 @@ Deno.test("isLikelyGenericImage: flags logos, placeholders, banners and default 
 Deno.test("isLikelyGenericImage: leaves a plausible press photo filename alone", () => {
   assertEquals(isLikelyGenericImage("https://example.com/presse/julia-fischer-portrait.jpg"), false);
 });
+
+Deno.test("isLikelyGenericImage: flags .svg regardless of filename (site-wide logo default, e.g. mphil.de)", () => {
+  assertEquals(isLikelyGenericImage("https://www.mphil.de/typo3conf/ext/puck/Resources/Public/Icons/Logos/default.svg"), true);
+  assertEquals(isLikelyGenericImage("https://example.com/img/photo.svg?v=2"), true);
+});

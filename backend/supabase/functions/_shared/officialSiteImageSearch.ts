@@ -35,6 +35,7 @@
 import { isAllowedByRobots, USER_AGENT } from "./robots.ts";
 import { extractMetaImages } from "./ogImage.ts";
 import { isLikelyGenericImage, isPublicImageUrl } from "./imageValidation.ts";
+import { fetchViaReaderProxy, markdownToSyntheticHtml } from "./readerProxyImage.ts";
 
 const MAX_PAGES = 10;
 const MAX_DEPTH = 2;
@@ -582,8 +583,18 @@ async function searchOfficialSiteForImagesInner(
       }
       html = await fetchPageHtml(pageUrl);
     } catch (err) {
-      errors.push(`Seite nicht abrufbar (${pageUrl}): ${err instanceof Error ? err.message : String(err)}`);
-      continue;
+      // Generischer Rückfall für Websites, die den normalen Fetch blockieren
+      // (Bot-Schutz, 403/503, ...) — nicht mehr nur für staatsoper.de
+      // hart codiert (siehe readerProxyImage.ts). Das synthetische HTML
+      // durchläuft danach exakt dieselbe Kandidaten-/Scoring-Pipeline wie
+      // eine normal geladene Seite.
+      const markdown = await fetchViaReaderProxy(pageUrl);
+      if (markdown) {
+        html = markdownToSyntheticHtml(markdown, pageUrl);
+      } else {
+        errors.push(`Seite nicht abrufbar (${pageUrl}): ${err instanceof Error ? err.message : String(err)}`);
+        continue;
+      }
     }
     pagesVisited.push(pageUrl);
     if (!html) continue;
