@@ -122,7 +122,14 @@ export default async function QualitaetspruefungPage({
   const counts = new Map<AuditableEntityType, number>(countResults);
   const activeCount = counts.get(activeType) ?? 0;
   const criticalCount = (data ?? []).filter((flag) => highestSeverity(flag.issues) === "critical").length;
-  const withCorrectionCount = (data ?? []).filter((flag) => flag.issues.some((issue) => issue.aiCorrection)).length;
+  const withCorrectionCount = (data ?? []).filter((flag) => flag.issues.some((issue) => issue.aiCorrection?.proposals?.length)).length;
+  const missingSuggestionIds = (data ?? [])
+    // Eine bereits gespeicherte, aber leere Antwort ist ein abgeschlossener
+    // Prüfzustand und darf die nächsten noch nie angefragten Treffer nicht
+    // am Anfang der Batch-Queue blockieren. Bulk-Übernahme und „Neu
+    // recherchieren“ erzwingen für leere Altantworten weiterhin einen Retry.
+    .filter((flag) => !flag.issues.some((issue) => issue.aiCorrection))
+    .map((flag) => flag.id);
 
   return (
     <div className="mx-auto max-w-6xl p-6 lg:p-8">
@@ -179,7 +186,7 @@ export default async function QualitaetspruefungPage({
       {error && <p className="mt-6 text-sm text-amber-700">Konnte Prüfungen nicht laden: {error.message}</p>}
 
       {!error && (
-        <EntityAuditBulkSelection ids={(data ?? []).map((flag) => flag.id)}>
+        <EntityAuditBulkSelection ids={(data ?? []).map((flag) => flag.id)} missingSuggestionIds={missingSuggestionIds}>
         <div className="mt-3 flex flex-col gap-3">
           {data && data.length > 0 ? (
             data.map((flag) => {

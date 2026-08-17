@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 
 // Gruppierung nach Arbeitsbereich (seit der ersten Redesign-Runde) macht
@@ -8,33 +9,40 @@ import { usePathname } from "next/navigation";
 // scanbar. Optik nach der Apple-Design-Skill-Referenz (Abschnitt
 // "Materials & Depth"): Sidebar als durchscheinende Ebene statt Volltonfarbe,
 // aktiver Eintrag als abgerundete Fläche in der einen Akzentfarbe.
+// Nutzeranfrage: "gruppen von 5 auf 3 ohne den inhalt der gruppen jeweils
+// zu ändern, nur die struktur" — rein mechanisches Zusammenlegen benachbarter
+// Gruppen (Redaktion+Medien, Stammdaten+System), Reihenfolge und Beschriftung
+// der einzelnen Einträge bleibt unangetastet, nur die drei ursprünglichen
+// Gruppen-Header verschwinden zugunsten der zusammengelegten Labels.
 const NAV_GROUPS = [
   {
-    label: "Redaktion",
+    label: "Wichtig",
+    items: [{ href: "/wichtig", label: "Offene Aufgaben" }],
+  },
+  {
+    label: "Redaktion & Medien",
     items: [
       { href: "/events", label: "Veranstaltungen" },
       { href: "/event-groups", label: "Event-Gruppen" },
       { href: "/review-queue", label: "Review-Queue" },
       { href: "/cancellations", label: "Absage-Review" },
-      { href: "/content-reports", label: "Nutzer-Meldungen (Flutter)" },
-      { href: "/content-reports-native", label: "Nutzer-Meldungen (Native)" },
-      { href: "/code-fix-tasks", label: "Code-Aufgaben (Claude Code)" },
+      { href: "/content-reports", label: "Meldungen & Fehler" },
+      { href: "/media", label: "Bilderfreigabe" },
     ],
   },
   {
     label: "Qualität",
     items: [
-      { href: "/data-quality", label: "Datenqualität" },
+      { href: "/data-quality", label: "Recherche & Anreicherung" },
       { href: "/duplicates", label: "Duplikate" },
       { href: "/entity-candidates", label: "Entity-Kandidaten" },
       { href: "/qualitaetspruefung", label: "Qualitätsprüfung" },
       { href: "/work-image-reuse", label: "Werk-Bild-Verknüpfungen" },
       { href: "/aliases", label: "Schreibweisen & Aliasse" },
-      { href: "/reports", label: "Fehlerberichte" },
     ],
   },
   {
-    label: "Stammdaten",
+    label: "Stammdaten & System",
     items: [
       { href: "/venues", label: "Venues" },
       { href: "/persons", label: "Personen" },
@@ -44,20 +52,8 @@ const NAV_GROUPS = [
       { href: "/editorial-collections", label: "Redaktionelle Sammlungen" },
       { href: "/tags", label: "Tags" },
       { href: "/regions", label: "Regionen" },
-    ],
-  },
-  {
-    label: "Medien",
-    items: [
-      { href: "/media", label: "Bilder" },
-      { href: "/image-research", label: "Bilder recherchieren" },
-      { href: "/bio-research", label: "Bio-Recherche" },
-    ],
-  },
-  {
-    label: "System",
-    items: [
       { href: "/sources", label: "Datenquellen & Import" },
+      { href: "/source-health", label: "Quellen-Gesundheit" },
       { href: "/users", label: "Benutzer" },
     ],
   },
@@ -90,15 +86,20 @@ export function Sidebar({ userEmail }: { userEmail?: string }) {
     : null;
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col gap-6 border-r border-black/[0.06] bg-[#f5f5f7]/80 px-3 py-6 backdrop-blur-xl">
-      <div className="px-3">
-        <p className="type-heading text-[15px] text-[#1d1d1f]">Klassik München</p>
-        <p className="mt-0.5 text-[11px] text-[#86868b]">Redaktions-Dashboard</p>
+    <aside className="dashboard-sidebar">
+      <div className="dashboard-brand">
+        <span className="dashboard-brand-mark" aria-hidden="true">
+          <Image src="/app-logo.svg" alt="" width={40} height={40} priority />
+        </span>
+        <span className="min-w-0">
+          <span className="block truncate text-[15px] font-semibold tracking-[-0.014em] text-[#1d1d1f]">Klangradar</span>
+          <span className="mt-0.5 block truncate text-[11px] text-[#86868b]">Redaktions-Dashboard</span>
+        </span>
       </div>
-      <nav className="flex flex-1 flex-col gap-5 overflow-y-auto">
+      <nav className="dashboard-sidebar-nav">
         {NAV_GROUPS.map((group) => (
-          <div key={group.label}>
-            <p className="type-label mb-1.5 px-3">{group.label}</p>
+          <div key={group.label} className="dashboard-nav-group">
+            <p className="type-label mb-1.5 px-2.5">{group.label}</p>
             <div className="flex flex-col gap-0.5">
               {group.items.map((item) => {
                 const active = item.href === activeHref;
@@ -106,9 +107,8 @@ export function Sidebar({ userEmail }: { userEmail?: string }) {
                   <Link
                     key={item.href}
                     href={item.href}
-                    className={`rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors ${
-                      active ? "bg-[#0071e3] text-white" : "text-[#1d1d1f] hover:bg-black/[0.04]"
-                    }`}
+                    aria-current={active ? "page" : undefined}
+                    className={`dashboard-nav-item ${active ? "dashboard-nav-item-active" : ""}`}
                   >
                     {item.label}
                   </Link>
@@ -119,9 +119,13 @@ export function Sidebar({ userEmail }: { userEmail?: string }) {
         ))}
       </nav>
       {userEmail && (
-        <p className="truncate px-3 pt-3 text-[11px] text-[#86868b]" title={userEmail}>
-          {userEmail}
-        </p>
+        <div className="dashboard-account" title={userEmail}>
+          <span className="dashboard-account-avatar" aria-hidden="true">{userEmail.slice(0, 1).toUpperCase()}</span>
+          <span className="min-w-0">
+            <span className="block text-[10px] font-semibold uppercase tracking-[0.06em] text-[#86868b]">Angemeldet</span>
+            <span className="block truncate text-[11px] text-[#424245]">{userEmail}</span>
+          </span>
+        </div>
       )}
     </aside>
   );

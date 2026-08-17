@@ -31,7 +31,7 @@ import { parseHTML } from "npm:linkedom@0.18.4";
 import { isAllowedByRobots, USER_AGENT } from "./robots.ts";
 
 function normalize(text: string): string {
-  return text.toLowerCase().replace(/\s+/g, " ").trim();
+  return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
 }
 
 function resolveUrl(value: string | null, baseUrl: string): string | null {
@@ -41,6 +41,21 @@ function resolveUrl(value: string | null, baseUrl: string): string | null {
   } catch {
     return null;
   }
+}
+
+// Moderne Künstler-/Agenturseiten laden Porträts häufig erst per Lazy Load.
+// Dann ist `src` nur ein Platzhalter, während die echte Datei in data-src
+// oder srcset liegt.
+// deno-lint-ignore no-explicit-any
+function imageSource(img: any): string | null {
+  for (const attribute of ["data-src", "data-lazy-src", "data-original", "src"]) {
+    const value = img?.getAttribute(attribute);
+    if (value && !value.startsWith("data:")) return value;
+  }
+  const srcset = img?.getAttribute("srcset") ?? img?.getAttribute("data-srcset");
+  if (!srcset) return null;
+  const candidates = srcset.split(",").map((entry: string) => entry.trim().split(/\s+/)[0]).filter(Boolean);
+  return candidates.at(-1) ?? null;
 }
 
 /** Lädt `pageUrl` (robots.txt-geprüft) und sucht ein Bild, das erkennbar zu
@@ -80,7 +95,7 @@ export async function extractImageNearName(
   for (const img of Array.from(document.querySelectorAll("img")) as any[]) {
     const alt = img.getAttribute("alt");
     if (alt && normalize(alt).includes(needle)) {
-      const src = img.getAttribute("src");
+      const src = imageSource(img);
       const resolved = resolveUrl(src, pageUrl);
       if (resolved && !isLikelyDecorativeAsset(resolved)) return resolved;
     }
@@ -93,7 +108,7 @@ export async function extractImageNearName(
     if (!caption) continue;
     if (!normalize(caption.textContent ?? "").includes(needle)) continue;
     const img = figure.querySelector("img");
-    const src = img?.getAttribute("src");
+    const src = imageSource(img);
     const resolved = resolveUrl(src, pageUrl);
     if (resolved && !isLikelyDecorativeAsset(resolved)) return resolved;
   }

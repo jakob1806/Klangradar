@@ -6,14 +6,17 @@
  * (image-research/page.tsx), nicht auf den eigentlichen Verwaltungslisten
  * (Personen/Venues/Ensembles/Veranstaltungen), wo die analoge Bio-Anzeige
  * schon länger existiert. */
-export function ImageStatusBadge({ hasImage }: { hasImage: boolean }) {
+export function ImageStatusBadge({ hasImage, searchNote }: { hasImage: boolean; searchNote?: string | null }) {
+  const candidatePending = !hasImage && Boolean(searchNote?.includes("wartet auf"));
+  const label = hasImage ? "Bild vorhanden" : candidatePending ? "Bildkandidat wird geprüft" : "In Bildsuche";
   return (
     <span
       className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-        hasImage ? "bg-blue-50 text-blue-700" : "bg-neutral-100 text-neutral-400"
+        hasImage ? "bg-blue-50 text-blue-700" : candidatePending ? "bg-amber-50 text-amber-700" : "bg-neutral-100 text-neutral-500"
       }`}
+      title={!hasImage && searchNote ? searchNote : undefined}
     >
-      {hasImage ? "Bild vorhanden" : "Kein Bild"}
+      {label}
     </span>
   );
 }

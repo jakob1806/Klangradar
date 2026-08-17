@@ -14,6 +14,8 @@ function readFestivalFields(formData: FormData) {
     recurring: formData.get("recurring") === "on",
     website_url: String(formData.get("website_url") ?? "").trim() || null,
     photo_url: String(formData.get("photo_url") ?? "").trim() || null,
+    start_date: String(formData.get("start_date") ?? "").trim() || null,
+    end_date: String(formData.get("end_date") ?? "").trim() || null,
   };
 }
 

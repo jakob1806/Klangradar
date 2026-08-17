@@ -158,6 +158,18 @@ abstract class AppLocalizations {
   /// **'Demnächst ausverkauft'**
   String get homeSectionAlmostSoldOut;
 
+  /// No description provided for @homeSectionEntityNews.
+  ///
+  /// In de, this message translates to:
+  /// **'Deine Orte & Ensembles haben Neuigkeiten'**
+  String get homeSectionEntityNews;
+
+  /// No description provided for @homeSectionFestival.
+  ///
+  /// In de, this message translates to:
+  /// **'Festival gerade in München'**
+  String get homeSectionFestival;
+
   /// No description provided for @homeSectionFree.
   ///
   /// In de, this message translates to:
@@ -1622,6 +1634,78 @@ abstract class AppLocalizations {
   /// **'Keine Treffer.'**
   String get interestsNoResults;
 
+  /// No description provided for @followSignInPrompt.
+  ///
+  /// In de, this message translates to:
+  /// **'Zum Folgen bitte im Profil-Tab anmelden.'**
+  String get followSignInPrompt;
+
+  /// No description provided for @followLabelActive.
+  ///
+  /// In de, this message translates to:
+  /// **'Gefolgt'**
+  String get followLabelActive;
+
+  /// No description provided for @followLabelInactive.
+  ///
+  /// In de, this message translates to:
+  /// **'Nicht gefolgt'**
+  String get followLabelInactive;
+
+  /// No description provided for @myFollowsAppBarTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Meine Verfolgungen'**
+  String get myFollowsAppBarTitle;
+
+  /// No description provided for @myFollowsSignInPrompt.
+  ///
+  /// In de, this message translates to:
+  /// **'Bitte im Profil-Tab anmelden, um deine Verfolgungen zu sehen.'**
+  String get myFollowsSignInPrompt;
+
+  /// No description provided for @myFollowsEmptyState.
+  ///
+  /// In de, this message translates to:
+  /// **'Du folgst noch niemandem. Tippe auf einer Personen-, Ensemble- oder Venue-Seite auf das Lesezeichen-Symbol.'**
+  String get myFollowsEmptyState;
+
+  /// No description provided for @myFollowsSectionPersons.
+  ///
+  /// In de, this message translates to:
+  /// **'Personen'**
+  String get myFollowsSectionPersons;
+
+  /// No description provided for @myFollowsSectionEnsembles.
+  ///
+  /// In de, this message translates to:
+  /// **'Ensembles'**
+  String get myFollowsSectionEnsembles;
+
+  /// No description provided for @myFollowsSectionVenues.
+  ///
+  /// In de, this message translates to:
+  /// **'Venues'**
+  String get myFollowsSectionVenues;
+
+  /// No description provided for @myFollowsNotifyTooltipOn.
+  ///
+  /// In de, this message translates to:
+  /// **'Benachrichtigungen bei neuen Konzerten an'**
+  String get myFollowsNotifyTooltipOn;
+
+  /// No description provided for @myFollowsNotifyTooltipOff.
+  ///
+  /// In de, this message translates to:
+  /// **'Benachrichtigungen bei neuen Konzerten aus'**
+  String get myFollowsNotifyTooltipOff;
+
+  /// No description provided for @myFollowsUnfollowTooltip.
+  ///
+  /// In de, this message translates to:
+  /// **'Entfolgen'**
+  String get myFollowsUnfollowTooltip;
+
   /// No description provided for @mapAttribution.
   ///
   /// In de, this message translates to:
@@ -1969,6 +2053,12 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Meine Favoriten'**
   String get profileMyFavorites;
+
+  /// No description provided for @profileMyFollows.
+  ///
+  /// In de, this message translates to:
+  /// **'Meine Verfolgungen'**
+  String get profileMyFollows;
 
   /// No description provided for @profileInterests.
   ///

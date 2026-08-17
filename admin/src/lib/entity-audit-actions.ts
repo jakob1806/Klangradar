@@ -26,6 +26,8 @@ export interface EntityAuditCorrection {
 }
 
 type StoredAuditIssue = Record<string, unknown> & {
+  message?: string;
+  suggestion?: string | null;
   aiCorrection?: EntityAuditCorrection;
 };
 
@@ -106,6 +108,15 @@ export interface BulkAuditActionResult {
   completed: number;
   skipped: number;
   failed: number;
+  errors?: string[];
+}
+
+export interface AuditPreparationResult {
+  generated: number;
+  existing: number;
+  empty: number;
+  failed: number;
+  errors: string[];
 }
 
 export async function resolveEntityAuditFlags(ids: string[]): Promise<BulkAuditActionResult> {
@@ -124,9 +135,11 @@ export async function resolveEntityAuditFlags(ids: string[]): Promise<BulkAuditA
   return { completed, skipped: uniqueIds.length - completed, failed: 0 };
 }
 
-/** Übernimmt für mehrere ausgewählte Prüfeinträge alle ausreichend sicheren
- * KI-Feldvorschläge. Einträge ohne fertigen Vorschlag oder ausschließlich
- * unklare Vorschläge bleiben offen und werden als übersprungen gemeldet. */
+/** Übernimmt fuer mehrere ausgewaehlte Pruefeintraege alle ausreichend
+ * sicheren KI-Feldvorschlaege. Fehlt ein gespeicherter Vorschlag, wird er
+ * hier zuerst erzeugt. Das beseitigt den frueheren No-op: "Alle auswaehlen"
+ * uebersprang still alle Zeilen, fuer die noch nie einzeln auf
+ * "KI-Korrektur vorschlagen" geklickt worden war. */
 export async function applyAllEntityAuditCorrections(ids: string[]): Promise<BulkAuditActionResult> {
   const uniqueIds = [...new Set(ids)].slice(0, 100);
   if (uniqueIds.length === 0) return { completed: 0, skipped: 0, failed: 0 };
@@ -142,18 +155,31 @@ export async function applyAllEntityAuditCorrections(ids: string[]): Promise<Bul
   let completed = 0;
   let skipped = uniqueIds.length - rows.length;
   let failed = 0;
+  const errors: string[] = [];
   let cursor = 0;
   const worker = async () => {
     while (cursor < rows.length) {
       const row = rows[cursor++];
       const issues = Array.isArray(row.issues) ? (row.issues as StoredAuditIssue[]) : [];
-      const correction = issues.find((issue) => issue.aiCorrection)?.aiCorrection;
-      const proposals = (correction?.proposals ?? []).filter((proposal) => proposal.confidence !== "unclear");
-      if (proposals.length === 0) {
-        skipped += 1;
-        continue;
-      }
       try {
+        let correction = issues.find((issue) => issue.aiCorrection)?.aiCorrection;
+        if (!correction || !Array.isArray(correction.proposals) || correction.proposals.length === 0) {
+          const messages = issues.map((issue) => issue.message).filter((value): value is string => Boolean(value));
+          const suggestions = issues.map((issue) => issue.suggestion).filter((value): value is string => Boolean(value));
+          correction = await suggestEntityAuditCorrection(
+            row.id,
+            row.entity_type as AuditableEntityType,
+            row.entity_id,
+            messages.join(" ") || "Automatisch erkanntes Datenqualitaetsproblem",
+            suggestions.join(" ") || null,
+            true,
+          );
+        }
+        const proposals = (correction.proposals ?? []).filter((proposal) => proposal.confidence !== "unclear");
+        if (proposals.length === 0) {
+          skipped += 1;
+          continue;
+        }
         await applyEditorialAiProposals(
           row.entity_type as AuditableEntityType,
           row.entity_id,
@@ -166,14 +192,67 @@ export async function applyAllEntityAuditCorrections(ids: string[]): Promise<Bul
           .eq("status", "open");
         if (resolveError) throw resolveError;
         completed += 1;
-      } catch {
+      } catch (error) {
         failed += 1;
+        errors.push(error instanceof Error ? error.message : "Unbekannter Fehler");
       }
     }
   };
   await Promise.all(Array.from({ length: Math.min(2, rows.length) }, worker));
   revalidatePath("/qualitaetspruefung");
-  return { completed, skipped, failed };
+  return { completed, skipped, failed, errors: [...new Set(errors)].slice(0, 3) };
+}
+
+/** Bereitet fehlende Vorschläge serverseitig in kleinen Batches vor. Leere
+ * Altantworten gelten nicht mehr als fertiger Cache und werden neu
+ * recherchiert. Der Aufrufer kann die nächsten IDs nach einem Refresh
+ * fortsetzen, ohne bereits erfolgreiche Vorschläge erneut zu berechnen. */
+export async function prepareEntityAuditCorrections(ids: string[]): Promise<AuditPreparationResult> {
+  const uniqueIds = [...new Set(ids)].slice(0, 12);
+  const result: AuditPreparationResult = { generated: 0, existing: 0, empty: 0, failed: 0, errors: [] };
+  if (uniqueIds.length === 0) return result;
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("entity_audit_flags")
+    .select("id, entity_type, entity_id, issues, status")
+    .in("id", uniqueIds)
+    .eq("status", "open");
+  if (error) throw new Error(error.message);
+
+  const rows = data ?? [];
+  let cursor = 0;
+  const worker = async () => {
+    while (cursor < rows.length) {
+      const row = rows[cursor++];
+      const issues = Array.isArray(row.issues) ? row.issues as StoredAuditIssue[] : [];
+      const stored = issues.find((issue) => issue.aiCorrection)?.aiCorrection;
+      if (stored?.proposals?.length) {
+        result.existing += 1;
+        continue;
+      }
+      try {
+        const messages = issues.map((issue) => issue.message).filter((value): value is string => Boolean(value));
+        const suggestions = issues.map((issue) => issue.suggestion).filter((value): value is string => Boolean(value));
+        const correction = await suggestEntityAuditCorrection(
+          row.id,
+          row.entity_type as AuditableEntityType,
+          row.entity_id,
+          messages.join(" ") || "Automatisch erkanntes Datenqualitätsproblem",
+          suggestions.join(" ") || null,
+          Boolean(stored),
+        );
+        if (correction.proposals.length > 0) result.generated += 1;
+        else result.empty += 1;
+      } catch (cause) {
+        result.failed += 1;
+        result.errors.push(cause instanceof Error ? cause.message : "Unbekannter Fehler");
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(3, rows.length) }, worker));
+  revalidatePath("/qualitaetspruefung");
+  result.errors = [...new Set(result.errors)].slice(0, 3);
+  return result;
 }
 
 export async function finishEntityAudit(): Promise<void> {
@@ -203,7 +282,7 @@ export async function suggestEntityAuditCorrection(
 
   const issues = Array.isArray(flag.issues) ? (flag.issues as StoredAuditIssue[]) : [];
   const stored = issues.find((issue) => issue.aiCorrection)?.aiCorrection;
-  if (!force && stored) return stored;
+  if (!force && stored?.proposals?.length) return stored;
 
   const message = `Behebe folgendes automatisch erkanntes Datenqualitätsproblem: "${issueMessage}"` +
     (issueSuggestion ? ` Hinweis: ${issueSuggestion}` : "") +

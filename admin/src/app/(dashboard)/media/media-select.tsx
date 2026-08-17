@@ -71,6 +71,55 @@ export function MediaRowCheckbox({ id }: { id: string }) {
   );
 }
 
+/** Die gesamte Bildkarte ist ein komfortables Auswahlziel. Links, Buttons,
+ * Formulare und Details innerhalb der Karte behalten ihre eigene Aktion und
+ * lösen keine versehentliche Auswahl aus. */
+export function MediaSelectableCard({ id, children }: { id: string; children: ReactNode }) {
+  const { selected, toggle } = useSelection();
+  const isSelected = selected.has(id);
+
+  function isInteractive(target: EventTarget | null) {
+    return target instanceof Element && Boolean(target.closest("a, button, input, textarea, select, label, form, details, summary"));
+  }
+
+  return (
+    <div
+      role="checkbox"
+      aria-checked={isSelected}
+      tabIndex={0}
+      onClick={(event) => {
+        if (!isInteractive(event.target)) toggle(id);
+      }}
+      onKeyDown={(event) => {
+        if (event.key === " " || event.key === "Enter") {
+          event.preventDefault();
+          toggle(id);
+        }
+      }}
+      className={`group relative overflow-hidden rounded-2xl border bg-white shadow-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0071e3] focus-visible:ring-offset-2 ${
+        isSelected
+          ? "border-[#0071e3] bg-blue-50/30 shadow-md ring-2 ring-[#0071e3]/20"
+          : "border-black/[0.07] hover:-translate-y-0.5 hover:border-black/[0.14] hover:shadow-md"
+      }`}
+    >
+      <button
+        type="button"
+        onClick={(event) => { event.stopPropagation(); toggle(id); }}
+        className={`absolute right-3 top-3 z-10 flex h-9 items-center gap-2 rounded-full border px-3 text-xs font-semibold shadow-sm backdrop-blur transition-colors ${
+          isSelected
+            ? "border-[#0071e3] bg-[#0071e3] text-white"
+            : "border-white/70 bg-white/90 text-neutral-700 hover:bg-white"
+        }`}
+        aria-label={isSelected ? "Auswahl aufheben" : "Bild auswählen"}
+      >
+        <span className="text-sm">{isSelected ? "✓" : "+"}</span>
+        {isSelected ? "Ausgewählt" : "Auswählen"}
+      </button>
+      {children}
+    </div>
+  );
+}
+
 export function MediaSelectAllCheckbox({ ids }: { ids: string[] }) {
   const { selected, setAll } = useSelection();
   const allSelected = ids.length > 0 && ids.every((id) => selected.has(id));
@@ -130,7 +179,7 @@ export function MediaBulkBar() {
   }
 
   return (
-    <div className="sticky top-0 z-10 mb-4 flex flex-col gap-1 rounded-lg border border-neutral-200 bg-white px-4 py-3 shadow-sm">
+    <div className="sticky top-3 z-20 mb-5 flex flex-col gap-2 rounded-2xl border border-blue-100 bg-white/95 px-4 py-3 shadow-lg backdrop-blur">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <span className="text-sm font-medium text-neutral-700">{selected.size} ausgewählt</span>
         {confirming ? (

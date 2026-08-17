@@ -29,14 +29,16 @@ export interface ImageEntityOption {
 export function ImageResearchClient({
   entityType,
   entities,
+  initialOnlyMissing = false,
 }: {
   entityType: ImageEntityType;
   entities: ImageEntityOption[];
+  initialOnlyMissing?: boolean;
 }) {
   const [phase, setPhase] = useState<"select" | "workflow">("select");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState("");
-  const [onlyMissing, setOnlyMissing] = useState(false);
+  const [onlyMissing, setOnlyMissing] = useState(initialOnlyMissing);
 
   const visible = entities.filter((e) => {
     if (onlyMissing && e.hasImage) return false;

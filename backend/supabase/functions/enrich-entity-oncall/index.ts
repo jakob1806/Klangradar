@@ -31,6 +31,7 @@ import { fetchWikipediaExtract } from "../_shared/wikipediaExtract.ts";
 import { searchDuckDuckGo } from "../_shared/duckDuckGoSearch.ts";
 import { searchViaGeminiGrounding } from "../_shared/geminiGroundedSearch.ts";
 import { recordFieldSources, type FieldSource } from "../_shared/provenance.ts";
+import { researchBiographyFromKnowledge } from "../_shared/bioResearch.ts";
 
 type EntityType = "person" | "venue" | "ensemble" | "event";
 
@@ -205,6 +206,43 @@ async function enrichEntity(
   // Personen zusätzlich Wikipedia — je nach Entitätstyp unterschiedliche
   // "Name"-Spalte und Ortskontext für die Suchanfrage.
   const name: string = entityType === "person" ? entity.full_name : entityType === "event" ? entity.title : entity.name;
+
+  // Für eine fehlende Personenbiografie zuerst der schnelle direkte
+  // Wissenspfad — wie eine normale Gemini-Abfrage, ohne Website- oder
+  // Wikipedia-Wartezeit. Weitere strukturierte Felder können bei einem
+  // späteren Lauf weiterhin quellenbasiert ergänzt werden.
+  if (entityType === "person" && !entity.biography_de) {
+    const context = [
+      Array.isArray(entity.roles) && entity.roles.length ? `Rollen: ${entity.roles.join(", ")}` : null,
+      entity.instrument ? `Instrument/Stimmfach: ${entity.instrument}` : null,
+      entity.nationality ? `Nationalität: ${entity.nationality}` : null,
+    ].filter(Boolean).join("; ");
+    const knowledge = await researchBiographyFromKnowledge("person", name, context || null);
+    if (knowledge?.biography) {
+      const { error: biographyError } = await supabase.from("persons").update({
+        biography_de: knowledge.biography,
+        ai_biography_status: "generated",
+        ai_biography_checked_at: new Date().toISOString(),
+        ai_biography_error: null,
+      }).eq("id", entityId).or("biography_de.is.null,biography_de.eq.");
+      if (biographyError) {
+        return { status: "error", diagnosis: `Biografie konnte nicht gespeichert werden: ${biographyError.message}`, filledFields: [] };
+      }
+      await recordFieldSources(supabase, [{
+        entityType: "person",
+        entityId,
+        fieldName: "biography_de",
+        sourceUrl: null,
+        sourceName: "KI-Wissen (direkte Abfrage, ohne Webabruf)",
+        confidence: "likely",
+      }]);
+      return {
+        status: "filled",
+        diagnosis: "Biografie direkt aus KI-Wissen erstellt; kein Wikipedia- oder Website-Abruf nötig.",
+        filledFields: [{ field: "biography_de", value: knowledge.biography }],
+      };
+    }
+  }
   let pageUrl: string | null = entityType === "event" ? (entity.ticket_url ?? entity.website_url) : entity.website_url;
   let pageText: string | null = null;
   let sourceLabel = "eigene Website";

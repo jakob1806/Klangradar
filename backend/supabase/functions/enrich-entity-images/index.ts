@@ -64,7 +64,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { searchCommonsImage } from "../_shared/wikimediaCommons.ts";
-import { searchWikidataImage } from "../_shared/wikidataImage.ts";
+import { searchWikidataImage, searchWikidataOfficialWebsite } from "../_shared/wikidataImage.ts";
 import { fetchWikipediaPortrait } from "../_shared/wikipediaPortrait.ts";
 import { detectEventCoverImage } from "../_shared/coverImageDetection.ts";
 import { extractImageNearName } from "../_shared/imageNearName.ts";
@@ -78,7 +78,8 @@ import { searchViaGeminiGrounding } from "../_shared/geminiGroundedSearch.ts";
 import { logSystemAction } from "../_shared/systemLog.ts";
 import { nameSearchVariants } from "../_shared/nameVariants.ts";
 import { findLikelySubpages } from "../_shared/subpageDiscovery.ts";
-import { ensureCoverImage } from "../_shared/imagePipeline.ts";
+import { searchOfficialSiteForImages } from "../_shared/officialSiteImageSearch.ts";
+import { ensureCoverImage, type ImageOriginType } from "../_shared/imagePipeline.ts";
 
 const DEFAULT_LIMIT = 8;
 const HEALTH_CHECK_LIMIT = 15;
@@ -111,10 +112,48 @@ interface CandidateMetadata {
 async function persistCandidate(
   // deno-lint-ignore no-explicit-any
   supabase: any,
-  kind: EntityKind,
+  kind: { table: string; originType: ImageOriginType },
   id: string,
   candidate: CandidateMetadata,
 ): Promise<{ imageId: string; publicUrl: string } | null> {
+  // Review-pflichtige Recherchetreffer zunächst nur mit ihrer externen
+  // Quelle vormerken. Das Laden + WebP/pHash-WASM für jedes Fundstück ließ
+  // die kleine Edge-Runtime bei großen Künstlerbildern mit
+  // WORKER_RESOURCE_LIMIT sterben, bevor überhaupt ein Kandidat sichtbar
+  // wurde. Die Freigabeansicht unterstützt storage_path=null bereits und
+  // zeigt source_url; erst bestätigte Bilder werden regulär veröffentlicht.
+  if (candidate.needsReview) {
+    const { data: existing } = await supabase.from("images")
+      .select("id")
+      .eq("origin_type", kind.originType)
+      .eq("origin_id", id)
+      .eq("source_url", candidate.imageUrl)
+      .neq("license_status", "rejected")
+      .maybeSingle();
+    if (existing?.id) return { imageId: existing.id, publicUrl: candidate.imageUrl };
+
+    const { data, error } = await supabase.from("images").insert({
+      source_url: candidate.imageUrl,
+      original_image_url: candidate.imageUrl,
+      storage_path: null,
+      origin_type: kind.originType,
+      origin_id: id,
+      source_page_url: candidate.sourcePageUrl,
+      source_name: candidate.sourceName,
+      photographer: candidate.photographer ?? null,
+      credits: candidate.photographer ?? null,
+      license_name: candidate.licenseName ?? null,
+      license_url: candidate.licenseUrl ?? null,
+      license_status: candidate.licenseStatus,
+      confidence_score: candidate.confidenceScore,
+      match_reason: candidate.matchReason,
+      warnings: candidate.warnings ?? [],
+      needs_review: true,
+    }).select("id").single();
+    if (error || !data) return null;
+    return { imageId: data.id, publicUrl: candidate.imageUrl };
+  }
+
   const imageId = await ensureCoverImage(supabase, {
     sourceUrl: candidate.imageUrl,
     originType: kind.originType,
@@ -324,7 +363,7 @@ Deno.serve(async (req) => {
     { checked: number; brokenCleared: number }
   > = {};
   for (const kind of selectedKinds) {
-    healthCheck[kind.table] = entityIds.length > 0
+    healthCheck[kind.table] = entityIds.length > 0 || body.fastFallback === true
       ? { checked: 0, brokenCleared: 0 }
       : await healthCheckEntityKind(supabase, kind);
   }
@@ -341,11 +380,9 @@ Deno.serve(async (req) => {
     { attempted: number; found: number }
   > = {};
   for (const kind of selectedKinds) {
-    entityUrlDiscovery[kind.table] = await discoverMissingEntityWebsites(
-      supabase,
-      kind,
-      entityIds,
-    );
+    entityUrlDiscovery[kind.table] = body.fastFallback === true
+      ? { attempted: 0, found: 0 }
+      : await discoverMissingEntityWebsites(supabase, kind, entityIds);
   }
 
   const perKind: Record<
@@ -358,10 +395,22 @@ Deno.serve(async (req) => {
     }
   > = {};
   for (const kind of selectedKinds) {
+    // Eine Venue-Recherche lädt neben Commons/Wikidata häufig mehrere
+    // Gebäudeseiten, Pressebereiche und großformatige Hero-Bilder. Drei
+    // vollständige Kaskaden in einem Edge-Aufruf überschritten im Live-Test
+    // das Worker-Limit und verloren dadurch ALLE Treffer des Batches.
+    // Kleinere, dafür häufiger laufende Portionen liefern verlässlich
+    // Fortschritt. Gezielte Admin-Nachläufe mit entityIds behalten ihr
+    // explizites Limit.
+    const effectiveLimit = entityIds.length > 0
+      ? limit
+      : kind.originType === "venue"
+      ? Math.min(limit, 2)
+      : Math.min(limit, 4);
     perKind[kind.table] = await enrichEntityKind(
       supabase,
       kind,
-      limit,
+      effectiveLimit,
       minConfidence,
       entityIds,
       body.fastFallback === true,
@@ -810,13 +859,47 @@ async function isUrlUsedElsewhere(
   // fälschlich als Bild mehrerer verschiedener Mitwirkender erkannt
   // wurde) mehrfach parallel zur Prüfung vorgelegt werden, bevor eine
   // Redakteurin den ersten Fall überhaupt gesehen hat.
-  const { count: queuedCount } = await supabase
+  const { data: queuedImages } = await supabase
     .from("images")
-    .select("id", { count: "exact", head: true })
+    .select("id, origin_type, origin_id")
     .eq("source_url", url)
     .neq("license_status", "rejected")
-    .neq("origin_id", excludeId);
-  if (queuedCount && queuedCount > 0) return true;
+    .limit(25);
+
+  // Zusammengeführte/gelöschte Personen hinterließen früher vereinzelt
+  // polymorphe images-Zeilen. Diese verwaisten Zeilen dürfen einen erneut
+  // gefundenen, korrekten Kandidaten nicht dauerhaft blockieren. Das war
+  // live u. a. bei Beethoven der Fall: Das Commons-Porträt war genehmigt,
+  // sein origin_id zeigte aber auf die beim Merge entfernte Dublette und die
+  // kanonische Person blieb deshalb ohne Foto.
+  const originTable: Record<string, string> = {
+    event: "events",
+    venue: "venues",
+    ensemble: "ensembles",
+    person: "persons",
+    organizer: "organizers",
+    festival: "festivals",
+    work: "works",
+    editorial_collection: "editorial_collections",
+  };
+  for (const image of queuedImages ?? []) {
+    const imageOriginType = String(image.origin_type ?? "");
+    const imageOriginId = String(image.origin_id ?? "");
+    const currentKind = ENTITY_KINDS.find((kind) => kind.table === excludeTable);
+    const currentOriginType = currentKind?.originType ??
+      (excludeTable === "events" ? "event" : "");
+    if (imageOriginType === currentOriginType && imageOriginId === excludeId) {
+      continue;
+    }
+
+    const table = originTable[imageOriginType];
+    // Unbekannte künftige Origin-Typen konservativ weiter als belegt
+    // behandeln; nur nachweislich verwaiste Zuordnungen ignorieren.
+    if (!table || !imageOriginId) return true;
+    const { data: owner, error } = await supabase.from(table).select("id")
+      .eq("id", imageOriginId).maybeSingle();
+    if (error || owner) return true;
+  }
   return false;
 }
 
@@ -883,6 +966,140 @@ async function tryWikidataFallback(
   return "queued";
 }
 
+/** Breiter, vollständig kostenloser Web-Fallback nur für Personen, wenn
+ * Wikipedia und Wikidata kein Porträt liefern. Die DuckDuckGo-Websuche
+ * findet offizielle, Agentur-, Operabase-, Orchester- und Veranstalterseiten;
+ * das dort erkannte Bild wird niemals blind
+ * veröffentlicht, sondern als heruntergeladener Kandidat in die
+ * redaktionelle Bildprüfung gestellt. */
+function imagePageScore(url: string, originType: ImageOriginType): number {
+  const value = url.toLowerCase();
+  if (/facebook|instagram|linkedin|pinterest|youtube|tiktok|x\.com/.test(value)) return -100;
+  let score = 0;
+  if (/operabase\.com/.test(value)) score += 35;
+  if (/agency|agentur|management|artists|artist|biograph|biograf|press|presse|media/.test(value)) score += 22;
+  if (/opera|oper\b|orchester|orchestra|philharm|symphon|festival|theater|concert/.test(value)) score += 16;
+  if (originType === "venue" && /venue|spielstaette|konzerthaus|concert-hall|theatre|architecture/.test(value)) score += 20;
+  if (originType === "ensemble" && /ensemble|choir|chor|quartet|quartett|band/.test(value)) score += 20;
+  if (/ticket|shop|calendar|kalender/.test(value)) score -= 15;
+  return score;
+}
+
+async function tryMultiSourceWebImageFallback(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  kind: EntityKind,
+  id: string,
+  name: string,
+  errors: string[],
+): Promise<boolean> {
+  const context = kind.queryContext ? ` ${kind.queryContext}` : "";
+  const typeTerm = kind.originType === "person"
+    ? "Musiker Künstler Porträt"
+    : kind.originType === "ensemble"
+    ? "Ensemble Orchester Chor Pressefoto"
+    : kind.originType === "venue"
+    ? "Veranstaltungsort Gebäude Pressefoto"
+    : "Pressefoto";
+  const queries = [
+    `"${name}"${context} ${typeTerm} offizielle Website`,
+    `"${name}"${context} press media photo`,
+    `"${name}" site:operabase.com OR opera OR orchestra OR philharmonic OR theater OR festival`,
+  ];
+  const pages: Array<{ url: string; title: string | null }> = [];
+  // Wikidata P856 verweist kostenlos und strukturiert auf die offizielle
+  // Künstlerwebsite. Damit bleibt die Recherche auch dann funktionsfähig,
+  // wenn die kostenlose HTML-Suchmaschine vorübergehend drosselt.
+  const officialWebsite = await searchWikidataOfficialWebsite(name);
+  if (officialWebsite) {
+    // Der bereits vorhandene spezialisierte Crawler durchsucht neben der
+    // Startseite auch Presse-, Media-, Galerie-, Bio- und Team-Unterseiten
+    // und bewertet schema.org-, Meta-, Hero- und Inhaltsbilder. Im Cron
+    // bewusst auf vier Seiten begrenzen, damit mehrere Personen pro Lauf
+    // innerhalb der Edge-Ressourcen bleiben.
+    const crawl = await searchOfficialSiteForImages(name, officialWebsite, { maxPages: 4 });
+    for (const candidate of crawl.candidates.slice(0, 3)) {
+      if (isLikelyGenericImage(candidate.url)) continue;
+      const { reachable } = await checkImageUrl(candidate.url);
+      if (!reachable || await isUrlUsedElsewhere(supabase, candidate.url, kind.table, id)) continue;
+      const stored = await persistCandidate(supabase, kind, id, {
+        imageUrl: candidate.url,
+        sourcePageUrl: candidate.pageUrl,
+        sourceName: new URL(candidate.pageUrl).hostname,
+        licenseStatus: "permission_required",
+        confidenceScore: candidate.confidence === "high" ? 0.9 : candidate.confidence === "medium" ? 0.8 : 0.68,
+        matchReason: `Porträt auf der offiziellen Website von „${name}“: ${candidate.reasons.join(" ")}`,
+        warnings: ["Bildcredit und Nutzungserlaubnis vor Veröffentlichung prüfen."],
+        needsReview: true,
+      });
+      if (!stored) continue;
+      await supabase.from("persons").update({
+        last_image_search_note: "Kandidat von der offiziellen Website gefunden, wartet auf Bilderfreigabe (/media).",
+        image_search_checked_at: new Date().toISOString(),
+      }).eq("id", id);
+      return true;
+    }
+    pages.push({ url: officialWebsite, title: "Offizielle Website (Wikidata)" });
+  }
+  for (const query of queries) {
+    for (const result of await searchDuckDuckGo(query, 4) ?? []) {
+      if (!pages.some((page) => page.url === result.url)) pages.push({ url: result.url, title: null });
+    }
+    if (pages.length >= 9) break;
+  }
+
+  // Hochwertige Fach-/Primärquellen zuerst prüfen. So verbraucht ein Lauf
+  // nicht seine knappe Zeit mit sozialen Netzwerken oder Ticketshops.
+  pages.sort((a, b) => {
+    const aScore = a.title === "Offizielle Website (Wikidata)" ? 100 : imagePageScore(a.url, kind.originType);
+    const bScore = b.title === "Offizielle Website (Wikidata)" ? 100 : imagePageScore(b.url, kind.originType);
+    return bScore - aScore;
+  });
+  for (const page of pages.filter((page) => imagePageScore(page.url, kind.originType) > -100).slice(0, 8)) {
+    try {
+      const detected = await detectEventCoverImage(page.url);
+      // Viele Agentur-/Künstlerseiten pflegen kein og:image. Dort gezielt
+      // ein mit dem Namen beschriftetes Bild suchen, statt den Treffer trotz
+      // vorhandenen Porträts wegzuwerfen.
+      // Auch bei einem generisch wirkenden og:image weiter suchen: Dateinamen
+      // wie "artist-events.jpg" können auf der offiziellen Künstlerseite
+      // trotzdem ein korrektes Porträt sein. Der namensbezogene Treffer ist
+      // in diesem Fall die sicherere Wahl.
+      let imageUrl = detected?.url ?? null;
+      if (!imageUrl || isLikelyGenericImage(imageUrl)) {
+        imageUrl = await extractImageNearName(page.url, name);
+      }
+      if (!imageUrl || isLikelyGenericImage(imageUrl)) continue;
+      const { reachable } = await checkImageUrl(imageUrl);
+      if (!reachable || await isUrlUsedElsewhere(supabase, imageUrl, kind.table, id)) continue;
+      const stored = await persistCandidate(supabase, kind, id, {
+        imageUrl,
+        sourcePageUrl: page.url,
+        sourceName: new URL(page.url).hostname,
+        photographer: detected?.credits ?? null,
+        licenseStatus: detected?.credits ? "official_press_image" : "permission_required",
+        confidenceScore: 0.72,
+        matchReason: `Kostenfreie Websuche nach „${name}“${page.title ? ` — Treffer „${page.title}“` : ""}.`,
+        warnings: ["Identität, Bildcredit und Nutzungserlaubnis vor Veröffentlichung prüfen."],
+        needsReview: true,
+      });
+      if (!stored) {
+        errors.push(`persons "${name}": Webbild konnte nicht gespeichert werden`);
+        continue;
+      }
+      await supabase.from(kind.table).update({
+        last_image_search_note: `Kandidat aus erweiterter Mehrquellen-Suche (${new URL(page.url).hostname}) gefunden, wartet auf Bilderfreigabe (/media).`,
+        image_search_checked_at: new Date().toISOString(),
+      }).eq("id", id);
+      return true;
+    } catch {
+      // Einzelne blockierte/kaputte Treffer überspringen; weitere Quelle
+      // versuchen, ohne den gesamten Personenbatch abzubrechen.
+    }
+  }
+  return false;
+}
+
 async function enrichEntityKind(
   // deno-lint-ignore no-explicit-any
   supabase: any,
@@ -899,18 +1116,19 @@ async function enrichEntityKind(
     errors: string[];
   }
 > {
-  // Ohne Sortierung liefert Postgres bei jedem Lauf dieselben ersten Zeilen
-  // (physische Tabellenreihenfolge) — bei mehr Zeilen mit photo_url=null als
-  // `limit` verhungerten dadurch alle Zeilen nach den ersten `limit`
-  // permanent (live beobachtet: 266/302 persons, 46/91 ensembles, 19/46
-  // venues mit last_image_search_note=null trotz Cron alle 15 Minuten seit
-  // Wochen). nullsFirst sorgt dafür, dass noch nie versuchte Zeilen
-  // (note ist null) immer vor bereits (erfolglos) versuchten Zeilen drankommen.
+  // Fairer Queue-Zeitstempel statt Sortierung nach dem Diagnose-Text: Die
+  // alte Reihenfolge konnte nach dem ersten vollständigen Umlauf immer
+  // wieder dieselben erfolglosen Zeilen auswählen. Älteste/nie geprüfte
+  // Entitäten kommen nun zuverlässig zuerst.
   let rowQuery = supabase
     .from(kind.table)
     .select(`id, ${kind.nameColumn}, website_url`)
     .is("photo_url", null)
-    .order("last_image_search_note", { ascending: true, nullsFirst: true });
+    .order("image_search_checked_at", { ascending: true, nullsFirst: true })
+    // Innerhalb desselben Queue-Alters zuerst Datensätze mit offizieller
+    // Website bearbeiten: Dort ist die Trefferwahrscheinlichkeit deutlich
+    // höher als bei einer reinen Namenssuche.
+    .order("website_url", { ascending: false, nullsFirst: false });
   if (entityIds.length > 0) rowQuery = rowQuery.in("id", entityIds);
   const { data: rows, error } = await rowQuery.limit(limit);
 
@@ -929,7 +1147,10 @@ async function enrichEntityKind(
   const errors: string[] = [];
 
   const setNote = (id: string, note: string | null) =>
-    supabase.from(kind.table).update({ last_image_search_note: note }).eq(
+    supabase.from(kind.table).update({
+      last_image_search_note: note,
+      image_search_checked_at: new Date().toISOString(),
+    }).eq(
       "id",
       id,
     );
@@ -965,13 +1186,49 @@ async function enrichEntityKind(
       // Priorität 2: eigene offizielle Website. Direkt übernommen, kein
       // Review — es ist die Entität selbst, die dieses Bild von sich
       // öffentlich zeigt, kein Fremdbild eines Dritten.
-      if (websiteUrl && !fastFallback) {
+      // `fastFallback` darf nur Health-Checks und URL-Discovery abkürzen,
+      // nicht die bereits bekannte offizielle Website überspringen. Genau
+      // das tat der Cron bisher und schloss hunderte Personen trotz
+      // vorhandener Primärquelle als „kein Bild gefunden“ ab.
+      if (websiteUrl) {
         if (!(await isAllowedByRobots(websiteUrl))) {
           await setNote(
             id,
             "Eigene Website durch robots.txt gesperrt — Zugriff verweigert.",
           );
         } else {
+          // Entitätsspezifischer Tiefencrawler: anders als der einfache
+          // Event-Cover-Parser versteht er auch data-image/data-src/srcset,
+          // schema.org Person/MusicGroup sowie Presse-, Portrait-, Galerie-,
+          // Bio- und Team-Unterseiten. Das schließt insbesondere
+          // Squarespace-/Agenturseiten, auf denen das sichtbare Porträt
+          // nicht als og:image hinterlegt ist.
+          const officialCrawl = await searchOfficialSiteForImages(name, websiteUrl, {
+            maxPages: fastFallback ? 4 : 8,
+          });
+          let officialCandidateQueued = false;
+          for (const candidate of officialCrawl.candidates.slice(0, 5)) {
+            if (candidate.confidence === "low" || isLikelyGenericImage(candidate.url)) continue;
+            const { reachable } = await checkImageUrl(candidate.url);
+            if (!reachable || await isUrlUsedElsewhere(supabase, candidate.url, kind.table, id)) continue;
+            const stored = await persistCandidate(supabase, kind, id, {
+              imageUrl: candidate.url,
+              sourcePageUrl: candidate.pageUrl,
+              sourceName: new URL(candidate.pageUrl).hostname,
+              licenseStatus: "permission_required",
+              confidenceScore: candidate.confidence === "high" ? 0.92 : 0.8,
+              matchReason: `Offizielle Website von „${name}“: ${candidate.reasons.join(" ")}`,
+              warnings: ["Bildcredit und Nutzungserlaubnis vor Veröffentlichung prüfen."],
+              needsReview: true,
+            });
+            if (!stored) continue;
+            queuedForReview++;
+            await setNote(id, "Porträt auf offizieller Website gefunden, wartet auf Bilderfreigabe (/media).");
+            officialCandidateQueued = true;
+            break;
+          }
+          if (officialCandidateQueued) continue;
+
           // Volle Kaskade (schema.org -> og:image -> twitter:image -> Hero/
           // Banner -> Bild im Content-Container) statt nur og:image/
           // twitter:image — dieselbe Erkennung, die der Ingestion-Importer
@@ -1017,7 +1274,8 @@ async function enrichEntityKind(
                 "Bild von der eigenen Website ist bereits einer anderen Entität zugeordnet (Duplikat).",
               );
             } else {
-              const stored = await persistCandidate(supabase, kind, id, {
+              let requiresReview = !detected?.credits || 0.96 < minConfidence;
+              const metadata: CandidateMetadata = {
                 imageUrl: ownImage,
                 sourcePageUrl: ownImageSourcePage,
                 sourceName: new URL(ownImageSourcePage).hostname,
@@ -1031,8 +1289,21 @@ async function enrichEntityKind(
                 warnings: detected?.credits ? [] : [
                   "Kein vollständiger Bildcredit auf der Quellseite erkannt.",
                 ],
-                needsReview: !detected?.credits || 0.96 < minConfidence,
-              });
+                needsReview: requiresReview,
+              };
+              let stored = await persistCandidate(supabase, kind, id, metadata);
+              // Große Originale können die WebP/pHash-Verarbeitung der Edge-
+              // Runtime sprengen. Der Fund darf dann nicht verloren gehen:
+              // als externer, review-pflichtiger Kandidat speichern; nach
+              // Freigabe kann er separat rehosted werden.
+              if (!stored && !requiresReview) {
+                requiresReview = true;
+                stored = await persistCandidate(supabase, kind, id, {
+                  ...metadata,
+                  needsReview: true,
+                  warnings: [...(metadata.warnings ?? []), "Automatische Bildverarbeitung fehlgeschlagen; Originalquelle vor Freigabe prüfen."],
+                });
+              }
               if (!stored) {
                 errors.push(
                   `${kind.table} "${name}": Bilddownload/Storage fehlgeschlagen`,
@@ -1041,7 +1312,7 @@ async function enrichEntityKind(
               }
               // Nur bei vollständigem Credit automatisch veröffentlichen.
               // Sonst bleibt der Storage-Kandidat ausschließlich in /media.
-              if (!detected?.credits || 0.96 < minConfidence) {
+              if (requiresReview) {
                 queuedForReview++;
                 await setNote(
                   id,
@@ -1055,6 +1326,7 @@ async function enrichEntityKind(
                 .update({
                   photo_url: stored.publicUrl,
                   photo_checked_at: now,
+                  image_search_checked_at: now,
                   last_image_search_note: null,
                 })
                 .eq("id", id);
@@ -1069,7 +1341,7 @@ async function enrichEntityKind(
             }
           }
         }
-      } else {
+      } else if (!websiteUrl) {
         await setNote(id, "Keine Website-URL hinterlegt.");
       }
 
@@ -1095,7 +1367,14 @@ async function enrichEntityKind(
       // Veranstaltung, bei der diese Person/dieses Ensemble mitwirkt —
       // präziser als eine blinde Namenssuche, aber Seite eines Dritten
       // ohne bekannte Lizenz, daher immer review-pflichtig.
-      if (kind.participantColumn && !fastFallback) {
+      // Auch im regulären Cron-Lauf ausführen: `fastFallback` hatte diesen
+      // wichtigsten kostenlosen Rückfall komplett deaktiviert. Damit
+      // blieben gerade neue Künstler:innen ohne Wikipedia und ohne bereits
+      // hinterlegte Website dauerhaft ohne jeden Kandidaten, obwohl ihre
+      // Veranstaltungs-/Besetzungsseite häufig ein Porträt enthält. Die
+      // Cron-Batches sind klein genug, dass ein einzelner zielgerichteter
+      // Seitenabruf pro Entität vertretbar bleibt.
+      if (kind.participantColumn) {
         const eventPageUrl = await findUpcomingEventPageUrl(
           supabase,
           kind.participantColumn,
@@ -1158,42 +1437,37 @@ async function enrichEntityKind(
             id,
             "Wikipedia-Bild nicht erreichbar/kein gültiges Bildformat.",
           );
-          continue;
-        }
-        if (
+        } else if (
           await isUrlUsedElsewhere(supabase, portrait.imageUrl, kind.table, id)
         ) {
           await setNote(
             id,
             "Wikipedia-Bild ist bereits einer anderen Entität zugeordnet (Duplikat).",
           );
-          continue;
+        } else {
+          const stored = await persistCandidate(supabase, kind, id, {
+            imageUrl: portrait.imageUrl,
+            sourcePageUrl: portrait.pageUrl,
+            sourceName: "Wikipedia",
+            licenseStatus: "unknown",
+            confidenceScore: 0.86,
+            matchReason:
+              `Infobox-Bild des eindeutig aufgelösten Wikipedia-Artikels „${name}“.`,
+            warnings: [
+              "Wikipedia dient nur der Identifikation; Lizenz auf der verknüpften Bildseite prüfen.",
+            ],
+            needsReview: true,
+          });
+          if (stored) {
+            queuedForReview++;
+            await setNote(
+              id,
+              "Wikipedia-Kandidat gefunden, wartet auf Lizenzprüfung (/media).",
+            );
+            continue;
+          }
+          errors.push(`${kind.table} "${name}": Wikipedia-Kandidat konnte nicht gespeichert werden`);
         }
-        const stored = await persistCandidate(supabase, kind, id, {
-          imageUrl: portrait.imageUrl,
-          sourcePageUrl: portrait.pageUrl,
-          sourceName: "Wikipedia",
-          licenseStatus: "unknown",
-          confidenceScore: 0.86,
-          matchReason:
-            `Infobox-Bild des eindeutig aufgelösten Wikipedia-Artikels „${name}“.`,
-          warnings: [
-            "Wikipedia dient nur der Identifikation; Lizenz auf der verknüpften Bildseite prüfen.",
-          ],
-          needsReview: true,
-        });
-        if (!stored) {
-          errors.push(
-            `${kind.table} "${name}": Download/Storage fehlgeschlagen`,
-          );
-          continue;
-        }
-        queuedForReview++;
-        await setNote(
-          id,
-          "Wikipedia-Kandidat gefunden, wartet auf Lizenzprüfung (/media).",
-        );
-        continue;
       }
 
       // Priorität 4: Personen nutzen bewusst KEINE Commons-Volltextsuche
@@ -1268,18 +1542,21 @@ async function enrichEntityKind(
       );
       if (wikidataOutcome === "queued") queuedForReview++;
       if (wikidataOutcome !== "not_found") continue;
+      const webQueued = await tryMultiSourceWebImageFallback(supabase, kind, id, name, errors);
+      if (webQueued) {
+        queuedForReview++;
+        continue;
+      }
       await setNote(
         id,
         kind.useWikipediaFallback
-          ? "Kein eindeutiger Wikipedia-Artikel mit Porträtbild gefunden."
+          ? "Kein eindeutiges Porträt in Wikipedia, Wikidata oder der erweiterten Websuche gefunden."
           : "Keine passende Wikimedia-Commons-Datei gefunden.",
       );
     } catch (err) {
-      errors.push(
-        `${kind.table} "${name}": ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      );
+      const message = err instanceof Error ? err.message : String(err);
+      errors.push(`${kind.table} "${name}": ${message}`);
+      await setNote(id, `Bildrecherche vorübergehend fehlgeschlagen: ${message.slice(0, 180)}. Automatischer neuer Versuch eingeplant.`);
     }
   }
 
@@ -1519,6 +1796,8 @@ async function enrichEventCovers(
         }
 
         let coverImage: string | null = null;
+        let coverSourcePage: string | null = null;
+        let coverCredits: string | null = null;
         const notes: string[] = [];
         for (const pageUrl of [event.website_url, event.ticket_url]) {
           if (!pageUrl) continue;
@@ -1552,6 +1831,8 @@ async function enrichEventCovers(
             continue;
           }
           coverImage = candidate;
+          coverSourcePage = pageUrl;
+          coverCredits = detected?.credits ?? null;
           break;
         }
         if (!coverImage) {
@@ -1564,11 +1845,32 @@ async function enrichEventCovers(
           continue;
         }
 
+        // Zentral über `images` speichern, nicht nur als nackte URL im
+        // Event. So bleiben Quellseite, Anbieter, Original-URL, Credits,
+        // Lizenzstatus und Abrufzeit bei JEDEM automatischen Eventbild
+        // dauerhaft nachvollziehbar.
+        const stored = await persistCandidate(supabase, { table: "events", originType: "event" }, event.id, {
+          imageUrl: coverImage,
+          sourcePageUrl: coverSourcePage!,
+          sourceName: new URL(coverSourcePage!).hostname,
+          photographer: coverCredits,
+          licenseStatus: coverCredits ? "official_press_image" : "permission_required",
+          confidenceScore: 0.94,
+          matchReason: "Titel-/Hero-Bild der konkreten Veranstaltungsseite.",
+          warnings: coverCredits ? [] : ["Bildcredit und Nutzungserlaubnis vor Veröffentlichung prüfen."],
+          needsReview: !coverCredits,
+        });
+        if (!stored) {
+          errors.push(`event ${event.id}: Bild oder Quellenmetadaten konnten nicht zentral gespeichert werden`);
+          continue;
+        }
+
         const now = new Date().toISOString();
         const { error: updateError } = await supabase
           .from("events")
           .update({
-            image_urls: [coverImage],
+            image_urls: [stored.publicUrl],
+            primary_image_id: stored.imageId,
             images_checked_at: now,
             updated_at: now,
             last_image_search_note: null,

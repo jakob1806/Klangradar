@@ -261,7 +261,7 @@ struct EntityDetailView: View {
         let fields = detail.fields
         switch detail.kind {
         case .person:
-            return [("Nationalität", fields.string("nationality")), ("Geboren", fields.string("birth_date")?.asGermanDate), ("Gestorben", fields.string("death_date")?.asGermanDate), ("Instrument", fields.string("instrument"))].compactMap { label, value in value.map { (label, $0) } }
+            return [("Nationalität", fields.string("nationality")), ("Geboren", fields.string("birth_date")?.asGermanDate), ("Gestorben", fields.string("death_date")?.asGermanDate), ("Instrument", formattedInstrument(fields.string("instrument")))].compactMap { label, value in value.map { (label, $0) } }
         case .ensemble:
             return [("Gegründet", fields.integer("founded_year").map(String.init)), ("Herkunft", fields.string("city") ?? fields.string("country"))].compactMap { label, value in value.map { (label, $0) } }
         case .venue:
@@ -270,6 +270,17 @@ struct EntityDetailView: View {
         case .work:
             return [("Komponist:in", fields.object("composer")?.string("full_name")), ("Komposition", fields.integer("composition_year").map(String.init)), ("Dauer", fields.integer("duration_minutes").map { "\($0) Minuten" }), ("Werkverzeichnis", fields.string("catalog_number")), ("Tonart", fields.string("key_signature")), ("Gattung", fields.string("genre")), ("Besetzung", fields.string("instrumentation")), ("Sätze", fields.strings("movements").isEmpty ? nil : fields.strings("movements").joined(separator: " · "))].compactMap { label, value in value.map { (label, $0) } }
         }
+    }
+
+    private func formattedInstrument(_ raw: String?) -> String? {
+        guard let raw = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { return nil }
+        if raw.hasPrefix("[") && raw.hasSuffix("]"),
+           let data = raw.data(using: .utf8),
+           let values = try? JSONDecoder().decode([String].self, from: data) {
+            let cleaned = values.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+            return cleaned.isEmpty ? nil : cleaned.map { $0.prefix(1).uppercased() + $0.dropFirst() }.joined(separator: " · ")
+        }
+        return raw.prefix(1).uppercased() + raw.dropFirst()
     }
 
     private func gallery(_ images: [GalleryImage]) -> some View {

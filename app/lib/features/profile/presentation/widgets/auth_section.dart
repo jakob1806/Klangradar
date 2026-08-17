@@ -7,10 +7,6 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 
-/// Auf `true` setzen, sobald ein kostenpflichtiges Apple Developer Program
-/// vorhanden und Sign in with Apple im Supabase-Dashboard konfiguriert ist.
-const kAppleSignInAvailable = false;
-
 enum _Step { email, code }
 
 class AuthSection extends ConsumerStatefulWidget {
@@ -26,6 +22,15 @@ class _AuthSectionState extends ConsumerState<AuthSection> {
   _Step _step = _Step.email;
   bool _loading = false;
   String? _error;
+  Set<String> _oauthProviders = const {};
+
+  @override
+  void initState() {
+    super.initState();
+    AuthService.enabledOAuthProviders().then((providers) {
+      if (mounted) setState(() => _oauthProviders = providers);
+    });
+  }
 
   @override
   void dispose() {
@@ -178,11 +183,7 @@ class _AuthSectionState extends ConsumerState<AuthSection> {
           ],
         ),
         const SizedBox(height: AppSpacing.lg),
-        // Sign in with Apple braucht ein kostenpflichtiges Apple Developer
-        // Program (Services-ID + Key für den Supabase-Dashboard-Provider) —
-        // solange das nicht vorhanden ist, würde der Button nur fehlschlagen.
-        // Auf `true` setzen, sobald das Programm eingerichtet ist.
-        if (kAppleSignInAvailable) ...[
+        if (_oauthProviders.contains('apple')) ...[
           OutlinedButton.icon(
             onPressed: _loading
                 ? null
@@ -195,16 +196,17 @@ class _AuthSectionState extends ConsumerState<AuthSection> {
           ),
           const SizedBox(height: AppSpacing.sm),
         ],
-        OutlinedButton.icon(
-          onPressed: _loading
-              ? null
-              : () => _oauth(AuthService.signInWithGoogle, 'Google'),
-          icon: const Icon(Icons.g_mobiledata_rounded, size: 24),
-          label: Text(l10n.authSignInWithGoogle),
-          style: OutlinedButton.styleFrom(
-            minimumSize: const Size.fromHeight(46),
+        if (_oauthProviders.contains('google'))
+          OutlinedButton.icon(
+            onPressed: _loading
+                ? null
+                : () => _oauth(AuthService.signInWithGoogle, 'Google'),
+            icon: const Icon(Icons.g_mobiledata_rounded, size: 24),
+            label: Text(l10n.authSignInWithGoogle),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(46),
+            ),
           ),
-        ),
       ],
     );
   }

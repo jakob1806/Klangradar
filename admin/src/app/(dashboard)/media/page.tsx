@@ -3,7 +3,7 @@ import { ConfirmButton } from "@/components/confirm-button";
 import { createClient } from "@/lib/supabase/server";
 import { confirmImageFree, confirmImageLicensed, rejectImage, updateImageMetadata } from "./actions";
 import { EnrichImagesButton } from "./enrich-images-button";
-import { MediaBulkBar, MediaRowCheckbox, MediaSelectAllCheckbox, MediaSelectionProvider } from "./media-select";
+import { MediaBulkBar, MediaSelectableCard, MediaSelectAllCheckbox, MediaSelectionProvider } from "./media-select";
 
 export const dynamic = "force-dynamic";
 
@@ -80,12 +80,16 @@ function thumbnailSrc(
 
 export default async function MediaPage() {
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("images")
-    .select("id, source_url, origin_type, origin_id, photographer, copyright_notice, license_notes, imported_at, source_page_url, source_name, credits, license_name, license_url, license_status, confidence_score, match_reason, warnings, thumbnail_path, storage_path")
-    .eq("needs_review", true)
-    .order("imported_at", { ascending: false })
-    .returns<ImageRow[]>();
+  const [{ data, error }, { count: missingPersons }, { count: missingEnsembles }] = await Promise.all([
+    supabase
+      .from("images")
+      .select("id, source_url, origin_type, origin_id, photographer, copyright_notice, license_notes, imported_at, source_page_url, source_name, credits, license_name, license_url, license_status, confidence_score, match_reason, warnings, thumbnail_path, storage_path")
+      .eq("needs_review", true)
+      .order("imported_at", { ascending: false })
+      .returns<ImageRow[]>(),
+    supabase.from("persons").select("id", { count: "exact", head: true }).is("photo_url", null),
+    supabase.from("ensembles").select("id", { count: "exact", head: true }).is("photo_url", null),
+  ]);
 
   // Namen pro (origin_type, origin_id) auflösen — eine Query pro betroffenem
   // Typ statt pro Bild, damit die Seite bei vielen Kandidaten nicht dutzende
@@ -117,29 +121,68 @@ export default async function MediaPage() {
   );
 
   return (
-    <div className="p-8">
-      <div className="flex items-start justify-between gap-4">
+    <div className="mx-auto max-w-[1480px] p-6 lg:p-8">
+      <div className="rounded-2xl border border-black/[0.06] bg-gradient-to-br from-white to-neutral-50 p-5 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">Bilder — Lizenz-Review</h1>
-          <p className="mt-1 max-w-xl text-sm text-neutral-500">
-            Ein automatischer Lauf (alle 15 Minuten, siehe <code>cron.job</code> &bdquo;image-enrichment&rdquo;)
-            sucht laufend Bilder für neue und bestehende Einträge: Events, sowie Venues/Personen/Ensembles/
-            Festivals über ihre eigene offizielle Website werden direkt übernommen (kein Fremdbild, daher
-            ohne Review). Nur der Wikimedia-Fallback landet hier zur redaktionellen Freigabe — jedes dieser
-            Bilder braucht eine Entscheidung (&bdquo;Frei nutzbar&rdquo;/&bdquo;Lizenziert&rdquo;), bevor es live geht.
-            Bestehende Bilder werden dabei laufend auf Erreichbarkeit geprüft und bei einem Defekt
-            automatisch zurückgesetzt (dann erneut für die Suche vorgemerkt).
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#0071e3]">Redaktion</p>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight">Bilderfreigabe</h1>
+          <p className="mt-1 max-w-2xl text-sm text-neutral-500">
+            Bildvorschläge prüfen, bequem auswählen und einzeln oder gesammelt freigeben. Ein Klick auf Bild
+            oder Kartenfläche fügt einen Vorschlag zur Auswahl hinzu.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <EnrichImagesButton />
+      </div>
+      </div>
+
+      <div className="mt-6 grid gap-4 md:grid-cols-2">
+        <div className="rounded-2xl border border-black/[0.06] bg-white p-5 shadow-sm">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.08em] text-neutral-400">Personen</p>
+              <p className="mt-2 text-3xl font-semibold tabular-nums text-neutral-900">{missingPersons ?? 0}</p>
+              <p className="mt-1 text-sm text-neutral-500">Profile ohne Bild</p>
+            </div>
+            <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">Offene Bildlücken</span>
+          </div>
           <Link
-            href="/media/gaps"
-            className="rounded-lg border border-black/10 bg-white px-4 py-2 text-sm font-medium text-[#1d1d1f] transition-colors hover:bg-black/[0.04]"
+            href="/image-research?type=person&missing=1"
+            className="mt-5 block rounded-xl bg-[#0071e3] px-4 py-2.5 text-center text-sm font-medium text-white transition-colors hover:bg-[#0077ed]"
           >
-            Bildlücken-Bericht
+            Fehlende Personenbilder bearbeiten
           </Link>
-          <EnrichImagesButton />
         </div>
+
+        <div className="rounded-2xl border border-black/[0.06] bg-white p-5 shadow-sm">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.08em] text-neutral-400">Ensembles</p>
+              <p className="mt-2 text-3xl font-semibold tabular-nums text-neutral-900">{missingEnsembles ?? 0}</p>
+              <p className="mt-1 text-sm text-neutral-500">Profile ohne Bild</p>
+            </div>
+            <span className="rounded-full bg-purple-50 px-3 py-1 text-xs font-medium text-purple-700">Offene Bildlücken</span>
+          </div>
+          <Link
+            href="/image-research?type=ensemble&missing=1"
+            className="mt-5 block rounded-xl bg-[#0071e3] px-4 py-2.5 text-center text-sm font-medium text-white transition-colors hover:bg-[#0077ed]"
+          >
+            Fehlende Ensemblebilder bearbeiten
+          </Link>
+        </div>
+      </div>
+
+      <div className="mt-10 flex items-end justify-between gap-4 border-t border-black/[0.06] pt-8">
+        <div>
+          <h2 className="text-base font-semibold tracking-tight text-neutral-900">Vorschläge zur Freigabe</h2>
+          <p className="mt-1 max-w-2xl text-sm text-neutral-500">
+            Nur Fremdbilder mit noch ungeklärter Lizenz landen hier. Bilder von einer verifizierten offiziellen
+            Profilseite können direkt übernommen werden und erscheinen deshalb nicht in dieser Liste.
+          </p>
+        </div>
+        <span className="rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium tabular-nums text-neutral-600">
+          {data?.length ?? 0} offen
+        </span>
       </div>
 
       {error && <p className="mt-6 text-sm text-amber-700">Konnte Bilder nicht laden: {error.message}</p>}
@@ -148,8 +191,9 @@ export default async function MediaPage() {
         <MediaSelectionProvider>
           <div className="mt-6">
             {(data?.length ?? 0) > 0 && (
-              <div className="mb-3">
+              <div className="mb-4 flex items-center justify-between rounded-xl border border-black/[0.06] bg-white px-4 py-3 shadow-sm">
                 <MediaSelectAllCheckbox ids={(data ?? []).map((i) => i.id)} />
+                <span className="text-xs text-neutral-400">Karte oder Bild anklicken</span>
               </div>
             )}
             <MediaBulkBar />
@@ -160,12 +204,11 @@ export default async function MediaPage() {
               const entityName = nameByKey.get(`${image.origin_type}:${image.origin_id}`);
               const entityHref = config?.route ? `${config.route}/${image.origin_id}` : null;
               return (
-              <div key={image.id} className="overflow-hidden rounded-xl border border-black/[0.06] bg-white shadow-sm">
+              <MediaSelectableCard key={image.id} id={image.id}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={thumbnailSrc(supabase, image)} alt="" className="h-40 w-full object-cover bg-neutral-100" />
-                <div className="p-3">
-                  <div className="flex items-center gap-2">
-                    <MediaRowCheckbox id={image.id} />
+                <img src={thumbnailSrc(supabase, image)} alt="" className="h-52 w-full bg-neutral-100 object-cover transition-transform duration-300 group-hover:scale-[1.015]" />
+                <div className="p-4">
+                  <div className="flex items-center gap-2 pr-1">
                     <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-medium text-neutral-600">
                       {ORIGIN_LABEL[image.origin_type] ?? image.origin_type}
                     </span>
@@ -183,15 +226,7 @@ export default async function MediaPage() {
                       </span>
                     )}
                   </div>
-                  <p className="mt-0.5 text-xs text-neutral-400">{formatDate(image.imported_at)}</p>
-                  <a
-                    href={image.source_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-1 block truncate text-xs text-blue-600 hover:underline"
-                  >
-                    {image.source_url}
-                  </a>
+                  <p className="mt-1 text-xs text-neutral-400">Eingegangen {formatDate(image.imported_at)}</p>
                   {image.photographer && (
                     <p className="mt-1 text-xs text-neutral-500">Foto: {image.photographer}</p>
                   )}
@@ -201,14 +236,19 @@ export default async function MediaPage() {
                   {image.license_notes && (
                     <p className="mt-1 text-xs text-neutral-500">{image.license_notes}</p>
                   )}
-                  {image.match_reason && <p className="mt-2 text-xs text-neutral-700"><strong>Zuordnung:</strong> {image.match_reason}</p>}
-                  <p className="mt-1 text-xs text-neutral-500">
-                    Quelle: {image.source_name ?? "unbekannt"} · Lizenz: {image.license_name ?? image.license_status}
-                    {image.confidence_score !== null ? ` · Confidence: ${Math.round(image.confidence_score * 100)} %` : ""}
-                  </p>
-                  {image.source_page_url && <a href={image.source_page_url} target="_blank" rel="noreferrer" className="mt-1 block truncate text-xs text-blue-600 hover:underline">Quellseite öffnen</a>}
+                  {image.match_reason && <p className="mt-3 rounded-xl bg-neutral-50 px-3 py-2 text-xs leading-5 text-neutral-700"><strong>Warum dieses Bild?</strong> {image.match_reason}</p>}
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+                    <span className="rounded-full bg-blue-50 px-2.5 py-1 font-medium text-blue-700">{image.source_name ?? "Quelle unbekannt"}</span>
+                    {image.confidence_score !== null && <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-neutral-600">{Math.round(image.confidence_score * 100)} % Sicherheit</span>}
+                  </div>
+                  <div className="mt-3 flex gap-3 text-xs font-medium">
+                    <a href={image.source_url} target="_blank" rel="noreferrer" className="text-[#0071e3] hover:underline">Bildquelle öffnen ↗</a>
+                    {image.source_page_url && <a href={image.source_page_url} target="_blank" rel="noreferrer" className="text-[#0071e3] hover:underline">Quellseite ↗</a>}
+                  </div>
                   {image.warnings?.map((warning) => <p key={warning} className="mt-1 text-xs text-amber-700">⚠ {warning}</p>)}
-                  <form action={updateImageMetadata} className="mt-3 grid grid-cols-2 gap-2 border-t pt-3">
+                  <details className="mt-4 rounded-xl border border-black/[0.07] bg-neutral-50/70">
+                    <summary className="cursor-pointer list-none px-3 py-2 text-xs font-medium text-neutral-700">Lizenzdetails und Metadaten bearbeiten</summary>
+                  <form action={updateImageMetadata} className="grid grid-cols-2 gap-2 border-t border-black/[0.06] p-3">
                     <input type="hidden" name="imageId" value={image.id} />
                     <input name="photographer" defaultValue={image.photographer ?? ""} placeholder="Fotograf" className="rounded-md border border-black/10 px-2 py-1 text-xs focus:border-[#0071e3] outline-none" />
                     <input name="credits" defaultValue={image.credits ?? ""} placeholder="Credit-Text" className="rounded-md border border-black/10 px-2 py-1 text-xs focus:border-[#0071e3] outline-none" />
@@ -217,36 +257,40 @@ export default async function MediaPage() {
                     <input name="confidenceScore" type="number" min="0" max="1" step="0.01" defaultValue={image.confidence_score ?? ""} placeholder="Confidence 0–1" className="rounded-md border border-black/10 px-2 py-1 text-xs focus:border-[#0071e3] outline-none" />
                     <button type="submit" className="rounded-md border border-black/10 px-2 py-1 text-xs font-medium hover:bg-black/[0.04]">Metadaten speichern</button>
                   </form>
-                  <div className="mt-3 flex flex-wrap gap-3">
+                  </details>
+                  <div className="mt-4 grid grid-cols-3 gap-2 border-t border-black/[0.06] pt-4">
                     <ConfirmButton
                       action={confirmImageFree.bind(null, image.id)}
                       confirmMessage="Als frei nutzbar freigeben?"
                       label="Frei nutzbar"
                       pendingLabel="…"
-                      className="text-xs font-medium text-emerald-700 hover:text-emerald-900 disabled:opacity-50"
+                      className="w-full rounded-lg bg-emerald-50 px-2 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
                     />
                     <ConfirmButton
                       action={confirmImageLicensed.bind(null, image.id)}
                       confirmMessage="Als lizenziert (mit Quellenangabe) freigeben?"
                       label="Lizenziert"
                       pendingLabel="…"
-                      className="text-xs font-medium text-amber-700 hover:text-amber-900 disabled:opacity-50"
+                      className="w-full rounded-lg bg-amber-50 px-2 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-100 disabled:opacity-50"
                     />
                     <ConfirmButton
                       action={rejectImage.bind(null, image.id)}
                       confirmMessage="Bild ablehnen? Wird nie ausgespielt."
                       label="Ablehnen"
                       pendingLabel="…"
-                      className="text-xs font-medium text-neutral-500 hover:text-neutral-900 disabled:opacity-50"
+                      className="w-full rounded-lg bg-neutral-100 px-2 py-2 text-xs font-semibold text-neutral-600 hover:bg-neutral-200 disabled:opacity-50"
                     />
                   </div>
                 </div>
-              </div>
+              </MediaSelectableCard>
               );
             })
           ) : (
-            <div className="col-span-full border-2 border-dashed border-neutral-300 bg-white px-4 py-10 text-center text-sm text-neutral-400">
-              Keine Bilder zur Prüfung.
+            <div className="col-span-full rounded-xl border border-dashed border-neutral-300 bg-white px-4 py-10 text-center">
+              <p className="text-sm font-medium text-neutral-700">Aktuell wartet kein Bild auf Lizenzfreigabe.</p>
+              <p className="mt-1 text-xs text-neutral-400">
+                Die offenen Profilbild-Lücken bleiben oben trotzdem sichtbar und können jederzeit bearbeitet werden.
+              </p>
             </div>
           )}
             </div>

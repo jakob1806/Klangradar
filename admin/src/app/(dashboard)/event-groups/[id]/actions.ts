@@ -63,6 +63,27 @@ async function memberEventIds(supabase: Supa, groupId: string): Promise<string[]
   return (data ?? []).map((e) => e.id);
 }
 
+// Analog zu findExactEntity in events/[id]/program/actions.ts: Alias-Auflösung
+// zuerst, sonst Fallback auf exakten (case-insensitive) Namenstreffer — kein
+// gemeinsamer Modul-Raum zwischen den beiden Ordnern, deshalb dupliziert
+// statt importiert (siehe Datei-Kommentar zu generateUniqueSlug oben).
+async function findMatchForPreview(
+  supabase: Supa,
+  entityType: "person" | "ensemble",
+  name: string,
+): Promise<{ id: string; name: string } | null> {
+  const { data: resolved } = await supabase.rpc("resolve_entity_alias", {
+    p_entity_type: entityType,
+    p_name: name,
+  });
+  if (resolved?.[0]) return { id: String(resolved[0].id), name: String(resolved[0].canonical_name) };
+  const table = entityType === "person" ? "persons" : "ensembles";
+  const column = entityType === "person" ? "full_name" : "name";
+  const { data } = await supabase.from(table).select(`id, ${column}`).ilike(column, name).limit(1).maybeSingle();
+  if (!data) return null;
+  return { id: data.id as string, name: String(data[column as keyof typeof data] ?? name) };
+}
+
 function selectedEventIds(formData: FormData, fallback: string[]): string[] {
   const selected = formData.getAll("event_ids").map(String);
   return selected.length > 0 ? selected : fallback;
@@ -456,6 +477,149 @@ export async function setParticipantEventMembership(
     let delQuery = supabase.from("event_participants").delete().in("event_id", toRemove);
     delQuery = personId ? delQuery.eq("person_id", personId) : delQuery.eq("ensemble_id", ensembleId);
     await delQuery;
+  }
+
+  revalidatePath(`/event-groups/${groupId}`);
+}
+
+// Gruppen-Pendant zum "Besetzung mit KI einlesen"-Flow bei Einzelevents
+// (events/[id]/program/actions.ts parseParticipantText/importParsedParticipants,
+// selbe Edge Function parse-event-participants). Der einzige Unterschied:
+// der Import broadcastet über addParticipantToEvents auf die per
+// EventChecklist ausgewählten Mitgliedstermine statt auf eine einzelne
+// event_id zu schreiben.
+type GroupParticipantEntityType = "person" | "ensemble";
+type GroupParticipantRoleKind = "komponist" | "dirigent" | "solist" | "chorleiter" | "moderator";
+
+export interface ParsedGroupParticipant {
+  name: string;
+  entityType: GroupParticipantEntityType;
+  roleLabel: string | null;
+  roleKind: GroupParticipantRoleKind | null;
+  matchedId: string | null;
+  matchedName: string | null;
+}
+
+export interface GroupParticipantParseState {
+  status: "idle" | "success" | "error";
+  participants: ParsedGroupParticipant[];
+  provider?: string;
+  error?: string;
+}
+
+export async function parseParticipantTextForGroup(
+  _groupId: string,
+  _previous: GroupParticipantParseState,
+  formData: FormData,
+): Promise<GroupParticipantParseState> {
+  const text = String(formData.get("participant_text") ?? "").trim();
+  if (!text) return { status: "error", participants: [], error: "Bitte zuerst eine Besetzung einfügen." };
+
+  const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+  try {
+    const supabase = await createClient();
+    const [{ data: userData }, { data: sessionData }] = await Promise.all([
+      supabase.auth.getUser(),
+      supabase.auth.getSession(),
+    ]);
+    if (!userData.user || !sessionData.session?.access_token) {
+      return { status: "error", participants: [], error: "Die Admin-Sitzung ist abgelaufen. Bitte erneut anmelden." };
+    }
+
+    const response = await fetch(`${baseUrl}/functions/v1/parse-event-participants`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: anonKey,
+        Authorization: `Bearer ${sessionData.session.access_token}`,
+      },
+      body: JSON.stringify({ text }),
+      signal: AbortSignal.timeout(60_000),
+    });
+    const body = await response.json().catch(() => null);
+    if (!response.ok || !body) {
+      return { status: "error", participants: [], error: body?.error ?? `KI-Auswertung fehlgeschlagen (HTTP ${response.status}).` };
+    }
+
+    const parsed: unknown[] = Array.isArray(body.participants) ? body.participants.slice(0, 50) : [];
+    const validItems = parsed.flatMap((item): {
+      name: string;
+      entityType: GroupParticipantEntityType;
+      roleLabel: string | null;
+      roleKind: GroupParticipantRoleKind | null;
+    }[] => {
+      if (!item || typeof item !== "object") return [];
+      const value = item as Record<string, unknown>;
+      const name = typeof value.name === "string" ? value.name.trim() : "";
+      const entityType: GroupParticipantEntityType | null =
+        value.entityType === "person" || value.entityType === "ensemble" ? value.entityType : null;
+      if (!name || !entityType) return [];
+      return [{
+        name,
+        entityType,
+        roleLabel: typeof value.roleLabel === "string" ? value.roleLabel.trim().slice(0, 160) || null : null,
+        roleKind: typeof value.roleKind === "string"
+          && ["komponist", "dirigent", "solist", "chorleiter", "moderator"].includes(value.roleKind)
+            ? (value.roleKind as GroupParticipantRoleKind)
+            : null,
+      }];
+    });
+    const participants: ParsedGroupParticipant[] = await Promise.all(validItems.map(async (item) => {
+      const match = await findMatchForPreview(supabase, item.entityType, item.name);
+      return { ...item, matchedId: match?.id ?? null, matchedName: match?.name ?? null };
+    }));
+    return participants.length > 0
+      ? { status: "success", participants, provider: typeof body.provider === "string" ? body.provider : undefined }
+      : { status: "error", participants: [], error: "Im Text wurden keine eindeutigen Mitwirkenden erkannt." };
+  } catch (error) {
+    return { status: "error", participants: [], error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+export async function importParsedParticipantsToGroup(groupId: string, formData: FormData) {
+  const count = Math.min(Number(formData.get("participant_count") ?? 0), 50);
+  if (!Number.isFinite(count) || count < 1) return;
+
+  const supabase = await createClient();
+  const { data: userData } = await supabase.auth.getUser();
+  if (!userData.user) throw new Error("Die Admin-Sitzung ist abgelaufen. Bitte erneut anmelden.");
+
+  const eventIds = selectedEventIds(formData, await memberEventIds(supabase, groupId));
+
+  for (let index = 0; index < count; index++) {
+    if (formData.get(`selected_${index}`) !== "on") continue;
+    const name = String(formData.get(`name_${index}`) ?? "").trim();
+    const entityType = String(formData.get(`entity_type_${index}`) ?? "") as GroupParticipantEntityType;
+    const roleLabel = String(formData.get(`role_label_${index}`) ?? "").trim().slice(0, 160) || null;
+    const roleKind = String(formData.get(`role_kind_${index}`) ?? "") || null;
+    const matchedId = String(formData.get(`matched_id_${index}`) ?? "") || null;
+    if (!name || (entityType !== "person" && entityType !== "ensemble")) continue;
+
+    let entityId = matchedId;
+    if (!entityId) entityId = (await findMatchForPreview(supabase, entityType, name))?.id ?? null;
+    if (!entityId) {
+      const table = entityType === "person" ? "persons" : "ensembles";
+      const slug = await generateUniqueSlug(supabase, table, name);
+      if (entityType === "person") {
+        const { data, error } = await supabase.from("persons").insert({ full_name: name, slug, is_verified: false }).select("id").single();
+        if (error) throw new Error(error.message);
+        entityId = data.id;
+      } else {
+        const { data, error } = await supabase.from("ensembles").insert({ name, slug, type: "sonstiges", is_verified: false }).select("id").single();
+        if (error) throw new Error(error.message);
+        entityId = data.id;
+      }
+    }
+
+    await addParticipantToEvents(
+      supabase,
+      eventIds,
+      entityType === "person" ? entityId : null,
+      entityType === "ensemble" ? entityId : null,
+      roleLabel,
+      roleKind,
+    );
   }
 
   revalidatePath(`/event-groups/${groupId}`);

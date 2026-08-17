@@ -2,20 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { repointFieldProvenance } from "@/lib/merge-provenance";
 import { logSystemAction } from "@/lib/system-log";
-
-// Gleiche FK-Liste wie backend/supabase/functions/resolve-person-
-// duplicates/index.ts (FK_REFS) — kein gemeinsamer Modul-Raum zwischen
-// Edge Functions (Deno) und der Next.js-Admin-App, siehe dortigen
-// Kommentar zu slugify() für dasselbe Muster.
-const FK_REFS: Array<{ table: string; column: string }> = [
-  { table: "works", column: "composer_id" },
-  { table: "event_participants", column: "person_id" },
-  { table: "user_favorite_persons", column: "person_id" },
-  { table: "sources", column: "person_id" },
-  { table: "entity_candidates", column: "created_person_id" },
-];
 
 /** Nutzeranfrage: "man soll auswählen können, welche Version genommen
  * werden soll — generell bei Zusammenführen". keepPersonId ist deshalb
@@ -45,29 +32,15 @@ export async function resolvePersonDuplicateAsMerged(candidateId: string, keepPe
     .eq("id", deletePersonId)
     .maybeSingle();
 
-  for (const { table, column } of FK_REFS) {
-    const { error } = await supabase.from(table).update({ [column]: keepPersonId }).eq(column, deletePersonId);
-    if (error) throw new Error(`Repoint ${table}.${column} fehlgeschlagen: ${error.message}`);
-  }
-
-  await repointFieldProvenance(supabase, "person", keepPersonId, deletePersonId);
-
-  if (deletedPerson?.full_name) {
-    await supabase
-      .from("entity_aliases")
-      .insert({ entity_type: "person", entity_id: keepPersonId, alias: deletedPerson.full_name })
-      .select("id")
-      .maybeSingle(); // best effort — Alias existiert ggf. schon
-  }
-
-  const { error: candidateUpdateError } = await supabase
-    .from("person_duplicate_candidates")
-    .update({ status: "merged", reviewed_at: new Date().toISOString() })
-    .eq("id", candidateId);
-  if (candidateUpdateError) throw new Error(candidateUpdateError.message);
-
-  const { error: deleteError } = await supabase.from("persons").delete().eq("id", deletePersonId);
-  if (deleteError) throw new Error(deleteError.message);
+  // Ein einziger DB-Aufruf ist entscheidend: dort werden kollidierende
+  // Event-/Favoriten-Zeilen zuerst dedupliziert und der gesamte Merge laeuft
+  // in einer Transaktion. Ein Fehler kann daher keinen halben Merge mehr
+  // hinterlassen.
+  const { error: mergeError } = await supabase.rpc("merge_person_duplicate_candidate", {
+    p_candidate_id: candidateId,
+    p_keep_person_id: keepPersonId,
+  });
+  if (mergeError) throw new Error(mergeError.message);
 
   const { data: { user } } = await supabase.auth.getUser();
   await logSystemAction(supabase, {

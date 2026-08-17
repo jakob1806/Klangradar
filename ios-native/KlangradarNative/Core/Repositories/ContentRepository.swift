@@ -26,6 +26,7 @@ struct LiveContentRepository: ContentRepository {
             ]
             if kind == .ensemble {
                 queryItems.append(URLQueryItem(name: "is_resolution_placeholder", value: "eq.false"))
+                queryItems.append(URLQueryItem(name: "is_family_root", value: "eq.false"))
             }
             let page: [JSONObject] = try await client.get(
                 table: specification.table,
@@ -259,7 +260,8 @@ struct LiveContentRepository: ContentRepository {
                 queryItems: [
                     URLQueryItem(name: "select", value: "id"),
                     URLQueryItem(name: "id", value: "in.(\(ensembleIDs.joined(separator: ",")))"),
-                    URLQueryItem(name: "is_resolution_placeholder", value: "eq.false")
+                    URLQueryItem(name: "is_resolution_placeholder", value: "eq.false"),
+                    URLQueryItem(name: "is_family_root", value: "eq.false")
                 ]
             )) ?? []
             visibleEnsembleIDs = Set(visible.compactMap { $0.string("id") })
@@ -475,7 +477,7 @@ struct LiveContentRepository: ContentRepository {
         case .person:
             return [
                 row.strings("roles").map(personRoleLabel).joined(separator: ", "),
-                row.string("instrument"),
+                formattedInstrument(row.string("instrument")),
             ]
             .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
         case .ensemble: return nil
@@ -489,6 +491,17 @@ struct LiveContentRepository: ContentRepository {
                 row.integer("duration_minutes").map { "\($0) Min." }
             ].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
         }
+    }
+
+    private func formattedInstrument(_ raw: String?) -> String? {
+        guard let raw = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { return nil }
+        if raw.hasPrefix("[") && raw.hasSuffix("]"),
+           let data = raw.data(using: .utf8),
+           let values = try? JSONDecoder().decode([String].self, from: data) {
+            let cleaned = values.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+            return cleaned.isEmpty ? nil : cleaned.map { $0.prefix(1).uppercased() + $0.dropFirst() }.joined(separator: " · ")
+        }
+        return raw.prefix(1).uppercased() + raw.dropFirst()
     }
 
     private func imageURL(from row: JSONObject) -> URL? {

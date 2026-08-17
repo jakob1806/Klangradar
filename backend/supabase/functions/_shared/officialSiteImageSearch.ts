@@ -35,6 +35,7 @@
 import { isAllowedByRobots, USER_AGENT } from "./robots.ts";
 import { extractMetaImages } from "./ogImage.ts";
 import { isLikelyGenericImage, isPublicImageUrl } from "./imageValidation.ts";
+import { fetchViaReaderProxy, markdownToSyntheticHtml } from "./readerProxyImage.ts";
 
 const MAX_PAGES = 10;
 const MAX_DEPTH = 2;
@@ -546,6 +547,7 @@ export function discoverSubpageLinks(html: string, pageUrl: string, siteHost: st
 async function searchOfficialSiteForImagesInner(
   entityName: string,
   websiteUrl: string,
+  maxPages = MAX_PAGES,
 ): Promise<OfficialSiteCrawlResult> {
   const errors: string[] = [];
   const pagesVisited: string[] = [];
@@ -568,7 +570,7 @@ async function searchOfficialSiteForImagesInner(
   const queue: Array<{ url: string; depth: number }> = [{ url: websiteUrl, depth: 0 }];
   const seenPages = new Set<string>([websiteUrl]);
 
-  while (queue.length && pagesVisited.length < MAX_PAGES) {
+  while (queue.length && pagesVisited.length < maxPages) {
     const next = queue.shift();
     if (!next) break;
     const { url: pageUrl, depth } = next;
@@ -581,8 +583,18 @@ async function searchOfficialSiteForImagesInner(
       }
       html = await fetchPageHtml(pageUrl);
     } catch (err) {
-      errors.push(`Seite nicht abrufbar (${pageUrl}): ${err instanceof Error ? err.message : String(err)}`);
-      continue;
+      // Generischer Rückfall für Websites, die den normalen Fetch blockieren
+      // (Bot-Schutz, 403/503, ...) — nicht mehr nur für staatsoper.de
+      // hart codiert (siehe readerProxyImage.ts). Das synthetische HTML
+      // durchläuft danach exakt dieselbe Kandidaten-/Scoring-Pipeline wie
+      // eine normal geladene Seite.
+      const markdown = await fetchViaReaderProxy(pageUrl);
+      if (markdown) {
+        html = markdownToSyntheticHtml(markdown, pageUrl);
+      } else {
+        errors.push(`Seite nicht abrufbar (${pageUrl}): ${err instanceof Error ? err.message : String(err)}`);
+        continue;
+      }
     }
     pagesVisited.push(pageUrl);
     if (!html) continue;
@@ -595,7 +607,7 @@ async function searchOfficialSiteForImagesInner(
       errors.push(`Bildextraktion fehlgeschlagen (${pageUrl}): ${err instanceof Error ? err.message : String(err)}`);
     }
 
-    if (depth < MAX_DEPTH && pagesVisited.length < MAX_PAGES) {
+    if (depth < MAX_DEPTH && pagesVisited.length < maxPages) {
       try {
         for (const sub of discoverSubpageLinks(html, pageUrl, siteHost)) {
           if (seenPages.has(sub) || seenPages.size >= MAX_QUEUE_SIZE) continue;
@@ -634,9 +646,11 @@ async function searchOfficialSiteForImagesInner(
 export async function searchOfficialSiteForImages(
   entityName: string,
   websiteUrl: string,
+  options?: { maxPages?: number },
 ): Promise<OfficialSiteCrawlResult> {
   try {
-    return await searchOfficialSiteForImagesInner(entityName, websiteUrl);
+    const maxPages = Math.max(1, Math.min(MAX_PAGES, options?.maxPages ?? MAX_PAGES));
+    return await searchOfficialSiteForImagesInner(entityName, websiteUrl, maxPages);
   } catch (err) {
     return {
       candidates: [],

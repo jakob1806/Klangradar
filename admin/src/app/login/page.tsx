@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useState, type FormEvent } from "react";
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
@@ -63,11 +64,14 @@ function LoginForm() {
   }
 
   return (
-    <div className="flex min-h-full items-center justify-center px-6 py-16">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 text-center">
-          <p className="text-sm font-semibold tracking-tight">Klassik München</p>
-          <p className="text-xs text-neutral-500">Redaktions-Dashboard</p>
+    <div className="admin-login-shell flex min-h-full items-center justify-center px-6 py-16">
+      <div className="admin-login-card w-full max-w-sm">
+        <div className="mb-7 text-center">
+          <span className="dashboard-brand-mark mx-auto mb-3" aria-hidden="true">
+            <Image src="/app-logo.svg" alt="" width={40} height={40} priority />
+          </span>
+          <p className="text-lg font-semibold tracking-tight">Klangradar</p>
+          <p className="mt-0.5 text-xs text-neutral-500">Redaktions-Dashboard</p>
         </div>
 
         {step === "email" ? (

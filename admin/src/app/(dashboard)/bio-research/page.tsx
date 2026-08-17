@@ -2,21 +2,24 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { BioResearchWorkflow, type BioWorkflowEntity } from "./bio-research-workflow";
-import { BioResearchPicker, EntityTypeTabs, type BioEntityOption } from "./bio-research-picker";
+import { BioResearchPicker, EntityTypeTabs, type BioEntityOption, type ResearchEntityType } from "./bio-research-picker";
 import type { BioEntityType } from "./actions";
+import { ImageResearchClient } from "../image-research/image-research-client";
 
 export const dynamic = "force-dynamic";
 
-const TABLE_FOR_TYPE: Record<BioEntityType, string> = {
+const TABLE_FOR_TYPE: Record<ResearchEntityType, string> = {
   person: "persons",
   ensemble: "ensembles",
   venue: "venues",
+  event: "events",
 };
 
-const NAME_COLUMN_FOR_TYPE: Record<BioEntityType, string> = {
+const NAME_COLUMN_FOR_TYPE: Record<ResearchEntityType, string> = {
   person: "full_name",
   ensemble: "name",
   venue: "name",
+  event: "title",
 };
 
 const BIO_COLUMN_FOR_TYPE: Record<BioEntityType, string> = {
@@ -36,50 +39,113 @@ const BACK_LINK: Record<BioEntityType, string> = {
  * unten). Getrennt von der ids-basierten Vorauswahl weiter unten, die von
  * BioResearchBar (Checkbox-Auswahl auf den Listenseiten) kommt und
  * unverändert bleibt. */
-async function loadEntities(entityType: BioEntityType): Promise<BioEntityOption[]> {
+async function loadEntities(entityType: ResearchEntityType): Promise<BioEntityOption[]> {
   const supabase = await createClient();
   const nameColumn = NAME_COLUMN_FOR_TYPE[entityType];
-  const bioColumn = BIO_COLUMN_FOR_TYPE[entityType];
-  const { data } = await supabase
-    .from(TABLE_FOR_TYPE[entityType])
-    .select(`id, ${nameColumn}, ${bioColumn}`)
-    .order(nameColumn, { ascending: true })
-    .limit(500)
-    .returns<Array<Record<string, unknown>>>();
-  return (data ?? []).map((row) => ({
+  const isEvent = entityType === "event";
+  const bioColumn = isEvent ? null : BIO_COLUMN_FOR_TYPE[entityType];
+  const selectedColumns = isEvent
+    ? `id, ${nameColumn}, image_urls, last_image_search_note`
+    : `id, ${nameColumn}, ${bioColumn}, photo_url, ai_biography_status, last_image_search_note, image_search_checked_at`;
+
+  // PostgREST begrenzt Antworten projektweit auf 1.000 Zeilen. Die alte
+  // feste .limit(500)-Abfrage ließ deshalb mehr als tausend Personen im
+  // eigenständigen Bio-Tab vollständig verschwinden. Seitenweise laden,
+  // bis wirklich der gesamte Bestand vorliegt.
+  const rows: Array<Record<string, unknown>> = [];
+  const pageSize = 1_000;
+  for (let from = 0; ; from += pageSize) {
+    let query = supabase
+      .from(TABLE_FOR_TYPE[entityType])
+      .select(selectedColumns);
+    if (isEvent) {
+      query = query
+        .gte("start_datetime", new Date().toISOString())
+        .in("status", ["scheduled", "sold_out", "postponed"]);
+    }
+    const { data, error } = await query
+      .order(nameColumn, { ascending: true })
+      .range(from, from + pageSize - 1)
+      .returns<Array<Record<string, unknown>>>();
+    if (error) throw new Error(error.message);
+    rows.push(...(data ?? []));
+    if (!data || data.length < pageSize) break;
+  }
+
+  // Ein recherchiertes Bild kann bereits sicher in unserem Storage liegen,
+  // aber noch auf die redaktionelle Lizenzfreigabe warten. photo_url allein
+  // bildet diesen Zustand nicht ab. Die echte offene Review-Queue deshalb
+  // separat laden, statt Kandidaten aus einem möglicherweise alten
+  // Diagnose-Text zu erraten.
+  const candidateIds = new Set<string>();
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from("images")
+      .select("origin_id")
+      .eq("origin_type", entityType)
+      .eq("needs_review", true)
+      .range(from, from + pageSize - 1)
+      .returns<Array<{ origin_id: string }>>();
+    if (error) throw new Error(error.message);
+    for (const image of data ?? []) candidateIds.add(image.origin_id);
+    if (!data || data.length < pageSize) break;
+  }
+
+  return rows.map((row) => ({
     id: row.id as string,
     name: row[nameColumn] as string,
-    hasBio: Boolean((row[bioColumn] as string | null)?.trim()),
+    hasBio: isEvent ? true : Boolean((row[bioColumn!] as string | null)?.trim()),
+    currentBio: isEvent ? null : (row[bioColumn!] as string | null) ?? null,
+    bioStatus: row.ai_biography_status as BioEntityOption["bioStatus"],
+    hasImage: isEvent ? Array.isArray(row.image_urls) && row.image_urls.length > 0 : Boolean(row.photo_url),
+    imageSearchNote: row.last_image_search_note as string | null,
+    imageSearchCheckedAt: row.image_search_checked_at as string | null,
+    hasImageCandidate: candidateIds.has(row.id as string),
   }));
+}
+
+export async function ResearchEnrichmentView({
+  type,
+  mode: requestedMode,
+}: {
+  type?: string;
+  mode?: string;
+}) {
+  const entityType = (type && TABLE_FOR_TYPE[type as ResearchEntityType] ? type : "person") as ResearchEntityType;
+  const mode = entityType !== "event" && requestedMode === "bio" ? "bio" : requestedMode === "image" ? "image" : "automatic";
+  const entities = await loadEntities(entityType);
+  return (
+    <div className="p-8">
+      <h1 className="text-xl font-semibold tracking-tight">Recherche &amp; Anreicherung</h1>
+      <p className="mt-1 max-w-xl text-sm text-neutral-500">
+        Biografien und Bilder laufen hauptsächlich automatisch. Für gezielte Korrekturen bleiben die manuellen Werkzeuge an derselben Stelle verfügbar.
+      </p>
+      <div className="mt-5 inline-flex rounded-xl bg-black/[0.04] p-1">
+        {([['automatic', 'Automatik & Fortschritt'], ...(entityType === "event" ? [] : [['bio', 'Biografie manuell'] as const]), ['image', 'Bild manuell']] as const).map(([value, label]) => (
+          <Link key={value} href={`/data-quality?view=research&type=${entityType}&mode=${value}`} className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${mode === value ? 'bg-white text-neutral-900 shadow-sm' : 'text-neutral-500 hover:text-neutral-900'}`}>{label}</Link>
+        ))}
+      </div>
+      <EntityTypeTabs entityType={entityType} mode={mode} />
+      <div className="mt-6">
+        {mode === "image" ? <ImageResearchClient key={`image:${entityType}`} entityType={entityType} entities={entities.map((entity) => ({ id: entity.id, name: entity.name, hasImage: Boolean(entity.hasImage) }))} initialOnlyMissing /> : <BioResearchPicker key={`${mode}:${entityType}`} entityType={entityType} entities={entities} mode={mode === "bio" ? "manual" : "automatic"} />}
+      </div>
+    </div>
+  );
 }
 
 export default async function BioResearchPage({
   searchParams,
 }: {
-  searchParams: Promise<{ type?: string; ids?: string }>;
+  searchParams: Promise<{ type?: string; ids?: string; mode?: string }>;
 }) {
-  const { type, ids } = await searchParams;
+  const { type, ids, mode: requestedMode } = await searchParams;
 
   // Kein ids= in der URL: eigenständiger Tab-Einstieg (Sidebar-Link) —
   // eigene Auswahl direkt hier, statt zwingend über die Personen-/Venues-/
   // Ensembles-Listenseite gehen zu müssen (Nutzerwunsch: "Bio recherche
   // soll auch einen eigenen Tab bekommen wie bilder recherchieren").
   if (!ids) {
-    const entityType = (type && TABLE_FOR_TYPE[type as BioEntityType] ? type : "person") as BioEntityType;
-    const entities = await loadEntities(entityType);
-    return (
-      <div className="p-8">
-        <h1 className="text-xl font-semibold tracking-tight">Bio-Recherche</h1>
-        <p className="mt-1 max-w-xl text-sm text-neutral-500">
-          Personen, Venues oder Ensembles auswählen, dann sucht die KI für jeden Eintrag nacheinander in Wikipedia
-          nach einer Kurzbiografie/-beschreibung — vor dem Übernehmen bearbeitbar, keine automatische Speicherung.
-        </p>
-        <EntityTypeTabs entityType={entityType} />
-        <div className="mt-6">
-          <BioResearchPicker key={entityType} entityType={entityType} entities={entities} />
-        </div>
-      </div>
-    );
+    return <ResearchEnrichmentView type={type} mode={requestedMode} />;
   }
 
   const entityType = type as BioEntityType;
@@ -125,8 +191,8 @@ export default async function BioResearchPage({
       </Link>
       <h1 className="mt-2 text-xl font-semibold tracking-tight">Bios recherchieren</h1>
       <p className="mt-1 max-w-xl text-sm text-neutral-500">
-        Für jeden ausgewählten Eintrag sucht die KI in Wikipedia nach einer Kurzbiografie/-beschreibung — vor dem
-        Übernehmen bearbeitbar, keine automatische Speicherung.
+        Manuelle Nachbearbeitung einer Auswahl. Neue und fehlende Personenbiografien werden unabhängig davon bereits
+        automatisch im Hintergrund recherchiert und gespeichert.
       </p>
 
       <div className="mt-8">

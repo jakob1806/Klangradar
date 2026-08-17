@@ -9,6 +9,7 @@
 // einen Seiten-Reload warten zu müssen.
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { autoFixContentReport, type AutoFixResult } from "./actions";
 
 const STATUS_STYLE: Record<AutoFixResult["status"], string> = {
@@ -22,7 +23,7 @@ const STATUS_LABEL: Record<AutoFixResult["status"], string> = {
   fixed: "Automatisch behoben",
   needs_manual_review: "Manuelle Prüfung nötig",
   error: "Fehler beim Fix-Versuch",
-  code_bug_suspected: "Code-Bug vermutet — Aufgabe für Claude Code angelegt",
+  code_bug_suspected: "Struktureller Fehler erkannt",
 };
 
 export function AutoFixButton({
@@ -38,6 +39,7 @@ export function AutoFixButton({
   alreadyTried?: boolean;
 }) {
   const [pending, startTransition] = useTransition();
+  const router = useRouter();
   const [result, setResult] = useState<AutoFixResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -47,6 +49,7 @@ export function AutoFixButton({
       try {
         const r = await autoFixContentReport(reportId, alreadyTried);
         setResult(r);
+        router.refresh();
       } catch (e) {
         setError(e instanceof Error ? e.message : "Automatischer Fix fehlgeschlagen.");
       }
@@ -54,7 +57,7 @@ export function AutoFixButton({
   }
 
   return (
-    <div className="flex flex-col items-end gap-1.5">
+    <div className="flex flex-col items-end gap-1">
       <button
         type="button"
         disabled={pending}
@@ -64,12 +67,7 @@ export function AutoFixButton({
         {pending ? "Prüfe & fixe…" : alreadyTried ? "Erneut versuchen" : "Automatisch fixen"}
       </button>
       {error && <p className="max-w-xs text-right text-xs text-red-600">{error}</p>}
-      {result && (
-        <div className={`max-w-xs rounded-md border px-2.5 py-1.5 text-right text-xs ${STATUS_STYLE[result.status]}`}>
-          <p className="font-medium">{STATUS_LABEL[result.status]}</p>
-          <p className="mt-0.5">{result.diagnosis}</p>
-        </div>
-      )}
+      {result && <p className={`rounded-md border px-2 py-1 text-xs font-medium ${STATUS_STYLE[result.status]}`}>{STATUS_LABEL[result.status]}</p>}
     </div>
   );
 }

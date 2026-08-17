@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useState, useTransition } from "react";
 import {
   applyEditorialAiProposals,
   type EditorialAiProposal,
@@ -12,27 +12,6 @@ import {
   type AuditableEntityType,
   type EntityAuditCorrection,
 } from "@/lib/entity-audit-actions";
-
-const AUTO_CONCURRENCY = 2;
-const autoQueue: Array<() => Promise<void>> = [];
-let activeAutoRequests = 0;
-
-function drainAutoQueue() {
-  while (activeAutoRequests < AUTO_CONCURRENCY) {
-    const job = autoQueue.shift();
-    if (!job) return;
-    activeAutoRequests += 1;
-    void job().finally(() => {
-      activeAutoRequests -= 1;
-      drainAutoQueue();
-    });
-  }
-}
-
-function enqueueAutomaticSuggestion(job: () => Promise<void>) {
-  autoQueue.push(job);
-  drainAutoQueue();
-}
 
 const CONFIDENCE_LABEL: Record<EditorialAiProposal["confidence"], string> = {
   confirmed: "Bestätigt",
@@ -82,7 +61,6 @@ export function EntityAuditFixButton({
   const [proposals, setProposals] = useState<EditorialAiProposal[]>(initialCorrection?.proposals ?? []);
   const [correctionReady, setCorrectionReady] = useState(Boolean(initialCorrection));
   const [appliedFields, setAppliedFields] = useState<string[]>([]);
-  const autoRequested = useRef(false);
 
   const runSuggestion = useCallback(async (force = false) => {
     setError(null);
@@ -110,12 +88,6 @@ export function EntityAuditFixButton({
       setSuggesting(false);
     }
   }, [entityId, entityType, flagId, issueMessage, issueSuggestion]);
-
-  useEffect(() => {
-    if (initialCorrection || autoRequested.current) return;
-    autoRequested.current = true;
-    enqueueAutomaticSuggestion(() => runSuggestion(false));
-  }, [initialCorrection, runSuggestion]);
 
   function handleApply(proposal: EditorialAiProposal) {
     setApplying(proposal.field);

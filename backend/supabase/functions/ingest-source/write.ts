@@ -301,6 +301,7 @@ export async function upsertRawEvent(
         description_de: raw.description,
         start_datetime: raw.startDateTime,
         end_datetime: raw.endDateTime,
+        venue_detail: raw.venueDetail === "Gärtnerplatztheater" ? "Hauptbühne" : raw.venueDetail ?? null,
         venue_id: venueId,
         price_min: raw.priceMin,
         price_max: raw.priceMax,
@@ -331,24 +332,10 @@ export async function upsertRawEvent(
     await linkSourceEntity(supabase, source, created.id);
     await attachCoverImage(supabase, source, raw, created.id, venueId, null, [], true);
 
-    // Nutzerfeedback: "nach wie vor entstehen duplikate, die verschiedenes
-    // programm zu gleicher uhrzeit und gleichem standort haben" — konkret
-    // bestätigt (z.B. "G. Verdi: Macbeth" vs. "Doctor Atomic" am selben
-    // Venue, ~1h auseinander; "Opernstudio goes Halloween" vs. "Workshop
-    // »Die Zauberflöte«", ~30min auseinander). Ursache: findEventMatch()
-    // ruft find_matching_event mit p_similarity_threshold: 0 auf (siehe
-    // dortiger Kommentar zu den Concerti/IN-München-Aggregator-Quellen),
-    // wodurch die RPC JEDES Event am selben Venue im ±2h-Fenster
-    // zurückgibt — auch mit similarity_score exakt 0, also ganz ohne echtes
-    // Signal (kein Titel-Substring-Treffer, keine exakte Zeitübereinstimmung,
-    // kein Cast-Overlap), rein aus zeitlicher/räumlicher Nähe. Diese Zeile
-    // flaggte bisher jeden solchen Zufallstreffer als duplicate_candidate.
-    // similarity > 0 verlangt mindestens eines der echten Signale aus
-    // find_matching_event (Titel-Substring, exakte start_datetime-
-    // Übereinstimmung oder Cast-Ähnlichkeit) — der ursprüngliche
-    // Aggregator-Fall (exakt gleiche Uhrzeit, komplett anderer Titel) bleibt
-    // dadurch weiterhin erkannt (similarity 0.5 durch den Exact-Time-Bonus).
-    if (match && match.similarity > 0) {
+    // Zweite Schutzschicht neben der RPC-Schwelle: Ein Kandidat braucht
+    // mindestens 0.35 inhaltliche Aehnlichkeit. Gleicher Ort und zeitliche
+    // Naehe allein duerfen die Review-Liste nicht mehr fuellen.
+    if (match && match.similarity >= 0.35) {
       const { error: dupError } = await supabase.from("duplicate_candidates").insert({
         event_a_id: match.id,
         event_b_id: created.id,
@@ -754,6 +741,11 @@ function buildUpdatePayload(raw: RawEvent): Record<string, unknown> {
   };
   if (raw.description !== null) payload.description_de = raw.description;
   if (raw.endDateTime !== null) payload.end_datetime = raw.endDateTime;
+  if (raw.venueDetail != null) {
+    payload.venue_detail = raw.venueDetail === "Gärtnerplatztheater"
+      ? "Hauptbühne"
+      : raw.venueDetail;
+  }
   if (raw.priceMin !== null) payload.price_min = raw.priceMin;
   if (raw.priceMax !== null) payload.price_max = raw.priceMax;
   if (raw.isFree !== null) payload.is_free = raw.isFree;

@@ -78,7 +78,9 @@ void main() {
       final heute = [_event('heute')];
       final empfehlungen = [_event('empf')];
       final entdecken = [_event('entd')];
+      final entityNews = [_event('news')];
       final ausverkauft = [_event('ausv')];
+      final festival = [_event('fest')];
       final kostenlos = [_event('kost')];
       final beliebt = [_event('bel')];
 
@@ -86,7 +88,9 @@ void main() {
         heute,
         empfehlungen,
         entdecken,
+        entityNews,
         ausverkauft,
+        festival,
         kostenlos,
         beliebt,
       );
@@ -95,7 +99,9 @@ void main() {
         heute,
         empfehlungen,
         entdecken,
+        entityNews,
         ausverkauft,
+        festival,
         kostenlos,
         beliebt,
       ]);

@@ -12,6 +12,8 @@ export interface FestivalFormValues {
   recurring: boolean;
   website_url: string | null;
   photo_url: string | null;
+  start_date: string | null;
+  end_date: string | null;
 }
 
 export function FestivalForm({
@@ -51,6 +53,15 @@ export function FestivalForm({
       <Field label="Website">
         <TextInput name="website_url" type="url" defaultValue={initial?.website_url ?? ""} placeholder="https://…" />
       </Field>
+
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="Beginn" hint="Aktiviert automatisch das Saisonal/Festival-Modul im Home-Feed, siehe docs/08">
+          <TextInput name="start_date" type="date" defaultValue={initial?.start_date ?? ""} />
+        </Field>
+        <Field label="Ende">
+          <TextInput name="end_date" type="date" defaultValue={initial?.end_date ?? ""} />
+        </Field>
+      </div>
 
       <label className="flex items-center gap-2 text-sm text-neutral-700">
         <input type="checkbox" name="recurring" defaultChecked={initial?.recurring ?? false} />

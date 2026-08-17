@@ -222,6 +222,7 @@ struct DirectoryView: View {
     let kind: EntityKind
     let repository: any ContentRepository
     @State private var items: [DirectoryItem] = []
+    @State private var directoryQuery = ""
 
     private var sections: [DirectorySection] {
         let grouped = Dictionary(grouping: items) { DirectorySection.indexTitle(for: $0.title) }
@@ -241,7 +242,13 @@ struct DirectoryView: View {
     // sondern nach Komponist; die A-Z-Schnellsprungleiste bleibt dasselbe
     // Muster, springt jetzt aber zu Komponisten-Anfangsbuchstaben.
     private var composerSections: [ComposerSection] {
-        let groupedByComposer = Dictionary(grouping: items) { $0.composer?.id ?? "unbekannt" }
+        let normalizedQuery = directoryQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let filteredItems = normalizedQuery.isEmpty ? items : items.filter {
+            $0.title.localizedStandardContains(normalizedQuery) ||
+            ($0.subtitle?.localizedStandardContains(normalizedQuery) ?? false) ||
+            ($0.composer?.name.localizedStandardContains(normalizedQuery) ?? false)
+        }
+        let groupedByComposer = Dictionary(grouping: filteredItems) { $0.composer?.id ?? "unbekannt" }
         let composerGroups = groupedByComposer.map { _, works -> ComposerGroup in
             let composer = works.first?.composer
             return ComposerGroup(
@@ -269,9 +276,10 @@ struct DirectoryView: View {
                     ForEach(composerSections) { section in
                         Section {
                             ForEach(section.groups) { group in
-                                composerHeaderRow(group)
-                                ForEach(group.works) { work in
-                                    workRow(work, composerName: group.name)
+                                NavigationLink {
+                                    ComposerWorksView(group: group, repository: repository)
+                                } label: {
+                                    composerHeaderRow(group)
                                 }
                             }
                         } header: {
@@ -314,53 +322,36 @@ struct DirectoryView: View {
             }
         }
         .navigationTitle(kind.title)
+        .searchable(
+            text: $directoryQuery,
+            placement: .navigationBarDrawer(displayMode: .always),
+            prompt: kind == .work ? "Komponist:in oder Werk" : "Suchen"
+        )
         .task { items = (try? await repository.directory(kind: kind)) ?? [] }
     }
 
-    @ViewBuilder
     private func composerHeaderRow(_ group: ComposerGroup) -> some View {
-        let label = HStack(spacing: 12) {
+        HStack(spacing: 13) {
             CroppedAsyncImage(url: group.imageURL, crop: group.avatarCrop) {
-                Color.secondary.opacity(0.12).overlay { Image(systemName: "person") }
-            }
-            .frame(width: 44, height: 44)
-            .clipShape(Circle())
-            Text(group.name).font(.headline)
-            Spacer(minLength: 0)
-        }
-        if let slug = group.slug {
-            NavigationLink(value: EntityRoute(kind: .person, identifier: slug)) { label }
-        } else {
-            label
-        }
-    }
-
-    /// Werk-Zeile innerhalb einer Komponisten-Gruppe — die Komponist-Angabe
-    /// steht bereits im Gruppen-Header (composerHeaderRow), wird deshalb aus
-    /// dem sonst geteilten item.subtitle (Komponist · Opus · Tonart · Jahr ·
-    /// Dauer, siehe ContentRepository.subtitle) entfernt, um sie nicht doppelt
-    /// zu zeigen.
-    @ViewBuilder
-    private func workRow(_ item: DirectoryItem, composerName: String) -> some View {
-        NavigationLink(value: EntityRoute(kind: kind, identifier: item.slug ?? item.id)) {
-            VStack(alignment: .leading, spacing: 5) {
-                Text(item.title.cleanedWorkTitle).font(.headline).fixedSize(horizontal: false, vertical: true)
-                if let detail = workDetailLine(item.subtitle, composerName: composerName) {
-                    Text(detail).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
+                Color.secondary.opacity(0.1).overlay {
+                    Text(group.initials)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(KlangradarTheme.accent)
                 }
             }
-            .padding(.vertical, 6)
-            .padding(.leading, 56)
+            .frame(width: 52, height: 52)
+            .clipShape(Circle())
+            VStack(alignment: .leading, spacing: 3) {
+                Text(group.name)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                Text("\(group.works.count) \(group.works.count == 1 ? "Werk" : "Werke")")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
         }
-    }
-
-    private func workDetailLine(_ subtitle: String?, composerName: String) -> String? {
-        guard var text = subtitle, !text.isEmpty else { return nil }
-        if text.hasPrefix(composerName) {
-            text.removeFirst(composerName.count)
-            if text.hasPrefix(" · ") { text.removeFirst(3) }
-        }
-        return text.isEmpty ? nil : text
+        .padding(.vertical, 3)
     }
 
     @ViewBuilder
@@ -397,6 +388,135 @@ private struct ComposerGroup: Identifiable {
     let imageURL: URL?
     let avatarCrop: CropRect?
     let works: [DirectoryItem]
+
+    var initials: String {
+        name.split(separator: " ").prefix(2).compactMap(\.first).map(String.init).joined().uppercased()
+    }
+}
+
+private struct ComposerWorksView: View {
+    let group: ComposerGroup
+    let repository: any ContentRepository
+    @State private var query = ""
+    @State private var sortOrder: WorkSortOrder = .title
+
+    private var visibleWorks: [DirectoryItem] {
+        let value = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let filtered = value.isEmpty ? group.works : group.works.filter {
+            $0.title.localizedStandardContains(value) || ($0.subtitle?.localizedStandardContains(value) ?? false)
+        }
+        switch sortOrder {
+        case .title:
+            return filtered.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+        case .catalog:
+            return filtered.sorted {
+                let lhs = workDetailLine($0.subtitle) ?? $0.title
+                let rhs = workDetailLine($1.subtitle) ?? $1.title
+                return lhs.localizedStandardCompare(rhs) == .orderedAscending
+            }
+        }
+    }
+
+    private var sections: [DirectorySection] {
+        let grouped = Dictionary(grouping: visibleWorks) { DirectorySection.indexTitle(for: $0.title) }
+        return DirectorySection.indexTitles.compactMap { title in
+            guard let works = grouped[title], !works.isEmpty else { return nil }
+            return DirectorySection(title: title, items: works)
+        }
+    }
+
+    var body: some View {
+        List {
+            Section {
+                HStack(spacing: 14) {
+                    CroppedAsyncImage(url: group.imageURL, crop: group.avatarCrop) {
+                        Color.secondary.opacity(0.1).overlay {
+                            Text(group.initials).font(.headline).foregroundStyle(KlangradarTheme.accent)
+                        }
+                    }
+                    .frame(width: 64, height: 64)
+                    .clipShape(Circle())
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(group.name).font(.title3.weight(.semibold))
+                        Text("\(group.works.count) \(group.works.count == 1 ? "Werk" : "Werke")")
+                            .font(.subheadline).foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.vertical, 4)
+
+                if let slug = group.slug {
+                    NavigationLink {
+                        EntityDetailView(
+                            route: EntityRoute(kind: .person, identifier: slug),
+                            repository: repository
+                        )
+                    } label: {
+                        Label("Komponistenprofil öffnen", systemImage: "person.crop.circle")
+                    }
+                }
+            }
+
+            ForEach(sections) { section in
+                Section(section.title) {
+                    ForEach(section.items) { work in
+                        NavigationLink {
+                            EntityDetailView(
+                                route: EntityRoute(kind: .work, identifier: work.slug ?? work.id),
+                                repository: repository
+                            )
+                        } label: {
+                            VStack(alignment: .leading, spacing: 5) {
+                                Text(work.title.cleanedWorkTitle)
+                                    .font(.headline)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                if let detail = workDetailLine(work.subtitle) {
+                                    Text(detail)
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(2)
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+                }
+            }
+        }
+        .navigationTitle(group.name)
+        .navigationBarTitleDisplayMode(.inline)
+        .searchable(text: $query, prompt: "Werke durchsuchen")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Picker("Sortierung", selection: $sortOrder) {
+                        ForEach(WorkSortOrder.allCases) { option in
+                            Label(option.title, systemImage: option.systemImage).tag(option)
+                        }
+                    }
+                } label: {
+                    Label("Sortieren", systemImage: "arrow.up.arrow.down")
+                }
+            }
+        }
+    }
+
+    private func workDetailLine(_ subtitle: String?) -> String? {
+        guard var text = subtitle, !text.isEmpty else { return nil }
+        if text.hasPrefix(group.name) {
+            text.removeFirst(group.name.count)
+            if text.hasPrefix(" · ") { text.removeFirst(3) }
+        }
+        return text.isEmpty ? nil : text
+    }
+}
+
+private enum WorkSortOrder: String, CaseIterable, Identifiable {
+    case title
+    case catalog
+
+    var id: String { rawValue }
+    var title: String { self == .title ? "Nach Titel" : "Nach Werkangaben" }
+    var systemImage: String { self == .title ? "textformat.abc" : "number" }
 }
 
 private struct ComposerSection: Identifiable {

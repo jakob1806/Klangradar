@@ -115,6 +115,7 @@ final allEnsemblesProvider =
             'id, slug, name, type, photo_url, avatar_crop_x, avatar_crop_y, avatar_crop_width, avatar_crop_height',
           )
           .eq('is_resolution_placeholder', false)
+          .eq('is_family_root', false)
           .order('name', ascending: true);
       final covers = await _coverImagesByOriginId('ensemble');
       return applyDirectoryCoverGalleryFirst(

@@ -50,6 +50,11 @@ class ProfileScreen extends ConsumerWidget {
             onTap: () => context.push('/favorites'),
           ),
           _ProfileRow(
+            label: l10n.profileMyFollows,
+            colors: colors,
+            onTap: () => context.push('/follows'),
+          ),
+          _ProfileRow(
             label: l10n.profileInterests,
             colors: colors,
             onTap: () => context.push('/interests'),

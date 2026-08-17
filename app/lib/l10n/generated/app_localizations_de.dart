@@ -39,6 +39,13 @@ class AppLocalizationsDe extends AppLocalizations {
   String get homeSectionAlmostSoldOut => 'Demnächst ausverkauft';
 
   @override
+  String get homeSectionEntityNews =>
+      'Deine Orte & Ensembles haben Neuigkeiten';
+
+  @override
+  String get homeSectionFestival => 'Festival gerade in München';
+
+  @override
   String get homeSectionFree => 'Kostenlose Konzerte';
 
   @override
@@ -867,6 +874,46 @@ class AppLocalizationsDe extends AppLocalizations {
   String get interestsNoResults => 'Keine Treffer.';
 
   @override
+  String get followSignInPrompt => 'Zum Folgen bitte im Profil-Tab anmelden.';
+
+  @override
+  String get followLabelActive => 'Gefolgt';
+
+  @override
+  String get followLabelInactive => 'Nicht gefolgt';
+
+  @override
+  String get myFollowsAppBarTitle => 'Meine Verfolgungen';
+
+  @override
+  String get myFollowsSignInPrompt =>
+      'Bitte im Profil-Tab anmelden, um deine Verfolgungen zu sehen.';
+
+  @override
+  String get myFollowsEmptyState =>
+      'Du folgst noch niemandem. Tippe auf einer Personen-, Ensemble- oder Venue-Seite auf das Lesezeichen-Symbol.';
+
+  @override
+  String get myFollowsSectionPersons => 'Personen';
+
+  @override
+  String get myFollowsSectionEnsembles => 'Ensembles';
+
+  @override
+  String get myFollowsSectionVenues => 'Venues';
+
+  @override
+  String get myFollowsNotifyTooltipOn =>
+      'Benachrichtigungen bei neuen Konzerten an';
+
+  @override
+  String get myFollowsNotifyTooltipOff =>
+      'Benachrichtigungen bei neuen Konzerten aus';
+
+  @override
+  String get myFollowsUnfollowTooltip => 'Entfolgen';
+
+  @override
   String get mapAttribution => '© OpenStreetMap-Mitwirkende';
 
   @override
@@ -1067,6 +1114,9 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get profileMyFavorites => 'Meine Favoriten';
+
+  @override
+  String get profileMyFollows => 'Meine Verfolgungen';
 
   @override
   String get profileInterests => 'Interessen';

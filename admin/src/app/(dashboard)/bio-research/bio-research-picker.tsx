@@ -8,34 +8,125 @@
 // Dieser Picker bietet dieselbe Auswahl-dann-Workflow-Zweiteilung direkt
 // hier, exakt nach dem Vorbild von image-research-client.tsx.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { BioResearchWorkflow, type BioWorkflowEntity } from "./bio-research-workflow";
 import type { BioEntityType } from "./actions";
+
+export type ResearchEntityType = BioEntityType | "event";
 
 export interface BioEntityOption {
   id: string;
   name: string;
   hasBio: boolean;
+  currentBio?: string | null;
+  bioStatus?: "pending" | "processing" | "generated" | "not_known" | "error";
+  hasImage?: boolean;
+  imageSearchNote?: string | null;
+  imageSearchCheckedAt?: string | null;
+  hasImageCandidate?: boolean;
 }
 
 export function BioResearchPicker({
   entityType,
   entities,
+  mode = "automatic",
 }: {
-  entityType: BioEntityType;
+  entityType: ResearchEntityType;
   entities: BioEntityOption[];
+  mode?: "automatic" | "manual";
 }) {
+  const router = useRouter();
   const [phase, setPhase] = useState<"select" | "workflow">("select");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState("");
   const [onlyMissing, setOnlyMissing] = useState(false);
 
+  // Der Personen-Tab ist nun eine Live-Übersicht der automatischen Queue.
+  // Während er geöffnet ist, werden neu fertiggestellte Biografien ohne
+  // manuelles Neuladen sichtbar.
+  useEffect(() => {
+    if (mode !== "automatic") return;
+    const timer = window.setInterval(() => router.refresh(), 20_000);
+    return () => window.clearInterval(timer);
+  }, [mode, router]);
+
   const visible = entities.filter((e) => {
-    if (onlyMissing && e.hasBio) return false;
+    if (onlyMissing && (entityType === "event" ? e.hasImage : e.hasBio)) return false;
     if (filter && !e.name.toLowerCase().includes(filter.toLowerCase())) return false;
     return true;
   });
+
+  if (mode === "automatic") {
+    const isEvent = entityType === "event";
+    const detailBase = entityType === "person" ? "/persons" : entityType === "ensemble" ? "/ensembles" : entityType === "event" ? "/events" : "/venues";
+    const entityLabel = entityType === "person" ? "Person" : entityType === "ensemble" ? "Ensemble" : entityType === "event" ? "Veranstaltung" : "Venue";
+    const withBio = entities.filter((entity) => entity.hasBio).length;
+    const withImage = entities.filter((entity) => entity.hasImage).length;
+    const imageProcessed = entities.filter((entity) =>
+      entity.hasImage || entity.hasImageCandidate || entity.imageSearchCheckedAt || entity.imageSearchNote
+    ).length;
+    const imageCandidates = entities.filter((entity) => !entity.hasImage && isImageCandidate(entity)).length;
+    const processing = entities.filter((entity) =>
+      !entity.hasBio && ["pending", "processing", "error", "not_known"].includes(entity.bioStatus ?? "pending")
+    ).length;
+
+    return (
+      <div>
+        <div className={`grid gap-3 ${isEvent ? "sm:grid-cols-1" : "sm:grid-cols-3"}`}>
+          {!isEvent && <SummaryCard label="Biografie-Fortschritt" value={withBio} total={entities.length} />}
+          {!isEvent && <SummaryCard label="Noch in Bearbeitung" value={processing} total={entities.length} invertProgress />}
+          <ImageProgressCard
+            processed={imageProcessed}
+            published={withImage}
+            candidates={imageCandidates}
+            total={entities.length}
+          />
+        </div>
+
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <input
+            value={filter}
+            onChange={(event) => setFilter(event.target.value)}
+            placeholder={`${entityLabel} suchen…`}
+            className="min-w-64 rounded-lg border border-black/10 px-3 py-2 text-sm outline-none focus:border-[#0071e3]"
+          />
+          <label className="flex items-center gap-2 text-sm text-neutral-600">
+            <input
+              type="checkbox"
+              checked={onlyMissing}
+              onChange={(event) => setOnlyMissing(event.target.checked)}
+              className="h-4 w-4 rounded border-neutral-300"
+            />
+            {isEvent ? "Nur ohne Bild" : "Nur ohne Biografie"}
+          </label>
+          <span className="ml-auto text-xs text-neutral-400">Aktualisiert sich alle 20 Sekunden</span>
+        </div>
+
+        <div className="mt-4 max-h-[62vh] overflow-y-auto rounded-xl border border-black/[0.06] bg-white shadow-sm">
+          {visible.map((entity) => (
+            <Link
+              key={entity.id}
+              href={`${detailBase}/${entity.id}`}
+              className="flex items-center gap-3 border-b border-neutral-100 px-4 py-3 text-sm last:border-b-0 hover:bg-neutral-50"
+            >
+              <span className="min-w-0 flex-1 truncate font-medium text-neutral-900">{entity.name}</span>
+              {!isEvent && <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${bioStatusClass(entity)}`}>
+                {bioStatusLabel(entity)}
+              </span>}
+              <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${imageStatusClass(entity)}`}
+                title={entity.imageSearchNote ?? undefined}>
+                {imageStatusLabel(entity)}
+              </span>
+              <span aria-hidden className="text-neutral-300">›</span>
+            </Link>
+          ))}
+          {visible.length === 0 && <p className="px-4 py-8 text-center text-sm text-neutral-400">Keine Treffer.</p>}
+        </div>
+      </div>
+    );
+  }
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -49,7 +140,7 @@ export function BioResearchPicker({
   if (phase === "workflow") {
     const chosen: BioWorkflowEntity[] = entities
       .filter((e) => selected.has(e.id))
-      .map((e) => ({ id: e.id, name: e.name, currentBio: null }));
+      .map((e) => ({ id: e.id, name: e.name, currentBio: e.currentBio ?? null }));
     return (
       <div>
         <button
@@ -60,7 +151,7 @@ export function BioResearchPicker({
           ← Zurück zur Auswahl
         </button>
         <div className="mt-4">
-          <BioResearchWorkflow entityType={entityType} entities={chosen} />
+          <BioResearchWorkflow entityType={entityType as BioEntityType} entities={chosen} />
         </div>
       </div>
     );
@@ -139,18 +230,107 @@ export function BioResearchPicker({
   );
 }
 
-export function EntityTypeTabs({ entityType }: { entityType: BioEntityType }) {
-  const labels: Record<BioEntityType, string> = {
+function ImageProgressCard({
+  processed,
+  published,
+  candidates,
+  total,
+}: {
+  processed: number;
+  published: number;
+  candidates: number;
+  total: number;
+}) {
+  const percentage = total > 0 ? Math.round((processed / total) * 100) : 100;
+  return (
+    <div className="rounded-xl border border-black/[0.06] bg-white p-4 shadow-sm">
+      <p className="text-xs font-medium uppercase tracking-wide text-neutral-400">Bildrecherche-Fortschritt</p>
+      <p className="mt-1 text-2xl font-semibold tracking-tight text-neutral-900">
+        {processed}<span className="ml-1 text-sm font-normal text-neutral-400">/ {total} geprüft</span>
+      </p>
+      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-neutral-100" aria-label={`${percentage} Prozent geprüft`}>
+        <div className="h-full rounded-full bg-[#0071e3] transition-all" style={{ width: `${percentage}%` }} />
+      </div>
+      <p className="mt-1.5 text-xs text-neutral-400">
+        {percentage}% geprüft · {published} veröffentlicht · {candidates} warten auf Freigabe
+      </p>
+    </div>
+  );
+}
+
+function isImageCandidate(entity: BioEntityOption) {
+  return entity.hasImageCandidate === true;
+}
+
+function imageStatusLabel(entity: BioEntityOption) {
+  if (entity.hasImage) return "Bild vorhanden";
+  if (isImageCandidate(entity)) return "Bild wartet auf Freigabe";
+  if (entity.imageSearchCheckedAt) return "Geprüft · kein Treffer";
+  return "In Bild-Warteschlange";
+}
+
+function imageStatusClass(entity: BioEntityOption) {
+  if (entity.hasImage) return "bg-emerald-50 text-emerald-700";
+  if (isImageCandidate(entity)) return "bg-blue-50 text-blue-700";
+  if (entity.imageSearchCheckedAt) return "bg-amber-50 text-amber-700";
+  return "bg-neutral-100 text-neutral-500";
+}
+
+function SummaryCard({
+  label,
+  value,
+  total,
+  invertProgress = false,
+}: {
+  label: string;
+  value: number;
+  total: number;
+  invertProgress?: boolean;
+}) {
+  const completed = invertProgress ? Math.max(0, total - value) : value;
+  const percentage = total > 0 ? Math.round((completed / total) * 100) : 100;
+  return (
+    <div className="rounded-xl border border-black/[0.06] bg-white p-4 shadow-sm">
+      <p className="text-xs font-medium uppercase tracking-wide text-neutral-400">{label}</p>
+      <p className="mt-1 text-2xl font-semibold tracking-tight text-neutral-900">
+        {value}<span className="ml-1 text-sm font-normal text-neutral-400">/ {total}</span>
+      </p>
+      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-neutral-100" aria-label={`${percentage} Prozent abgeschlossen`}>
+        <div className="h-full rounded-full bg-[#0071e3] transition-all" style={{ width: `${percentage}%` }} />
+      </div>
+      <p className="mt-1.5 text-xs text-neutral-400">{percentage}% abgeschlossen</p>
+    </div>
+  );
+}
+
+function bioStatusLabel(entity: BioEntityOption) {
+  if (entity.hasBio) return "Bio vorhanden";
+  if (entity.bioStatus === "processing") return "KI recherchiert";
+  if (entity.bioStatus === "error") return "Wird erneut versucht";
+  if (entity.bioStatus === "not_known") return "Weitere Recherche geplant";
+  return "In Warteschlange";
+}
+
+function bioStatusClass(entity: BioEntityOption) {
+  if (entity.hasBio) return "bg-blue-50 text-blue-700";
+  if (entity.bioStatus === "processing") return "bg-violet-50 text-violet-700";
+  if (entity.bioStatus === "error") return "bg-amber-50 text-amber-700";
+  return "bg-neutral-100 text-neutral-500";
+}
+
+export function EntityTypeTabs({ entityType, mode = "automatic" }: { entityType: ResearchEntityType; mode?: string }) {
+  const labels: Record<ResearchEntityType, string> = {
     person: "Personen",
     venue: "Venues",
     ensemble: "Ensembles",
+    event: "Veranstaltungen",
   };
   return (
     <div className="mt-4 flex gap-2">
-      {(Object.keys(labels) as BioEntityType[]).map((t) => (
+      {(Object.keys(labels) as ResearchEntityType[]).map((t) => (
         <Link
           key={t}
-          href={`/bio-research?type=${t}`}
+          href={`/data-quality?view=research&type=${t}&mode=${t === "event" && mode === "bio" ? "automatic" : mode}`}
           className={`px-3 py-1.5 type-label ${
             t === entityType
               ? "rounded-lg bg-[#0071e3] !text-white"

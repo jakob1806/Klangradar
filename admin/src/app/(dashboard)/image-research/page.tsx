@@ -32,7 +32,7 @@ const TYPE_LABEL: Record<TabEntityType, string> = {
   work: "Werke",
 };
 
-async function loadEntities(entityType: TabEntityType): Promise<ImageEntityOption[]> {
+async function loadEntities(entityType: TabEntityType, onlyMissing: boolean): Promise<ImageEntityOption[]> {
   const supabase = await createClient();
   const nameColumn = NAME_COLUMN_FOR_TYPE[entityType];
 
@@ -75,11 +75,15 @@ async function loadEntities(entityType: TabEntityType): Promise<ImageEntityOptio
     }));
   }
 
-  const { data } = await supabase
+  let query = supabase
     .from(TABLE_FOR_TYPE[entityType])
     .select(`id, ${nameColumn}, photo_url`)
-    .order(nameColumn, { ascending: true })
-    .limit(500)
+    .order(nameColumn, { ascending: true });
+  if (onlyMissing) query = query.is("photo_url", null);
+  const { data } = await query
+    // Die zentrale Bildlücken-Ansicht muss tatsächlich den gesamten Bestand
+    // anbieten und darf nicht nach 500 alphabetischen Einträgen abschneiden.
+    .limit(5000)
     .returns<Array<Record<string, unknown>>>();
   return (data ?? []).map((row) => ({
     id: row.id as string,
@@ -91,11 +95,12 @@ async function loadEntities(entityType: TabEntityType): Promise<ImageEntityOptio
 export default async function ImageResearchPage({
   searchParams,
 }: {
-  searchParams: Promise<{ type?: string }>;
+  searchParams: Promise<{ type?: string; missing?: string }>;
 }) {
-  const { type } = await searchParams;
+  const { type, missing } = await searchParams;
   const entityType = (type && TABLE_FOR_TYPE[type as TabEntityType] ? type : "person") as TabEntityType;
-  const entities = await loadEntities(entityType);
+  const onlyMissing = missing === "1";
+  const entities = await loadEntities(entityType, onlyMissing);
 
   return (
     <div className="p-8">
@@ -110,7 +115,7 @@ export default async function ImageResearchPage({
         {(Object.keys(TYPE_LABEL) as TabEntityType[]).map((t) => (
           <a
             key={t}
-            href={`/image-research?type=${t}`}
+            href={`/image-research?type=${t}${onlyMissing ? "&missing=1" : ""}`}
             className={`px-3 py-1.5 type-label ${
               t === entityType
                 ? "rounded-lg bg-[#0071e3] !text-white"
@@ -123,7 +128,12 @@ export default async function ImageResearchPage({
       </div>
 
       <div className="mt-6">
-        <ImageResearchClient key={entityType} entityType={entityType} entities={entities} />
+        <ImageResearchClient
+          key={`${entityType}:${onlyMissing}`}
+          entityType={entityType}
+          entities={entities}
+          initialOnlyMissing={onlyMissing}
+        />
       </div>
     </div>
   );

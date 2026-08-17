@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { resolveContentReport, dismissContentReport } from "./actions";
 import { AutoFixAllButton } from "./auto-fix-all-button";
 import { AutoFixButton } from "./auto-fix-button";
+import { ReportSourceTabs } from "@/components/report-source-tabs";
 
 interface ReportRow {
   id: string;
@@ -15,7 +16,7 @@ interface ReportRow {
 
 interface FixRow {
   report_id: string;
-  status: "fixed" | "needs_manual_review" | "error";
+  status: "fixed" | "needs_manual_review" | "error" | "code_bug_suspected";
   diagnosis: string;
   action_taken: string | null;
   created_at: string;
@@ -25,12 +26,14 @@ const FIX_STATUS_STYLE: Record<FixRow["status"], string> = {
   fixed: "bg-green-50 text-green-800 border-green-200",
   needs_manual_review: "bg-amber-50 text-amber-800 border-amber-200",
   error: "bg-red-50 text-red-700 border-red-200",
+  code_bug_suspected: "bg-violet-50 text-violet-800 border-violet-200",
 };
 
 const FIX_STATUS_LABEL: Record<FixRow["status"], string> = {
   fixed: "Automatisch behoben",
   needs_manual_review: "Manuelle Prüfung nötig",
   error: "Fehler beim Fix-Versuch",
+  code_bug_suspected: "Historischer struktureller Fehler",
 };
 
 /** Letzter Fix-Versuch pro Meldung (falls vorhanden) — content_report_fixes
@@ -129,14 +132,16 @@ const STATUS_SORT_RANK: Record<FixRow["status"] | "none", number> = {
   fixed: 0,
   needs_manual_review: 1,
   error: 1,
+  code_bug_suspected: 1,
   none: 2,
 };
 
 const CARD_BORDER_STYLE: Record<FixRow["status"] | "none", string> = {
-  fixed: "border-l-4 border-l-green-400",
-  needs_manual_review: "border-l-4 border-l-amber-400",
-  error: "border-l-4 border-l-red-400",
-  none: "border-l-4 border-l-neutral-200",
+  fixed: "border-l-emerald-500",
+  needs_manual_review: "border-l-amber-500",
+  error: "border-l-red-500",
+  code_bug_suspected: "border-l-violet-500",
+  none: "border-l-neutral-300",
 };
 
 /** Meldungsliste für EINE Herkunfts-App (Flutter oder native) — Nutzeranfrage:
@@ -178,38 +183,42 @@ export async function ContentReportsList({
   for (const report of data ?? []) {
     const status = latestFixes.get(report.id)?.status;
     if (status === "fixed") counts.fixed++;
-    else if (status === "needs_manual_review" || status === "error") counts.needsAttention++;
+    else if (status === "needs_manual_review" || status === "error" || status === "code_bug_suspected") counts.needsAttention++;
     else counts.untried++;
   }
 
   return (
-    <div className="p-8">
-      <div className="flex items-start justify-between gap-4">
+    <div className="mx-auto max-w-6xl p-6 lg:p-8">
+      <ReportSourceTabs activeHref={platform === "native" ? "/content-reports-native" : "/content-reports"} />
+      <div className="flex flex-col gap-4 border-b border-black/[0.08] pb-5 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
-          <p className="mt-1 max-w-xl text-sm text-neutral-500">{description}</p>
+          <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+          <p className="mt-1 max-w-2xl text-sm text-neutral-500">{description}</p>
         </div>
-        <AutoFixAllButton />
+        <AutoFixAllButton platform={platform} />
       </div>
 
       {error && <p className="mt-6 text-sm text-amber-700">Konnte Meldungen nicht laden: {error.message}</p>}
 
       {!error && data && data.length > 0 && (
-        <div className="mt-6 flex gap-3 text-xs">
-          <span className="border border-emerald-700 bg-white px-2.5 py-1.5 type-label !text-emerald-700">
-            {counts.fixed} automatisch behoben, wartet auf Bestätigung
-          </span>
-          <span className="border border-amber-700 bg-white px-2.5 py-1.5 type-label !text-amber-700">
-            {counts.needsAttention} brauchen manuelle Prüfung
-          </span>
-          <span className="border border-neutral-300 bg-white px-2.5 py-1.5 type-label !text-neutral-500">
-            {counts.untried} noch nicht versucht
-          </span>
+        <div className="mt-5 grid grid-cols-3 overflow-hidden rounded-xl border border-black/[0.07] bg-white shadow-sm">
+          <div className="px-4 py-3">
+            <p className="text-xl font-semibold text-emerald-700">{counts.fixed}</p>
+            <p className="text-xs text-neutral-500">behoben · Bestätigung offen</p>
+          </div>
+          <div className="border-l border-black/[0.07] px-4 py-3">
+            <p className="text-xl font-semibold text-amber-700">{counts.needsAttention}</p>
+            <p className="text-xs text-neutral-500">Prüfung erforderlich</p>
+          </div>
+          <div className="border-l border-black/[0.07] px-4 py-3">
+            <p className="text-xl font-semibold text-neutral-700">{counts.untried}</p>
+            <p className="text-xs text-neutral-500">noch nicht geprüft</p>
+          </div>
         </div>
       )}
 
       {!error && (
-        <div className="mt-4 flex flex-col gap-3">
+        <div className="mt-4 flex flex-col gap-2.5">
           {sorted.length ? (
             sorted.map((report) => {
               const name = entityNames.get(`${report.entity_type}:${report.entity_id}`) ?? "(nicht mehr gefunden)";
@@ -217,18 +226,23 @@ export async function ContentReportsList({
               return (
                 <div
                   key={report.id}
-                  className={`rounded-xl border border-black/[0.06] bg-white p-4 shadow-sm ${CARD_BORDER_STYLE[lastFix?.status ?? "none"]}`}
+                  className={`rounded-xl border border-l-[3px] border-black/[0.07] bg-white px-4 py-3 shadow-sm ${CARD_BORDER_STYLE[lastFix?.status ?? "none"]}`}
                 >
-                  <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="border border-amber-700 px-2 py-1 type-label !text-amber-700">
+                        <span className="rounded-full bg-amber-50 px-2 py-1 type-label !text-amber-700">
                           {REASON_LABEL[report.reason] ?? report.reason}
                         </span>
                         <span className="text-xs text-neutral-400">{formatDate(report.created_at)}</span>
+                        {lastFix && (
+                          <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${FIX_STATUS_STYLE[lastFix.status]}`}>
+                            {FIX_STATUS_LABEL[lastFix.status]}
+                          </span>
+                        )}
                       </div>
-                      <p className="mt-2 text-sm font-medium text-neutral-900">
-                        {ENTITY_LABEL[report.entity_type]}:{" "}
+                      <p className="mt-2 truncate text-sm font-semibold text-neutral-900">
+                        <span className="font-normal text-neutral-500">{ENTITY_LABEL[report.entity_type]} · </span>
                         <a
                           href={`/${ENTITY_TABLE[report.entity_type]}/${report.entity_id}`}
                           className="text-blue-700 hover:underline"
@@ -237,10 +251,11 @@ export async function ContentReportsList({
                         </a>
                       </p>
                       {report.message && (
-                        <p className="mt-1 text-sm text-neutral-600">{report.message}</p>
+                        <p className="mt-1 line-clamp-2 text-sm leading-5 text-neutral-600">{report.message}</p>
                       )}
                     </div>
-                    <div className="flex shrink-0 flex-wrap items-start justify-end gap-2">
+                    <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                      <AutoFixButton reportId={report.id} alreadyTried={Boolean(lastFix)} />
                       <ConfirmButton
                         action={dismissContentReport.bind(null, report.id)}
                         confirmMessage="Ohne Handlungsbedarf verwerfen?"
@@ -253,21 +268,22 @@ export async function ContentReportsList({
                         confirmMessage="Als erledigt markieren?"
                         label="Erledigt"
                         pendingLabel="…"
-                        className="border-2 border-emerald-700 bg-white px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+                        className="rounded-lg border border-emerald-600 bg-white px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
                       />
-                      <AutoFixButton reportId={report.id} alreadyTried={Boolean(lastFix)} />
                     </div>
                   </div>
                   {lastFix && (
-                    <div className={`mt-3 rounded-md border px-3 py-2 text-xs ${FIX_STATUS_STYLE[lastFix.status]}`}>
-                      <p className="font-medium">
-                        Letzter automatischer Fix-Versuch: {FIX_STATUS_LABEL[lastFix.status]} ({formatDate(lastFix.created_at)})
-                      </p>
-                      <p className="mt-0.5">{lastFix.diagnosis}</p>
-                      {lastFix.action_taken && (
-                        <p className="mt-0.5 font-medium">Änderung: {lastFix.action_taken}</p>
-                      )}
-                    </div>
+                    <details className="group mt-2 border-t border-black/[0.06] pt-2 text-xs text-neutral-600">
+                      <summary className="cursor-pointer list-none font-medium text-neutral-500 hover:text-neutral-900">
+                        <span className="group-open:hidden">Diagnose anzeigen</span>
+                        <span className="hidden group-open:inline">Diagnose ausblenden</span>
+                        <span className="ml-2 font-normal text-neutral-400">{formatDate(lastFix.created_at)}</span>
+                      </summary>
+                      <div className={`mt-2 rounded-lg border px-3 py-2 leading-5 ${FIX_STATUS_STYLE[lastFix.status]}`}>
+                        <p>{lastFix.diagnosis}</p>
+                        {lastFix.action_taken && <p className="mt-1 font-medium">Änderung: {lastFix.action_taken}</p>}
+                      </div>
+                    </details>
                   )}
                 </div>
               );

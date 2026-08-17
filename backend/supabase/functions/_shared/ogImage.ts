@@ -7,6 +7,7 @@
 // Fetch eines fremden Hosts in diesem Projekt (siehe _shared/robots.ts).
 
 import { isAllowedByRobots, USER_AGENT } from "./robots.ts";
+import { extractHeroImageFromMarkdown, fetchViaReaderProxy } from "./readerProxyImage.ts";
 
 const META_TAG_PATTERN = /<meta\s+[^>]*>/gi;
 
@@ -78,9 +79,13 @@ export async function extractOgImage(pageUrl: string): Promise<string | null> {
   try {
     res = await fetch(pageUrl, { headers: { "User-Agent": USER_AGENT } });
   } catch {
-    return null;
+    return await readerProxyFallback(pageUrl);
   }
-  if (!res.ok || !res.body) return null;
+  // Generischer Rückfall für Websites, die den normalen Fetch blockieren
+  // (Bot-Schutz, 403/503, ...) — dieselbe Idee wie in coverImageDetection.ts,
+  // hier für die Personen-/Ensemble-/Venue-/Event-Bilderrecherche in
+  // research-entity-image/index.ts. Siehe readerProxyImage.ts.
+  if (!res.ok || !res.body) return await readerProxyFallback(pageUrl);
 
   let html: string;
   try {
@@ -91,4 +96,9 @@ export async function extractOgImage(pageUrl: string): Promise<string | null> {
 
   const { ogImage, twitterImage } = extractMetaImages(html, pageUrl);
   return ogImage ?? twitterImage;
+}
+
+async function readerProxyFallback(pageUrl: string): Promise<string | null> {
+  const markdown = await fetchViaReaderProxy(pageUrl);
+  return markdown ? extractHeroImageFromMarkdown(markdown, pageUrl) : null;
 }

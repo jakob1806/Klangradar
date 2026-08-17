@@ -2,18 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { repointFieldProvenance } from "@/lib/merge-provenance";
 import { logSystemAction } from "@/lib/system-log";
-
-// Analog zu duplicates/persons/actions.ts FK_REFS — alle Tabellen mit einer
-// echten ensemble_id-Fremdschlüsselspalte (siehe Migrationen
-// 20260715000010/20260818000001/20260715000011/20260818000004).
-const FK_REFS: Array<{ table: string; column: string }> = [
-  { table: "event_participants", column: "ensemble_id" },
-  { table: "sources", column: "ensemble_id" },
-  { table: "user_favorite_ensembles", column: "ensemble_id" },
-  { table: "entity_candidates", column: "created_ensemble_id" },
-];
 
 export async function resolveEnsembleDuplicateAsMerged(candidateId: string, keepEnsembleId: string) {
   const supabase = await createClient();
@@ -38,34 +27,11 @@ export async function resolveEnsembleDuplicateAsMerged(candidateId: string, keep
     .eq("id", deleteEnsembleId)
     .maybeSingle();
 
-  for (const { table, column } of FK_REFS) {
-    const { error } = await supabase.from(table).update({ [column]: keepEnsembleId }).eq(column, deleteEnsembleId);
-    if (error) throw new Error(`Repoint ${table}.${column} fehlgeschlagen: ${error.message}`);
-  }
-
-  await supabase
-    .from("images")
-    .update({ origin_id: keepEnsembleId })
-    .eq("origin_type", "ensemble")
-    .eq("origin_id", deleteEnsembleId);
-  await repointFieldProvenance(supabase, "ensemble", keepEnsembleId, deleteEnsembleId);
-
-  if (deletedEnsemble?.name) {
-    await supabase
-      .from("entity_aliases")
-      .insert({ entity_type: "ensemble", entity_id: keepEnsembleId, alias: deletedEnsemble.name })
-      .select("id")
-      .maybeSingle(); // best effort — Alias existiert ggf. schon
-  }
-
-  const { error: candidateUpdateError } = await supabase
-    .from("ensemble_duplicate_candidates")
-    .update({ status: "merged", reviewed_at: new Date().toISOString() })
-    .eq("id", candidateId);
-  if (candidateUpdateError) throw new Error(candidateUpdateError.message);
-
-  const { error: deleteError } = await supabase.from("ensembles").delete().eq("id", deleteEnsembleId);
-  if (deleteError) throw new Error(deleteError.message);
+  const { error: mergeError } = await supabase.rpc("merge_ensemble_duplicate_candidate", {
+    p_candidate_id: candidateId,
+    p_keep_ensemble_id: keepEnsembleId,
+  });
+  if (mergeError) throw new Error(mergeError.message);
 
   const { data: { user } } = await supabase.auth.getUser();
   await logSystemAction(supabase, {

@@ -17,6 +17,8 @@ export interface RawEvent {
    * die Source keine feste venue_id hat. */
   venueName: string | null;
   venueAddress: string | null;
+  /** Raum/Buehne innerhalb der Venue, ohne eine eigene Venue anzulegen. */
+  venueDetail?: string | null;
   url: string | null;
   imageUrl: string | null;
   priceMin: number | null;

@@ -924,6 +924,24 @@ private struct EmailCodeLoginView: View {
                             || (didSendCode && code.isEmpty)
                     )
                 }
+
+                Section("Oder anmelden mit") {
+                    Button {
+                        Task { await oauth(provider: "Apple") { try await auth.signInWithApple() } }
+                    } label: {
+                        Label("Mit Apple anmelden", systemImage: "apple.logo")
+                    }
+                    .disabled(isWorking)
+
+                    if auth.isGoogleSignInAvailable {
+                        Button {
+                            Task { await oauth(provider: "Google") { try await auth.signInWithGoogle() } }
+                        } label: {
+                            Label("Mit Google anmelden", systemImage: "g.circle.fill")
+                        }
+                        .disabled(isWorking)
+                    }
+                }
             }
             .navigationTitle("Anmelden")
             .navigationBarTitleDisplayMode(.inline)
@@ -951,6 +969,18 @@ private struct EmailCodeLoginView: View {
             }
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    private func oauth(provider: String, action: () async throws -> Void) async {
+        isWorking = true
+        errorMessage = nil
+        defer { isWorking = false }
+        do {
+            try await action()
+            dismiss()
+        } catch {
+            errorMessage = "\(provider): \(error.localizedDescription)"
         }
     }
 }

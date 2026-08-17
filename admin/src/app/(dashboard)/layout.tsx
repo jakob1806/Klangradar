@@ -26,8 +26,12 @@ export default async function DashboardLayout({
         </MobileNavigation>
         <SignOutButton />
       </div>
-      <main className="flex-1 min-w-0 bg-[#f5f5f7] text-[#1d1d1f]">
-        <div className="sticky top-0 z-30 hidden justify-end border-b border-black/[0.06] bg-[#f5f5f7]/80 px-8 py-3 backdrop-blur-xl md:flex">
+      <main className="dashboard-main min-w-0 flex-1">
+        <div className="dashboard-topbar sticky top-0 z-30 hidden items-center justify-between px-8 md:flex">
+          <div>
+            <p className="text-[13px] font-semibold tracking-tight text-[#1d1d1f]">Klangradar Redaktion</p>
+            <p className="text-[11px] text-[#86868b]">Inhalte zentral verwalten</p>
+          </div>
           <SignOutButton />
         </div>
         <div className="dashboard-content">{children}</div>

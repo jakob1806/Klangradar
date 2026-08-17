@@ -125,10 +125,24 @@ class HomeScreen extends ConsumerWidget {
                         ),
                         const SizedBox(height: AppSpacing.sectionGap),
                       ],
+                      if (data.entityNews.isNotEmpty) ...[
+                        EventSection(
+                          title: l10n.homeSectionEntityNews,
+                          events: data.entityNews,
+                        ),
+                        const SizedBox(height: AppSpacing.sectionGap),
+                      ],
                       if (data.ausverkauft.isNotEmpty) ...[
                         EventSection(
                           title: l10n.homeSectionAlmostSoldOut,
                           events: data.ausverkauft,
+                        ),
+                        const SizedBox(height: AppSpacing.sectionGap),
+                      ],
+                      if (data.festival.isNotEmpty) ...[
+                        EventSection(
+                          title: data.festivalName ?? l10n.homeSectionFestival,
+                          events: data.festival,
                         ),
                         const SizedBox(height: AppSpacing.sectionGap),
                       ],
@@ -147,7 +161,9 @@ class HomeScreen extends ConsumerWidget {
                       if (data.heute.isEmpty &&
                           data.empfehlungen.isEmpty &&
                           data.entdecken.isEmpty &&
+                          data.entityNews.isEmpty &&
                           data.ausverkauft.isEmpty &&
+                          data.festival.isEmpty &&
                           data.kostenlos.isEmpty &&
                           data.beliebt.isEmpty)
                         Padding(

@@ -33,20 +33,34 @@ interface WikipediaSummary {
   content_urls?: { desktop?: { page?: string } };
 }
 
+const WIKIPEDIA_TIMEOUT_MS = 9_000;
+
+async function fetchJsonWithRetry(url: string, headers: HeadersInit) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), WIKIPEDIA_TIMEOUT_MS);
+    try {
+      const res = await fetch(url, { headers, signal: controller.signal });
+      if (res.ok) return await res.json();
+      if (res.status !== 429 && res.status < 500) return null;
+    } catch {
+      // Ein kurzer Netzwerkfehler darf einen Künstler nicht für den gesamten
+      // Queue-Umlauf als „ohne Bild“ abstempeln. Einmal kontrolliert neu
+      // versuchen; danach übernimmt der reguläre Web-Fallback.
+    } finally {
+      clearTimeout(timeout);
+    }
+    if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  return null;
+}
+
 async function fetchSummary(title: string, lang: "de" | "en"): Promise<WikipediaSummary | null> {
   const url = `https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`;
-  try {
-    const res = await fetch(url, {
-      headers: {
-        "User-Agent": "KlassikMuenchenBot/1.0 (redaktionelle Bilderrecherche)",
-        Accept: "application/json",
-      },
-    });
-    if (!res.ok) return null;
-    return await res.json();
-  } catch {
-    return null;
-  }
+  return await fetchJsonWithRetry(url, {
+    "User-Agent": "KlangradarBot/1.0 (redaktionelle Bilderrecherche)",
+    Accept: "application/json",
+  });
 }
 
 /** Normalisiert für den Namens-Überlappungs-Check unten: klein, ohne
@@ -83,11 +97,10 @@ async function searchArticleTitle(name: string, lang: "de" | "en"): Promise<stri
   url.searchParams.set("origin", "*");
 
   try {
-    const res = await fetch(url.toString(), {
-      headers: { "User-Agent": "KlassikMuenchenBot/1.0 (redaktionelle Bilderrecherche)" },
+    const data = await fetchJsonWithRetry(url.toString(), {
+      "User-Agent": "KlangradarBot/1.0 (redaktionelle Bilderrecherche)",
     });
-    if (!res.ok) return null;
-    const data = await res.json();
+    if (!data) return null;
     const hits = (data?.query?.search ?? []) as Array<{ title?: string }>;
     for (const hit of hits) {
       if (hit.title && titleLikelyMatchesName(name, hit.title)) return hit.title;

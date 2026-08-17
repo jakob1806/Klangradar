@@ -56,6 +56,21 @@ async function getP18Filename(entityId: string): Promise<string | null> {
   return typeof filename === "string" ? filename : null;
 }
 
+async function getOfficialWebsite(entityId: string): Promise<string | null> {
+  const data = await fetchWikidataApi({
+    action: "wbgetclaims",
+    entity: entityId,
+    property: "P856",
+  });
+  const value = data?.claims?.P856?.[0]?.mainsnak?.datavalue?.value;
+  if (typeof value !== "string") return null;
+  try {
+    return new URL(value).toString();
+  } catch {
+    return null;
+  }
+}
+
 /** Sucht `name` (optional mit Kontext, z. B. "München" gegen
  * Namensgleichheiten) auf Wikidata (erst de, dann en) und löst ein
  * gefundenes P18-Bild über Commons zu einem lizenzgeprüften Kandidaten auf.
@@ -73,6 +88,20 @@ export async function searchWikidataImage(
     if (!filename) continue;
     const candidate = await getCommonsFileInfoByTitle(filename);
     if (candidate) return candidate;
+  }
+  return null;
+}
+
+/** Kostenfreier Weg von einem strukturiert identifizierten Wikidata-Item
+ * zur offiziellen Website (P856). Das ist besonders für lebende
+ * Künstler:innen wertvoll, deren Porträt aus Lizenzgründen nicht auf
+ * Wikimedia liegt, deren eigene Presse-/Biografieseite aber verknüpft ist. */
+export async function searchWikidataOfficialWebsite(name: string): Promise<string | null> {
+  for (const lang of ["de", "en"] as const) {
+    const entityId = await findEntityId(name, lang);
+    if (!entityId) continue;
+    const website = await getOfficialWebsite(entityId);
+    if (website) return website;
   }
   return null;
 }

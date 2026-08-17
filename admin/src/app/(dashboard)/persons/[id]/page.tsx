@@ -25,7 +25,7 @@ export default async function EditPersonPage({
       )
       .eq("id", id)
       .maybeSingle<PersonFormValues & { full_name: string }>(),
-    supabase.from("ensembles").select("id, name").order("name").returns<{ id: string; name: string }[]>(),
+    supabase.from("ensembles").select("id, name").eq("is_resolution_placeholder", false).eq("is_family_root", false).order("name").returns<{ id: string; name: string }[]>(),
   ]);
 
   if (error || !data) notFound();
