@@ -9,15 +9,25 @@ import { usePathname } from "next/navigation";
 // scanbar. Optik nach der Apple-Design-Skill-Referenz (Abschnitt
 // "Materials & Depth"): Sidebar als durchscheinende Ebene statt Volltonfarbe,
 // aktiver Eintrag als abgerundete Fläche in der einen Akzentfarbe.
+// Nutzeranfrage: "gruppen von 5 auf 3 ohne den inhalt der gruppen jeweils
+// zu ändern, nur die struktur" — rein mechanisches Zusammenlegen benachbarter
+// Gruppen (Redaktion+Medien, Stammdaten+System), Reihenfolge und Beschriftung
+// der einzelnen Einträge bleibt unangetastet, nur die drei ursprünglichen
+// Gruppen-Header verschwinden zugunsten der zusammengelegten Labels.
 const NAV_GROUPS = [
   {
-    label: "Redaktion",
+    label: "Wichtig",
+    items: [{ href: "/wichtig", label: "Offene Aufgaben" }],
+  },
+  {
+    label: "Redaktion & Medien",
     items: [
       { href: "/events", label: "Veranstaltungen" },
       { href: "/event-groups", label: "Event-Gruppen" },
       { href: "/review-queue", label: "Review-Queue" },
       { href: "/cancellations", label: "Absage-Review" },
       { href: "/content-reports", label: "Meldungen & Fehler" },
+      { href: "/media", label: "Bilderfreigabe" },
     ],
   },
   {
@@ -32,7 +42,7 @@ const NAV_GROUPS = [
     ],
   },
   {
-    label: "Stammdaten",
+    label: "Stammdaten & System",
     items: [
       { href: "/venues", label: "Venues" },
       { href: "/persons", label: "Personen" },
@@ -42,17 +52,6 @@ const NAV_GROUPS = [
       { href: "/editorial-collections", label: "Redaktionelle Sammlungen" },
       { href: "/tags", label: "Tags" },
       { href: "/regions", label: "Regionen" },
-    ],
-  },
-  {
-    label: "Medien",
-    items: [
-      { href: "/media", label: "Bilderfreigabe" },
-    ],
-  },
-  {
-    label: "System",
-    items: [
       { href: "/sources", label: "Datenquellen & Import" },
       { href: "/source-health", label: "Quellen-Gesundheit" },
       { href: "/users", label: "Benutzer" },

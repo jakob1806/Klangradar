@@ -1,10 +1,9 @@
-import Link from "next/link";
 import { ConfirmButton } from "@/components/confirm-button";
 import { createClient } from "@/lib/supabase/server";
-import { createEventGroup, deleteEventGroup, mergeEventGroupsBatch } from "./actions";
+import { createEventGroup, mergeEventGroupsBatch } from "./actions";
 import { suggestEventGroups, suggestGroupMerges } from "./suggestions";
 import { formatMunichDateTime } from "@/lib/munich-time";
-import { MergeGroupControl } from "./merge-group-control";
+import { ExistingGroupsList } from "./existing-groups-list";
 
 export const dynamic = "force-dynamic";
 
@@ -132,58 +131,7 @@ export default async function EventGroupsPage() {
           Bestehende Gruppen {groups && groups.length > 0 && `(${groups.length})`}
         </h2>
 
-        {!groups || groups.length === 0 ? (
-          <div className="mt-3 border-2 border-dashed border-neutral-300 bg-white px-4 py-8 text-center text-sm text-neutral-400">
-            Noch keine Gruppen angelegt.
-          </div>
-        ) : (
-          <div className="mt-3 flex flex-col gap-3">
-            {groups.map((g) => (
-              <div key={g.id} className="rounded-xl border border-black/[0.06] bg-white p-4 shadow-sm">
-                <div className="flex items-center justify-between gap-4">
-                  <Link href={`/event-groups/${g.id}`} className="font-medium text-neutral-900 hover:underline">
-                    {g.title}
-                  </Link>
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs text-neutral-400">
-                      {g.events.length} Termin{g.events.length === 1 ? "" : "e"}
-                    </span>
-                    <MergeGroupControl
-                      groupId={g.id}
-                      groupTitle={g.title}
-                      groupVenueNames={Array.from(
-                        new Set(g.events.map((e) => e.venues?.name).filter((n): n is string => !!n)),
-                      )}
-                      otherGroups={(groups ?? [])
-                        .filter((other) => other.id !== g.id)
-                        .map((other) => ({
-                          id: other.id,
-                          title: other.title,
-                          venueNames: Array.from(
-                            new Set(other.events.map((e) => e.venues?.name).filter((n): n is string => !!n)),
-                          ),
-                        }))}
-                    />
-                    <ConfirmButton
-                      action={deleteEventGroup.bind(null, g.id)}
-                      confirmMessage={`Gruppe "${g.title}" auflösen? Die Events selbst bleiben erhalten, nur die Verknüpfung wird entfernt.`}
-                      label="Auflösen"
-                      pendingLabel="Löse auf…"
-                      className="text-sm font-medium text-red-600 hover:text-red-800 disabled:opacity-50"
-                    />
-                  </div>
-                </div>
-                <ul className="mt-2 flex flex-col gap-1 text-sm text-neutral-600">
-                  {g.events.map((e) => (
-                    <li key={e.id}>
-                      {e.title} · {formatDate(e.start_datetime)}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        )}
+        <ExistingGroupsList groups={groups ?? []} />
       </section>
     </div>
   );

@@ -7,6 +7,7 @@ import { DeleteButton } from "@/components/delete-button";
 import { removeEventFromGroup } from "../actions";
 import { EventChecklist } from "./event-checklist";
 import { GroupImageUploader } from "./group-image-uploader";
+import { GroupParticipantImporter } from "./group-participant-importer";
 import { MembershipEditor } from "./membership-editor";
 import { MoveButtons } from "../../events/[id]/program/move-buttons";
 import { formatMunichDateTime } from "@/lib/munich-time";
@@ -409,6 +410,10 @@ export default async function EventGroupDetailPage({
               </li>
             )}
           </ul>
+
+          <div className="mt-6">
+            <GroupParticipantImporter groupId={id} events={checklistEvents} checkedIds={allMemberIdsSet} />
+          </div>
 
           <div className="mt-6 flex flex-col gap-4 rounded-lg border border-neutral-200 bg-white p-4">
             <form action={boundAddParticipant} className="flex flex-col gap-2">

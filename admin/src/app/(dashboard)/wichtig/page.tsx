@@ -1,0 +1,68 @@
+import Link from "next/link";
+import { createClient } from "@/lib/supabase/server";
+
+export const dynamic = "force-dynamic";
+
+// Aggregiert nur die bereits vorhandenen Zählungen der einzelnen
+// Review-/Meldungs-Seiten (review-queue/page.tsx, content-reports/
+// report-list.tsx, reports/page.tsx) zu EINER "was ist gerade wichtig"-
+// Übersicht ganz oben in der Navigation — keine neue Datenlogik, keine
+// neue Optik: gleiche Zusammenfassungs-Karte wie in review-queue/page.tsx
+// (rounded-xl border shadow-sm), nur mit mehr Karten und ohne die
+// Detailtabelle darunter, die auf den Zielseiten schon existiert.
+const REVIEW_STATUSES_TO_SHOW = ["needs_review", "needs_quick_check"] as const;
+
+export default async function WichtigPage() {
+  const supabase = await createClient();
+
+  const [
+    { count: entityCandidateCount },
+    { count: duplicateCount },
+    { count: cancellationCount },
+    { count: lowConfidenceCount },
+    { count: contentReportCount },
+    { count: errorReportCount },
+  ] = await Promise.all([
+    supabase.from("entity_candidates").select("id", { count: "exact", head: true }).eq("status", "pending"),
+    supabase.from("duplicate_candidates").select("id", { count: "exact", head: true }).eq("status", "pending"),
+    supabase.from("cancellation_candidates").select("id", { count: "exact", head: true }).eq("status", "pending"),
+    supabase.from("events").select("id", { count: "exact", head: true }).in("review_status", REVIEW_STATUSES_TO_SHOW),
+    supabase.from("content_reports").select("id", { count: "exact", head: true }).eq("status", "pending"),
+    supabase.from("error_reports").select("id", { count: "exact", head: true }),
+  ]);
+
+  const summaryCards = [
+    { href: "/review-queue", label: "Events mit niedrigem Confidence-Score", count: lowConfidenceCount ?? 0 },
+    { href: "/entity-candidates", label: "Entity-Kandidaten", count: entityCandidateCount ?? 0 },
+    { href: "/duplicates", label: "Duplikate", count: duplicateCount ?? 0 },
+    { href: "/cancellations", label: "Absage-Kandidaten", count: cancellationCount ?? 0 },
+    { href: "/content-reports", label: "Meldungen & Fehler", count: contentReportCount ?? 0 },
+    { href: "/reports", label: "Fehlerberichte", count: errorReportCount ?? 0 },
+  ];
+
+  const totalOpen = summaryCards.reduce((sum, card) => sum + card.count, 0);
+
+  return (
+    <div className="p-8">
+      <h1 className="text-xl font-semibold tracking-tight">Wichtig</h1>
+      <p className="mt-1 max-w-xl text-sm text-neutral-500">
+        {totalOpen > 0
+          ? `${totalOpen} offene Punkte über alle Bereiche hinweg — Klick auf eine Kachel führt direkt zur jeweiligen Bearbeitungsansicht.`
+          : "Aktuell nichts Dringendes offen."}
+      </p>
+
+      <div className="mt-6 grid grid-cols-3 gap-4">
+        {summaryCards.map((card) => (
+          <Link
+            key={card.href}
+            href={card.href}
+            className="rounded-xl border border-black/[0.06] bg-white p-5 shadow-sm transition-colors hover:bg-black/[0.02]"
+          >
+            <p className="text-2xl font-semibold">{card.count}</p>
+            <p className="type-label mt-1 !text-inherit opacity-70">{card.label}</p>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
