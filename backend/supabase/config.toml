@@ -250,7 +250,7 @@ host = "smtp.resend.com"
 port = 587
 user = "resend"
 pass = "env(RESEND_SMTP_PASSWORD)"
-admin_email = "noreply@REPLACE-WITH-VERIFIED-DOMAIN.tld"
+admin_email = "noreply@klangradar.com"
 sender_name = "Klangradar"
 
 # Uncomment to customize email template
