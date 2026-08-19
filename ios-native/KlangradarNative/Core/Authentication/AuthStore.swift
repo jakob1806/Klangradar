@@ -65,6 +65,11 @@ final class AuthStore: ObservableObject {
         try await service.requestPasswordReset(email: email)
     }
 
+    func resendSignupConfirmation(email: String) async throws {
+        guard let service else { throw AuthStoreError.unavailable }
+        try await service.resendSignupConfirmation(email: email)
+    }
+
     func verifyEmailCode(_ code: String, email: String, type: String = "email") async throws {
         guard let service else { throw AuthStoreError.unavailable }
         apply(try await service.verifyEmailCode(code, email: email, type: type))

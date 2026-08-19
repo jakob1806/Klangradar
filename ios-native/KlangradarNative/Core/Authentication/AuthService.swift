@@ -116,6 +116,20 @@ actor AuthService {
         )
     }
 
+    /// Eigener Endpoint (`/resend`) statt `/otp` — die Signup-Bestätigung
+    /// ist ein anderer Mail-Typ als der Login-Code, `/otp` würde für einen
+    /// bereits (unbestätigt) existierenden Nutzer eine Magic-Link-Mail statt
+    /// die Signup-Bestätigung erneut verschicken.
+    func resendSignupConfirmation(email: String) async throws {
+        _ = try await perform(
+            path: "resend",
+            body: [
+                "type": .string("signup"),
+                "email": .string(email)
+            ]
+        )
+    }
+
     /// `type` unterscheidet, welchen Code-Versand Supabase gerade bestätigt:
     /// "email" (Login-Code über `sendEmailCode`), "signup" (Bestätigung
     /// nach `signUp`) oder "recovery" (nach `requestPasswordReset`).

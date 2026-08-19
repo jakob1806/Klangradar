@@ -1,34 +1,82 @@
 import SwiftUI
-import UserNotifications
 
+/// Koordiniert den gesamten Onboarding-Ablauf: Einstieg (Anmelden/Account
+/// erstellen/Gast) → Account erstellen → E-Mail bestätigen → Persönliche
+/// Daten → Interessen → Standort → Benachrichtigungen → Zusammenfassung.
+/// "Account erstellen" ist verpflichtend, sobald gewählt — nur der
+/// Einstiegs-Schritt selbst lässt sich mit "Ohne Account fortfahren"
+/// überspringen (anonyme Bootstrap-Session bleibt aktiv). `onFinished` wird
+/// von RootTabView übergeben und kümmert sich dort um das lokale
+/// "didCompleteOnboarding"-Flag und das Schließen des FullScreenCovers.
 struct OnboardingView: View {
-    @Environment(\.dismiss) private var dismiss
-    @AppStorage("didCompleteOnboarding") private var didComplete = false
-    @State private var page = 0
+    @ObservedObject var auth: AuthStore
+    let repository: UserRepository?
+    let onFinished: () -> Void
 
-    private let pages = [
-        ("Klangradar", "Finde klassische Konzerte, Künstler:innen und Spielstätten in München.", "waveform.circle"),
-        ("Dein Programm", "Wähle später Genres, Personen, Ensembles und Orte – Klangradar nutzt sie für passendere Empfehlungen.", "sparkles"),
-        ("Nichts verpassen", "Aktiviere auf Wunsch Hinweise zu neuen Terminen, Preisänderungen und knappen Tickets.", "bell.badge")
-    ]
+    private enum Step: Hashable {
+        case signUp
+        case verifyEmail(email: String)
+        case personalData
+        case interests
+        case location
+        case notifications
+        case summary
+    }
+
+    @State private var path: [Step] = []
+    @State private var showsLogin = false
 
     var body: some View {
-        VStack(spacing: 32) {
-            Spacer()
-            Image(systemName: pages[page].2).font(.system(size: 76)).foregroundStyle(KlangradarTheme.accent).contentTransition(.symbolEffect(.replace))
-            VStack(spacing: 12) { Text(pages[page].0).font(.largeTitle.bold()); Text(pages[page].1).font(.title3).foregroundStyle(.secondary).multilineTextAlignment(.center) }
-            Spacer()
-            HStack { ForEach(pages.indices, id: \.self) { Circle().fill($0 == page ? KlangradarTheme.accent : Color.secondary.opacity(0.25)).frame(width: 8, height: 8) } }
-            Button(page == pages.count - 1 ? "Klangradar starten" : "Weiter") { advance() }.buttonStyle(.borderedProminent).controlSize(.large).frame(maxWidth: .infinity)
-            if page == pages.count - 1 { Button("Ohne Benachrichtigungen fortfahren") { complete() }.font(.footnote) }
+        NavigationStack(path: $path) {
+            WelcomeStepView(
+                onCreateAccount: { path.append(.signUp) },
+                onLogIn: { showsLogin = true },
+                onContinueAsGuest: { onFinished() }
+            )
+            .navigationDestination(for: Step.self) { step in
+                switch step {
+                case .signUp:
+                    SignUpStepView(auth: auth) { email in
+                        path.append(.verifyEmail(email: email))
+                    }
+                case let .verifyEmail(email):
+                    VerifyEmailStepView(auth: auth, repository: repository, email: email) {
+                        path.append(.personalData)
+                    }
+                case .personalData:
+                    PersonalDataStepView(auth: auth, repository: repository) {
+                        path.append(.interests)
+                    }
+                case .interests:
+                    InterestsStepView(auth: auth, repository: repository) {
+                        path.append(.location)
+                    }
+                case .location:
+                    LocationStepView(auth: auth, repository: repository) {
+                        path.append(.notifications)
+                    }
+                case .notifications:
+                    NotificationsStepView(auth: auth, repository: repository) {
+                        path.append(.summary)
+                    }
+                case .summary:
+                    OnboardingSummaryView(auth: auth, repository: repository) {
+                        Task { await finish() }
+                    }
+                }
+            }
+            .toolbar(.hidden, for: .navigationBar)
         }
-        .padding(32)
+        .sheet(isPresented: $showsLogin) {
+            PasswordLoginView(auth: auth) { onFinished() }
+        }
         .interactiveDismissDisabled()
     }
 
-    private func advance() {
-        if page < pages.count - 1 { withAnimation { page += 1 } }
-        else { Task { _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]); await MainActor.run { complete() } } }
+    private func finish() async {
+        if case .authenticated = auth.state, let userID = auth.userID, let token = auth.accessToken {
+            try? await repository?.markOnboardingCompleted(userID: userID, token: token)
+        }
+        onFinished()
     }
-    private func complete() { didComplete = true; dismiss() }
 }
