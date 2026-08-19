@@ -8,6 +8,7 @@ actor AuthService {
     private let keychain: KeychainStore
     private let sessionAccount = "supabase-session"
     private var cachedSession: AuthSession?
+    private var refreshTask: Task<AuthSession, Error>?
 
     init(
         configuration: APIConfiguration,
@@ -32,10 +33,38 @@ actor AuthService {
             if session.expirationDate > .now.addingTimeInterval(60) {
                 return session
             }
-            return try await refresh(session.refreshToken)
+            do {
+                return try await deduplicatedRefresh(session.refreshToken)
+            } catch {
+                // Supabase-Refresh-Tokens sind Einmal-Tokens: schlägt der Refresh
+                // fehl (z.B. weil er bereits verbraucht wurde), bleibt die kaputte
+                // Session sonst dauerhaft in der Keychain liegen — "Erneut
+                // versuchen" würde denselben ungültigen Token immer wieder lesen
+                // und nie mehr durchkommen. Verworfene Session löschen und wie
+                // beim allerersten Start anonym neu starten.
+                cachedSession = nil
+                try? keychain.delete(account: sessionAccount)
+                return try await signInAnonymously()
+            }
         }
 
         return try await signInAnonymously()
+    }
+
+    /// Bündelt gleichzeitige Refresh-Aufrufe auf denselben Token in eine
+    /// einzige In-Flight-Anfrage. Ohne das würden z. B. zwei parallele
+    /// `bootstrap()`-Aufrufe (RootTabView + ProfileView beim App-Start) mit
+    /// demselben, noch nicht rotierten Refresh-Token beim Server ankommen —
+    /// der zweite bekäme dann "Refresh Token Not Found", weil der erste ihn
+    /// bereits verbraucht/rotiert hat.
+    private func deduplicatedRefresh(_ token: String) async throws -> AuthSession {
+        if let refreshTask {
+            return try await refreshTask.value
+        }
+        let task = Task { try await refresh(token) }
+        refreshTask = task
+        defer { refreshTask = nil }
+        return try await task.value
     }
 
     func signInAnonymously() async throws -> AuthSession {
