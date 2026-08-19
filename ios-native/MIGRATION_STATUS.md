@@ -127,6 +127,43 @@ Deployment/verification: iOS simulator build and all 7 tests passed; the current
 
 Verification: `xcodebuild build` and the full `xcodebuild test` suite (including 4 new field-parity `HTTPClient`-mocked tests plus the 3 existing delete tests) succeeded. Visually confirmed the app launches and renders live production data on iPhone 17 Pro after the change; the new form fields themselves were not clicked through live (no test editor account/credentials available in this environment to reach the signed-in-only Editorial tab).
 
+## Onboarding/auth redesign (2026-08-19, 🟡 unverified)
+
+Password-based signup replaces email-OTP as the login method; OTP is kept
+internally only for signup email confirmation and password reset. Built in
+the cloud sandbox session that also did the backend migration — **no
+Xcode/Swift toolchain was available there**, so only manual brace/paren
+balance checks and cross-reference greps were done. Needs
+`ruby Scripts/generate_project.rb` (new files) + a real `xcodebuild build`
+and a hands-on walkthrough before any row below can move to ✅.
+
+- 🟡 `OnboardingView` rewritten as a `NavigationStack`-based step
+  coordinator: Willkommen (Anmelden/Account erstellen/Gast) → Account
+  erstellen (Passwort, Live-Anforderungscheck, AGB/Datenschutz) → E-Mail
+  bestätigen → Persönliche Daten (Name/Geburtstag/Profilbild/Telefon/
+  Adresse) → Interessen (reuses `InterestsView`) → Standort (new
+  `CLLocationManager` wrapper, `update_home_location` RPC, München-only
+  manual fallback via `regions`) → Benachrichtigungen (pre-permission
+  explainer, then reuses `NotificationSettingsView`) → Zusammenfassung.
+- 🟡 `PasswordLoginView`/`ForgotPasswordView` replace the old
+  `EmailCodeLoginView` as the Profile-tab and returning-login surface.
+- 🟡 Face ID: new `BiometricAuth` wrapper + a toggle in Profile's account
+  section. Not yet wired as an app-launch lock screen — currently only
+  exposed as a settings toggle with no enforcement point.
+- 🟡 `RootTabView` now observes `AuthStore` as `@ObservedObject` (it
+  wasn't before — needed for the onboarding re-show `.onChange` to fire
+  at all) and re-shows onboarding for an authenticated user whose
+  `profiles.onboarding_completed` is still false server-side, not only
+  on the local per-install flag.
+- ⬜ Sign in with Apple's native `ASAuthorizationAppleID` polish and true
+  WebAuthn passkeys are explicitly deferred (blocked on an Apple
+  Developer Program membership / a self-built WebAuthn backend
+  respectively) — "Passkey" here means iOS's standard iCloud Keychain
+  password autofill (`textContentType`), nothing more.
+- ⬜ Not yet done: light/dark, iPad, Dynamic Type/VoiceOver, and
+  automated-test passes per the parity checklist below — none of that
+  was possible without a toolchain.
+
 ## Definition of feature parity
 
 A row can be marked complete only when it:
