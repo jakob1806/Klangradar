@@ -71,6 +71,41 @@ actor AuthService {
         try await performSessionRequest(path: "signup", body: ["data": .object([:])])
     }
 
+    /// Erstellt einen Account mit Passwort. Solange `enable_confirmations`
+    /// aktiv ist (siehe config.toml), liefert Supabase hierfür KEINE Session
+    /// zurück — nur den angelegten, noch unbestätigten Nutzer. Erst
+    /// `verifyEmailCode(type: "signup")` nach Eingabe des per Mail
+    /// verschickten Codes gibt eine echte Session.
+    func signUp(email: String, password: String) async throws -> AuthUser {
+        let data = try await perform(
+            path: "signup",
+            body: [
+                "email": .string(email),
+                "password": .string(password)
+            ]
+        )
+        return try JSONDecoder.supabase.decode(AuthUser.self, from: data)
+    }
+
+    func signInWithPassword(email: String, password: String) async throws -> AuthSession {
+        try await performSessionRequest(
+            path: "token?grant_type=password",
+            body: [
+                "email": .string(email),
+                "password": .string(password)
+            ]
+        )
+    }
+
+    /// Löst den "Passwort vergessen"-Mailversand aus. Der darin enthaltene
+    /// Code wird wie bei der Signup-Bestätigung über
+    /// `verifyEmailCode(type: "recovery")` eingelöst — das liefert eine
+    /// kurzlebige Session, mit der anschließend `updatePassword(_:)` das
+    /// neue Passwort setzt.
+    func requestPasswordReset(email: String) async throws {
+        _ = try await perform(path: "recover", body: ["email": .string(email)])
+    }
+
     func sendEmailCode(to email: String) async throws {
         _ = try await perform(
             path: "otp",
@@ -81,13 +116,16 @@ actor AuthService {
         )
     }
 
-    func verifyEmailCode(_ code: String, email: String) async throws -> AuthSession {
+    /// `type` unterscheidet, welchen Code-Versand Supabase gerade bestätigt:
+    /// "email" (Login-Code über `sendEmailCode`), "signup" (Bestätigung
+    /// nach `signUp`) oder "recovery" (nach `requestPasswordReset`).
+    func verifyEmailCode(_ code: String, email: String, type: String = "email") async throws -> AuthSession {
         try await performSessionRequest(
             path: "verify",
             body: [
                 "email": .string(email),
                 "token": .string(code),
-                "type": .string("email")
+                "type": .string(type)
             ]
         )
     }
