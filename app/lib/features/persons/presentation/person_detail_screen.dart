@@ -142,8 +142,6 @@ class PersonDetailScreen extends ConsumerWidget {
           final composerRows = events
               .where((row) => row['role'] == 'komponist')
               .toList();
-          final hasPerformingRole =
-              performingRows.isNotEmpty || roles.any((r) => r != 'komponist');
           final now = MunichTime.now();
           final upcoming = performingRows.where((row) {
             final start = MunichTime.tryParse(
@@ -366,40 +364,34 @@ class PersonDetailScreen extends ConsumerWidget {
                       ].whereType<String>().join(' · '),
                       urlOf: (e) => e['url'] as String?,
                     ),
-                    if (hasPerformingRole) ...[
-                      const SizedBox(height: AppSpacing.xxl),
+                    const SizedBox(height: AppSpacing.xxl),
+                    Text(
+                      l10n.personUpcomingEvents,
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    if (upcoming.isEmpty)
                       Text(
-                        l10n.personUpcomingEvents,
-                        style: Theme.of(context).textTheme.headlineSmall,
-                      ),
-                      const SizedBox(height: AppSpacing.sm),
-                      if (upcoming.isEmpty)
-                        Text(
-                          l10n.personNothingPlanned,
-                          style: TextStyle(
-                            color: colors.textTertiary,
-                            fontSize: 13,
-                          ),
-                        )
-                      else
-                        DetailCard(
-                          children: [
-                            for (final row in upcoming)
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: AppSpacing.md,
-                                ),
-                                child: _EventRow(row: row, colors: colors),
-                              ),
-                          ],
+                        l10n.personNothingPlanned,
+                        style: TextStyle(
+                          color: colors.textTertiary,
+                          fontSize: 13,
                         ),
-                    ],
-                    if (past.isNotEmpty) ...[
-                      SizedBox(
-                        height: hasPerformingRole
-                            ? AppSpacing.lg
-                            : AppSpacing.xxl,
+                      )
+                    else
+                      DetailCard(
+                        children: [
+                          for (final row in upcoming)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: AppSpacing.md,
+                              ),
+                              child: _EventRow(row: row, colors: colors),
+                            ),
+                        ],
                       ),
+                    if (past.isNotEmpty) ...[
+                      const SizedBox(height: AppSpacing.lg),
                       PastEventsExpansion(
                         rows: [
                           for (final row in past)

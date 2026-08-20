@@ -24,12 +24,37 @@ class AuthService {
   static Future<AuthResponse> verifyEmailCode({
     required String email,
     required String code,
+    OtpType type = OtpType.email,
   }) {
-    return _client.auth.verifyOTP(
-      email: email,
-      token: code,
-      type: OtpType.email,
-    );
+    return _client.auth.verifyOTP(email: email, token: code, type: type);
+  }
+
+  /// Onboarding-Redesign: Passwort ersetzt den E-Mail-Code als
+  /// Anmeldeweg — der Code bleibt intern nur für die
+  /// Signup-Bestätigung (`verifyEmailCode(type: OtpType.signup)`) und den
+  /// Passwort-Reset (`type: OtpType.recovery`). Solange
+  /// `enable_confirmations` aktiv ist (config.toml), liefert `signUp` noch
+  /// keine Session — erst die Bestätigung schaltet den Account frei.
+  static Future<AuthResponse> signUp({
+    required String email,
+    required String password,
+  }) {
+    return _client.auth.signUp(email: email, password: password);
+  }
+
+  static Future<AuthResponse> signInWithPassword({
+    required String email,
+    required String password,
+  }) {
+    return _client.auth.signInWithPassword(email: email, password: password);
+  }
+
+  static Future<void> requestPasswordReset(String email) {
+    return _client.auth.resetPasswordForEmail(email);
+  }
+
+  static Future<UserResponse> updatePassword(String password) {
+    return _client.auth.updateUser(UserAttributes(password: password));
   }
 
   static Future<bool> signInWithApple() {

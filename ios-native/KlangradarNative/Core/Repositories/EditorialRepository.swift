@@ -483,6 +483,53 @@ struct EditorialRepository: Sendable {
         await logEntity(entity: entity, action: "native_editor_update_ensemble_details", actor: actor, after: values, token: token)
     }
 
+    /// Venue-Pendant zu createEntity() (das für .venue bewusst ablehnt, siehe
+    /// dortiger Kommentar) — Venues brauchen zwingend Adresse+Geodaten und
+    /// laufen deshalb über die schon für updateVenue() genutzte create_venue-
+    /// RPC statt eines einfachen INSERT (venues.location ist eine PostGIS
+    /// geography-Spalte, die RPC übernimmt ST_MakePoint).
+    func createVenue(
+        name: String, addressStreet: String, addressZip: String, addressCity: String,
+        description: String, latitude: Double, longitude: Double,
+        capacity: Int?, websiteURL: String, imageURL: String,
+        actor: UUID, token: String
+    ) async throws -> EditorialEntity {
+        let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanName.isEmpty else { throw EditorialError.validation("Der Venue-Name darf nicht leer sein.") }
+        guard !addressStreet.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              !addressZip.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              !addressCity.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else { throw EditorialError.validation("Straße, PLZ und Stadt dürfen nicht leer sein.") }
+        let cleanImage = imageURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !cleanImage.isEmpty, URL(string: cleanImage)?.scheme?.hasPrefix("http") != true {
+            throw EditorialError.validation("Die Bildadresse muss mit http:// oder https:// beginnen.")
+        }
+        let parameters: JSONObject = [
+            "p_slug": .string(uniqueSlug(for: cleanName)),
+            "p_name": .string(cleanName),
+            "p_description_de": description.nilIfEmpty.map(JSONValue.string) ?? .null,
+            "p_address_street": .string(addressStreet.trimmingCharacters(in: .whitespacesAndNewlines)),
+            "p_address_zip": .string(addressZip.trimmingCharacters(in: .whitespacesAndNewlines)),
+            "p_address_city": .string(addressCity.trimmingCharacters(in: .whitespacesAndNewlines)),
+            "p_lat": .number(latitude),
+            "p_lng": .number(longitude),
+            "p_capacity": capacity.map { .number(Double($0)) } ?? .null,
+            "p_website_url": websiteURL.nilIfEmpty.map(JSONValue.string) ?? .null,
+            "p_photo_url": cleanImage.nilIfEmpty.map(JSONValue.string) ?? .null
+        ]
+        let row: JSONObject = try await client.rpc("create_venue", parameters: parameters, accessToken: token)
+        guard let id = row.string("id").flatMap(UUID.init(uuidString:)) else { throw APIError.invalidResponse }
+        await logNewEntity(kind: .venue, id: id, actor: actor, after: parameters, token: token)
+        return EditorialEntity(
+            id: id, kind: .venue, title: cleanName,
+            subtitle: nil, editableSubtitle: nil, description: description.nilIfEmpty,
+            imageURL: cleanImage.nilIfEmpty, composerID: nil,
+            slug: row.string("slug"), websiteURL: websiteURL.nilIfEmpty,
+            addressStreet: addressStreet, addressZip: addressZip, addressCity: addressCity,
+            latitude: latitude, longitude: longitude, capacity: capacity
+        )
+    }
+
     func createEntity(kind: EditorialEntityKind, title: String, subtitle: String, description: String, imageURL: String, composerID: UUID?, actor: UUID, token: String) async throws -> EditorialEntity {
         guard kind == .person || kind == .ensemble || kind == .work else {
             throw EditorialError.validation("Dieser Eintragstyp kann hier nicht neu angelegt werden.")
@@ -651,6 +698,23 @@ struct EditorialRepository: Sendable {
 
     func venues(token: String) async throws -> [EditorialOption] {
         try await options(table: "venues", selection: "id,name", titleKey: "name", token: token)
+    }
+
+    /// Nicht-blockierende Dublettenwarnung während des Tippens in
+    /// EditorialCreateVenueView — die harte Sperre passiert zusätzlich
+    /// serverseitig beim Speichern (RLS/Constraints bleiben unverändert).
+    func findMatchingVenues(name: String, token: String) async throws -> [EditorialOption] {
+        let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard cleanName.count >= 3 else { return [] }
+        let rows: [JSONObject] = try await client.get(table: "venues", queryItems: [
+            URLQueryItem(name: "select", value: "id,name"),
+            URLQueryItem(name: "name", value: "ilike.*\(cleanName)*"),
+            URLQueryItem(name: "limit", value: "5")
+        ], accessToken: token)
+        return rows.compactMap { row in
+            guard let id = row.string("id").flatMap(UUID.init(uuidString:)), let title = row.string("name") else { return nil }
+            return EditorialOption(id: id, title: title, subtitle: nil)
+        }
     }
 
     func persons(token: String) async throws -> [EditorialOption] {

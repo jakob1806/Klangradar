@@ -1,0 +1,35 @@
+import SwiftUI
+
+/// Aus ProfileView.swift extrahiert — siehe Kommentar in InterestsView.swift,
+/// gleicher Grund: wird jetzt auch als Onboarding-Schritt eingebettet.
+struct NotificationSettingsView: View {
+    @ObservedObject var auth: AuthStore
+    let repository: UserRepository?
+    @State private var preferences = NotificationPreferences()
+
+    var body: some View {
+        Form {
+            Toggle("Neue passende Veranstaltungen", isOn: binding(\.newMatchingEvents, "new_matching_events"))
+            Toggle("Preisänderungen", isOn: binding(\.priceChanges, "price_changes"))
+            Toggle("Fast ausverkauft", isOn: binding(\.almostSoldOut, "almost_sold_out"))
+            Toggle("Erinnerung am Vortag", isOn: binding(\.reminderDayBefore, "reminder_day_before"))
+            // Deckt jetzt auch gefolgte Personen/Orte ab (siehe
+            // notify-followed-entity-events), die Datenbankspalte heißt
+            // aus historischen Gründen weiter "followed_ensemble_new_event".
+            Toggle("Neue Termine gefolgter Personen, Ensembles & Orte", isOn: binding(\.followedEnsembleNewEvent, "followed_ensemble_new_event"))
+        }
+        .navigationTitle("Benachrichtigungen")
+        .task {
+            guard let repository, let id = auth.userID, let token = auth.accessToken else { return }
+            preferences = (try? await repository.preferences(userID: id, token: token)) ?? NotificationPreferences()
+        }
+    }
+
+    private func binding(_ keyPath: WritableKeyPath<NotificationPreferences, Bool>, _ column: String) -> Binding<Bool> {
+        Binding(get: { preferences[keyPath: keyPath] }, set: { value in
+            preferences[keyPath: keyPath] = value
+            guard let repository, let id = auth.userID, let token = auth.accessToken else { return }
+            Task { try? await repository.setPreference(userID: id, token: token, column: column, value: value) }
+        })
+    }
+}

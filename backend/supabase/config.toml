@@ -186,10 +186,13 @@ enable_anonymous_sign_ins = true
 # Allow/disallow testing manual linking of accounts
 enable_manual_linking = false
 # Passwords shorter than this value will be rejected as weak. Minimum 6, recommended 8 or more.
-minimum_password_length = 6
+# Onboarding-Redesign: Passwort-Login ersetzt OTP als Anmeldeweg, die
+# Signup-UI zeigt diese Anforderung live an — muss hier UND im Dashboard des
+# echten Projekts gesetzt sein (config.toml wirkt nur lokal/bei push).
+minimum_password_length = 8
 # Passwords that do not meet the following requirements will be rejected as weak. Supported values
 # are: `letters_digits`, `lower_upper_letters_digits`, `lower_upper_letters_digits_symbols`
-password_requirements = ""
+password_requirements = "lower_upper_letters_digits"
 
 # Configure passkey sign-ins.
 # [auth.passkey]
@@ -230,7 +233,11 @@ enable_signup = true
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
 # If enabled, users need to confirm their email address before signing in.
-enable_confirmations = false
+# Onboarding-Redesign: Account soll erst nach E-Mail-Bestätigung aktiv sein
+# (Konzept Schritt 2 "E-Mail-Adresse per Code/Link bestätigen"). Muss auch im
+# Dashboard des echten Projekts (Authentication → Providers → Email →
+# "Confirm email") gesetzt werden — config.toml wirkt nur lokal/bei push.
+enable_confirmations = true
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
 secure_password_change = false
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
@@ -240,15 +247,18 @@ otp_length = 6
 # Number of seconds before the email OTP expires (defaults to 1 hour).
 otp_expiry = 3600
 
-# Use a production-ready SMTP server
-# [auth.email.smtp]
-# enabled = true
-# host = "smtp.sendgrid.net"
-# port = 587
-# user = "apikey"
-# pass = "env(SENDGRID_API_KEY)"
-# admin_email = "admin@email.com"
-# sender_name = "Admin"
+# Use a production-ready SMTP server (Resend) statt des eingebauten
+# Supabase-Mailers — der ist nur für Tests gedacht, stark ratelimitiert und
+# schlägt bei Adressen außerhalb des Projekt-Teams mit 500 "Error sending
+# magic link email" fehl.
+[auth.email.smtp]
+enabled = true
+host = "smtp.resend.com"
+port = 587
+user = "resend"
+pass = "env(RESEND_SMTP_PASSWORD)"
+admin_email = "noreply@klangradar.com"
+sender_name = "Klangradar"
 
 # Uncomment to customize email template
 # [auth.email.template.invite]

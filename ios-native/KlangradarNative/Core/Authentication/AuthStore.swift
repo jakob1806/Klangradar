@@ -46,9 +46,33 @@ final class AuthStore: ObservableObject {
         try await service.sendEmailCode(to: email)
     }
 
-    func verifyEmailCode(_ code: String, email: String) async throws {
+    /// Legt den Account an. Ändert `state` bewusst NICHT — solange die
+    /// E-Mail nicht per `verifyEmailCode(type: "signup")` bestätigt ist,
+    /// gibt es keine Session, der Nutzer bleibt in der aktuellen (meist
+    /// anonymen) Bootstrap-Session.
+    func signUp(email: String, password: String) async throws {
         guard let service else { throw AuthStoreError.unavailable }
-        apply(try await service.verifyEmailCode(code, email: email))
+        _ = try await service.signUp(email: email, password: password)
+    }
+
+    func signInWithPassword(email: String, password: String) async throws {
+        guard let service else { throw AuthStoreError.unavailable }
+        apply(try await service.signInWithPassword(email: email, password: password))
+    }
+
+    func requestPasswordReset(email: String) async throws {
+        guard let service else { throw AuthStoreError.unavailable }
+        try await service.requestPasswordReset(email: email)
+    }
+
+    func resendSignupConfirmation(email: String) async throws {
+        guard let service else { throw AuthStoreError.unavailable }
+        try await service.resendSignupConfirmation(email: email)
+    }
+
+    func verifyEmailCode(_ code: String, email: String, type: String = "email") async throws {
+        guard let service else { throw AuthStoreError.unavailable }
+        apply(try await service.verifyEmailCode(code, email: email, type: type))
     }
 
     func signInWithGoogle() async throws {

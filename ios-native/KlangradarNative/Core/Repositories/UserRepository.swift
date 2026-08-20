@@ -26,6 +26,15 @@ struct KlangradarUserProfile: Sendable {
     var displayName: String
     var birthDate: Date?
     var avatarURL: URL?
+    var firstName: String?
+    var lastName: String?
+    var phone: String?
+    var address: String?
+}
+
+struct RegionOption: Identifiable, Hashable, Sendable {
+    let id: UUID
+    let name: String
 }
 
 struct UserRepository: Sendable {
@@ -35,7 +44,7 @@ struct UserRepository: Sendable {
         let rows: [JSONObject] = try await client.get(
             table: "profiles",
             queryItems: [
-                URLQueryItem(name: "select", value: "display_name,birth_date,avatar_url"),
+                URLQueryItem(name: "select", value: "display_name,birth_date,avatar_url,first_name,last_name,phone,address"),
                 URLQueryItem(name: "id", value: "eq.\(userID.uuidString)"),
                 URLQueryItem(name: "limit", value: "1")
             ],
@@ -45,7 +54,112 @@ struct UserRepository: Sendable {
         return KlangradarUserProfile(
             displayName: row.string("display_name") ?? "",
             birthDate: row.string("birth_date").flatMap(FlexibleDateParser.date(from:)),
-            avatarURL: row.string("avatar_url").flatMap(URL.init(string:))
+            avatarURL: row.string("avatar_url").flatMap(URL.init(string:)),
+            firstName: row.string("first_name"),
+            lastName: row.string("last_name"),
+            phone: row.string("phone"),
+            address: row.string("address")
+        )
+    }
+
+    /// Onboarding-Schritt "Persönliche Daten" — separat von `updateProfile`
+    /// (das bleibt für die bestehende Profil-Bearbeitung unverändert), da
+    /// Vor-/Nachname dort getrennt erfasst werden, `display_name` aber für
+    /// bestehende Anzeigen weiter als kombinierter Name gepflegt wird.
+    func updatePersonalData(
+        firstName: String,
+        lastName: String,
+        phone: String?,
+        address: String?,
+        userID: UUID,
+        token: String
+    ) async throws {
+        let cleanFirst = firstName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanLast = lastName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanFirst.isEmpty, !cleanLast.isEmpty else { return }
+        let cleanPhone = phone?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanAddress = address?.trimmingCharacters(in: .whitespacesAndNewlines)
+        try await client.update(
+            table: "profiles",
+            values: [
+                "first_name": .string(cleanFirst),
+                "last_name": .string(cleanLast),
+                "display_name": .string("\(cleanFirst) \(cleanLast)"),
+                "phone": cleanPhone.flatMap { $0.isEmpty ? nil : $0 }.map(JSONValue.string) ?? .null,
+                "address": cleanAddress.flatMap { $0.isEmpty ? nil : $0 }.map(JSONValue.string) ?? .null
+            ],
+            filters: [URLQueryItem(name: "id", value: "eq.\(userID.uuidString)")],
+            accessToken: token
+        )
+    }
+
+    func acceptTerms(version: String, userID: UUID, token: String) async throws {
+        try await client.update(
+            table: "profiles",
+            values: [
+                "terms_accepted_at": .string(ISO8601DateFormatter().string(from: .now)),
+                "terms_version": .string(version)
+            ],
+            filters: [URLQueryItem(name: "id", value: "eq.\(userID.uuidString)")],
+            accessToken: token
+        )
+    }
+
+    /// `update_home_location` ist eine `returns void`-SQL-Funktion
+    /// (20260724000001_update_home_location.sql) — PostgREST liefert dafür
+    /// den JSON-Wert `null`, den `JSONValue` direkt dekodieren kann.
+    func updateHomeLocation(latitude: Double, longitude: Double, token: String) async throws {
+        let _: JSONValue = try await client.rpc(
+            "update_home_location",
+            parameters: ["p_lat": .number(latitude), "p_lng": .number(longitude)],
+            accessToken: token
+        )
+    }
+
+    /// Aktuell nur München aktiv (regions.is_active), siehe
+    /// 20260819000005_regions.sql — Grundlage für den manuellen
+    /// Standort-Fallback im Onboarding.
+    func activeRegions() async throws -> [RegionOption] {
+        let rows: [JSONObject] = try await client.get(table: "regions", queryItems: [
+            URLQueryItem(name: "select", value: "id,name"),
+            URLQueryItem(name: "type", value: "eq.city"),
+            URLQueryItem(name: "is_active", value: "eq.true"),
+            URLQueryItem(name: "order", value: "name.asc")
+        ])
+        return rows.compactMap { row in
+            guard let id = row.string("id").flatMap(UUID.init(uuidString:)), let name = row.string("name") else { return nil }
+            return RegionOption(id: id, name: name)
+        }
+    }
+
+    func setPreferredRegion(regionID: UUID, userID: UUID, token: String) async throws {
+        try await client.update(
+            table: "profiles",
+            values: ["preferred_region_id": .string(regionID.uuidString)],
+            filters: [URLQueryItem(name: "id", value: "eq.\(userID.uuidString)")],
+            accessToken: token
+        )
+    }
+
+    func isOnboardingCompleted(userID: UUID, token: String) async throws -> Bool {
+        let rows: [JSONObject] = try await client.get(
+            table: "profiles",
+            queryItems: [
+                URLQueryItem(name: "select", value: "onboarding_completed"),
+                URLQueryItem(name: "id", value: "eq.\(userID.uuidString)"),
+                URLQueryItem(name: "limit", value: "1")
+            ],
+            accessToken: token
+        )
+        return rows.first?.bool("onboarding_completed") ?? false
+    }
+
+    func markOnboardingCompleted(userID: UUID, token: String) async throws {
+        try await client.update(
+            table: "profiles",
+            values: ["onboarding_completed": .bool(true)],
+            filters: [URLQueryItem(name: "id", value: "eq.\(userID.uuidString)")],
+            accessToken: token
         )
     }
 
