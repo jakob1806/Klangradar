@@ -187,6 +187,16 @@ cross-reference checks against the existing enum/switch pattern.
   generalized `followedSections(from:kind:)` (previously hardcoded to mix all
   three kinds into one rail) — one `EventRail` per followed entity of that
   kind with upcoming matching events, via the existing `FollowStore`.
+- 🟡 Follow-up fix ("auch gefolgte ensembles anzeigen"): the event-based
+  `followedSections` approach only ever surfaced a followed ensemble if it
+  already had an upcoming event in the top-100 loaded feed — a followed
+  ensemble with no current event was invisible. `.followedEnsembles` now
+  additionally fetches the full ensemble directory once
+  (`contentRepository.directory(kind: .ensemble)`) and renders a new
+  self-hiding `EntityRail` card row (circular photo + name, links via the
+  existing `EntityRoute`/`EntityDetailView`) for every followed ensemble not
+  already covered by an event-based rail, so no followed ensemble is ever
+  invisible on Home regardless of whether it has a scheduled event.
 - ⬜ Not yet done: Xcode build/tests, visual verification (light/dark, iPad,
   Dynamic Type), and Flutter-side parity (`app/lib/features/home/`) — the
   user asked for native first.

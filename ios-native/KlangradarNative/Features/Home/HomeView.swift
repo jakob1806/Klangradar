@@ -97,6 +97,7 @@ struct HomeView: View {
     private let usesPreviewData: Bool
     @State private var collections: [EditorialCollection] = []
     @State private var categoryOrder: [HomeRecommendationCategory] = HomeRecommendationCategory.defaultOrder
+    @State private var ensembleDirectory: [DirectoryItem] = []
 
     init(
         repository: any EventRepository,
@@ -126,9 +127,13 @@ struct HomeView: View {
             .navigationDestination(for: EditorialCollection.self) { collection in
                 CollectionDetailView(collection: collection, repository: contentRepository, eventRepository: model.repository)
             }
+            .navigationDestination(for: EntityRoute.self) { route in
+                EntityDetailView(route: route, repository: contentRepository)
+            }
             .task {
                 await model.load()
                 collections = (try? await contentRepository.collections()) ?? []
+                ensembleDirectory = (try? await contentRepository.directory(kind: .ensemble)) ?? []
             }
             .onAppear {
                 categoryOrder = HomeCategoryPreferences.order(for: model.currentUserID)
@@ -220,9 +225,21 @@ struct HomeView: View {
                 EventRail(title: section.title, events: section.events)
             }
         case .followedEnsembles:
-            ForEach(followedSections(from: events, kind: .ensemble)) { section in
+            let sections = followedSections(from: events, kind: .ensemble)
+            ForEach(sections) { section in
                 EventRail(title: section.title, events: section.events)
             }
+            // Gefolgte Ensembles ohne bereits geladenes bevorstehendes Event
+            // tauchten bislang gar nicht auf (rein event-basierte Reihen
+            // oben) — Nutzeranfrage "auch gefolgte ensembles anzeigen":
+            // zusätzlich alle übrigen gefolgten Ensembles als Karten zeigen.
+            EntityRail(
+                title: sections.isEmpty ? category.title : "Weitere gefolgte Ensembles",
+                items: followedEnsembleDirectoryItems.filter { item in
+                    guard let id = UUID(uuidString: item.id) else { return false }
+                    return !sections.contains { $0.id == id }
+                }
+            )
         case .followedVenues:
             ForEach(followedSections(from: events, kind: .venue)) { section in
                 EventRail(title: section.title, events: section.events)
@@ -238,6 +255,15 @@ struct HomeView: View {
         .font(.footnote.weight(.medium))
         .foregroundStyle(.secondary)
         .padding(.horizontal, KlangradarTheme.pagePadding)
+    }
+
+    private var followedEnsembleDirectoryItems: [DirectoryItem] {
+        ensembleDirectory
+            .filter { item in
+                guard let id = UUID(uuidString: item.id) else { return false }
+                return follows.isFollowing(kind: .ensemble, id: id)
+            }
+            .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
     }
 
     /// Eine Reihe je gefolgter Entität der gegebenen Art mit deren kommenden
@@ -297,6 +323,46 @@ private struct FollowedEntitySection: Identifiable {
     let id: UUID
     let title: String
     let events: [ConcertEvent]
+}
+
+private struct EntityRail: View {
+    let title: String
+    let items: [DirectoryItem]
+
+    var body: some View {
+        if !items.isEmpty {
+            VStack(alignment: .leading, spacing: 16) {
+                Text(title)
+                    .font(.title2.bold())
+                    .padding(.horizontal, KlangradarTheme.pagePadding)
+
+                ScrollView(.horizontal) {
+                    LazyHStack(alignment: .top, spacing: 16) {
+                        ForEach(items) { item in
+                            NavigationLink(value: EntityRoute(kind: item.kind, identifier: item.slug ?? item.id)) {
+                                VStack(spacing: 8) {
+                                    CroppedAsyncImage(url: item.imageURL, crop: item.avatarCrop) {
+                                        Color.secondary.opacity(0.12)
+                                            .overlay { Image(systemName: item.kind.systemImage) }
+                                    }
+                                    .frame(width: 92, height: 92)
+                                    .clipShape(Circle())
+                                    Text(item.title)
+                                        .font(.subheadline.weight(.medium))
+                                        .lineLimit(2)
+                                        .multilineTextAlignment(.center)
+                                        .frame(width: 100)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, KlangradarTheme.pagePadding)
+                }
+                .scrollIndicators(.hidden)
+            }
+        }
+    }
 }
 
 private struct CollectionRail: View {
