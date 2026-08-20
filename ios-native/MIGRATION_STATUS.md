@@ -164,6 +164,33 @@ and a hands-on walkthrough before any row below can move to ✅.
   automated-test passes per the parity checklist below — none of that
   was possible without a toolchain.
 
+## Home: Favoriten & gefolgte Personen/Ensembles/Orte als eigene Kategorien (2026-08-20, 🟡 unverified)
+
+Nutzerwunsch: "Favoriten" sowie "Gefolgte Personen", "Gefolgte Ensembles" und
+"Gefolgte Orte" sollen jeweils eine eigene Homepage-Kategorie sein (statt
+einer einzigen kombinierten "Gefolgte Künstler & Orte"-Reihe), sowohl auf dem
+Home-Screen als auch in "Homepage anordnen". Built in the cloud sandbox
+session — no Xcode/Swift toolchain available there, only manual
+cross-reference checks against the existing enum/switch pattern.
+
+- 🟡 `HomeRecommendationCategory` (`Features/Home/HomeView.swift`) replaces
+  the combined `.followed` case with four new cases: `.favorites`,
+  `.followedPersons`, `.followedEnsembles`, `.followedVenues` — each with its
+  own title/SF-Symbol, so they show up in the existing "Homepage anordnen"
+  reorder screen (`HomeCategoryOrderView` in `ProfileView.swift`) automatically
+  via `HomeCategoryPreferences.order(for:)`'s existing "append any new/missing
+  case" merge logic — no changes needed there.
+- 🟡 `.favorites` renders as an `EventRail` filtered against the already-
+  injected `FavoriteStore.ids` (now also `@EnvironmentObject` on `HomeView`,
+  previously only used by `EventCard`/`EventDetailView`).
+- 🟡 `.followedPersons`/`.followedEnsembles`/`.followedVenues` reuse a
+  generalized `followedSections(from:kind:)` (previously hardcoded to mix all
+  three kinds into one rail) — one `EventRail` per followed entity of that
+  kind with upcoming matching events, via the existing `FollowStore`.
+- ⬜ Not yet done: Xcode build/tests, visual verification (light/dark, iPad,
+  Dynamic Type), and Flutter-side parity (`app/lib/features/home/`) — the
+  user asked for native first.
+
 ## Definition of feature parity
 
 A row can be marked complete only when it:

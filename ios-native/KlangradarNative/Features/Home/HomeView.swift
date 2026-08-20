@@ -2,7 +2,8 @@ import SwiftUI
 
 enum HomeRecommendationCategory: String, CaseIterable, Codable, Identifiable {
     case forYou, today, nextSevenDays, weekend, popular, discover
-    case opera, orchestra, chamber, choir, free, upcoming, followed, editorialCollections
+    case opera, orchestra, chamber, choir, free, upcoming, editorialCollections
+    case favorites, followedPersons, followedEnsembles, followedVenues
 
     var id: String { rawValue }
 
@@ -20,8 +21,11 @@ enum HomeRecommendationCategory: String, CaseIterable, Codable, Identifiable {
         case .choir: "Chor & Vokalmusik"
         case .free: "Eintritt frei"
         case .upcoming: "Demnächst in München"
-        case .followed: "Gefolgte Künstler & Orte"
         case .editorialCollections: "Redaktionelle Sammlungen"
+        case .favorites: "Favoriten"
+        case .followedPersons: "Gefolgte Personen"
+        case .followedEnsembles: "Gefolgte Ensembles"
+        case .followedVenues: "Gefolgte Orte"
         }
     }
 
@@ -39,8 +43,11 @@ enum HomeRecommendationCategory: String, CaseIterable, Codable, Identifiable {
         case .choir: "person.3"
         case .free: "eurosign.circle"
         case .upcoming: "clock"
-        case .followed: "person.crop.circle.badge.checkmark"
         case .editorialCollections: "rectangle.stack"
+        case .favorites: "heart.fill"
+        case .followedPersons: "person.crop.circle.badge.checkmark"
+        case .followedEnsembles: "person.3.fill"
+        case .followedVenues: "mappin.circle.fill"
         }
     }
 
@@ -85,6 +92,7 @@ struct HomeView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @StateObject private var model: HomeViewModel
     @EnvironmentObject private var follows: FollowStore
+    @EnvironmentObject private var favorites: FavoriteStore
     private let contentRepository: any ContentRepository
     private let usesPreviewData: Bool
     @State private var collections: [EditorialCollection] = []
@@ -203,12 +211,22 @@ struct HomeView: View {
             EventRail(title: category.title, events: events.dropFirst().filter { !($0.startDate.map(KlangradarDateTime.calendar.isDateInToday) ?? false) }.sorted { lhs, rhs in
                 lhs.matchesPersonalization(model.personalizedEntityIDs) && !rhs.matchesPersonalization(model.personalizedEntityIDs)
             })
-        case .followed:
-            ForEach(followedSections(from: events)) { section in
-                EventRail(title: section.title, events: section.events)
-            }
         case .editorialCollections:
             if !collections.isEmpty { CollectionRail(collections: collections) }
+        case .favorites:
+            EventRail(title: category.title, events: Array(events.filter { favorites.ids.contains($0.id) }.prefix(14)))
+        case .followedPersons:
+            ForEach(followedSections(from: events, kind: .person)) { section in
+                EventRail(title: section.title, events: section.events)
+            }
+        case .followedEnsembles:
+            ForEach(followedSections(from: events, kind: .ensemble)) { section in
+                EventRail(title: section.title, events: section.events)
+            }
+        case .followedVenues:
+            ForEach(followedSections(from: events, kind: .venue)) { section in
+                EventRail(title: section.title, events: section.events)
+            }
         }
     }
 
@@ -222,28 +240,31 @@ struct HomeView: View {
         .padding(.horizontal, KlangradarTheme.pagePadding)
     }
 
-    /// Eine Reihe je gefolgter Person/Ensemble/Venue mit deren kommenden
+    /// Eine Reihe je gefolgter Entität der gegebenen Art mit deren kommenden
     /// Events aus der bereits geladenen Liste — alphabetisch nach Name, nur
     /// Entitäten mit mindestens einem Treffer (keine leeren Reihen).
-    private func followedSections(from events: [ConcertEvent]) -> [FollowedEntitySection] {
+    private func followedSections(from events: [ConcertEvent], kind: EntityKind) -> [FollowedEntitySection] {
         var byID: [UUID: (name: String, events: [ConcertEvent])] = [:]
 
         func record(id: UUID?, name: String?, event: ConcertEvent) {
-            guard let id, let name, !name.isEmpty else { return }
+            guard let id, let name, !name.isEmpty, follows.isFollowing(kind: kind, id: id) else { return }
             byID[id, default: (name, [])].events.append(event)
         }
 
         for event in events {
-            if let venue = event.venues, follows.isFollowing(kind: .venue, id: venue.id) {
-                record(id: venue.id, name: venue.name, event: event)
-            }
-            for participant in event.eventParticipants ?? [] {
-                if let person = participant.persons, let id = person.id, follows.isFollowing(kind: .person, id: id) {
-                    record(id: id, name: person.name, event: event)
+            switch kind {
+            case .venue:
+                record(id: event.venues?.id, name: event.venues?.name, event: event)
+            case .person:
+                for participant in event.eventParticipants ?? [] {
+                    record(id: participant.persons?.id, name: participant.persons?.name, event: event)
                 }
-                if let ensemble = participant.ensembles, let id = ensemble.id, follows.isFollowing(kind: .ensemble, id: id) {
-                    record(id: id, name: ensemble.name, event: event)
+            case .ensemble:
+                for participant in event.eventParticipants ?? [] {
+                    record(id: participant.ensembles?.id, name: participant.ensembles?.name, event: event)
                 }
+            case .work:
+                break
             }
         }
 
