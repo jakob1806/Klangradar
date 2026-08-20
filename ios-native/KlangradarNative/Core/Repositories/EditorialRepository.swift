@@ -11,10 +11,7 @@ enum EditorialEntityKind: String, CaseIterable, Identifiable, Sendable {
 
 /// Feldparität mit dem Web-Admin (admin/src/app/(dashboard)/{venues,persons,
 /// ensembles}/*-form.tsx) — flache optionale Felder statt pro-Kind-Varianten,
-/// analog zum bereits bestehenden composerID (nur bei .work befüllt). Avatar-
-/// Zuschnitt (avatar_crop_x/y/width/height) bewusst NICHT mit aufgenommen:
-/// bräuchte ein eigenes natives Zuschneide-Werkzeug wie admin's CropTool,
-/// als separate Folgearbeit zurückgestellt (siehe MIGRATION_STATUS.md).
+/// analog zum bereits bestehenden composerID (nur bei .work befüllt).
 struct EditorialEntity: Identifiable, Hashable, Sendable {
     let id: UUID
     let kind: EditorialEntityKind
@@ -51,6 +48,11 @@ struct EditorialEntity: Identifiable, Hashable, Sendable {
     var memberCount: Int? = nil
     var homeVenueID: UUID? = nil
     var parentEnsembleID: UUID? = nil
+    /// Runder Avatar-Ausschnitt (nur bei .person/.ensemble befüllt, siehe
+    /// persons/ensembles.avatar_crop_x/y/width/height,
+    /// 20261007000005_person_name_parts_and_avatar_crop.sql) — Punkt 19,
+    /// natives Bild-Crop in EditorialEntityEditorView.
+    var avatarCrop: CropRect? = nil
 }
 
 struct EditorialEvent: Identifiable, Hashable, Sendable {
@@ -295,8 +297,8 @@ struct EditorialRepository: Sendable {
         let order: String
         switch kind {
         case .venue: selection = "id,slug,name,address_street,address_zip,address_city,capacity,website_url,description_de,photo_url"; order = "name.asc"
-        case .person: selection = "id,slug,full_name,first_name,middle_name,last_name,roles,instrument,nationality,birth_date,death_date,is_deceased,member_of_ensemble_id,website_url,is_verified,biography_de,photo_url"; order = "full_name.asc"
-        case .ensemble: selection = "id,slug,name,type,founded_year,member_count,home_venue_id,parent_ensemble_id,website_url,is_verified,description_de,photo_url"; order = "name.asc"
+        case .person: selection = "id,slug,full_name,first_name,middle_name,last_name,roles,instrument,nationality,birth_date,death_date,is_deceased,member_of_ensemble_id,website_url,is_verified,biography_de,photo_url,avatar_crop_x,avatar_crop_y,avatar_crop_width,avatar_crop_height"; order = "full_name.asc"
+        case .ensemble: selection = "id,slug,name,type,founded_year,member_count,home_venue_id,parent_ensemble_id,website_url,is_verified,description_de,photo_url,avatar_crop_x,avatar_crop_y,avatar_crop_width,avatar_crop_height"; order = "name.asc"
         case .work: selection = "id,title,catalog_number,description_de,composer_id,composer:persons(full_name)"; order = "title.asc"
         }
         async let rowsTask: [JSONObject] = client.get(table: kind.table, queryItems: [
@@ -334,9 +336,21 @@ struct EditorialRepository: Sendable {
                 nationality: row.string("nationality"), birthDate: row.string("birth_date"), deathDate: row.string("death_date"), isDeceased: row.bool("is_deceased"),
                 memberOfEnsembleID: row.string("member_of_ensemble_id").flatMap(UUID.init(uuidString:)),
                 ensembleType: kind == .ensemble ? row.string("type") : nil, foundedYear: row.integer("founded_year"), memberCount: row.integer("member_count"),
-                homeVenueID: row.string("home_venue_id").flatMap(UUID.init(uuidString:)), parentEnsembleID: row.string("parent_ensemble_id").flatMap(UUID.init(uuidString:))
+                homeVenueID: row.string("home_venue_id").flatMap(UUID.init(uuidString:)), parentEnsembleID: row.string("parent_ensemble_id").flatMap(UUID.init(uuidString:)),
+                avatarCrop: (kind == .person || kind == .ensemble) ? Self.avatarCrop(from: row) : nil
             )
         }
+    }
+
+    /// Siehe EditorialEntity.avatarCrop.
+    private static func avatarCrop(from row: JSONObject) -> CropRect? {
+        guard
+            let x = row.number("avatar_crop_x"),
+            let y = row.number("avatar_crop_y"),
+            let width = row.number("avatar_crop_width"),
+            let height = row.number("avatar_crop_height")
+        else { return nil }
+        return CropRect(x: x, y: y, width: width, height: height)
     }
 
     /// Basisfelder (Name/Titel, Kurztext, Beschreibung, Bild, Komponist bei
@@ -374,6 +388,25 @@ struct EditorialRepository: Sendable {
         if entity.kind != .work { values["updated_at"] = .string(Self.isoString(from: .now)) }
         try await client.update(table: entity.kind.table, values: values, filters: [URLQueryItem(name: "id", value: "eq.\(entity.id.uuidString)")], accessToken: token)
         await logEntity(entity: entity, action: "native_editor_update_\(entity.kind.rawValue)", actor: actor, after: values, token: token)
+    }
+
+    /// Punkt 19, natives Bild-Crop — nur Personen/Ensembles haben die
+    /// avatar_crop_x/y/width/height-Spalten (siehe
+    /// 20261007000005_person_name_parts_and_avatar_crop.sql). `crop: nil`
+    /// setzt den Ausschnitt zurück (alle vier Spalten auf NULL).
+    func updateAvatarCrop(entity: EditorialEntity, crop: CropRect?, actor: UUID, token: String) async throws {
+        guard entity.kind == .person || entity.kind == .ensemble else {
+            throw EditorialError.validation("Für diesen Eintragstyp gibt es keinen Avatar-Ausschnitt.")
+        }
+        let values: JSONObject = [
+            "avatar_crop_x": crop.map { .number($0.x) } ?? .null,
+            "avatar_crop_y": crop.map { .number($0.y) } ?? .null,
+            "avatar_crop_width": crop.map { .number($0.width) } ?? .null,
+            "avatar_crop_height": crop.map { .number($0.height) } ?? .null,
+            "updated_at": .string(Self.isoString(from: .now))
+        ]
+        try await client.update(table: entity.kind.table, values: values, filters: [URLQueryItem(name: "id", value: "eq.\(entity.id.uuidString)")], accessToken: token)
+        await logEntity(entity: entity, action: "native_editor_update_avatar_crop_\(entity.kind.rawValue)", actor: actor, after: values, token: token)
     }
 
     /// Feldparität mit venue-form.tsx — läuft bewusst über die bereits im
