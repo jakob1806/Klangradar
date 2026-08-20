@@ -95,18 +95,18 @@ class WorkDetailScreen extends ConsumerWidget {
                 final start = MunichTime.tryParse(e['start_datetime']);
                 return start != null && start.isAfter(now);
               }).toList()..sort(
-                (a, b) => DateTime.parse(
-                  a['start_datetime'],
-                ).compareTo(DateTime.parse(b['start_datetime'])),
+                (a, b) =>
+                    DateTime.parse(a['start_datetime'])
+                        .compareTo(DateTime.parse(b['start_datetime'])),
               );
           final past =
               performances.where((e) {
                 final start = MunichTime.tryParse(e['start_datetime']);
                 return start != null && start.isBefore(now);
               }).toList()..sort(
-                (a, b) => DateTime.parse(
-                  b['start_datetime'],
-                ).compareTo(DateTime.parse(a['start_datetime'])),
+                (a, b) =>
+                    DateTime.parse(b['start_datetime'])
+                        .compareTo(DateTime.parse(a['start_datetime'])),
               );
 
           final alternativeTitles =

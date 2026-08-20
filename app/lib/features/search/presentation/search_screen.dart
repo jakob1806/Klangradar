@@ -526,9 +526,8 @@ class _EmptyState extends ConsumerWidget {
                     children: [
                       Text(
                         l10n.searchHistoryTitle,
-                        style: Theme.of(
-                          context,
-                        ).textTheme.labelSmall?.copyWith(letterSpacing: 1),
+                        style: Theme.of(context).textTheme.labelSmall
+                            ?.copyWith(letterSpacing: 1),
                       ),
                       const SizedBox(height: AppSpacing.sm),
                       for (final q in history)
@@ -555,9 +554,8 @@ class _EmptyState extends ConsumerWidget {
         ),
         Text(
           l10n.searchTrendingTitle,
-          style: Theme.of(
-            context,
-          ).textTheme.labelSmall?.copyWith(letterSpacing: 1),
+          style: Theme.of(context).textTheme.labelSmall
+              ?.copyWith(letterSpacing: 1),
         ),
         const SizedBox(height: AppSpacing.sm),
         Wrap(
@@ -572,9 +570,8 @@ class _EmptyState extends ConsumerWidget {
         const SizedBox(height: AppSpacing.xl),
         Text(
           l10n.searchBrowseTitle,
-          style: Theme.of(
-            context,
-          ).textTheme.labelSmall?.copyWith(letterSpacing: 1),
+          style: Theme.of(context).textTheme.labelSmall
+              ?.copyWith(letterSpacing: 1),
         ),
         const SizedBox(height: AppSpacing.sm),
         SegmentedButton<String>(
@@ -803,9 +800,8 @@ class _ResultsList extends StatelessWidget {
           if (grouped[type] != null) ...[
             Text(
               _typeLabel(l10n, type),
-              style: Theme.of(
-                context,
-              ).textTheme.labelSmall?.copyWith(letterSpacing: 1),
+              style: Theme.of(context).textTheme.labelSmall
+                  ?.copyWith(letterSpacing: 1),
             ),
             const SizedBox(height: 4),
             for (final r in grouped[type]!)

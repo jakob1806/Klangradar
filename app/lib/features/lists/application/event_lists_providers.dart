@@ -68,21 +68,21 @@ final myEventListsProvider = FutureProvider.autoDispose<List<UserEventList>>((
 /// gesetztem Titelbild UND mindestens einem noch bevorstehenden Event
 /// erscheinen dort (dieselbe Ausblend-Logik wie
 /// [editorialCollectionsProvider] für abgelaufene Sammlungen).
-final myListsForHomeProvider = FutureProvider.autoDispose<List<UserEventList>>(
-  (ref) async {
-    final lists = await ref.watch(myEventListsProvider.future);
-    final now = DateTime.now();
-    return lists
-        .where(
-          (l) =>
-              l.coverImageUrl != null &&
-              l.events.any(
-                (e) => e.startDateTime != null && e.startDateTime!.isAfter(now),
-              ),
-        )
-        .toList();
-  },
-);
+final myListsForHomeProvider = FutureProvider.autoDispose<List<UserEventList>>((
+  ref,
+) async {
+  final lists = await ref.watch(myEventListsProvider.future);
+  final now = DateTime.now();
+  return lists
+      .where(
+        (l) =>
+            l.coverImageUrl != null &&
+            l.events.any(
+              (e) => e.startDateTime != null && e.startDateTime!.isAfter(now),
+            ),
+      )
+      .toList();
+});
 
 class EventListsService {
   const EventListsService._();
@@ -137,7 +137,8 @@ class EventListsService {
     final publicUrl = Supabase.instance.client.storage
         .from('list-covers')
         .getPublicUrl(path);
-    final versionedUrl = '$publicUrl?v=${DateTime.now().millisecondsSinceEpoch}';
+    final versionedUrl =
+        '$publicUrl?v=${DateTime.now().millisecondsSinceEpoch}';
     await Supabase.instance.client
         .from('favorite_lists')
         .update({'cover_image_url': versionedUrl})
@@ -180,8 +181,7 @@ class EventListsService {
 
     if (toAdd.isNotEmpty) {
       await Supabase.instance.client.from('favorite_list_items').insert([
-        for (final eventId in toAdd)
-          {'list_id': listId, 'event_id': eventId},
+        for (final eventId in toAdd) {'list_id': listId, 'event_id': eventId},
       ]);
     }
     for (final eventId in toRemove) {

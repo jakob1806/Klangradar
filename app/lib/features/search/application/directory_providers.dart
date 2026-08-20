@@ -90,21 +90,20 @@ List<Map<String, dynamic>> applyDirectoryCoverGalleryFirst(
 }
 
 /// Alle Personen alphabetisch nach Name.
-final allPersonsProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((
-  ref,
-) async {
-  final rawRows = await Supabase.instance.client
-      .from('persons')
-      .select(
-        'id, slug, full_name, roles, photo_url, avatar_crop_x, avatar_crop_y, avatar_crop_width, avatar_crop_height',
-      )
-      .order('full_name', ascending: true);
-  final covers = await _coverImagesByOriginId('person');
-  return applyDirectoryCoverFallback(
-    (rawRows as List).cast<Map<String, dynamic>>(),
-    covers,
-  );
-});
+final allPersonsProvider =
+    FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+      final rawRows = await Supabase.instance.client
+          .from('persons')
+          .select(
+            'id, slug, full_name, roles, photo_url, avatar_crop_x, avatar_crop_y, avatar_crop_width, avatar_crop_height',
+          )
+          .order('full_name', ascending: true);
+      final covers = await _coverImagesByOriginId('person');
+      return applyDirectoryCoverFallback(
+        (rawRows as List).cast<Map<String, dynamic>>(),
+        covers,
+      );
+    });
 
 /// Alle Ensembles alphabetisch nach Name.
 final allEnsemblesProvider =

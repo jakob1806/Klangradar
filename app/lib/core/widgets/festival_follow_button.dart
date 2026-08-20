@@ -13,18 +13,20 @@ import '../theme/app_colors.dart';
 /// Notify-Button, Gefolgt-Übersicht), Festivals haben keinen eigenen
 /// Detail-Screen und tauchen nur in dieser einen Home-Kachel auf — eine
 /// eigenständige, isolierte Implementierung ist hier das kleinere Risiko.
-final festivalFollowProvider = FutureProvider.autoDispose
-    .family<bool, String>((ref, festivalId) async {
-      final user = ref.watch(currentUserProvider);
-      if (user == null) return false;
-      final row = await Supabase.instance.client
-          .from('user_favorite_festivals')
-          .select('festival_id')
-          .eq('user_id', user.id)
-          .eq('festival_id', festivalId)
-          .maybeSingle();
-      return row != null;
-    });
+final festivalFollowProvider = FutureProvider.autoDispose.family<bool, String>((
+  ref,
+  festivalId,
+) async {
+  final user = ref.watch(currentUserProvider);
+  if (user == null) return false;
+  final row = await Supabase.instance.client
+      .from('user_favorite_festivals')
+      .select('festival_id')
+      .eq('user_id', user.id)
+      .eq('festival_id', festivalId)
+      .maybeSingle();
+  return row != null;
+});
 
 class FestivalFollowButton extends ConsumerWidget {
   const FestivalFollowButton({required this.festivalId, super.key});
@@ -41,9 +43,8 @@ class FestivalFollowButton extends ConsumerWidget {
     Future<void> handleTap() async {
       final user = Supabase.instance.client.auth.currentUser;
       if (user == null) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(l10n.followSignInPrompt)));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(l10n.followSignInPrompt)));
         return;
       }
       if (isFollowing) {
@@ -53,11 +54,13 @@ class FestivalFollowButton extends ConsumerWidget {
             .eq('user_id', user.id)
             .eq('festival_id', festivalId);
       } else {
-        await Supabase.instance.client.from('user_favorite_festivals').upsert(
-          {'user_id': user.id, 'festival_id': festivalId},
-          onConflict: 'user_id,festival_id',
-          ignoreDuplicates: true,
-        );
+        await Supabase.instance.client
+            .from('user_favorite_festivals')
+            .upsert(
+              {'user_id': user.id, 'festival_id': festivalId},
+              onConflict: 'user_id,festival_id',
+              ignoreDuplicates: true,
+            );
       }
       ref.invalidate(festivalFollowProvider(festivalId));
     }
@@ -65,7 +68,9 @@ class FestivalFollowButton extends ConsumerWidget {
     return TextButton.icon(
       onPressed: handleTap,
       icon: Icon(
-        isFollowing ? Icons.bookmark_added_rounded : Icons.bookmark_add_outlined,
+        isFollowing
+            ? Icons.bookmark_added_rounded
+            : Icons.bookmark_add_outlined,
         size: 18,
         color: isFollowing ? colors.accentPrimary : colors.textSecondary,
       ),

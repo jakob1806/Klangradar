@@ -36,9 +36,8 @@ class FavoriteButton extends ConsumerWidget {
 
     Future<void> handleTap() async {
       if (ref.read(currentUserProvider) == null) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(l10n.favoriteSignInPrompt)));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(l10n.favoriteSignInPrompt)));
         return;
       }
       await FavoritesService.toggle(

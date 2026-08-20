@@ -61,8 +61,7 @@ class LiquidGlassSurface extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.appColors;
     final reduceTransparency =
-        MediaQuery.maybeOf(context)?.disableAnimations ==
-        true; // kein eigenes Signal in Flutter-Core für prefers-reduced-transparency
+        MediaQuery.maybeOf(context)?.disableAnimations == true; // kein eigenes Signal in Flutter-Core für prefers-reduced-transparency
 
     final baseColor = onImage
         ? _onImageTint

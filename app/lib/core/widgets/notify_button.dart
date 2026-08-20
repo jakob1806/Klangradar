@@ -40,7 +40,11 @@ final entityNotifyProvider = FutureProvider.autoDispose
 /// Entität folgt (ohne Follow gibt es keine Benachrichtigungs-Zeile, die man
 /// umschalten könnte).
 class NotifyButton extends ConsumerWidget {
-  const NotifyButton({required this.category, required this.entityId, super.key});
+  const NotifyButton({
+    required this.category,
+    required this.entityId,
+    super.key,
+  });
 
   final InterestCategory category;
   final String entityId;

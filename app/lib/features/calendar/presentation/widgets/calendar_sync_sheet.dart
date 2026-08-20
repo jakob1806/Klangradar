@@ -54,17 +54,15 @@ class _CalendarSyncSheetState extends ConsumerState<CalendarSyncSheet> {
               ? l10n.calendarSyncFailed(result.message!)
               : l10n.calendarSyncFailedGeneric,
       };
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
       if (result.outcome == CalendarSyncOutcome.success) {
         Navigator.of(context).pop();
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(l10n.calendarSyncFailed('$e'))));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(l10n.calendarSyncFailed('$e'))));
     } finally {
       if (mounted) setState(() => _busy = false);
     }

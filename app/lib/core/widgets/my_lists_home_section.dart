@@ -89,11 +89,15 @@ class _MyListCard extends StatelessWidget {
                   CachedNetworkImage(
                     imageUrl: list.coverImageUrl!,
                     fit: BoxFit.cover,
-                    memCacheWidth: (260 * MediaQuery.devicePixelRatioOf(context)).round(),
-                    memCacheHeight: (110 * MediaQuery.devicePixelRatioOf(context)).round(),
+                    memCacheWidth:
+                        (260 * MediaQuery.devicePixelRatioOf(context)).round(),
+                    memCacheHeight:
+                        (110 * MediaQuery.devicePixelRatioOf(context)).round(),
                   )
                 else
-                  Container(color: colors.accentPrimary.withValues(alpha: 0.15)),
+                  Container(
+                    color: colors.accentPrimary.withValues(alpha: 0.15),
+                  ),
                 Container(
                   decoration: const BoxDecoration(
                     gradient: LinearGradient(
@@ -126,7 +130,10 @@ class _MyListCard extends StatelessWidget {
                         subtitle,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: Colors.white70, fontSize: 11),
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 11,
+                        ),
                       ),
                     ],
                   ),

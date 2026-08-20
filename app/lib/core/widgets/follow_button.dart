@@ -38,9 +38,8 @@ class FollowButton extends ConsumerWidget {
 
     Future<void> handleTap() async {
       if (ref.read(currentUserProvider) == null) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(l10n.followSignInPrompt)));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(l10n.followSignInPrompt)));
         return;
       }
       await InterestsService.toggle(
