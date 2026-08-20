@@ -76,6 +76,18 @@ struct ProfileView: View {
                     }
                 }
 
+#if DEBUG
+                Section {
+                    NavigationLink {
+                        MarketingHomeScreenView()
+                    } label: {
+                        Label("Marketing-Screenshots", systemImage: "camera.viewfinder")
+                    }
+                } footer: {
+                    Text("Nur in Debug-Builds sichtbar. Frei editierbarer Homescreen-Nachbau für Social-Media-Screenshots.")
+                }
+#endif
+
                 Section("Darstellung") {
                     Picker("Erscheinungsbild", selection: $appearance) {
                         Text("System").tag("system")
