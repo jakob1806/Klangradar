@@ -6,11 +6,19 @@ import '../../../../core/auth/auth_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../l10n/generated/app_localizations.dart';
+import 'forgot_password_sheet.dart';
 
-enum _Step { email, code }
-
+/// Passwort ersetzt den E-Mail-Code als Anmeldeweg (Onboarding-Redesign) —
+/// der Code bleibt intern nur für Signup-Bestätigung und Passwort-Reset
+/// (siehe forgot_password_sheet.dart und den Onboarding-Signup-Schritt).
 class AuthSection extends ConsumerStatefulWidget {
-  const AuthSection({super.key});
+  const AuthSection({super.key, this.onSignedIn});
+
+  /// Wird nach erfolgreicher Anmeldung (Passwort oder OAuth) aufgerufen —
+  /// beim Aufruf aus dem Onboarding-"Anmelden"-Sheet nutzt der Aufrufer das,
+  /// um das Sheet zu schließen. Im normalen Profil-Tab bleibt es ungesetzt,
+  /// dort reicht der automatische Rebuild über currentUserProvider.
+  final VoidCallback? onSignedIn;
 
   @override
   ConsumerState<AuthSection> createState() => _AuthSectionState();
@@ -18,8 +26,7 @@ class AuthSection extends ConsumerStatefulWidget {
 
 class _AuthSectionState extends ConsumerState<AuthSection> {
   final _emailController = TextEditingController();
-  final _codeController = TextEditingController();
-  _Step _step = _Step.email;
+  final _passwordController = TextEditingController();
   bool _loading = false;
   String? _error;
   Set<String> _oauthProviders = const {};
@@ -35,41 +42,22 @@ class _AuthSectionState extends ConsumerState<AuthSection> {
   @override
   void dispose() {
     _emailController.dispose();
-    _codeController.dispose();
+    _passwordController.dispose();
     super.dispose();
   }
 
-  Future<void> _sendCode() async {
+  Future<void> _signIn() async {
     final email = _emailController.text.trim();
-    if (email.isEmpty) return;
+    final password = _passwordController.text;
+    if (email.isEmpty || password.isEmpty) return;
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      await AuthService.sendEmailCode(email);
-      if (!mounted) return;
-      setState(() => _step = _Step.code);
-    } on AuthException catch (e) {
-      setState(() => _error = e.message);
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _verifyCode() async {
-    final code = _codeController.text.trim();
-    if (code.isEmpty) return;
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      await AuthService.verifyEmailCode(
-        email: _emailController.text.trim(),
-        code: code,
-      );
+      await AuthService.signInWithPassword(email: email, password: password);
       // Erfolgreicher Login löst onAuthStateChange aus, ProfileScreen rebuilt automatisch.
+      widget.onSignedIn?.call();
     } on AuthException catch (e) {
       setState(() => _error = e.message);
     } finally {
@@ -87,6 +75,7 @@ class _AuthSectionState extends ConsumerState<AuthSection> {
     });
     try {
       await signIn();
+      widget.onSignedIn?.call();
     } on AuthException catch (e) {
       setState(() => _error = '$providerLabel: ${e.message}');
     } finally {
@@ -107,63 +96,49 @@ class _AuthSectionState extends ConsumerState<AuthSection> {
           style: Theme.of(context).textTheme.headlineSmall,
         ),
         Text(
-          l10n.authSignInSubtitle,
+          'Mit E-Mail und Passwort anmelden.',
           style: TextStyle(color: colors.textSecondary, fontSize: 12.5),
         ),
         const SizedBox(height: AppSpacing.xl),
-        if (_step == _Step.email) ...[
-          TextField(
-            controller: _emailController,
-            keyboardType: TextInputType.emailAddress,
-            autofillHints: const [AutofillHints.email],
-            decoration: InputDecoration(
-              hintText: l10n.authEmailHint,
-              border: const OutlineInputBorder(),
-            ),
+        TextField(
+          controller: _emailController,
+          keyboardType: TextInputType.emailAddress,
+          autofillHints: const [AutofillHints.username],
+          decoration: InputDecoration(
+            hintText: l10n.authEmailHint,
+            border: const OutlineInputBorder(),
           ),
-          const SizedBox(height: AppSpacing.sm),
-          FilledButton(
-            onPressed: _loading ? null : _sendCode,
-            style: FilledButton.styleFrom(
-              minimumSize: const Size.fromHeight(46),
-              backgroundColor: colors.accentPrimary,
-            ),
-            child: Text(_loading ? l10n.authSendingCode : l10n.authSendCode),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        TextField(
+          controller: _passwordController,
+          obscureText: true,
+          autofillHints: const [AutofillHints.password],
+          decoration: const InputDecoration(
+            hintText: 'Passwort',
+            border: OutlineInputBorder(),
           ),
-        ] else ...[
-          Text(
-            l10n.authCodeSentTo(_emailController.text.trim()),
-            style: TextStyle(color: colors.textSecondary, fontSize: 12.5),
+          onSubmitted: (_) => _signIn(),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        FilledButton(
+          onPressed: _loading ? null : _signIn,
+          style: FilledButton.styleFrom(
+            minimumSize: const Size.fromHeight(46),
+            backgroundColor: colors.accentPrimary,
           ),
-          const SizedBox(height: AppSpacing.sm),
-          TextField(
-            controller: _codeController,
-            keyboardType: TextInputType.number,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 20, letterSpacing: 8),
-            decoration: const InputDecoration(
-              hintText: '000000',
-              border: OutlineInputBorder(),
-              counterText: '',
-            ),
-            maxLength: 6,
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          FilledButton(
-            onPressed: _loading ? null : _verifyCode,
-            style: FilledButton.styleFrom(
-              minimumSize: const Size.fromHeight(46),
-              backgroundColor: colors.accentPrimary,
-            ),
-            child: Text(_loading ? l10n.authCheckingCode : l10n.authConfirm),
-          ),
-          TextButton(
-            onPressed: _loading
-                ? null
-                : () => setState(() => _step = _Step.email),
-            child: Text(l10n.authUseOtherEmail),
-          ),
-        ],
+          child: Text(_loading ? 'Anmeldung läuft …' : 'Anmelden'),
+        ),
+        TextButton(
+          onPressed: _loading
+              ? null
+              : () => showModalBottomSheet<void>(
+                  context: context,
+                  isScrollControlled: true,
+                  builder: (_) => const ForgotPasswordSheet(),
+                ),
+          child: const Text('Passwort vergessen?'),
+        ),
         if (_error != null) ...[
           const SizedBox(height: AppSpacing.sm),
           Text(_error!, style: TextStyle(color: colors.error, fontSize: 12.5)),

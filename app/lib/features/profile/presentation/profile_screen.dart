@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/auth/auth_service.dart';
+import '../../../core/auth/biometric_auth.dart';
 import '../../../core/localization/locale_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -126,6 +127,7 @@ class _SignedInHeader extends StatelessWidget {
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: AppSpacing.sm),
+        const _FaceIdToggle(),
         TextButton(
           onPressed: AuthService.signOut,
           child: Text(
@@ -134,6 +136,49 @@ class _SignedInHeader extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Face ID/Touch ID zum optionalen Schutz des Accounts (Nutzerwunsch) — nur
+/// als Einstellungs-Toggle, keine App-Start-Sperre (analog zum
+/// ios-native-Umsetzungsstand, siehe dortige MIGRATION_STATUS.md).
+class _FaceIdToggle extends StatefulWidget {
+  const _FaceIdToggle();
+
+  @override
+  State<_FaceIdToggle> createState() => _FaceIdToggleState();
+}
+
+class _FaceIdToggleState extends State<_FaceIdToggle> {
+  bool _available = false;
+  bool _enabled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final available = await BiometricAuth.isAvailable;
+    final enabled = await BiometricAuth.isEnabled;
+    if (mounted) setState(() {
+      _available = available;
+      _enabled = enabled;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_available) return const SizedBox.shrink();
+    return SwitchListTile(
+      title: const Text('Face ID zum Schutz nutzen'),
+      value: _enabled,
+      onChanged: (value) async {
+        setState(() => _enabled = value);
+        await BiometricAuth.setEnabled(value);
+      },
     );
   }
 }

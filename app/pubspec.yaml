@@ -91,6 +91,9 @@ dependencies:
   add_2_calendar: ^3.1.1
   image_picker: ^1.2.3
   image_cropper: ^12.2.1
+  # Onboarding-Redesign: Face ID/Touch ID zum optionalen Schutz des
+  # Accounts (Nutzerwunsch), siehe core/auth/biometric_auth.dart.
+  local_auth: ^2.3.0
 
 dev_dependencies:
   flutter_test:

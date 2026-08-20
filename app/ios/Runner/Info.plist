@@ -47,6 +47,8 @@
 	<string>Klangradar benötigt die Kamera, damit du ein Profilbild aufnehmen kannst.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Klangradar benötigt Zugriff auf deine Mediathek, damit du ein Profilbild auswählen kannst.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Klangradar nutzt Face ID, um deinen Account zu schützen.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
