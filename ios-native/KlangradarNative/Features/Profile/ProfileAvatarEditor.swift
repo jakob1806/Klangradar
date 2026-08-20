@@ -168,7 +168,7 @@ struct ProfileAvatarEditor: View {
 }
 
 struct ProfileImagePicker: UIViewControllerRepresentable {
-    let source: ProfileImageSource
+    fileprivate let source: ProfileImageSource
     let onImage: (UIImage) -> Void
     let onCancel: () -> Void
 
