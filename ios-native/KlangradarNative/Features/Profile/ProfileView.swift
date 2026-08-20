@@ -12,6 +12,9 @@ struct ProfileView: View {
     @AppStorage("appearance") private var appearance = "system"
     @State private var showsLogin = false
     @State private var hasEditorialAccess = false
+#if DEBUG
+    @State private var showsMarketingShell = false
+#endif
 
     var body: some View {
         NavigationStack {
@@ -78,13 +81,13 @@ struct ProfileView: View {
 
 #if DEBUG
                 Section {
-                    NavigationLink {
-                        MarketingHomeScreenView()
+                    Button {
+                        showsMarketingShell = true
                     } label: {
                         Label("Marketing-Screenshots", systemImage: "camera.viewfinder")
                     }
                 } footer: {
-                    Text("Nur in Debug-Builds sichtbar. Frei editierbarer Homescreen-Nachbau für Social-Media-Screenshots.")
+                    Text("Nur in Debug-Builds sichtbar. Eigene App-Vorschau mit frei editierbarem Homescreen (Texte, Kategorien, Bilder) — die übrigen Tabs zeigen die echte App zum Weiternavigieren, z. B. für Personen-/Ensemble-/Venue-/Veranstaltungsdetails.")
                 }
 #endif
 
@@ -116,6 +119,18 @@ struct ProfileView: View {
             .sheet(isPresented: $showsLogin) {
                 PasswordLoginView(auth: auth)
             }
+#if DEBUG
+            .fullScreenCover(isPresented: $showsMarketingShell) {
+                MarketingAppShellView(
+                    auth: auth,
+                    userRepository: userRepository,
+                    editorialRepository: editorialRepository,
+                    eventRepository: eventRepository,
+                    contentRepository: contentRepository,
+                    usesPreviewData: usesPreviewData
+                )
+            }
+#endif
             .task(id: auth.accessToken) { await checkEditorialAccess() }
         }
     }
