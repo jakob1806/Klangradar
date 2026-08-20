@@ -163,11 +163,12 @@ class _FaceIdToggleState extends State<_FaceIdToggle> {
   Future<void> _load() async {
     final available = await BiometricAuth.isAvailable;
     final enabled = await BiometricAuth.isEnabled;
-    if (mounted)
+    if (mounted) {
       setState(() {
         _available = available;
         _enabled = enabled;
       });
+    }
   }
 
   @override
