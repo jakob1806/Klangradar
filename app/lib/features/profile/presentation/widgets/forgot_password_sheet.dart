@@ -43,9 +43,7 @@ class _ForgotPasswordSheetState extends State<ForgotPasswordSheet> {
     try {
       switch (_step) {
         case _Step.email:
-          await AuthService.requestPasswordReset(
-            _emailController.text.trim(),
-          );
+          await AuthService.requestPasswordReset(_emailController.text.trim());
           setState(() => _step = _Step.code);
         case _Step.code:
           await AuthService.verifyEmailCode(

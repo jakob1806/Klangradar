@@ -73,8 +73,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           left: AppSpacing.screenPaddingMobile,
           right: AppSpacing.screenPaddingMobile,
           top: AppSpacing.lg,
-          bottom:
-              MediaQuery.of(sheetContext).viewInsets.bottom + AppSpacing.lg,
+          bottom: MediaQuery.of(sheetContext).viewInsets.bottom + AppSpacing.lg,
         ),
         child: SingleChildScrollView(
           child: AuthSection(
@@ -339,7 +338,10 @@ class _SignUpStepState extends State<_SignUpStep> {
     });
     final email = _emailController.text.trim().toLowerCase();
     try {
-      await AuthService.signUp(email: email, password: _passwordController.text);
+      await AuthService.signUp(
+        email: email,
+        password: _passwordController.text,
+      );
       widget.onSignedUp(email);
     } on AuthException catch (e) {
       setState(() => _error = e.message);
@@ -407,7 +409,9 @@ class _SignUpStepState extends State<_SignUpStep> {
                           ? Icons.check_circle
                           : Icons.circle_outlined,
                       size: 16,
-                      color: requirement.$2 ? Colors.green : colors.textTertiary,
+                      color: requirement.$2
+                          ? Colors.green
+                          : colors.textTertiary,
                     ),
                     const SizedBox(width: 6),
                     Text(
