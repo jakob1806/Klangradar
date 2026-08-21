@@ -9,6 +9,52 @@ struct InspirationCategory: Codable, Identifiable, Sendable, Equatable {
     enum CodingKeys: String, CodingKey { case id, slug, title = "inspiration_title", symbol = "icon_name", colorKey = "color_key" }
 }
 
+extension InspirationCategory {
+    /// Bleibt sichtbar, wenn die dynamische Attribut-Tabelle vorübergehend
+    /// nicht erreichbar oder noch nicht migriert ist. Sobald der Server
+    /// Kategorien liefert, werden diese Werte vollständig ersetzt.
+    static let fallback: [InspirationCategory] = [
+        item(1, "oper", "Oper & Musiktheater", "theatermasks.fill", "purple"),
+        item(2, "kostenlos", "Freier Eintritt", "ticket.fill", "teal"),
+        item(3, "kammermusik", "Kammermusik entdecken", "music.quarternote.3", "indigo"),
+        item(4, "symphonik", "Große Symphonik", "music.note.house.fill", "blue"),
+        item(5, "vokal", "Chor & Vokalmusik", "person.3.fill", "pink"),
+        item(6, "neue_musik", "Neue Musik", "waveform", "orange"),
+        item(7, "orgel", "Orgel entdecken", "pianokeys", "teal"),
+        item(8, "lied", "Lied & Gesang", "music.mic", "purple"),
+        item(9, "klavier", "Klavier Highlights", "pianokeys.inverse", "blue"),
+        item(10, "streicher", "Violine & Streicher", "music.note", "pink"),
+        item(11, "alte_musik", "Alte Musik", "scroll.fill", "orange"),
+        item(12, "ballett_tanz", "Ballett & Tanz", "figure.dance", "purple"),
+        item(13, "festival", "Festivals & Reihen", "sparkles", "indigo"),
+        item(14, "familie", "Familienkonzerte", "figure.2.and.child.holdinghands", "teal"),
+        item(15, "barock", "Barocke Klangwelten", "music.note", "orange"),
+        item(16, "romantik", "Romantik pur", "heart.fill", "pink"),
+        item(17, "solo", "Solo-Abende", "person.fill", "blue"),
+        item(18, "open_air", "Open Air Konzerte", "sun.max.fill", "teal"),
+        item(19, "matinee", "Matineen am Sonntag", "cup.and.saucer.fill", "orange"),
+        item(20, "musik_20_jh", "Musik des 20. Jahrhunderts", "waveform", "indigo"),
+        item(21, "geistlich", "Geistliche Musik", "building.columns.fill", "purple"),
+        item(22, "blechblaeser", "Blechbläser & Brass", "music.note", "orange"),
+        item(23, "schlagwerk", "Schlagwerk & Rhythmus", "circle.grid.cross.fill", "pink"),
+        item(24, "zupfinstrumente", "Gitarre & Zupfinstrumente", "music.note", "teal"),
+        item(25, "jazz", "Jazz trifft Klassik", "music.mic", "blue"),
+        item(26, "dirigieren", "Dirigent:innen im Fokus", "figure.wave", "indigo"),
+        item(27, "komponistin", "Komponistinnen entdecken", "person.fill", "purple"),
+        item(28, "premiere", "Uraufführungen & Premieren", "star.fill", "pink")
+    ]
+
+    private static func item(_ number: Int, _ slug: String, _ title: String, _ symbol: String, _ color: String) -> InspirationCategory {
+        InspirationCategory(
+            id: UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", number))!,
+            slug: slug,
+            title: title,
+            symbol: symbol,
+            colorKey: color
+        )
+    }
+}
+
 protocol EventRepository: Sendable {
     func upcomingEvents(limit: Int) async throws -> [ConcertEvent]
     func allUpcomingEvents() async throws -> [ConcertEvent]

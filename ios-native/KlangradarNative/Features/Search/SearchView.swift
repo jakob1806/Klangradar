@@ -271,7 +271,11 @@ struct SearchView: View {
         activeInspiration = category
         isLoadingInspiration = true
         defer { isLoadingInspiration = false }
-        inspirationEvents = (try? await eventRepository.inspirationEvents(attributeSlug: category.slug, limit: 60)) ?? []
+        if let remote = try? await eventRepository.inspirationEvents(attributeSlug: category.slug, limit: 60), !remote.isEmpty {
+            inspirationEvents = remote
+        } else {
+            inspirationEvents = localInspirationEvents(for: category)
+        }
         if let enriched = try? await eventRepository.enrichingImages(in: inspirationEvents) { inspirationEvents = enriched }
     }
 
@@ -332,7 +336,8 @@ struct SearchView: View {
             async let venues = contentRepository.directory(kind: .venue)
             async let works = contentRepository.directory(kind: .work)
             let basicEvents = try await loadedEvents
-            inspirationCategories = (try? await eventRepository.inspirationCategories()) ?? []
+            let remoteCategories = (try? await eventRepository.inspirationCategories()) ?? []
+            inspirationCategories = remoteCategories.isEmpty ? InspirationCategory.fallback : remoteCategories
             let loadedDirectories: [EntityKind: [DirectoryItem]] = try await [
                 .person: persons, .ensemble: ensembles, .venue: venues, .work: works
             ]
@@ -342,6 +347,20 @@ struct SearchView: View {
             }
             directories = loadedDirectories
         } catch { errorMessage = error.localizedDescription }
+    }
+
+    private func localInspirationEvents(for category: InspirationCategory) -> [ConcertEvent] {
+        let terms = ([category.title, category.slug.replacingOccurrences(of: "_", with: " ")]
+            + category.title.components(separatedBy: CharacterSet.alphanumerics.inverted))
+            .map { $0.lowercased() }
+            .filter { $0.count >= 4 && !["entdecken", "highlights", "konzerte", "musik"].contains($0) }
+        return events.filter { event in
+            let haystack = ([event.title, event.subtitle ?? "", event.category ?? ""] + event.genreLabels)
+                .joined(separator: " ")
+                .lowercased()
+            return terms.contains { haystack.contains($0) }
+                || (category.slug == "kostenlos" && event.isFree == true)
+        }
     }
 
     private func search() async {

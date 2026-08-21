@@ -43,8 +43,9 @@ class FestivalFollowButton extends ConsumerWidget {
     Future<void> handleTap() async {
       final user = Supabase.instance.client.auth.currentUser;
       if (user == null) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(l10n.followSignInPrompt)));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(l10n.followSignInPrompt)));
         return;
       }
       if (isFollowing) {

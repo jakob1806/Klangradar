@@ -612,6 +612,16 @@ class _EmptyState extends ConsumerWidget {
         ),
         const SizedBox(height: AppSpacing.xl),
         Text(
+          'Lass dich inspirieren',
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w700,
+            color: colors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        _InspirationGrid(colors: colors, onSelect: onSelect),
+        const SizedBox(height: AppSpacing.xl),
+        Text(
           l10n.searchBrowseTitle,
           style: Theme.of(
             context,
@@ -634,6 +644,84 @@ class _EmptyState extends ConsumerWidget {
         const SizedBox(height: AppSpacing.sm),
         _DirectoryEntries(type: directoryTab, colors: colors),
       ],
+    );
+  }
+}
+
+class _InspirationGrid extends StatelessWidget {
+  const _InspirationGrid({required this.colors, required this.onSelect});
+
+  final AppColorsExtension colors;
+  final ValueChanged<String> onSelect;
+
+  static const _items = <(String, IconData, Color)>[
+    ('Oper & Musiktheater', Icons.theater_comedy_rounded, Color(0xFF7950C7)),
+    ('Freier Eintritt', Icons.confirmation_number_rounded, Color(0xFF168B82)),
+    ('Kammermusik', Icons.music_note_rounded, Color(0xFF3F51A6)),
+    ('Große Symphonik', Icons.groups_rounded, Color(0xFF286DA8)),
+    ('Chor & Vokalmusik', Icons.record_voice_over_rounded, Color(0xFFC44370)),
+    ('Neue Musik', Icons.graphic_eq_rounded, Color(0xFFD46632)),
+    ('Orgel', Icons.piano_rounded, Color(0xFF277C75)),
+    ('Lied & Gesang', Icons.mic_rounded, Color(0xFF7350A9)),
+    ('Klavier', Icons.piano_rounded, Color(0xFF356BA8)),
+    ('Alte Musik', Icons.history_edu_rounded, Color(0xFFA85C32)),
+    ('Ballett & Tanz', Icons.auto_awesome_rounded, Color(0xFF8A4DA1)),
+    ('Familienkonzerte', Icons.family_restroom_rounded, Color(0xFF32877D)),
+    ('Barock', Icons.music_note_rounded, Color(0xFFB8672D)),
+    ('Romantik', Icons.favorite_rounded, Color(0xFFB64268)),
+    ('Open Air', Icons.wb_sunny_rounded, Color(0xFF248C83)),
+    ('Premieren', Icons.star_rounded, Color(0xFFB64578)),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const gap = 12.0;
+        final width = (constraints.maxWidth - gap) / 2;
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: _items.map((item) {
+            return SizedBox(
+              width: width,
+              height: 104,
+              child: Material(
+                color: item.$3,
+                borderRadius: BorderRadius.circular(18),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: () => onSelect(item.$1),
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Stack(
+                      children: [
+                        Align(
+                          alignment: Alignment.bottomRight,
+                          child: Icon(item.$2, size: 44, color: Colors.white24),
+                        ),
+                        Align(
+                          alignment: Alignment.topLeft,
+                          child: Text(
+                            item.$1,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        );
+      },
     );
   }
 }
