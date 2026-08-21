@@ -330,16 +330,18 @@ struct LiveContentRepository: ContentRepository {
         )
         return rows.compactMap { row in
             guard let id = row.string("id") else { return nil }
+            let sourceURLString = row.string("source_url")
             let url: URL?
             if let path = row.string("storage_path") { url = client.publicStorageURL(bucket: "ingested-images", path: path) }
-            else { url = row.string("source_url").flatMap(URL.init(string:)) }
+            else { url = sourceURLString.flatMap(URL.init(string:)) }
             guard let url else { return nil }
             return GalleryImage(
                 id: id,
                 url: url,
                 altText: row.string("alt_text"),
                 photographer: row.string("photographer"),
-                license: row.string("license_name")
+                license: row.string("license_name"),
+                sourceURL: sourceURLString != url.absoluteString ? sourceURLString.flatMap(URL.init(string:)) : nil
             )
         }
     }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../gallery/entity_gallery_providers.dart';
 import 'cropped_network_image.dart';
@@ -106,7 +107,48 @@ class _EntityPhotoGalleryState extends State<EntityPhotoGallery> {
               ],
             ),
           ),
+        if (widget.images[_page].photographer != null)
+          Positioned(
+            bottom: widget.images.length > 1 ? 26 : 10,
+            right: 12,
+            child: _PhotoCredit(image: widget.images[_page]),
+          ),
       ],
+    );
+  }
+}
+
+/// Kleiner Bildnachweis unten rechts über dem Galeriebild — nur sichtbar,
+/// wenn ein Fotograf hinterlegt ist (siehe GalleryImage.photographer:
+/// Bilder ohne bekannten Fotografen, aber mit geprüfter Lizenz, zeigen
+/// bewusst keinen "Quelle unbekannt"-Hinweis, da sie bereits freigegeben
+/// sind). Tippbar zur Quelle, falls sourceUrl gesetzt ist.
+class _PhotoCredit extends StatelessWidget {
+  const _PhotoCredit({required this.image});
+
+  final GalleryImage image;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = '© ${image.photographer}';
+    final content = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(color: Colors.white, fontSize: 10.5),
+      ),
+    );
+    if (image.sourceUrl == null) return content;
+    return GestureDetector(
+      onTap: () => launchUrl(
+        Uri.parse(image.sourceUrl!),
+        mode: LaunchMode.externalApplication,
+      ),
+      child: content,
     );
   }
 }

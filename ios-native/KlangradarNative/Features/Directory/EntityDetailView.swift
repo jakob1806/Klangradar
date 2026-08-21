@@ -288,19 +288,42 @@ struct EntityDetailView: View {
             ScrollView(.horizontal) {
                 LazyHStack(spacing: 12) {
                     ForEach(images) { item in
-                        Button {
-                            showImage(item.url, title: item.altText ?? "Galeriebild")
-                        } label: {
-                            AsyncImage(url: item.url) { $0.resizable().scaledToFill() } placeholder: { Rectangle().fill(.quaternary) }
-                                .frame(width: 250, height: 170)
-                                .clipped()
-                                .clipShape(.rect(cornerRadius: 18))
+                        VStack(alignment: .trailing, spacing: 0) {
+                            Button {
+                                showImage(item.url, title: item.altText ?? "Galeriebild")
+                            } label: {
+                                AsyncImage(url: item.url) { $0.resizable().scaledToFill() } placeholder: { Rectangle().fill(.quaternary) }
+                                    .frame(width: 250, height: 170)
+                                    .clipped()
+                                    .clipShape(.rect(cornerRadius: 18))
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Galeriebild vergrößern")
+
+                            // Nur sichtbar, wenn ein Fotograf hinterlegt ist —
+                            // Bilder ohne Fotografen, aber mit geprüfter Lizenz
+                            // (license_status confirmed_*, siehe ContentRepository.
+                            // gallery) sind bereits freigegeben, zeigen also
+                            // bewusst keinen "Quelle unbekannt"-Hinweis.
+                            if let photographer = item.photographer {
+                                photoCredit(photographer, sourceURL: item.sourceURL)
+                            }
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Galeriebild vergrößern")
                     }
                 }
             }.scrollIndicators(.hidden)
+        }
+    }
+
+    @ViewBuilder private func photoCredit(_ photographer: String, sourceURL: URL?) -> some View {
+        let label = Text("© \(photographer)")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .padding(.top, 4)
+        if let sourceURL {
+            Link(destination: sourceURL) { label }
+        } else {
+            label
         }
     }
 
