@@ -1,0 +1,9 @@
+# Copy this file to local.properties (gitignored) and fill in real values,
+# or import the values already configured for Flutter/ios-native by running
+# Scripts/import_flutter_env.rb (see android-native/CLAUDE.md).
+#
+# local.properties also needs the standard Android SDK path, e.g.:
+# sdk.dir=/Users/you/Library/Android/sdk
+
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-anon-key
