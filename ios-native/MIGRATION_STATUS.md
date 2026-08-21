@@ -201,6 +201,31 @@ cross-reference checks against the existing enum/switch pattern.
   Dynamic Type), and Flutter-side parity (`app/lib/features/home/`) — the
   user asked for native first.
 
+## In-app Impressum (2026-08-20, 🟡 unverified)
+
+Nutzeranfrage: "füge das urheberrecht noch in die app ein", mit dem
+aktuellen, vollständigen Impressum-Text im Prompt (Anbieterkennzeichnung §5
+DDG, Kontakt, Verantwortlich für den Inhalt, Haftung für Inhalte, Haftung
+für externe Links, Urheberrecht). Bisher verlinkte die App nur extern auf
+`https://klangradar.app/impressum` — der Urheberrecht-Abschnitt (und der
+Rest des Texts) existierte nirgends *in* der App selbst.
+
+- 🟡 Neue `Features/Profile/ImpressumView.swift` — Liste mit einem
+  `Section` je Abschnitt, exakter Text wie vom Nutzer vorgegeben.
+- 🟡 `ProfileView.swift` → "Über Klangradar": "Impressum" ist jetzt ein
+  `NavigationLink` auf `ImpressumView` statt eines externen `Link`
+  (Datenschutz bleibt bewusst extern verlinkt, dafür lag kein Text vor).
+- 🟡 `SignUpStepView.swift` (Onboarding-AGB-Zustimmung): "Impressum (AGB)"
+  öffnet dieselbe `ImpressumView` jetzt als Sheet statt extern zu
+  verlinken, damit der Text auch dort ohne Browser-Wechsel einsehbar ist.
+- 🟡 `ruby Scripts/generate_project.rb` wurde in dieser Sandbox-Session
+  ausgeführt (xcodeproj-Gem nachinstalliert) — die neue Datei ist im
+  Xcode-Projekt referenziert; die große pbxproj/xcscheme-Diff-Größe ist
+  reines UUID-Rebuild-Rauschen des Generators (baut die Projektdatei bei
+  jedem Lauf komplett neu auf), keine inhaltliche Änderung.
+- ⬜ Kein Xcode/Swift-Toolchain hier verfügbar — Build, Light/Dark,
+  Dynamic Type und die visuelle Prüfung stehen noch aus.
+
 ## Definition of feature parity
 
 A row can be marked complete only when it:

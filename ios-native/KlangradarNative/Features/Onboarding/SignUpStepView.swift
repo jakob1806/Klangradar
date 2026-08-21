@@ -17,6 +17,7 @@ struct SignUpStepView: View {
     @State private var acceptedTerms = false
     @State private var isWorking = false
     @State private var errorMessage: String?
+    @State private var showsImpressum = false
 
     private var requirements: [(String, Bool)] {
         [
@@ -64,7 +65,7 @@ struct SignUpStepView: View {
                         .font(.footnote)
                         .toggleStyle(.switch)
                     HStack(spacing: 16) {
-                        Link("Impressum (AGB)", destination: URL(string: "https://klangradar.app/impressum")!)
+                        Button("Impressum (AGB)") { showsImpressum = true }
                         Link("Datenschutz", destination: URL(string: "https://klangradar.app/datenschutz")!)
                     }
                     .font(.caption)
@@ -77,6 +78,16 @@ struct SignUpStepView: View {
             errorMessage: errorMessage,
             isWorking: isWorking
         )
+        .sheet(isPresented: $showsImpressum) {
+            NavigationStack {
+                ImpressumView()
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Fertig") { showsImpressum = false }
+                        }
+                    }
+            }
+        }
     }
 
     private func signUp() async {

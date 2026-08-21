@@ -87,7 +87,11 @@ struct ProfileView: View {
 
                 Section("Über Klangradar") {
                     Link("Datenschutz", destination: URL(string: "https://klangradar.app/datenschutz")!)
-                    Link("Impressum", destination: URL(string: "https://klangradar.app/impressum")!)
+                    NavigationLink {
+                        ImpressumView()
+                    } label: {
+                        Text("Impressum")
+                    }
                 }
             }
             .navigationTitle("Profil")
