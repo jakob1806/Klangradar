@@ -19,6 +19,8 @@ struct VenueMapView: View {
     @State private var onlyWithEvents = false
     @State private var filterText = ""
     @State private var position: MapCameraPosition = .region(Self.munichRegion)
+    @State private var locationRequester = LocationRequester()
+    @State private var locationError: String?
 
     private static let munichRegion = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 48.1374, longitude: 11.5755),
@@ -59,6 +61,14 @@ struct VenueMapView: View {
         }
         .sheet(isPresented: $showsFilter) { filterSheet }
         .task { venues = (try? await repository.venueLocations()) ?? [] }
+        .alert("Standort nicht verfügbar", isPresented: Binding(
+            get: { locationError != nil },
+            set: { if !$0 { locationError = nil } }
+        )) {
+            Button("OK", role: .cancel) { locationError = nil }
+        } message: {
+            Text(locationError ?? "Der Standort konnte nicht bestimmt werden.")
+        }
     }
 
     private var showsVenueGroupSheet: Binding<Bool> {
@@ -93,34 +103,50 @@ struct VenueMapView: View {
                 }
         }
         .mapStyle(.standard(elevation: .realistic))
-            .overlay(alignment: .topLeading) {
+            .overlay(alignment: .top) {
+                HStack(spacing: 12) {
                 Button("Filter", systemImage: "line.3.horizontal.decrease") { showsFilter = true }
                     .buttonStyle(.bordered)
+                    .controlSize(.large)
+                    .frame(height: 46)
                     .background(.regularMaterial, in: .capsule)
                     .foregroundStyle(.primary)
-                    .padding(16)
-            }
-            .overlay(alignment: .topTrailing) {
+                    Spacer()
                 Button {
-                    withAnimation(.easeInOut(duration: 0.35)) {
-                        position = .region(Self.munichRegion)
-                    }
+                    Task { await locateUser() }
                 } label: {
-                    Image(systemName: "location.fill")
+                    Image(systemName: "location.north.fill")
                         .font(.headline)
                         .foregroundStyle(KlangradarTheme.accent)
                 }
-                    .frame(width: 48, height: 48)
+                    .frame(width: 46, height: 46)
                     .background(.regularMaterial, in: .circle)
                     .contentShape(.circle)
-                    .accessibilityLabel("Karte auf München ausrichten")
-                    .padding(16)
+                    .accessibilityLabel("Meinen Standort anzeigen")
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 10)
             }
             .navigationTitle("Karte")
+            .navigationBarTitleDisplayMode(.large)
             .toolbarBackground(.hidden, for: .navigationBar)
             .onChange(of: selectedVenueID) { _, id in
                 selectedVenue = venues.first { $0.id == id }
             }
+    }
+
+    @MainActor private func locateUser() async {
+        do {
+            let coordinate = try await locationRequester.requestOnce()
+            withAnimation(.easeInOut(duration: 0.35)) {
+                position = .region(MKCoordinateRegion(
+                    center: coordinate,
+                    span: MKCoordinateSpan(latitudeDelta: 0.035, longitudeDelta: 0.035)
+                ))
+            }
+        } catch {
+            locationError = error.localizedDescription
+        }
     }
 
     private func groupTitle(for group: [VenueLocation]) -> String {

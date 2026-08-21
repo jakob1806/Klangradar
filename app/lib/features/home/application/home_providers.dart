@@ -4,8 +4,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/auth/auth_providers.dart';
+import '../../../core/favorites/favorites_providers.dart';
 import '../../../core/widgets/genre_artwork.dart';
 import '../../../core/time/munich_time.dart';
+import '../../follows/application/follows_providers.dart';
 
 // Öffentlich (nicht mehr privat) statt einer eigenen Kopie in
 // favorites_screen.dart — die hatte image_urls schlicht vergessen
@@ -36,6 +39,8 @@ class HomeEventItem {
     this.venueId,
     this.badge,
     this.imageUrl,
+    this.followKind,
+    this.followName,
   });
 
   final String id;
@@ -47,6 +52,8 @@ class HomeEventItem {
   final String? venueId;
   final String? badge;
   final String? imageUrl;
+  final String? followKind;
+  final String? followName;
 
   factory HomeEventItem.fromRow(Map<String, dynamic> row) {
     final start = MunichTime.tryParse(row['start_datetime'] as String?);
@@ -100,6 +107,8 @@ class HomeEventItem {
       imageUrl: (imageUrls != null && imageUrls.isNotEmpty)
           ? imageUrls.first as String?
           : null,
+      followKind: row['follow_kind'] as String?,
+      followName: row['follow_name'] as String?,
     );
   }
 }
@@ -109,6 +118,12 @@ class HomeData {
     required this.hero,
     required this.heute,
     required this.empfehlungen,
+    required this.favoriten,
+    required this.gefolgt,
+    required this.geschmacksTitel,
+    required this.geschmack,
+    required this.entitySpotlightTitle,
+    required this.entitySpotlight,
     required this.entdecken,
     required this.entityNews,
     required this.beliebt,
@@ -121,6 +136,12 @@ class HomeData {
   final Map<String, dynamic>? hero;
   final List<HomeEventItem> heute;
   final List<HomeEventItem> empfehlungen;
+  final List<HomeEventItem> favoriten;
+  final List<HomeEventItem> gefolgt;
+  final String? geschmacksTitel;
+  final List<HomeEventItem> geschmack;
+  final String? entitySpotlightTitle;
+  final List<HomeEventItem> entitySpotlight;
   final List<HomeEventItem> entdecken;
   final List<HomeEventItem> entityNews;
   final List<HomeEventItem> beliebt;
@@ -241,6 +262,12 @@ Future<Map<String, Set<String>>> _loadComposerIdsByEvent(
 }
 
 final homeDataProvider = FutureProvider.autoDispose<HomeData>((ref) async {
+  // Auth-, Like- und Follow-Änderungen invalidieren den Feed unmittelbar.
+  // Das ist besonders wichtig beim Login über den Profil-Tab, weil der
+  // IndexedStack den bereits aufgebauten Home-Tab sonst im Speicher hält.
+  ref.watch(currentUserProvider);
+  ref.watch(favoriteIdsProvider);
+  ref.watch(myFollowsProvider);
   final client = Supabase.instance.client;
   final now = MunichTime.now();
   final todayStart = DateTime(now.year, now.month, now.day);
@@ -264,7 +291,9 @@ final homeDataProvider = FutureProvider.autoDispose<HomeData>((ref) async {
     // algorithm.md, Abschnitt 4.1/0) — degradiert für anonyme/interesselose
     // Nutzer serverseitig automatisch zu Popularität + zeitlicher Nähe,
     // kein Sonderfall hier im Client nötig.
-    client.rpc('recommended_events', params: {'p_result_limit': 10}),
+    client.rpc('recommended_events', params: {'p_result_limit': 24}),
+    client.rpc('favorite_events_home', params: {'p_result_limit': 20}),
+    client.rpc('followed_events', params: {'p_result_limit': 20}),
     // "Entdecken" (docs/08, Abschnitt 4.3): semantische Ähnlichkeit zu
     // zuletzt favorisierten/angesehenen Events statt Geschmacks-Regeln —
     // liefert ohne Login oder ohne jede Historie bewusst eine leere Liste
@@ -304,16 +333,22 @@ final homeDataProvider = FutureProvider.autoDispose<HomeData>((ref) async {
   final empfehlungen = (results[2] as List)
       .map((r) => HomeEventItem.fromRow(r as Map<String, dynamic>))
       .toList();
-  final entdecken = (results[3] as List)
+  final favoriteCandidates = (results[3] as List)
       .map((r) => HomeEventItem.fromRow(r as Map<String, dynamic>))
       .toList();
-  final entityNews = (results[4] as List)
+  final followedCandidates = (results[4] as List)
       .map((r) => HomeEventItem.fromRow(r as Map<String, dynamic>))
       .toList();
-  final ausverkauft = (results[5] as List)
+  final entdecken = (results[5] as List)
       .map((r) => HomeEventItem.fromRow(r as Map<String, dynamic>))
       .toList();
-  final festivalRows = results[6] as List;
+  final entityNews = (results[6] as List)
+      .map((r) => HomeEventItem.fromRow(r as Map<String, dynamic>))
+      .toList();
+  final ausverkauft = (results[7] as List)
+      .map((r) => HomeEventItem.fromRow(r as Map<String, dynamic>))
+      .toList();
+  final festivalRows = results[8] as List;
   final festival = festivalRows
       .map((r) => HomeEventItem.fromRow(r as Map<String, dynamic>))
       .toList();
@@ -321,16 +356,16 @@ final homeDataProvider = FutureProvider.autoDispose<HomeData>((ref) async {
       ? null
       : (festivalRows.first as Map<String, dynamic>)['festival_name']
             as String?;
-  final kostenlos = (results[7] as List)
+  final kostenlos = (results[9] as List)
       .map((r) => HomeEventItem.fromRow(r as Map<String, dynamic>))
       .toList();
-  final beliebt = (results[8] as List)
+  final beliebt = (results[10] as List)
       .map((r) => HomeEventItem.fromRow(r as Map<String, dynamic>))
       .toList();
 
   final ordered = _orderedModules(
     heute,
-    empfehlungen,
+    empfehlungen.take(10).toList(),
     entdecken,
     entityNews,
     ausverkauft,
@@ -338,7 +373,11 @@ final homeDataProvider = FutureProvider.autoDispose<HomeData>((ref) async {
     kostenlos,
     beliebt,
   );
-  final allIds = ordered.expand((m) => m.map((e) => e.id));
+  final allIds = [
+    favoriteCandidates,
+    followedCandidates,
+    ...ordered,
+  ].expand((m) => m.map((e) => e.id));
   final composerIdsByEvent = await _loadComposerIdsByEvent(client, allIds);
 
   // Hero vorab als "gesehen" markieren — sonst könnte dasselbe Event direkt
@@ -347,10 +386,70 @@ final homeDataProvider = FutureProvider.autoDispose<HomeData>((ref) async {
       ? null
       : (heroRows.first as Map<String, dynamic>)['id'] as String?;
   final seenEventIds = <String>{if (heroId != null) heroId};
+  final favoriten = _applyDiversity(
+    favoriteCandidates,
+    seenEventIds,
+    composerIdsByEvent,
+  );
+  final gefolgt = _applyDiversity(
+    followedCandidates.take(12).toList(),
+    seenEventIds,
+    composerIdsByEvent,
+  );
+  final followCounts = <String, int>{};
+  for (final item in followedCandidates) {
+    if (item.followName != null) {
+      followCounts[item.followName!] =
+          (followCounts[item.followName!] ?? 0) + 1;
+    }
+  }
+  final spotlightName = followCounts.entries.isEmpty
+      ? null
+      : (followCounts.entries.toList()
+              ..sort((a, b) => b.value.compareTo(a.value)))
+            .first
+            .key;
+  final entitySpotlight = _applyDiversity(
+    spotlightName == null
+        ? []
+        : followedCandidates
+              .where((item) => item.followName == spotlightName)
+              .toList(),
+    seenEventIds,
+    composerIdsByEvent,
+  );
+  final spotlightKind = spotlightName == null
+      ? null
+      : followedCandidates
+            .firstWhere((item) => item.followName == spotlightName)
+            .followKind;
   final diversified = [
     for (final module in ordered)
       _applyDiversity(module, seenEventIds, composerIdsByEvent),
   ];
+
+  // Ein stabiles, verhaltensbasiertes Spotlight: recommended_events enthält
+  // bereits Favoriten-, Follow-, View-, Kalender- und Dismissal-Signale. Aus
+  // dem dominanten Genre der hinteren Kandidaten entsteht gelegentlich eine
+  // konkrete Geschmacks-Rail statt immer nur des generischen „Für dich“.
+  final genreCounts = <EventGenre, int>{};
+  for (final item in empfehlungen.skip(7)) {
+    genreCounts[item.genre] = (genreCounts[item.genre] ?? 0) + 1;
+  }
+  final tasteGenre = genreCounts.entries.isEmpty
+      ? null
+      : (genreCounts.entries.toList()
+              ..sort((a, b) => b.value.compareTo(a.value)))
+            .first
+            .key;
+  final tasteCandidates = tasteGenre == null
+      ? <HomeEventItem>[]
+      : empfehlungen.skip(7).where((item) => item.genre == tasteGenre).toList();
+  final geschmack = _applyDiversity(
+    tasteCandidates,
+    seenEventIds,
+    composerIdsByEvent,
+  );
 
   // Diversitätsregel 4 (docs/08, Abschnitt 5): protokolliert, was Hero/
   // "Für dich" gerade gezeigt wurde, damit recommended_events()/hero_event()
@@ -373,6 +472,18 @@ final homeDataProvider = FutureProvider.autoDispose<HomeData>((ref) async {
     hero: heroRows.isEmpty ? null : heroRows.first as Map<String, dynamic>,
     heute: diversified[0],
     empfehlungen: diversified[1],
+    favoriten: favoriten,
+    gefolgt: gefolgt,
+    geschmacksTitel: tasteGenre == null ? null : _tasteTitle(tasteGenre),
+    geschmack: geschmack,
+    entitySpotlightTitle: spotlightName == null
+        ? null
+        : switch (spotlightKind) {
+            'venue' => 'Konzerte im $spotlightName',
+            'person' => 'Konzerte mit $spotlightName',
+            _ => 'Konzerte von $spotlightName',
+          },
+    entitySpotlight: entitySpotlight,
     entdecken: diversified[2],
     entityNews: diversified[3],
     ausverkauft: diversified[4],
@@ -382,3 +493,12 @@ final homeDataProvider = FutureProvider.autoDispose<HomeData>((ref) async {
     beliebt: diversified[7],
   );
 });
+
+String _tasteTitle(EventGenre genre) => switch (genre) {
+  EventGenre.oper => 'Weil du Oper magst',
+  EventGenre.orchester => 'Mehr Symphonik für dich',
+  EventGenre.kammermusik => 'Kammermusik nach deinem Geschmack',
+  EventGenre.chormusik => 'Chor & Vokalmusik für dich',
+  EventGenre.kirchenmusik => 'Orgel & Kirchenmusik für dich',
+  _ => 'Mehr von dem, was du magst',
+};

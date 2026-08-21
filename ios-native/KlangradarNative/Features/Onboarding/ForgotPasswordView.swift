@@ -1,19 +1,16 @@
 import SwiftUI
 
-/// "Passwort vergessen"-Flow: E-Mail → Code aus der Recovery-Mail → neues
-/// Passwort. Nutzt denselben `verify`-Endpoint wie die Signup-Bestätigung,
-/// nur mit `type: "recovery"` (siehe AuthService.verifyEmailCode).
+/// Fordert den sicheren Supabase-Recovery-Link an. Der Link öffnet über das
+/// registrierte URL-Schema wieder die App; RootTabView zeigt anschließend
+/// `PasswordResetCompletionView` an.
 struct ForgotPasswordView: View {
     @ObservedObject var auth: AuthStore
     @Environment(\.dismiss) private var dismiss
 
-    private enum Step { case requestEmail, enterCode, setPassword, done }
+    private enum Step { case requestEmail, sent }
 
     @State private var step: Step = .requestEmail
     @State private var email = ""
-    @State private var code = ""
-    @State private var newPassword = ""
-    @State private var newPasswordConfirmation = ""
     @State private var isWorking = false
     @State private var errorMessage: String?
 
@@ -29,19 +26,35 @@ struct ForgotPasswordView: View {
                     }
                 }
 
-                Section {
-                    Button(primaryButtonTitle) { Task { await primaryAction() } }
-                        .disabled(isWorking || !canProceed)
+                if step == .requestEmail {
+                    EmptyView()
                 }
             }
             .navigationTitle("Passwort vergessen")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(step == .done ? "Fertig" : "Abbrechen") { dismiss() }
+                    Button { dismiss() } label: {
+                        Label("Schließen", systemImage: "xmark")
+                    }
                 }
             }
             .interactiveDismissDisabled(isWorking)
+            .safeAreaInset(edge: .bottom) {
+                if step == .requestEmail {
+                    Button { Task { await requestLink() } } label: {
+                        Text("Reset-Link senden").frame(maxWidth: .infinity)
+                    }
+                        .authPrimaryButtonStyle()
+                        .controlSize(.large)
+                        .disabled(isWorking || !isEmailValid)
+                        .authBottomActionLayout()
+                }
+            }
+            .overlay { if isWorking { ProgressView().controlSize(.large) } }
+            .onChange(of: auth.isCompletingPasswordRecovery) { _, isRecovering in
+                if isRecovering { dismiss() }
+            }
         }
     }
 
@@ -50,74 +63,115 @@ struct ForgotPasswordView: View {
         switch step {
         case .requestEmail:
             Section {
+                VStack(spacing: 16) {
+                    Image(systemName: "key.fill")
+                        .font(.system(size: 40))
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(KlangradarTheme.accent)
+                    Text("Gib die E-Mail-Adresse deines Accounts ein.")
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
                 TextField("E-Mail-Adresse", text: $email)
-                    .textContentType(.username)
+                    .textContentType(.emailAddress)
                     .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
                     .keyboardType(.emailAddress)
             } footer: {
-                Text("Wir schicken dir einen Code, mit dem du ein neues Passwort festlegen kannst.")
+                Text("Wir schicken dir einen sicheren Link. Öffne ihn auf diesem Gerät, um ein neues Passwort festzulegen.")
             }
-        case .enterCode:
+        case .sent:
             Section {
-                TextField("Code aus der E-Mail", text: $code)
-                    .textContentType(.oneTimeCode)
-                    .keyboardType(.numberPad)
-            }
-        case .setPassword:
-            Section {
-                SecureField("Neues Passwort (mind. 8 Zeichen)", text: $newPassword)
-                    .textContentType(.newPassword)
-                SecureField("Passwort wiederholen", text: $newPasswordConfirmation)
-                    .textContentType(.newPassword)
-            }
-        case .done:
-            Section {
-                Label("Dein Passwort wurde geändert.", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
+                ContentUnavailableView {
+                    Label("E-Mail wurde versendet", systemImage: "envelope.badge.fill")
+                } description: {
+                    Text("Öffne den Link aus der E-Mail auf diesem Gerät. Prüfe auch deinen Spam-Ordner.")
+                } actions: {
+                    Button("Fertig") { dismiss() }
+                        .buttonStyle(.borderedProminent)
+                }
             }
         }
     }
 
-    private var canProceed: Bool {
-        switch step {
-        case .requestEmail: !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        case .enterCode: !code.isEmpty
-        case .setPassword: newPassword.count >= 8 && newPassword == newPasswordConfirmation
-        case .done: false
-        }
+    private var isEmailValid: Bool {
+        let cleanEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        return cleanEmail.contains("@") && cleanEmail.contains(".")
     }
 
-    private var primaryButtonTitle: String {
-        switch step {
-        case .requestEmail: "Code senden"
-        case .enterCode: "Code bestätigen"
-        case .setPassword: "Passwort speichern"
-        case .done: "Fertig"
-        }
-    }
-
-    private func primaryAction() async {
+    private func requestLink() async {
         isWorking = true
         errorMessage = nil
         defer { isWorking = false }
         do {
-            switch step {
-            case .requestEmail:
-                try await auth.requestPasswordReset(email: email.trimmingCharacters(in: .whitespacesAndNewlines))
-                step = .enterCode
-            case .enterCode:
-                try await auth.verifyEmailCode(
-                    code,
-                    email: email.trimmingCharacters(in: .whitespacesAndNewlines),
-                    type: "recovery"
-                )
-                step = .setPassword
-            case .setPassword:
-                try await auth.updatePassword(newPassword)
-                step = .done
-            case .done:
-                dismiss()
+            try await auth.requestPasswordReset(email: email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
+            step = .sent
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+}
+
+struct PasswordResetCompletionView: View {
+    @ObservedObject var auth: AuthStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var password = ""
+    @State private var confirmation = ""
+    @State private var isWorking = false
+    @State private var errorMessage: String?
+
+    private var requirements: [(title: String, isMet: Bool)] { AuthPasswordPolicy.requirements(for: password) }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Neues Passwort") {
+                    SecureField("Passwort", text: $password)
+                        .textContentType(.newPassword)
+                    SecureField("Passwort wiederholen", text: $confirmation)
+                        .textContentType(.newPassword)
+                }
+                Section {
+                    ForEach(requirements, id: \.title) { item in
+                        Label(item.title, systemImage: item.isMet ? "checkmark.circle.fill" : "circle")
+                            .foregroundStyle(item.isMet ? .green : .secondary)
+                    }
+                    if !confirmation.isEmpty, password != confirmation {
+                        Label("Die Passwörter stimmen nicht überein.", systemImage: "exclamationmark.circle")
+                            .foregroundStyle(.red)
+                    }
+                }
+                if let errorMessage {
+                    Section { Label(errorMessage, systemImage: "exclamationmark.triangle").foregroundStyle(.red) }
+                }
             }
+            .navigationTitle("Passwort festlegen")
+            .navigationBarTitleDisplayMode(.inline)
+            .safeAreaInset(edge: .bottom) {
+                Button { Task { await save() } } label: {
+                    Text("Passwort speichern").frame(maxWidth: .infinity)
+                }
+                    .authPrimaryButtonStyle()
+                    .controlSize(.large)
+                    .disabled(isWorking || !AuthPasswordPolicy.isValid(password) || password != confirmation)
+                    .authBottomActionLayout()
+            }
+            .overlay { if isWorking { ProgressView().controlSize(.large) } }
+            .interactiveDismissDisabled()
+        }
+    }
+
+    private func save() async {
+        isWorking = true
+        errorMessage = nil
+        defer { isWorking = false }
+        do {
+            try await auth.updatePassword(password)
+            auth.isCompletingPasswordRecovery = false
+            dismiss()
         } catch {
             errorMessage = error.localizedDescription
         }

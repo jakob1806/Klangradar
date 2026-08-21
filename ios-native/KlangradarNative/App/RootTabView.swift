@@ -34,10 +34,13 @@ struct RootTabView: View {
                 auth: environment.auth,
                 userRepository: environment.restClient.map(UserRepository.init(client:))
             )
+            .id(auth.userID)
             .tag(AppTab.home)
             .tabItem {
                 Label("Home", systemImage: "house")
             }
+
+
 
             SearchView(
                 eventRepository: environment.events,
@@ -89,7 +92,13 @@ struct RootTabView: View {
             await auth.bootstrap()
             await refreshOnboardingGate()
         }
-        .onChange(of: auth.userID) { _, _ in Task { await refreshOnboardingGate() } }
+        .onChange(of: auth.userID) { _, _ in
+            Task {
+                await refreshOnboardingGate()
+                await favorites.load()
+                await follows.load()
+            }
+        }
         .task { await favorites.load() }
         .task { await follows.load() }
         .fullScreenCover(isPresented: $showsOnboarding) {
@@ -101,7 +110,20 @@ struct RootTabView: View {
                 showsOnboarding = false
             }
         }
+        .sheet(isPresented: $auth.isCompletingPasswordRecovery) {
+            PasswordResetCompletionView(auth: auth)
+        }
+        .alert("Link konnte nicht geöffnet werden", isPresented: callbackErrorBinding) {
+            Button("OK", role: .cancel) { auth.callbackErrorMessage = nil }
+        } message: {
+            Text(auth.callbackErrorMessage ?? "Bitte fordere einen neuen Link an.")
+        }
         .onOpenURL { url in
+            if url.scheme == AuthService.callbackScheme, url.host == "auth-callback" {
+                showsOnboarding = false
+                Task { await auth.handleAuthCallback(url) }
+                return
+            }
             let path = url.path.lowercased()
             if path.contains("search") { selection = .search }
             else if path.contains("map") || path.contains("venue") { selection = .map }
@@ -110,6 +132,13 @@ struct RootTabView: View {
             else { selection = .home }
         }
         .preferredColorScheme(preferredColorScheme)
+    }
+
+    private var callbackErrorBinding: Binding<Bool> {
+        Binding(
+            get: { auth.callbackErrorMessage != nil },
+            set: { if !$0 { auth.callbackErrorMessage = nil } }
+        )
     }
 
     private var preferredColorScheme: ColorScheme? {
@@ -123,6 +152,10 @@ struct RootTabView: View {
     /// noch nicht gesetzt ist — deckt Neuinstall/anderes Gerät mit
     /// bestehendem Account ab, ohne den lokalen Gast-Skip zu verlieren.
     private func refreshOnboardingGate() async {
+        guard !auth.isCompletingPasswordRecovery else {
+            showsOnboarding = false
+            return
+        }
         guard
             case .authenticated = auth.state,
             let userID = auth.userID,
@@ -133,7 +166,12 @@ struct RootTabView: View {
             return
         }
         let completed = (try? await repository.isOnboardingCompleted(userID: userID, token: token)) ?? true
-        showsOnboarding = !didCompleteOnboarding || !completed
+        // Ein bestehender Nutzer, der sich bewusst aus dem Profil anmeldet,
+        // darf nicht zurück in den Registrierungsflow gezwungen werden. Das
+        // serverseitige Flag hilft nur auf einer frischen Installation; ein
+        // lokal bereits abgeschlossenes (auch als Gast übersprungenes)
+        // Onboarding hat Vorrang.
+        showsOnboarding = !didCompleteOnboarding && !completed
     }
 }
 

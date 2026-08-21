@@ -117,7 +117,7 @@ struct ProfileView: View {
                 EntityDetailView(route: route, repository: contentRepository)
             }
             .sheet(isPresented: $showsLogin) {
-                PasswordLoginView(auth: auth)
+                PasswordLoginView(auth: auth, repository: userRepository)
             }
 #if DEBUG
             .fullScreenCover(isPresented: $showsMarketingShell) {
@@ -941,4 +941,3 @@ private struct UserListEventRow: View {
         .padding(.vertical, 3)
     }
 }
-

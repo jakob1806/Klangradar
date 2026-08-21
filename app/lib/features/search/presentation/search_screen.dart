@@ -22,6 +22,12 @@ import '../application/directory_providers.dart';
 import '../application/natural_query_parser.dart';
 
 final _queryProvider = StateProvider<String>((ref) => '');
+final _resultTypeProvider = StateProvider.autoDispose<String>((ref) => 'all');
+
+String _leadingUppercase(String value) {
+  if (value.isEmpty) return value;
+  return value[0].toUpperCase() + value.substring(1);
+}
 
 /// Aus dem aktuellen Suchtext erkannte Preis-/Datumsfilter (Nutzerwunsch:
 /// "Klavierkonzerte dieses Wochenende", "Mahler unter 50 Euro") — separater
@@ -74,16 +80,6 @@ final _searchResultsProvider =
           }
           return true;
         }).toList();
-      }
-
-      final user = ref.read(currentUserProvider);
-      if (user != null) {
-        unawaited(
-          Supabase.instance.client.from('search_history').insert({
-            'user_id': user.id,
-            'query': rawQuery,
-          }),
-        );
       }
 
       return rows;
@@ -200,6 +196,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final query = ref.watch(_queryProvider);
     final resultsAsync = ref.watch(_searchResultsProvider);
     final filters = ref.watch(eventFiltersProvider);
+    final resultType = ref.watch(_resultTypeProvider);
 
     return SafeArea(
       child: Padding(
@@ -271,6 +268,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 parsed: ref.watch(_parsedQueryProvider),
                 colors: colors,
               ),
+            if (query.trim().isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.sm),
+              _ResultTypeChips(
+                selected: resultType,
+                onSelected: (value) =>
+                    ref.read(_resultTypeProvider.notifier).state = value,
+              ),
+            ],
             const SizedBox(height: AppSpacing.xl),
             Expanded(
               child: filters.isActive
@@ -301,12 +306,48 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                           style: TextStyle(color: colors.error),
                         ),
                       ),
-                      data: (results) =>
-                          _ResultsList(results: results, colors: colors),
+                      data: (results) => _ResultsList(
+                        results: results,
+                        colors: colors,
+                        selectedType: resultType,
+                      ),
                     ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ResultTypeChips extends StatelessWidget {
+  const _ResultTypeChips({required this.selected, required this.onSelected});
+  final String selected;
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    const options = <(String, String)>[
+      ('all', 'Alle'),
+      ('person', 'Personen'),
+      ('ensemble', 'Ensembles'),
+      ('venue', 'Venues'),
+      ('event', 'Veranstaltungen'),
+    ];
+    return SizedBox(
+      height: 38,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: options.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final option = options[index];
+          return ChoiceChip(
+            label: Text(option.$2),
+            selected: selected == option.$1,
+            onSelected: (_) => onSelected(option.$1),
+          );
+        },
       ),
     );
   }
@@ -526,8 +567,9 @@ class _EmptyState extends ConsumerWidget {
                     children: [
                       Text(
                         l10n.searchHistoryTitle,
-                        style: Theme.of(context).textTheme.labelSmall
-                            ?.copyWith(letterSpacing: 1),
+                        style: Theme.of(
+                          context,
+                        ).textTheme.labelSmall?.copyWith(letterSpacing: 1),
                       ),
                       const SizedBox(height: AppSpacing.sm),
                       for (final q in history)
@@ -554,8 +596,9 @@ class _EmptyState extends ConsumerWidget {
         ),
         Text(
           l10n.searchTrendingTitle,
-          style: Theme.of(context).textTheme.labelSmall
-              ?.copyWith(letterSpacing: 1),
+          style: Theme.of(
+            context,
+          ).textTheme.labelSmall?.copyWith(letterSpacing: 1),
         ),
         const SizedBox(height: AppSpacing.sm),
         Wrap(
@@ -570,8 +613,9 @@ class _EmptyState extends ConsumerWidget {
         const SizedBox(height: AppSpacing.xl),
         Text(
           l10n.searchBrowseTitle,
-          style: Theme.of(context).textTheme.labelSmall
-              ?.copyWith(letterSpacing: 1),
+          style: Theme.of(
+            context,
+          ).textTheme.labelSmall?.copyWith(letterSpacing: 1),
         ),
         const SizedBox(height: AppSpacing.sm),
         SegmentedButton<String>(
@@ -758,7 +802,7 @@ class _DirectoryList extends StatelessWidget {
             ),
             subtitle: _subtitle(l10n, r) != null
                 ? Text(
-                    _subtitle(l10n, r)!,
+                    _leadingUppercase(_subtitle(l10n, r)!),
                     style: TextStyle(
                       color: colors.textSecondary,
                       fontSize: 12.5,
@@ -773,9 +817,14 @@ class _DirectoryList extends StatelessWidget {
 }
 
 class _ResultsList extends StatelessWidget {
-  const _ResultsList({required this.results, required this.colors});
+  const _ResultsList({
+    required this.results,
+    required this.colors,
+    required this.selectedType,
+  });
   final List<Map<String, dynamic>> results;
   final AppColorsExtension colors;
+  final String selectedType;
 
   @override
   Widget build(BuildContext context) {
@@ -789,8 +838,19 @@ class _ResultsList extends StatelessWidget {
       );
     }
 
+    final visibleResults = selectedType == 'all'
+        ? results
+        : results.where((row) => row['result_type'] == selectedType).toList();
+    if (visibleResults.isEmpty) {
+      return Center(
+        child: Text(
+          l10n.searchNoResults,
+          style: TextStyle(color: colors.textTertiary, fontSize: 13),
+        ),
+      );
+    }
     final grouped = <String, List<Map<String, dynamic>>>{};
-    for (final r in results) {
+    for (final r in visibleResults) {
       grouped.putIfAbsent(r['result_type'] as String, () => []).add(r);
     }
 
@@ -800,8 +860,9 @@ class _ResultsList extends StatelessWidget {
           if (grouped[type] != null) ...[
             Text(
               _typeLabel(l10n, type),
-              style: Theme.of(context).textTheme.labelSmall
-                  ?.copyWith(letterSpacing: 1),
+              style: Theme.of(
+                context,
+              ).textTheme.labelSmall?.copyWith(letterSpacing: 1),
             ),
             const SizedBox(height: 4),
             for (final r in grouped[type]!)
@@ -821,7 +882,7 @@ class _ResultsList extends StatelessWidget {
                 ),
                 subtitle: r['subtitle'] != null
                     ? Text(
-                        r['subtitle'],
+                        _leadingUppercase(r['subtitle'] as String),
                         style: TextStyle(
                           color: colors.textSecondary,
                           fontSize: 12.5,

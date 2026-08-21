@@ -5,11 +5,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config/env.dart';
 
-/// Kapselt Supabase-Auth-Aufrufe. E-Mail-Login läuft über einen 6-stelligen
-/// Code statt über einen Magic-Link — braucht dadurch keinen registrierten
-/// Deep-Link/keine freigegebene Redirect-URL (siehe docs/07-roadmap.md).
-/// Sign in with Apple/Google braucht beides und funktioniert erst, sobald
-/// die OAuth-Provider im Supabase-Dashboard konfiguriert sind.
+/// Kapselt Supabase-Auth-Aufrufe. Die reguläre Anmeldung verwendet ein
+/// Passwort, die Registrierung einen 6-stelligen Bestätigungscode und die
+/// Passwort-Wiederherstellung einen sicheren Deep-Link zurück in die App.
 class AuthService {
   const AuthService._();
 
@@ -17,22 +15,21 @@ class AuthService {
 
   static SupabaseClient get _client => Supabase.instance.client;
 
-  static Future<void> sendEmailCode(String email) {
-    return _client.auth.signInWithOtp(email: email, shouldCreateUser: true);
-  }
-
-  static Future<AuthResponse> verifyEmailCode({
+  static Future<AuthResponse> verifySignupCode({
     required String email,
     required String code,
-    OtpType type = OtpType.email,
   }) {
-    return _client.auth.verifyOTP(email: email, token: code, type: type);
+    return _client.auth.verifyOTP(
+      email: email,
+      token: code,
+      type: OtpType.signup,
+    );
   }
 
   /// Onboarding-Redesign: Passwort ersetzt den E-Mail-Code als
   /// Anmeldeweg — der Code bleibt intern nur für die
-  /// Signup-Bestätigung (`verifyEmailCode(type: OtpType.signup)`) und den
-  /// Passwort-Reset (`type: OtpType.recovery`). Solange
+  /// Signup-Bestätigung. Der Passwort-Reset ist bewusst ein Link-Flow.
+  /// Solange
   /// `enable_confirmations` aktiv ist (config.toml), liefert `signUp` noch
   /// keine Session — erst die Bestätigung schaltet den Account frei.
   static Future<AuthResponse> signUp({
@@ -50,7 +47,10 @@ class AuthService {
   }
 
   static Future<void> requestPasswordReset(String email) {
-    return _client.auth.resetPasswordForEmail(email);
+    return _client.auth.resetPasswordForEmail(
+      email,
+      redirectTo: _oauthRedirect,
+    );
   }
 
   static Future<UserResponse> updatePassword(String password) {

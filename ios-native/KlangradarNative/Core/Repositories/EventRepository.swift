@@ -1,5 +1,14 @@
 import Foundation
 
+struct InspirationCategory: Codable, Identifiable, Sendable, Equatable {
+    let id: UUID
+    let slug: String
+    let title: String
+    let symbol: String?
+    let colorKey: String
+    enum CodingKeys: String, CodingKey { case id, slug, title = "inspiration_title", symbol = "icon_name", colorKey = "color_key" }
+}
+
 protocol EventRepository: Sendable {
     func upcomingEvents(limit: Int) async throws -> [ConcertEvent]
     func allUpcomingEvents() async throws -> [ConcertEvent]
@@ -8,6 +17,8 @@ protocol EventRepository: Sendable {
     /// Für antippbare Genre-Chips (siehe GenreFilterRouter) — kommende
     /// Veranstaltungen, die dieses Genre über event_genres verlinkt haben.
     func events(genreID: UUID, limit: Int) async throws -> [ConcertEvent]
+    func inspirationEvents(attributeSlug: String, limit: Int) async throws -> [ConcertEvent]
+    func inspirationCategories() async throws -> [InspirationCategory]
 }
 
 struct LiveEventRepository: EventRepository {
@@ -122,6 +133,21 @@ struct LiveEventRepository: EventRepository {
                 URLQueryItem(name: "limit", value: String(limit))
             ]
         )
+    }
+
+    func inspirationEvents(attributeSlug: String, limit: Int = 60) async throws -> [ConcertEvent] {
+        try await client.rpc("inspiration_events", parameters: [
+            "p_attribute_slug": .string(attributeSlug),
+            "p_result_limit": .number(Double(limit))
+        ])
+    }
+
+    func inspirationCategories() async throws -> [InspirationCategory] {
+        try await client.get(table: "attributes", queryItems: [
+            URLQueryItem(name: "select", value: "id,slug,inspiration_title,icon_name,color_key"),
+            URLQueryItem(name: "inspiration_enabled", value: "eq.true"),
+            URLQueryItem(name: "order", value: "sort_order.asc")
+        ])
     }
 
     func eventDetail(slug: String) async throws -> JSONObject? {
@@ -374,6 +400,11 @@ struct PreviewEventRepository: EventRepository {
     func events(genreID: UUID, limit: Int = 60) async throws -> [ConcertEvent] {
         Array(SampleData.events.filter { $0.genreIDs.contains(genreID) }.prefix(limit))
     }
+
+    func inspirationEvents(attributeSlug: String, limit: Int = 60) async throws -> [ConcertEvent] {
+        Array(SampleData.events.prefix(limit))
+    }
+    func inspirationCategories() async throws -> [InspirationCategory] { [] }
 
     func eventDetail(slug: String) async throws -> JSONObject? {
         guard let event = SampleData.events.first(where: { $0.slug == slug }) else { return nil }

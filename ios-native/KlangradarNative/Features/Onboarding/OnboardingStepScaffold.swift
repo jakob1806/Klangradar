@@ -1,4 +1,84 @@
 import SwiftUI
+import UIKit
+
+struct KlangradarAppIcon: View {
+    var size: CGFloat = 76
+
+    private var image: UIImage? {
+        guard
+            let icons = Bundle.main.infoDictionary?["CFBundleIcons"] as? [String: Any],
+            let primary = icons["CFBundlePrimaryIcon"] as? [String: Any],
+            let files = primary["CFBundleIconFiles"] as? [String],
+            let name = files.last
+        else { return UIImage(named: "AppIcon") }
+        return UIImage(named: name)
+    }
+
+    var body: some View {
+        Group {
+            if let image {
+                Image(uiImage: image).resizable().scaledToFit()
+            } else {
+                Image("AppIcon").resizable().scaledToFit()
+            }
+        }
+        .frame(width: size, height: size)
+        .clipShape(RoundedRectangle(cornerRadius: size * 0.225, style: .continuous))
+        .shadow(color: .black.opacity(0.16), radius: 14, y: 7)
+        .accessibilityHidden(true)
+    }
+}
+
+struct OnboardingProgressHeader: View {
+    let current: Int
+    let total: Int
+
+    var body: some View {
+        VStack(spacing: 6) {
+            HStack {
+                Text("Schritt \(current) von \(total)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+            ProgressView(value: Double(current), total: Double(total))
+                .tint(KlangradarTheme.accent)
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 8)
+        .background(.clear)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+extension View {
+    @ViewBuilder
+    func authPrimaryButtonStyle() -> some View {
+        if #available(iOS 26.0, *) {
+            self.buttonStyle(.glassProminent)
+        } else {
+            self.buttonStyle(.borderedProminent)
+        }
+    }
+
+    @ViewBuilder
+    func authSecondaryButtonStyle() -> some View {
+        if #available(iOS 26.0, *) {
+            self.buttonStyle(.glass)
+        } else {
+            self.buttonStyle(.bordered)
+        }
+    }
+
+    @ViewBuilder
+    func authBottomActionLayout() -> some View {
+        if #available(iOS 26.0, *) {
+            self.padding(.horizontal, 20).padding(.vertical, 10)
+        } else {
+            self.padding().background(.bar)
+        }
+    }
+}
 
 /// Gemeinsames Gerüst für kompakte Onboarding-Schritte (Titel + Inhalt +
 /// primärer "Weiter"-Button, optional ein sekundärer Text-Button zum
@@ -51,7 +131,7 @@ struct OnboardingStepScaffold<Content: View>: View {
 
             VStack(spacing: 10) {
                 Button(primaryTitle) { onPrimary() }
-                    .buttonStyle(.borderedProminent)
+                    .authPrimaryButtonStyle()
                     .controlSize(.large)
                     .frame(maxWidth: .infinity)
                     .disabled(!isPrimaryEnabled || isWorking)

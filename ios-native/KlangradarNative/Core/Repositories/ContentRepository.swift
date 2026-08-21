@@ -405,15 +405,59 @@ struct LiveContentRepository: ContentRepository {
     ) async throws -> [DirectoryItem] {
         guard kind == .person || kind == .ensemble else { return [] }
         let specification = directorySpecification(for: kind)
+        let similaritySelection = kind == .person
+            ? "id,slug,full_name,roles,instrument,era,nationality,birth_date,photo_url,avatar_crop_x,avatar_crop_y,avatar_crop_width,avatar_crop_height"
+            : "id,slug,name,type,home_venue_id,repertoire_de,photo_url,avatar_crop_x,avatar_crop_y,avatar_crop_width,avatar_crop_height"
         let rows: [JSONObject] = try await client.get(
             table: specification.table,
             queryItems: [
-                URLQueryItem(name: "select", value: specification.select),
+                URLQueryItem(name: "select", value: similaritySelection),
                 URLQueryItem(name: "id", value: "neq.\(entityID)"),
-                URLQueryItem(name: "limit", value: "8")
+                URLQueryItem(name: "limit", value: "80")
             ]
         )
-        return rows.compactMap { directoryItem(from: $0, kind: kind) }
+        return rows
+            .map { candidate in (candidate, similarityScore(candidate, to: row, kind: kind)) }
+            .sorted {
+                if $0.1 != $1.1 { return $0.1 > $1.1 }
+                return title(from: $0.0, kind: kind).localizedStandardCompare(title(from: $1.0, kind: kind)) == .orderedAscending
+            }
+            .prefix(8)
+            .compactMap { directoryItem(from: $0.0, kind: kind) }
+    }
+
+    private func similarityScore(_ candidate: JSONObject, to source: JSONObject, kind: EntityKind) -> Int {
+        switch kind {
+        case .person:
+            let sharedRoles = Set(candidate.strings("roles")).intersection(source.strings("roles")).count
+            var score = sharedRoles * 8
+            if let instrument = source.string("instrument"), candidate.string("instrument") == instrument { score += 12 }
+            if let era = source.string("era"), candidate.string("era") == era { score += 14 }
+            if let nationality = source.string("nationality"), candidate.string("nationality") == nationality { score += 2 }
+            if candidate.string("photo_url") != nil { score += 1 }
+            return score
+        case .ensemble:
+            var score = 0
+            if let type = source.string("type"), candidate.string("type") == type { score += 14 }
+            if let venue = source.string("home_venue_id"), candidate.string("home_venue_id") == venue { score += 6 }
+            let sourceTerms = similarityTerms(source.string("repertoire_de"))
+            let candidateTerms = similarityTerms(candidate.string("repertoire_de"))
+            score += min(sourceTerms.intersection(candidateTerms).count, 6) * 2
+            if candidate.string("photo_url") != nil { score += 1 }
+            return score
+        default:
+            return 0
+        }
+    }
+
+    private func similarityTerms(_ value: String?) -> Set<String> {
+        guard let value else { return [] }
+        return Set(value
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "de_DE"))
+            .lowercased()
+            .split { !$0.isLetter }
+            .map(String.init)
+            .filter { $0.count >= 5 })
     }
 
     private func directorySpecification(for kind: EntityKind) -> (table: String, select: String, order: String) {

@@ -50,6 +50,7 @@ const NAV_GROUPS = [
       { href: "/ensemble-families", label: "Ensemblefamilien" },
       { href: "/festivals", label: "Festivals" },
       { href: "/editorial-collections", label: "Redaktionelle Sammlungen" },
+      { href: "/attributes", label: "Attribute & Inspiration" },
       { href: "/tags", label: "Tags" },
       { href: "/regions", label: "Regionen" },
       { href: "/sources", label: "Datenquellen & Import" },

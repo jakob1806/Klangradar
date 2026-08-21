@@ -1,5 +1,14 @@
 import Foundation
 
+extension String {
+    /// Normalisiert nutzerseitig sichtbare Kategorien, ohne Eigennamen oder
+    /// den restlichen Text wie bei `capitalized` umzuschreiben.
+    var leadingUppercased: String {
+        guard let first else { return self }
+        return String(first).uppercased() + dropFirst()
+    }
+}
+
 enum EntityKind: String, CaseIterable, Codable, Hashable, Sendable {
     case person
     case ensemble

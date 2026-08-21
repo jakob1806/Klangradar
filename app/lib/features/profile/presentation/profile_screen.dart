@@ -37,7 +37,25 @@ class ProfileScreen extends ConsumerWidget {
         ),
         children: [
           if (!isSignedIn)
-            const AuthSection()
+            Card(
+              elevation: 0,
+              color: colors.glass,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+                side: BorderSide(color: colors.separator),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.xl),
+                child: AuthSection(
+                  onSignedIn: () {
+                    ref.invalidate(authStateChangesProvider);
+                    ref.invalidate(currentUserProvider);
+                  },
+                  onCreateAccount: () =>
+                      context.push('/onboarding?create=true'),
+                ),
+              ),
+            )
           else
             _SignedInHeader(
               userId: user.id,

@@ -70,7 +70,7 @@ struct EntityDetailView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("WERK").font(.caption.bold()).tracking(1).foregroundStyle(KlangradarTheme.accent)
                 Text(detail.title.cleanedWorkTitle).font(.largeTitle.bold())
-                if let subtitle = detail.subtitle { Text(subtitle).foregroundStyle(.secondary) }
+                if let subtitle = detail.subtitle { Text(subtitle.leadingUppercased).foregroundStyle(.secondary) }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -123,7 +123,7 @@ struct EntityDetailView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(detail.kind.title.uppercased()).font(.caption.bold()).tracking(1).foregroundStyle(.secondary)
                     Text(detail.title).font(.title.bold())
-                    if let subtitle = detail.subtitle { Text(subtitle).foregroundStyle(.secondary) }
+                    if let subtitle = detail.subtitle { Text(subtitle.leadingUppercased).foregroundStyle(.secondary) }
                     parentEnsembleLink(detail.fields.object("member_of"))
                 }
             }

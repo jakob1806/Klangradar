@@ -1,6 +1,25 @@
 import SwiftUI
 
+private extension InspirationCategory {
+    var colors: [Color] {
+        switch colorKey {
+        case "purple": [.purple, .pink]
+        case "pink": [.pink, .red]
+        case "orange": [.orange, .red]
+        case "teal": [.teal, .blue]
+        case "blue": [.blue, .indigo]
+        case "indigo": [.indigo, .purple]
+        default: [KlangradarTheme.accent, .cyan]
+        }
+    }
+}
+
 struct SearchView: View {
+    private enum ResultScope: String, CaseIterable, Identifiable {
+        case all, event, person, ensemble, venue
+        var id: String { rawValue }
+        var title: String { switch self { case .all: "Alle"; case .event: "Veranstaltungen"; case .person: "Personen"; case .ensemble: "Ensembles"; case .venue: "Orte" } }
+    }
     let eventRepository: any EventRepository
     let contentRepository: any ContentRepository
     @EnvironmentObject private var genreFilter: GenreFilterRouter
@@ -12,49 +31,38 @@ struct SearchView: View {
     @State private var activeGenre: GenreFilterRouter.Genre?
     @State private var genreEvents: [ConcertEvent] = []
     @State private var isLoadingGenreEvents = false
+    @State private var activeInspiration: InspirationCategory?
+    @State private var inspirationEvents: [ConcertEvent] = []
+    @State private var isLoadingInspiration = false
+    @State private var inspirationCategories: [InspirationCategory] = []
+    @State private var resultScope: ResultScope = .all
+
+    private var visibleHits: [SearchHit] {
+        guard resultScope != .all else { return hits }
+        if resultScope == .event { return hits.filter { $0.kind == nil } }
+        return hits.filter { $0.kind?.rawValue == resultScope.rawValue }
+    }
 
     var body: some View {
         NavigationStack {
-            List {
-                if let activeGenre, query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    genreFilterSection(activeGenre)
-                } else if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Section("Entdecken") {
-                        ForEach(EntityKind.allCases, id: \.self) { kind in
-                            NavigationLink(value: kind) {
-                                Label(kind.title, systemImage: kind.systemImage)
-                            }
-                            .badge(directories[kind]?.count ?? 0)
-                        }
+            ZStack {
+                KlangradarBackground().ignoresSafeArea()
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 24) {
+                        searchContent
                     }
-                    Section("Nächste Konzerte") { eventRows(events) }
-                } else if hits.isEmpty {
-                    ContentUnavailableView.search(text: query)
-                } else {
-                    Section("Ergebnisse") {
-                        ForEach(hits) { hit in
-                            if let kind = hit.kind {
-                                let item = directoryItem(for: hit, kind: kind)
-                                NavigationLink(value: EntityRoute(kind: kind, identifier: hit.slug ?? hit.id)) {
-                                    SearchEntityRow(
-                                        kind: kind,
-                                        title: kind == .work ? hit.title.cleanedWorkTitle : hit.title,
-                                        subtitle: item?.subtitle ?? hit.subtitle,
-                                        imageURL: item?.imageURL,
-                                        avatarCrop: item?.avatarCrop
-                                    )
-                                }
-                            } else if let event = events.first(where: { $0.id.uuidString == hit.id || $0.slug == hit.slug }) {
-                                NavigationLink(value: event) { SearchEventRow(event: event) }
-                            } else {
-                                resultLabel(title: hit.title, subtitle: hit.subtitle, image: "magnifyingglass")
-                            }
-                        }
-                    }
+                    .padding(.horizontal, KlangradarTheme.pagePadding)
+                    .padding(.bottom, 110)
                 }
+                .scrollDismissesKeyboard(.interactively)
             }
             .navigationTitle("Suche")
-            .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Konzerte, Personen, Ensembles, Orte, Werke")
+            .navigationBarTitleDisplayMode(.large)
+            .searchable(
+                text: $query,
+                placement: .navigationBarDrawer(displayMode: .always),
+                prompt: "Konzerte, Personen, Ensembles, Orte, Werke"
+            )
             .navigationDestination(for: ConcertEvent.self) { EventDetailView(event: $0, repository: eventRepository, contentRepository: contentRepository) }
             .navigationDestination(for: EntityKind.self) { DirectoryView(kind: $0, repository: contentRepository) }
             .navigationDestination(for: EntityRoute.self) { EntityDetailView(route: $0, repository: contentRepository) }
@@ -71,9 +79,156 @@ struct SearchView: View {
         }
     }
 
+    @ViewBuilder private var searchContent: some View {
+        if let activeInspiration, query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            inspirationSection(activeInspiration)
+        } else if let activeGenre, query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            genreFilterSection(activeGenre)
+        } else if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            discoveryContent
+        } else {
+            scopePicker
+            if visibleHits.isEmpty {
+                ContentUnavailableView.search(text: query)
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 48)
+            } else {
+                Text("Ergebnisse")
+                    .font(.title2.bold())
+                LazyVStack(spacing: 0) {
+                    ForEach(visibleHits) { hit in
+                        resultRow(hit)
+                        if hit.id != visibleHits.last?.id { Divider().padding(.leading, 66) }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 14)
+                .background(.regularMaterial, in: .rect(cornerRadius: 24))
+            }
+        }
+    }
+
+    private var discoveryContent: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Alles entdecken")
+                .font(.title2.bold())
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 14) {
+                ForEach(Array(EntityKind.allCases.enumerated()), id: \.element) { index, kind in
+                    NavigationLink(value: kind) {
+                        DiscoveryTile(
+                            kind: kind,
+                            featured: featuredItem(for: kind),
+                            color: discoveryColors[index % discoveryColors.count]
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            if !discoveryEvents.isEmpty {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Konzerte entdecken")
+                        .font(.title2.bold())
+                    Spacer()
+                    Text("Für dich gemischt")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.top, 10)
+                ScrollView(.horizontal) {
+                    LazyHStack(spacing: 14) {
+                        ForEach(discoveryEvents) { event in
+                            NavigationLink(value: event) {
+                                SearchDiscoveryEventCard(event: event)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                .scrollIndicators(.hidden)
+            }
+
+            Text("Lass dich inspirieren")
+                .font(.title2.bold())
+                .padding(.top, 10)
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                ForEach(inspirationCategories) { category in
+                    InspirationTile(title: category.title, symbol: category.symbol ?? "music.note", colors: category.colors) {
+                        Task { await loadInspiration(category) }
+                    }
+                }
+            }
+        }
+    }
+
+    private var discoveryColors: [Color] { [.indigo, .purple, .teal, .orange] }
+
+    /// Kurze, visuelle Auswahl statt einer chronologischen „Nächste
+    /// Konzerte“-Liste. Bevorzugt bebilderte Events und vermeidet direkt
+    /// nebeneinander dieselbe Spielstätte bzw. dasselbe Genre.
+    private var discoveryEvents: [ConcertEvent] {
+        let upcoming = events
+            .filter { ($0.startDate ?? .distantPast) >= Date() }
+            .sorted { ($0.startDate ?? .distantFuture) < ($1.startDate ?? .distantFuture) }
+        var result: [ConcertEvent] = []
+        var venues = Set<String>()
+        var genres = Set<String>()
+
+        for event in upcoming where event.primaryImageURL != nil {
+            let venue = event.venues?.name ?? ""
+            let genre = event.genreLabels.first ?? event.category ?? ""
+            guard !venues.contains(venue) || !genres.contains(genre) else { continue }
+            result.append(event)
+            if !venue.isEmpty { venues.insert(venue) }
+            if !genre.isEmpty { genres.insert(genre) }
+            if result.count == 8 { break }
+        }
+        if result.count < 4 {
+            for event in upcoming where !result.contains(where: { $0.id == event.id }) {
+                result.append(event)
+                if result.count == 8 { break }
+            }
+        }
+        return result
+    }
+
+    private func featuredItem(for kind: EntityKind) -> DirectoryItem? {
+        let preferredTerms: [String] = switch kind {
+        case .person: ["Johann Sebastian Bach", "Bach"]
+        case .ensemble: ["Symphonieorchester des Bayerischen Rundfunks", "BRSO", "Bayerischen Rundfunks"]
+        case .venue: ["Isarphilharmonie"]
+        case .work: ["9. Sinfonie", "Matthäus-Passion", "Requiem"]
+        }
+        let items = directories[kind] ?? []
+        for term in preferredTerms {
+            if let match = items.first(where: { $0.title.localizedCaseInsensitiveContains(term) }) { return match }
+        }
+        return items.first(where: { $0.imageURL != nil }) ?? items.first
+    }
+
+    private var scopePicker: some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 108), spacing: 8)], alignment: .leading, spacing: 8) {
+            ForEach(ResultScope.allCases) { scope in
+                Button {
+                    withAnimation(.snappy) { resultScope = scope }
+                } label: {
+                    Text(scope.title)
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.82)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 40)
+                        .foregroundStyle(resultScope == scope ? Color.white : Color.primary)
+                        .background(resultScope == scope ? KlangradarTheme.accent : Color.secondary.opacity(0.12), in: .capsule)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
     @ViewBuilder private func genreFilterSection(_ genre: GenreFilterRouter.Genre) -> some View {
-        Section {
-            HStack {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(spacing: 12) {
                 Label(genre.label, systemImage: "music.quarternote.3")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(KlangradarTheme.accent)
@@ -81,16 +236,62 @@ struct SearchView: View {
                 Button("Filter entfernen") { activeGenre = nil; genreEvents = [] }
                     .font(.caption)
             }
-        }
-        Section("Veranstaltungen · \(genre.label)") {
+            .padding(14)
+            .background(.regularMaterial, in: .capsule)
+            Text("Veranstaltungen · \(genre.label)").font(.title2.bold())
             if isLoadingGenreEvents {
                 ProgressView().frame(maxWidth: .infinity)
             } else if genreEvents.isEmpty {
                 Text("Keine kommenden Veranstaltungen mit diesem Tag gefunden.")
                     .foregroundStyle(.secondary)
             } else {
-                eventRows(genreEvents)
+                LazyVStack(spacing: 0) { eventRows(genreEvents) }
+                    .padding(.horizontal, 14)
+                    .background(.regularMaterial, in: .rect(cornerRadius: 24))
             }
+        }
+    }
+
+    @ViewBuilder private func inspirationSection(_ category: InspirationCategory) -> some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack {
+                Label(category.title.replacingOccurrences(of: "\n", with: " "), systemImage: category.symbol ?? "music.note")
+                    .font(.subheadline.weight(.semibold)).foregroundStyle(KlangradarTheme.accent)
+                Spacer()
+                Button("Zurück") { activeInspiration = nil; inspirationEvents = [] }.font(.caption)
+            }.padding(14).background(.regularMaterial, in: .capsule)
+            if isLoadingInspiration { ProgressView().frame(maxWidth: .infinity) }
+            else if inspirationEvents.isEmpty { ContentUnavailableView("Keine passenden Termine", systemImage: category.symbol ?? "music.note") }
+            else { LazyVStack(spacing: 0) { eventRows(inspirationEvents) }.padding(.horizontal, 14).background(.regularMaterial, in: .rect(cornerRadius: 24)) }
+        }
+    }
+
+    @MainActor private func loadInspiration(_ category: InspirationCategory) async {
+        activeGenre = nil
+        activeInspiration = category
+        isLoadingInspiration = true
+        defer { isLoadingInspiration = false }
+        inspirationEvents = (try? await eventRepository.inspirationEvents(attributeSlug: category.slug, limit: 60)) ?? []
+        if let enriched = try? await eventRepository.enrichingImages(in: inspirationEvents) { inspirationEvents = enriched }
+    }
+
+    @ViewBuilder private func resultRow(_ hit: SearchHit) -> some View {
+        if let kind = hit.kind {
+            let item = directoryItem(for: hit, kind: kind)
+            NavigationLink(value: EntityRoute(kind: kind, identifier: hit.slug ?? hit.id)) {
+                SearchEntityRow(kind: kind, title: kind == .work ? hit.title.cleanedWorkTitle : hit.title, subtitle: item?.subtitle ?? hit.subtitle, imageURL: item?.imageURL, avatarCrop: item?.avatarCrop)
+            }
+            .buttonStyle(.plain)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 8)
+        } else if let event = events.first(where: { $0.id.uuidString == hit.id || $0.slug == hit.slug }) {
+            NavigationLink(value: event) { SearchEventRow(event: event) }
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 8)
+        } else {
+            resultLabel(title: hit.title, subtitle: hit.subtitle, image: "magnifyingglass")
+                .padding(.vertical, 12)
         }
     }
 
@@ -114,7 +315,7 @@ struct SearchView: View {
     }
 
     private func resultLabel(title: String, subtitle: String?, image: String) -> some View {
-        Label { VStack(alignment: .leading) { Text(title); if let subtitle { Text(subtitle).font(.caption).foregroundStyle(.secondary) } } } icon: { Image(systemName: image).frame(width: 30) }
+        Label { VStack(alignment: .leading) { Text(title); if let subtitle { Text(subtitle.leadingUppercased).font(.caption).foregroundStyle(.secondary) } } } icon: { Image(systemName: image).frame(width: 30) }
     }
 
     private func directoryItem(for hit: SearchHit, kind: EntityKind) -> DirectoryItem? {
@@ -126,9 +327,15 @@ struct SearchView: View {
     private func load() async {
         do {
             async let loadedEvents = eventRepository.allUpcomingEvents()
-            var loadedDirectories: [EntityKind: [DirectoryItem]] = [:]
-            for kind in EntityKind.allCases { loadedDirectories[kind] = try await contentRepository.directory(kind: kind) }
+            async let persons = contentRepository.directory(kind: .person)
+            async let ensembles = contentRepository.directory(kind: .ensemble)
+            async let venues = contentRepository.directory(kind: .venue)
+            async let works = contentRepository.directory(kind: .work)
             let basicEvents = try await loadedEvents
+            inspirationCategories = (try? await eventRepository.inspirationCategories()) ?? []
+            let loadedDirectories: [EntityKind: [DirectoryItem]] = try await [
+                .person: persons, .ensemble: ensembles, .venue: venues, .work: works
+            ]
             events = basicEvents
             if let enriched = try? await eventRepository.enrichingImages(in: basicEvents) {
                 events = enriched
@@ -139,13 +346,132 @@ struct SearchView: View {
 
     private func search() async {
         let value = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !value.isEmpty else { hits = []; return }
+        guard !value.isEmpty else { hits = []; resultScope = .all; return }
         try? await Task.sleep(for: .milliseconds(250))
         guard !Task.isCancelled else { return }
         do { hits = try await contentRepository.search(query: value, limit: 40) }
         catch {
             hits = directories.values.flatMap { $0 }.filter { $0.title.localizedStandardContains(value) }.map { SearchHit(id: $0.id, kind: $0.kind, slug: $0.slug, title: $0.title, subtitle: $0.subtitle) }
         }
+    }
+}
+
+private struct DiscoveryTile: View {
+    let kind: EntityKind
+    let featured: DirectoryItem?
+    let color: Color
+
+    var body: some View {
+        ZStack(alignment: .bottomTrailing) {
+            LinearGradient(colors: [color, color.opacity(0.68)], startPoint: .topLeading, endPoint: .bottomTrailing)
+            artwork
+                .frame(width: 104, height: 104)
+                .clipShape(.rect(cornerRadius: 12))
+                .rotationEffect(.degrees(9))
+                .shadow(color: .black.opacity(0.25), radius: 8, y: 4)
+                .offset(x: 17, y: 19)
+            Text(kind.title)
+                .font(.headline.bold())
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .padding(15)
+        }
+        .frame(height: 132)
+        .clipShape(.rect(cornerRadius: 20))
+        .accessibilityElement(children: .combine)
+    }
+
+    @ViewBuilder private var artwork: some View {
+        if kind == .work {
+            Image("WorkDiscovery")
+                .resizable()
+                .scaledToFill()
+        } else if let featured, featured.imageURL != nil {
+            CroppedAsyncImage(url: featured.imageURL, crop: featured.avatarCrop) {
+                artworkPlaceholder
+            }
+        } else {
+            artworkPlaceholder
+        }
+    }
+
+    private var artworkPlaceholder: some View {
+        Rectangle()
+            .fill(.white.opacity(0.16))
+            .overlay {
+                Image(systemName: kind.systemImage)
+                    .font(.system(size: 32, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.9))
+            }
+    }
+}
+
+private struct InspirationTile: View {
+    let title: String
+    let symbol: String
+    let colors: [Color]
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            ZStack(alignment: .bottomTrailing) {
+                LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
+                Image(systemName: symbol)
+                    .font(.system(size: 52, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.22))
+                    .rotationEffect(.degrees(-9))
+                    .offset(x: 8, y: 8)
+                Text(title)
+                    .font(.headline.bold())
+                    .foregroundStyle(.white)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .padding(16)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 108)
+            .clipShape(.rect(cornerRadius: 20))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct SearchDiscoveryEventCard: View {
+    let event: ConcertEvent
+
+    var body: some View {
+        ZStack(alignment: .bottomLeading) {
+            EventArtwork(event: event)
+                .frame(width: 238, height: 292)
+                .clipped()
+            LinearGradient(
+                colors: [.clear, .black.opacity(0.18), .black.opacity(0.92)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            VStack(alignment: .leading, spacing: 6) {
+                if let label = event.genreLabels.first ?? event.category {
+                    Text(label.uppercased())
+                        .font(.caption2.bold())
+                        .tracking(0.8)
+                        .foregroundStyle(.white.opacity(0.78))
+                }
+                Text(event.title)
+                    .font(.headline.bold())
+                    .lineLimit(3)
+                Text(event.dateLine)
+                    .font(.caption)
+                    .lineLimit(2)
+                    .foregroundStyle(.white.opacity(0.78))
+            }
+            .foregroundStyle(.white)
+            .padding(16)
+        }
+        .frame(width: 238, height: 292)
+        .clipShape(.rect(cornerRadius: 22))
+        .contentShape(.rect(cornerRadius: 22))
+        .shadow(color: .black.opacity(0.12), radius: 12, y: 6)
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -181,11 +507,12 @@ private struct SearchEntityRow: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title).font(.headline).lineLimit(2)
                 if let subtitle, !subtitle.isEmpty {
-                    Text(subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    Text(subtitle.leadingUppercased).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 }
             }
         }
         .padding(.vertical, 2)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var thumbnailShape: AnyShape {
@@ -215,6 +542,7 @@ private struct SearchEventRow: View {
             }
         }
         .padding(.vertical, 2)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -225,7 +553,12 @@ struct DirectoryView: View {
     @State private var directoryQuery = ""
 
     private var sections: [DirectorySection] {
-        let grouped = Dictionary(grouping: items) { DirectorySection.indexTitle(for: $0.title) }
+        let normalizedQuery = directoryQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let filteredItems = normalizedQuery.isEmpty ? items : items.filter {
+            $0.title.localizedStandardContains(normalizedQuery) ||
+            ($0.subtitle?.localizedStandardContains(normalizedQuery) ?? false)
+        }
+        let grouped = Dictionary(grouping: filteredItems) { DirectorySection.indexTitle(for: $0.title) }
         return DirectorySection.indexTitles.compactMap { title in
             guard let values = grouped[title], !values.isEmpty else { return nil }
             return DirectorySection(
@@ -365,7 +698,7 @@ struct DirectoryView: View {
                 .clipShape(kind == .person || kind == .ensemble ? AnyShape(Circle()) : AnyShape(RoundedRectangle(cornerRadius: 14, style: .continuous)))
                 VStack(alignment: .leading) {
                     Text(item.title).font(.headline)
-                    if let subtitle = item.subtitle { Text(subtitle).font(.subheadline).foregroundStyle(.secondary) }
+                    if let subtitle = item.subtitle { Text(subtitle.leadingUppercased).font(.subheadline).foregroundStyle(.secondary) }
                 }
             }
         }

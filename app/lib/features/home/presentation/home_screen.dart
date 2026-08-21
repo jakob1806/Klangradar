@@ -109,12 +109,39 @@ class HomeScreen extends ConsumerWidget {
                         ),
                         const SizedBox(height: AppSpacing.sectionGap),
                       ],
+                      if (data.favoriten.isNotEmpty) ...[
+                        EventSection(
+                          title: 'Deine Favoriten',
+                          events: data.favoriten,
+                        ),
+                        const SizedBox(height: AppSpacing.sectionGap),
+                      ],
+                      if (data.gefolgt.isNotEmpty) ...[
+                        EventSection(title: 'Gefolgt', events: data.gefolgt),
+                        const SizedBox(height: AppSpacing.sectionGap),
+                      ],
+                      if (data.entitySpotlight.isNotEmpty &&
+                          data.entitySpotlightTitle != null) ...[
+                        EventSection(
+                          title: data.entitySpotlightTitle!,
+                          events: data.entitySpotlight,
+                        ),
+                        const SizedBox(height: AppSpacing.sectionGap),
+                      ],
                       const EditorialCollectionsSection(),
                       const SizedBox(height: AppSpacing.sectionGap),
                       if (data.empfehlungen.isNotEmpty) ...[
                         EventSection(
                           title: l10n.homeSectionRecommendations,
                           events: data.empfehlungen,
+                        ),
+                        const SizedBox(height: AppSpacing.sectionGap),
+                      ],
+                      if (data.geschmack.isNotEmpty &&
+                          data.geschmacksTitel != null) ...[
+                        EventSection(
+                          title: data.geschmacksTitel!,
+                          events: data.geschmack,
                         ),
                         const SizedBox(height: AppSpacing.sectionGap),
                       ],
@@ -160,6 +187,10 @@ class HomeScreen extends ConsumerWidget {
                         ),
                       if (data.heute.isEmpty &&
                           data.empfehlungen.isEmpty &&
+                          data.favoriten.isEmpty &&
+                          data.gefolgt.isEmpty &&
+                          data.entitySpotlight.isEmpty &&
+                          data.geschmack.isEmpty &&
                           data.entdecken.isEmpty &&
                           data.entityNews.isEmpty &&
                           data.ausverkauft.isEmpty &&

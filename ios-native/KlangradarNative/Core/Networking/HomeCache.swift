@@ -9,7 +9,16 @@ struct HomeSnapshot: Codable {
     let recommendedEvents: [ConcertEvent]
     let discoveryEvents: [ConcertEvent]
     let popularEvents: [ConcertEvent]
-    let newlyAnnouncedEvents: [ConcertEvent]
+    // Nutzerfeedback: "ganz oben steht immer erst 'Für dich empfohlen' statt
+    // 'Für dich'" — ohne diese beiden Felder im Snapshot setzt jeder
+    // Kaltstart hasPersonalizedInterests stumm auf false zurück, bis die
+    // Netzwerkantwort da ist; der zwischenzeitliche (falsche) Zustand war
+    // genau der gemeldete Bug.
+    let personalizedEntityIDs: [UUID]
+    let hasPersonalizedInterests: Bool
+    /// Verhindert, dass beim Accountwechsel Personalisierung und Bilder des
+    /// vorherigen Kontos als Offline-Snapshot erscheinen.
+    let userID: UUID?
     let savedAtTimestamp: Double
 
     var isFresh: Bool {
@@ -27,10 +36,11 @@ enum HomeCache {
             .appendingPathComponent("home_snapshot.json")
     }
 
-    static func load() -> HomeSnapshot? {
+    static func load(for userID: UUID?) -> HomeSnapshot? {
         guard let data = try? Data(contentsOf: fileURL),
               let snapshot = try? JSONDecoder().decode(HomeSnapshot.self, from: data),
-              snapshot.isFresh else { return nil }
+              snapshot.isFresh,
+              snapshot.userID == userID else { return nil }
         return snapshot
     }
 

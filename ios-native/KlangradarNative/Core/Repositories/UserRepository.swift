@@ -69,36 +69,32 @@ struct UserRepository: Sendable {
     func updatePersonalData(
         firstName: String,
         lastName: String,
-        phone: String?,
-        address: String?,
         userID: UUID,
         token: String
     ) async throws {
         let cleanFirst = firstName.trimmingCharacters(in: .whitespacesAndNewlines)
         let cleanLast = lastName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !cleanFirst.isEmpty, !cleanLast.isEmpty else { return }
-        let cleanPhone = phone?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let cleanAddress = address?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanFirst.isEmpty else { return }
+        let displayName = cleanLast.isEmpty ? cleanFirst : "\(cleanFirst) \(cleanLast)"
         try await client.update(
             table: "profiles",
             values: [
                 "first_name": .string(cleanFirst),
                 "last_name": .string(cleanLast),
-                "display_name": .string("\(cleanFirst) \(cleanLast)"),
-                "phone": cleanPhone.flatMap { $0.isEmpty ? nil : $0 }.map(JSONValue.string) ?? .null,
-                "address": cleanAddress.flatMap { $0.isEmpty ? nil : $0 }.map(JSONValue.string) ?? .null
+                "display_name": .string(displayName)
             ],
             filters: [URLQueryItem(name: "id", value: "eq.\(userID.uuidString)")],
             accessToken: token
         )
     }
 
-    func acceptTerms(version: String, userID: UUID, token: String) async throws {
+    func acceptTerms(version: String, marketingEmailOptIn: Bool, userID: UUID, token: String) async throws {
         try await client.update(
             table: "profiles",
             values: [
                 "terms_accepted_at": .string(ISO8601DateFormatter().string(from: .now)),
-                "terms_version": .string(version)
+                "terms_version": .string(version),
+                "marketing_email_opt_in": .bool(marketingEmailOptIn)
             ],
             filters: [URLQueryItem(name: "id", value: "eq.\(userID.uuidString)")],
             accessToken: token

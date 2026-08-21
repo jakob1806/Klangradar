@@ -2,13 +2,13 @@ import SwiftUI
 
 enum HomeRecommendationCategory: String, CaseIterable, Codable, Identifiable {
     case forYou, today, nextSevenDays, weekend, popular, discover
-    case opera, orchestra, chamber, choir, free, upcoming, followed, editorialCollections
+    case favorites, taste, entitySpotlight, opera, orchestra, chamber, choir, free, upcoming, followed, editorialCollections
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .forYou: "Für dich empfohlen"
+        case .forYou: "Für dich"
         case .today: "Heute in München"
         case .nextSevenDays: "In den nächsten 7 Tagen"
         case .weekend: "Dieses Wochenende"
@@ -20,7 +20,10 @@ enum HomeRecommendationCategory: String, CaseIterable, Codable, Identifiable {
         case .choir: "Chor & Vokalmusik"
         case .free: "Eintritt frei"
         case .upcoming: "Demnächst in München"
-        case .followed: "Gefolgte Künstler & Orte"
+        case .favorites: "Deine Favoriten"
+        case .taste: "Nach deinem Geschmack"
+        case .entitySpotlight: "Von dir gefolgt"
+        case .followed: "Gefolgt"
         case .editorialCollections: "Redaktionelle Sammlungen"
         }
     }
@@ -39,12 +42,19 @@ enum HomeRecommendationCategory: String, CaseIterable, Codable, Identifiable {
         case .choir: "person.3"
         case .free: "eurosign.circle"
         case .upcoming: "clock"
+        case .favorites: "heart.fill"
+        case .taste: "wand.and.stars"
+        case .entitySpotlight: "music.note.house"
         case .followed: "person.crop.circle.badge.checkmark"
         case .editorialCollections: "rectangle.stack"
         }
     }
 
-    static let defaultOrder = allCases
+    static let defaultOrder: [HomeRecommendationCategory] = [
+        .today, .favorites, .followed, .entitySpotlight, .forYou, .taste, .discover,
+        .nextSevenDays, .weekend, .popular, .editorialCollections,
+        .opera, .orchestra, .chamber, .choir, .free, .upcoming
+    ]
 }
 
 enum HomeCategoryPreferences {
@@ -84,6 +94,7 @@ enum HomeCategoryPreferences {
 struct HomeView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @StateObject private var model: HomeViewModel
+    @EnvironmentObject private var favorites: FavoriteStore
     @EnvironmentObject private var follows: FollowStore
     private let contentRepository: any ContentRepository
     private let usesPreviewData: Bool
@@ -178,7 +189,15 @@ struct HomeView: View {
     private func recommendationSection(_ category: HomeRecommendationCategory, events: [ConcertEvent]) -> some View {
         switch category {
         case .forYou:
-            EventRail(title: model.hasPersonalizedInterests ? "Für dich" : "Für dich empfohlen", events: Array(model.recommendedEvents.filter { $0.id != events.first?.id }.prefix(14)))
+            EventRail(title: category.title, events: Array(model.recommendedEvents.filter { $0.id != events.first?.id }.prefix(14)))
+        case .favorites:
+            EventRail(title: category.title, events: Array(events.filter { favorites.ids.contains($0.id) }.prefix(14)))
+        case .taste:
+            let spotlight = tasteSpotlight(from: events)
+            EventRail(title: spotlight.title, events: spotlight.events)
+        case .entitySpotlight:
+            let spotlight = entitySpotlight(from: events)
+            EventRail(title: spotlight.title, events: spotlight.events)
         case .today:
             EventRail(title: category.title, events: events.dropFirst().filter { $0.startDate.map(KlangradarDateTime.calendar.isDateInToday) ?? false })
         case .nextSevenDays:
@@ -204,9 +223,7 @@ struct HomeView: View {
                 lhs.matchesPersonalization(model.personalizedEntityIDs) && !rhs.matchesPersonalization(model.personalizedEntityIDs)
             })
         case .followed:
-            ForEach(followedSections(from: events)) { section in
-                EventRail(title: section.title, events: section.events)
-            }
+            EventRail(title: category.title, events: followedEvents(from: events))
         case .editorialCollections:
             if !collections.isEmpty { CollectionRail(collections: collections) }
         }
@@ -222,34 +239,49 @@ struct HomeView: View {
         .padding(.horizontal, KlangradarTheme.pagePadding)
     }
 
-    /// Eine Reihe je gefolgter Person/Ensemble/Venue mit deren kommenden
-    /// Events aus der bereits geladenen Liste — alphabetisch nach Name, nur
-    /// Entitäten mit mindestens einem Treffer (keine leeren Reihen).
-    private func followedSections(from events: [ConcertEvent]) -> [FollowedEntitySection] {
-        var byID: [UUID: (name: String, events: [ConcertEvent])] = [:]
+    /// Eine bewusst gemischte Rail: Person, Ensemble und Spielstätte sind
+    /// Signale für dasselbe Konzert, nicht drei getrennte Inhalts-Silos.
+    private func followedEvents(from events: [ConcertEvent]) -> [ConcertEvent] {
+        Array(events.filter { event in
+            if let venue = event.venues, follows.isFollowing(kind: .venue, id: venue.id) { return true }
+            return event.eventParticipants?.contains { participant in
+                if let id = participant.persons?.id, follows.isFollowing(kind: .person, id: id) { return true }
+                if let id = participant.ensembles?.id, follows.isFollowing(kind: .ensemble, id: id) { return true }
+                return false
+            } ?? false
+        }.prefix(14))
+    }
 
-        func record(id: UUID?, name: String?, event: ConcertEvent) {
-            guard let id, let name, !name.isEmpty else { return }
-            byID[id, default: (name, [])].events.append(event)
+    private func tasteSpotlight(from events: [ConcertEvent]) -> (title: String, events: [ConcertEvent]) {
+        let labels = model.recommendedEvents.flatMap(\.genreLabels).filter { !$0.isEmpty }
+        let dominant = Dictionary(grouping: labels, by: { $0 }).max { $0.value.count < $1.value.count }?.key
+        guard let dominant else { return ("Mehr von dem, was du magst", []) }
+        let matches = events.filter { $0.genreLabels.contains(dominant) && !favorites.ids.contains($0.id) }
+        return ("Mehr \(dominant) für dich", Array(matches.prefix(14)))
+    }
+
+    private func entitySpotlight(from events: [ConcertEvent]) -> (title: String, events: [ConcertEvent]) {
+        var groups: [String: (title: String, events: [ConcertEvent])] = [:]
+        func add(key: String, title: String, event: ConcertEvent) {
+            groups[key, default: (title, [])].events.append(event)
         }
-
         for event in events {
             if let venue = event.venues, follows.isFollowing(kind: .venue, id: venue.id) {
-                record(id: venue.id, name: venue.name, event: event)
+                add(key: "venue:\(venue.id)", title: "Konzerte im \(venue.name)", event: event)
             }
             for participant in event.eventParticipants ?? [] {
-                if let person = participant.persons, let id = person.id, follows.isFollowing(kind: .person, id: id) {
-                    record(id: id, name: person.name, event: event)
+                if let person = participant.persons, let id = person.id, let name = person.name, follows.isFollowing(kind: .person, id: id) {
+                    add(key: "person:\(id)", title: "Konzerte mit \(name)", event: event)
                 }
-                if let ensemble = participant.ensembles, let id = ensemble.id, follows.isFollowing(kind: .ensemble, id: id) {
-                    record(id: id, name: ensemble.name, event: event)
+                if let ensemble = participant.ensembles, let id = ensemble.id, let name = ensemble.name, follows.isFollowing(kind: .ensemble, id: id) {
+                    add(key: "ensemble:\(id)", title: "Konzerte von \(name)", event: event)
                 }
             }
         }
-
-        return byID
-            .map { FollowedEntitySection(id: $0.key, title: $0.value.name, events: $0.value.events) }
-            .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+        guard let best = groups.values.filter({ $0.events.count >= 2 }).max(by: { $0.events.count < $1.events.count }) else {
+            return ("Von dir gefolgt", [])
+        }
+        return (best.title, Array(best.events.prefix(14)))
     }
 
     private func isWithinNextSevenDays(_ event: ConcertEvent) -> Bool {
@@ -270,12 +302,6 @@ struct HomeView: View {
               let monday = calendar.date(byAdding: .day, value: 2, to: saturday) else { return false }
         return date >= saturday && date < monday
     }
-}
-
-private struct FollowedEntitySection: Identifiable {
-    let id: UUID
-    let title: String
-    let events: [ConcertEvent]
 }
 
 private struct CollectionRail: View {

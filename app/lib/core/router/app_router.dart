@@ -15,6 +15,7 @@ import '../../features/planning/presentation/evening_plan_screen.dart';
 import '../../features/persons/presentation/ensemble_detail_screen.dart';
 import '../../features/persons/presentation/person_detail_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
+import '../../features/profile/presentation/widgets/forgot_password_sheet.dart';
 import '../../features/search/presentation/search_screen.dart';
 import '../../features/venues/presentation/venue_detail_screen.dart';
 import '../../features/works/presentation/work_detail_screen.dart';
@@ -146,7 +147,14 @@ GoRouter buildAppRouter({String initialLocation = '/home'}) => GoRouter(
     GoRoute(
       path: '/onboarding',
       parentNavigatorKey: rootNavigatorKey,
-      builder: (context, state) => const OnboardingScreen(),
+      builder: (context, state) => OnboardingScreen(
+        startWithAccountCreation: state.uri.queryParameters['create'] == 'true',
+      ),
+    ),
+    GoRoute(
+      path: '/reset-password',
+      parentNavigatorKey: rootNavigatorKey,
+      builder: (context, state) => const ResetPasswordScreen(),
     ),
   ],
 );
