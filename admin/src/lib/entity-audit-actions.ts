@@ -8,7 +8,7 @@ import {
   type EditorialAiProposal,
 } from "@/lib/editorial-ai-actions";
 
-export type AuditableEntityType = "person" | "ensemble" | "venue" | "event";
+export type AuditableEntityType = "person" | "ensemble" | "venue" | "work" | "event";
 
 export interface EntityAuditPageResult {
   checkedInPage: number;
@@ -101,6 +101,52 @@ export async function resolveEntityAuditFlag(id: string): Promise<void> {
     .update({ status: "resolved", resolved_at: new Date().toISOString() })
     .eq("id", id);
   if (error) throw new Error(error.message);
+  revalidatePath("/qualitaetspruefung");
+}
+
+async function mustSucceed(operation: PromiseLike<{ error: { message: string } | null }>) {
+  const { error } = await operation;
+  if (error) throw new Error(error.message);
+}
+
+/** Löscht einen beanstandeten Stammdatensatz direkt aus der Prüfung. Vorher
+ * werden bekannte optionale Verweise gelöst; fachliche Datensätze wie Events
+ * bleiben erhalten, wenn z. B. eine Person, ein Ensemble oder ein Venue
+ * entfernt wird. */
+export async function deleteEntityFromAudit(
+  entityType: AuditableEntityType,
+  entityId: string,
+  flagId: string,
+): Promise<void> {
+  const supabase = await createClient();
+
+  if (entityType === "person") {
+    await mustSucceed(supabase.from("event_participants").delete().eq("person_id", entityId));
+    await mustSucceed(supabase.from("works").update({ composer_id: null }).eq("composer_id", entityId));
+    await mustSucceed(supabase.from("sources").update({ person_id: null }).eq("person_id", entityId));
+    await mustSucceed(supabase.from("entity_candidates").update({ created_person_id: null }).eq("created_person_id", entityId));
+  } else if (entityType === "ensemble") {
+    await mustSucceed(supabase.from("event_participants").delete().eq("ensemble_id", entityId));
+    await mustSucceed(supabase.from("sources").update({ ensemble_id: null }).eq("ensemble_id", entityId));
+    await mustSucceed(supabase.from("entity_candidates").update({ created_ensemble_id: null }).eq("created_ensemble_id", entityId));
+  } else if (entityType === "venue") {
+    await mustSucceed(supabase.from("events").update({ venue_id: null }).eq("venue_id", entityId));
+    await mustSucceed(supabase.from("ensembles").update({ home_venue_id: null }).eq("home_venue_id", entityId));
+    await mustSucceed(supabase.from("sources").update({ venue_id: null }).eq("venue_id", entityId));
+    await mustSucceed(supabase.from("entity_candidates").update({ created_venue_id: null }).eq("created_venue_id", entityId));
+  } else if (entityType === "work") {
+    await mustSucceed(supabase.from("event_works").delete().eq("work_id", entityId));
+  }
+
+  const table: Record<AuditableEntityType, string> = {
+    person: "persons",
+    ensemble: "ensembles",
+    venue: "venues",
+    work: "works",
+    event: "events",
+  };
+  await mustSucceed(supabase.from(table[entityType]).delete().eq("id", entityId));
+  await mustSucceed(supabase.from("entity_audit_flags").delete().eq("id", flagId));
   revalidatePath("/qualitaetspruefung");
 }
 

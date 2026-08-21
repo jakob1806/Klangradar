@@ -12,6 +12,7 @@ import {
   type AuditIssue,
   basicNameIssues,
   entitySpecificIssues,
+  normalizeName,
 } from "../audit-entity/heuristics.ts";
 
 // Generalisierte Massenprüfung über alle vier Qualitätsprüfungs-
@@ -28,6 +29,7 @@ const ENTITY_LABEL: Record<AuditEntityType, string> = {
   person: "Personen (Solist:innen, Dirigent:innen, Komponist:innen)",
   ensemble: "Ensembles (Orchester, Chöre)",
   venue: "Veranstaltungsorte",
+  work: "Werke und Kompositionen",
   event: "Veranstaltungstitel",
 };
 
@@ -40,6 +42,9 @@ const NOT_A_NAME_HINT: Record<AuditEntityType, string> = {
     "oder eindeutig fehlerhafte/kaputte Zeichenketten",
   venue:
     "offensichtlich kein Veranstaltungsort (z.B. eine Person oder ein Werktitel), Test-/Platzhaltertext, " +
+    "oder eindeutig fehlerhafte/kaputte Zeichenketten",
+  work:
+    "offensichtlich kein Werktitel (z.B. eine Person, ein Ensemble oder ein Veranstaltungsort), Test-/Platzhaltertext, " +
     "oder eindeutig fehlerhafte/kaputte Zeichenketten",
   event:
     "ein offensichtlich unvollständiger oder abgebrochener Titel, reiner Platzhaltertext (\"Test\", \"TBA\"), " +
@@ -97,7 +102,7 @@ Deno.serve(async (req) => {
   }
   const entityType = body.entityType as AuditEntityType;
   if (!AUDIT_TABLE[entityType]) {
-    return json({ error: "entityType muss person, ensemble, venue oder event sein." }, 400);
+    return json({ error: "entityType muss person, ensemble, venue, work oder event sein." }, 400);
   }
   const offset = typeof body.offset === "number" && body.offset >= 0 ? body.offset : 0;
   const nameField = AUDIT_NAME_FIELD[entityType];
@@ -130,12 +135,102 @@ Deno.serve(async (req) => {
     if (ruleIssues.length > 0) issuesByEntityId.set(id, ruleIssues);
   }
 
+  // Duplikate werden deterministisch gegen den gesamten Entitätstyp geprüft,
+  // nicht nur gegen die aktuelle 200er-Seite. Das ist schneller, reproduzierbar
+  // und findet auch Dubletten, die auf unterschiedlichen Seiten liegen.
+  const { data: allNamesData } = await supabase
+    .from(AUDIT_TABLE[entityType])
+    .select(`id,${nameField}`)
+    .order(nameField)
+    .limit(20_000);
+  const namesByNormalized = new Map<string, { id: string; name: string }[]>();
+  for (const item of (allNamesData ?? []) as Record<string, unknown>[]) {
+    const candidate = { id: String(item.id), name: String(item[nameField] ?? "") };
+    const normalized = normalizeName(candidate.name);
+    if (!normalized) continue;
+    namesByNormalized.set(normalized, [...(namesByNormalized.get(normalized) ?? []), candidate]);
+  }
+  for (const entity of rows) {
+    const id = String(entity.id);
+    const name = String(entity[nameField] ?? "");
+    const duplicates = (namesByNormalized.get(normalizeName(name)) ?? [])
+      .filter((candidate) => candidate.id !== id)
+      .slice(0, 3);
+    if (duplicates.length > 0) {
+      const duplicateAuditIssues: AuditIssue[] = duplicates.map((candidate) => ({
+        id: `duplicate-${candidate.id}`,
+        severity: "critical",
+        category: "duplicate",
+        message: `Doppelter Eintrag mit gleicher normalisierter Schreibweise: „${candidate.name}“.`,
+        suggestion: "Einträge vergleichen und zusammenführen oder einen davon löschen.",
+        relatedId: candidate.id,
+        relatedName: candidate.name,
+        confidence: 1,
+        source: "rule",
+      }));
+      issuesByEntityId.set(id, [...(issuesByEntityId.get(id) ?? []), ...duplicateAuditIssues]);
+    }
+  }
+
+  // Exakte Namen in einer anderen Stammdatentabelle sind ein starkes Signal
+  // für falsch klassifizierte Imports (z.B. Person zusätzlich als Ensemble).
+  const crossTypes = (["person", "ensemble", "venue", "work"] as AuditEntityType[])
+    .filter((type) => type !== entityType);
+  const crossNameMaps = await Promise.all(crossTypes.map(async (type) => {
+    const field = AUDIT_NAME_FIELD[type];
+    const { data } = await supabase.from(AUDIT_TABLE[type]).select(`id,${field}`).limit(20_000);
+    const map = new Map<string, { id: string; name: string }>();
+    for (const item of (data ?? []) as Record<string, unknown>[]) {
+      const name = String(item[field] ?? "");
+      const normalized = normalizeName(name);
+      if (normalized) map.set(normalized, { id: String(item.id), name });
+    }
+    return { type, map };
+  }));
+  for (const entity of rows) {
+    const id = String(entity.id);
+    const name = String(entity[nameField] ?? "");
+    const normalized = normalizeName(name);
+    for (const other of crossNameMaps) {
+      const match = other.map.get(normalized);
+      if (!match) continue;
+      const existing = issuesByEntityId.get(id) ?? [];
+      existing.push({
+        id: `wrong-type-${other.type}-${match.id}`,
+        severity: "critical",
+        category: "contradiction",
+        message: `„${name}“ existiert auch als ${ENTITY_LABEL[other.type]}; der Eintrag ist möglicherweise falsch klassifiziert.`,
+        suggestion: "Beide Einträge vergleichen und den falsch eingeordneten Datensatz löschen oder zusammenführen.",
+        relatedId: match.id,
+        relatedName: match.name,
+        source: "rule",
+      });
+      issuesByEntityId.set(id, existing);
+    }
+  }
+
   const useAi = hasAnyAiProviderConfigured();
   let aiFailures = 0;
-  if (useAi && rows.length > 0) {
+  // Die KI sieht nur noch regelauffällige oder lexikalisch wirklich unklare
+  // Namen. Zuvor wurden ausnahmslos alle Datensätze übertragen, was den Lauf
+  // langsam machte und zugleich viele unspezifische Treffer erzeugte.
+  const ambiguousForType = (name: string) => {
+    const value = normalizeName(name);
+    if (entityType === "person") return /\b(chor|orchester|ensemble|theater|philharmoni|oper|quartett)\b/.test(value);
+    if (entityType === "ensemble") return !/\b(chor|orchester|ensemble|trio|quartett|quintett|philharmoni|sinfonietta|band|consort|solisten)\b/.test(value) && value.split(" ").length >= 2 && value.split(" ").length <= 4;
+    if (entityType === "venue") return !/\b(saal|halle|theater|oper|kirche|museum|haus|zentrum|forum|arena|studio|residenz|philharmonie)\b/.test(value);
+    if (entityType === "work") return /\b(chor|orchester|ensemble|theater|philharmonie)\b/.test(value);
+    return false;
+  };
+  const aiRows = rows.filter((entity) => {
+    const id = String(entity.id);
+    const name = String(entity[nameField] ?? "");
+    return issuesByEntityId.has(id) || ambiguousForType(name);
+  });
+  if (useAi && aiRows.length > 0) {
     const batches: Record<string, unknown>[][] = [];
-    for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-      batches.push(rows.slice(i, i + BATCH_SIZE));
+    for (let i = 0; i < aiRows.length; i += BATCH_SIZE) {
+      batches.push(aiRows.slice(i, i + BATCH_SIZE));
     }
     const aiFunction = aiFunctionFor(entityType);
 

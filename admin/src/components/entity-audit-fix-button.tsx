@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import {
   applyEditorialAiProposals,
   type EditorialAiProposal,
@@ -61,6 +61,7 @@ export function EntityAuditFixButton({
   const [proposals, setProposals] = useState<EditorialAiProposal[]>(initialCorrection?.proposals ?? []);
   const [correctionReady, setCorrectionReady] = useState(Boolean(initialCorrection));
   const [appliedFields, setAppliedFields] = useState<string[]>([]);
+  const startedAutomatically = useRef(false);
 
   const runSuggestion = useCallback(async (force = false) => {
     setError(null);
@@ -88,6 +89,15 @@ export function EntityAuditFixButton({
       setSuggesting(false);
     }
   }, [entityId, entityType, flagId, issueMessage, issueSuggestion]);
+
+  // Der alte Zustand kündigte eine automatische Vorbereitung nur im Text an,
+  // startete die Server Action aber nie. Dadurch blieb jede neue Meldung
+  // dauerhaft ohne reparierbaren Vorschlag.
+  useEffect(() => {
+    if (correctionReady || startedAutomatically.current) return;
+    startedAutomatically.current = true;
+    void runSuggestion(false);
+  }, [correctionReady, runSuggestion]);
 
   function handleApply(proposal: EditorialAiProposal) {
     setApplying(proposal.field);

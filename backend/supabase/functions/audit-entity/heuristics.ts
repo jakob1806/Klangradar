@@ -1,4 +1,4 @@
-export type AuditEntityType = "person" | "ensemble" | "venue" | "event";
+export type AuditEntityType = "person" | "ensemble" | "venue" | "work" | "event";
 export type AuditSeverity = "critical" | "warning" | "info";
 
 export interface AuditIssue {
@@ -300,6 +300,7 @@ export const AUDIT_TABLE: Record<AuditEntityType, string> = {
   person: "persons",
   ensemble: "ensembles",
   venue: "venues",
+  work: "works",
   event: "events",
 };
 
@@ -307,6 +308,7 @@ export const AUDIT_NAME_FIELD: Record<AuditEntityType, string> = {
   person: "full_name",
   ensemble: "name",
   venue: "name",
+  work: "title",
   event: "title",
 };
 
@@ -317,6 +319,8 @@ export const AUDIT_ENTITY_SELECT: Record<AuditEntityType, string> = {
     "id,slug,name,type,founded_year,member_count,home_venue_id,website_url,is_verified",
   venue:
     "id,slug,name,address_street,address_zip,address_city,capacity,website_url",
+  work:
+    "id,slug,title,subtitle,composer_id,work_type,catalog_number,duration_minutes,composition_year,description_de",
   event:
     "id,slug,title,subtitle,start_datetime,end_datetime,duration_minutes,venue_id,organizer_id,ticket_url,website_url,price_min,price_max,is_free,status,program_id",
 };
