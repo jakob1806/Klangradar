@@ -129,10 +129,6 @@ struct SearchView: View {
                 HStack(alignment: .firstTextBaseline) {
                     Text("Konzerte entdecken")
                         .font(.title2.bold())
-                    Spacer()
-                    Text("Für dich gemischt")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
                 }
                 .padding(.top, 10)
                 ScrollView(.horizontal) {
