@@ -143,6 +143,7 @@
   "eventVenueSectionTitle": "Veranstaltungsort",
   "eventDataSource": "Datenquelle: {notice}",
   "@eventDataSource": {"placeholders": {"notice": {"type": "String"}}},
+  "eventDataSourceUnknown": "Fotograf/Quelle nicht bekannt",
   "eventSimilarEvents": "Ähnliche Veranstaltungen",
   "ticketStatusAvailable": "Tickets verfügbar",
   "ticketStatusFewLeft": "Nur noch wenige Tickets",

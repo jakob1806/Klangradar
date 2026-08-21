@@ -782,6 +782,12 @@ abstract class AppLocalizations {
   /// **'Datenquelle: {notice}'**
   String eventDataSource(String notice);
 
+  /// No description provided for @eventDataSourceUnknown.
+  ///
+  /// In de, this message translates to:
+  /// **'Fotograf/Quelle nicht bekannt'**
+  String get eventDataSourceUnknown;
+
   /// No description provided for @eventSimilarEvents.
   ///
   /// In de, this message translates to:

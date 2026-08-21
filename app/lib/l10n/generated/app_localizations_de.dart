@@ -386,6 +386,9 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String get eventDataSourceUnknown => 'Fotograf/Quelle nicht bekannt';
+
+  @override
   String get eventSimilarEvents => 'Ähnliche Veranstaltungen';
 
   @override

@@ -580,16 +580,22 @@ struct EventDetailView: View {
     }
 
     @ViewBuilder private func source(_ value: JSONObject) -> some View {
-        if value.string("attribution_notice") != nil || value.string("last_verified_at") != nil {
-            VStack(alignment: .leading, spacing: 5) {
-                if let notice = value.string("attribution_notice") { Text(notice) }
-                if let rawDate = value.string("last_verified_at"), let date = FlexibleDateParser.date(from: rawDate) {
-                    Text("Zuletzt geprüft: \(KlangradarDateTime.string(date, format: "dd.MM.yyyy"))")
+        VStack(alignment: .leading, spacing: 5) {
+            if let notice = value.string("attribution_notice") {
+                if let licenseURLString = value.string("attribution_license_url"), let licenseURL = URL(string: licenseURLString) {
+                    Link(notice, destination: licenseURL)
+                } else {
+                    Text(notice)
                 }
+            } else {
+                Text("Fotograf/Quelle nicht bekannt").italic()
             }
-            .font(.caption)
-            .foregroundStyle(.tertiary)
+            if let rawDate = value.string("last_verified_at"), let date = FlexibleDateParser.date(from: rawDate) {
+                Text("Zuletzt geprüft: \(KlangradarDateTime.string(date, format: "dd.MM.yyyy"))")
+            }
         }
+        .font(.caption)
+        .foregroundStyle(.tertiary)
     }
 
     private func ticketBar(_ value: JSONObject) -> some View {
