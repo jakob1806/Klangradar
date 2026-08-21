@@ -6,8 +6,7 @@ Platzhalter für die Datenschutzerklärung, gedacht als Ziel für die Domain
 
 - `index.html` – Startseite (Platzhalter)
 - `impressum.html` – vollständiger Impressum-Text
-- `datenschutz.html` – Platzhalter, noch **kein** echter Datenschutztext
-  (siehe unten)
+- `datenschutz.html` – Datenschutzerklärung, siehe Hinweis unten
 
 ## Was noch fehlt (kann ich von hier aus nicht erledigen)
 
@@ -30,10 +29,16 @@ Danach kann ich in der App die Links von `klangradar.app` auf
 
 ## Datenschutzerklärung
 
-`datenschutz.html` ist bewusst nur ein Platzhalter. Eine echte
-Datenschutzerklärung muss korrekt beschreiben, welche Daten die App über
-Supabase (Auth, Profile, Standort bei der Onboarding-Standortfreigabe,
-Push-Benachrichtigungen) tatsächlich verarbeitet — das sollte nicht
-frei erfunden werden. Sag Bescheid, wenn ich einen Entwurf auf Basis der
-tatsächlich verarbeiteten Daten vorbereiten soll (zur eigenen Prüfung,
-nicht als Rechtsberatung).
+`datenschutz.html` ist ein Entwurf, den ich anhand einer Durchsicht des
+tatsächlichen Codes erstellt habe (Supabase-Auth, `profiles`-Tabelle,
+Standort/`home_location`, Favoriten/Follows/Interessen, Firebase Cloud
+Messaging für Push, Resend für E-Mail-Versand, Supabase/Vercel-Hosting).
+**Das ist keine Rechtsberatung** — bitte vor Veröffentlichung von einer
+Person mit rechtlicher Qualifikation prüfen lassen, insbesondere:
+
+- die genaue Supabase-Projekt-Region (EU/US) ist nicht im Code hinterlegt
+  und sollte im Supabase-Dashboard nachgeprüft und ggf. ergänzt werden,
+- ob Sign in with Apple/Google in Produktion aktiv sind (im Repo aktuell
+  standardmäßig deaktiviert) — falls ja, ergänzt sich Punkt 2,
+- ob mit Firebase/Google und Resend bereits Auftragsverarbeitungsverträge
+  (AVV) abgeschlossen wurden.
