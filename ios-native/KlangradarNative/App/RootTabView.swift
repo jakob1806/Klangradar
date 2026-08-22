@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct RootTabView: View {
+    @Environment(\.scenePhase) private var scenePhase
     let environment: AppEnvironment
 
     @State private var selection: AppTab = .home
@@ -16,6 +17,9 @@ struct RootTabView: View {
     @AppStorage("didCompleteOnboarding") private var didCompleteOnboarding = false
     @State private var showsOnboarding = false
     @AppStorage("appearance") private var appearance = "system"
+    @AppStorage(BiometricAuth.enabledStorageKey) private var biometricProtectionEnabled = false
+    @State private var isBiometricUnlocked = !BiometricAuth.isEnabled
+    @State private var isAuthenticatingBiometrics = false
 
     init(environment: AppEnvironment) {
         self.environment = environment
@@ -91,6 +95,7 @@ struct RootTabView: View {
         .task {
             await auth.bootstrap()
             await refreshOnboardingGate()
+            await unlockWithBiometricsIfNeeded()
         }
         .onChange(of: auth.userID) { _, _ in
             Task {
@@ -132,6 +137,26 @@ struct RootTabView: View {
             else { selection = .home }
         }
         .preferredColorScheme(preferredColorScheme)
+        .overlay {
+            if shouldShowBiometricLock {
+                BiometricLockView(isAuthenticating: isAuthenticatingBiometrics) {
+                    Task { await unlockWithBiometricsIfNeeded() }
+                }
+                .transition(.opacity)
+                .zIndex(100)
+            }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background, biometricProtectionEnabled, case .authenticated = auth.state {
+                isBiometricUnlocked = false
+            } else if phase == .active {
+                Task { await unlockWithBiometricsIfNeeded() }
+            }
+        }
+        .onChange(of: biometricProtectionEnabled) { _, enabled in
+            isBiometricUnlocked = !enabled
+            if enabled { Task { await unlockWithBiometricsIfNeeded() } }
+        }
     }
 
     private var callbackErrorBinding: Binding<Bool> {
@@ -139,6 +164,21 @@ struct RootTabView: View {
             get: { auth.callbackErrorMessage != nil },
             set: { if !$0 { auth.callbackErrorMessage = nil } }
         )
+    }
+
+    private var shouldShowBiometricLock: Bool {
+        guard case .authenticated = auth.state else { return false }
+        return biometricProtectionEnabled && !isBiometricUnlocked
+    }
+
+    @MainActor
+    private func unlockWithBiometricsIfNeeded() async {
+        guard shouldShowBiometricLock, !isAuthenticatingBiometrics else { return }
+        isAuthenticatingBiometrics = true
+        defer { isAuthenticatingBiometrics = false }
+        if (try? await BiometricAuth.authenticate(reason: "Klangradar entsperren")) == true {
+            withAnimation(.easeOut(duration: 0.2)) { isBiometricUnlocked = true }
+        }
     }
 
     private var preferredColorScheme: ColorScheme? {
@@ -172,6 +212,32 @@ struct RootTabView: View {
         // lokal bereits abgeschlossenes (auch als Gast übersprungenes)
         // Onboarding hat Vorrang.
         showsOnboarding = !didCompleteOnboarding && !completed
+    }
+}
+
+private struct BiometricLockView: View {
+    let isAuthenticating: Bool
+    let retry: () -> Void
+
+    var body: some View {
+        ZStack {
+            Color(uiColor: .systemBackground).ignoresSafeArea()
+            VStack(spacing: 18) {
+                Image(systemName: BiometricAuth.availableBiometryKind == .touchID ? "touchid" : "faceid")
+                    .font(.system(size: 48, weight: .regular))
+                    .foregroundStyle(KlangradarTheme.accent)
+                Text("Klangradar ist geschützt")
+                    .font(.title2.bold())
+                Text("Authentifiziere dich, um fortzufahren.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Button("Entsperren", systemImage: "lock.open") { retry() }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .disabled(isAuthenticating)
+            }
+            .padding(32)
+        }
     }
 }
 

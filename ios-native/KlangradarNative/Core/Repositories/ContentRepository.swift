@@ -285,7 +285,10 @@ struct LiveContentRepository: ContentRepository {
     }
 
     func venueLocations() async throws -> [VenueLocation] {
-        let rows: [JSONObject] = try await client.rpc("venues_with_latlng")
+        async let locationRows: [JSONObject] = client.rpc("venues_with_latlng")
+        async let venueDirectory = directory(kind: .venue)
+        let rows = try await locationRows
+        let imageByID = Dictionary(uniqueKeysWithValues: try await venueDirectory.map { ($0.id.lowercased(), $0.imageURL) })
         return rows.compactMap { row in
             guard
                 let id = row.string("id").flatMap(UUID.init(uuidString:)),
@@ -299,6 +302,7 @@ struct LiveContentRepository: ContentRepository {
                 slug: row.string("slug"),
                 city: row.string("address_city"),
                 upcomingEventCount: row.integer("upcoming_event_count") ?? 0,
+                imageURL: imageByID[id.uuidString.lowercased()] ?? nil,
                 latitude: latitude,
                 longitude: longitude
             )

@@ -392,9 +392,10 @@ struct SearchView: View {
             let loadedDirectories: [EntityKind: [DirectoryItem]] = try await [
                 .person: persons, .ensemble: ensembles, .venue: venues, .work: works
             ]
-            events = basicEvents
             if let enriched = try? await eventRepository.enrichingImages(in: basicEvents) {
                 events = enriched
+            } else {
+                events = basicEvents
             }
             directories = loadedDirectories
         } catch { errorMessage = error.localizedDescription }

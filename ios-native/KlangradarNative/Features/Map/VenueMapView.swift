@@ -56,7 +56,7 @@ struct VenueMapView: View {
                 selectedVenueGroup = nil
                 selectedVenue = venue
             }
-            .presentationDetents([.height(56 + CGFloat((selectedVenueGroup?.count ?? 0)) * 64)])
+            .presentationDetents([.height(72 + CGFloat((selectedVenueGroup?.count ?? 0)) * 76)])
             .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showsFilter) { filterSheet }
@@ -105,11 +105,14 @@ struct VenueMapView: View {
         .mapStyle(.standard(elevation: .realistic))
             .overlay(alignment: .top) {
                 HStack(spacing: 12) {
-                Button("Filter", systemImage: "line.3.horizontal.decrease") { showsFilter = true }
-                    .buttonStyle(.bordered)
-                    .controlSize(.large)
-                    .frame(height: 46)
-                    .background(.regularMaterial, in: .capsule)
+                Button { showsFilter = true } label: {
+                    Label("Filter", systemImage: "line.3.horizontal.decrease")
+                        .font(.subheadline.weight(.medium))
+                        .padding(.horizontal, 12)
+                        .frame(height: 36)
+                        .background(.regularMaterial, in: .capsule)
+                }
+                    .buttonStyle(.plain)
                     .foregroundStyle(.primary)
                     Spacer()
                 Button {
@@ -118,6 +121,7 @@ struct VenueMapView: View {
                     Image(systemName: "location.north.fill")
                         .font(.headline)
                         .foregroundStyle(KlangradarTheme.accent)
+                        .rotationEffect(.degrees(28))
                 }
                     .frame(width: 46, height: 46)
                     .background(.regularMaterial, in: .circle)
@@ -216,14 +220,21 @@ private struct VenuePreviewSheet: View {
                         }.buttonStyle(.plain)
                     }
 
-                    HStack {
+                    HStack(spacing: 12) {
                         Button("Route", systemImage: "arrow.triangle.turn.up.right.diamond") { openRoute() }
-                            .buttonStyle(.bordered).controlSize(.large).frame(maxWidth: .infinity)
+                            .buttonStyle(.bordered)
+                            .controlSize(.large)
+                            .frame(maxWidth: .infinity, minHeight: 50)
                         if let slug = venue.slug {
                             NavigationLink {
                                 EntityDetailView(route: EntityRoute(kind: .venue, identifier: slug), repository: repository)
-                            } label: { Text("Details ansehen").frame(maxWidth: .infinity) }
-                                .buttonStyle(.borderedProminent).controlSize(.large)
+                            } label: {
+                                Text("Details ansehen")
+                                    .lineLimit(1)
+                                    .frame(maxWidth: .infinity, minHeight: 50)
+                            }
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.large)
                         }
                     }
                 }
@@ -267,7 +278,20 @@ private struct VenueGroupPickerSheet: View {
                 Button {
                     onSelect(venue)
                 } label: {
-                    HStack {
+                    HStack(spacing: 12) {
+                        CachedAsyncImage(url: venue.imageURL) { phase in
+                            if case let .success(image) = phase {
+                                image.resizable().scaledToFill()
+                            } else {
+                                ZStack {
+                                    Color.secondary.opacity(0.12)
+                                    Image(systemName: "building.columns")
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        .frame(width: 60, height: 60)
+                        .clipShape(.rect(cornerRadius: 12))
                         VStack(alignment: .leading, spacing: 2) {
                             Text(venue.name).font(.headline).foregroundStyle(.primary)
                             if venue.upcomingEventCount > 0 {

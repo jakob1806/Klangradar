@@ -10,6 +10,7 @@ struct ProfileView: View {
     let contentRepository: any ContentRepository
 
     @AppStorage("appearance") private var appearance = "system"
+    @AppStorage(BiometricAuth.enabledStorageKey) private var biometricProtectionEnabled = false
     @State private var showsLogin = false
     @State private var hasEditorialAccess = false
 #if DEBUG
@@ -137,11 +138,25 @@ struct ProfileView: View {
 
     @MainActor
     private func checkEditorialAccess() async {
-        guard let editorialRepository, let token = auth.accessToken else {
+        guard let editorialRepository, let token = auth.accessToken, let userID = auth.userID else {
             hasEditorialAccess = false
             return
         }
-        hasEditorialAccess = await editorialRepository.hasAccess(token: token)
+        let cacheKey = "editorialAccess.\(userID.uuidString.lowercased())"
+        if UserDefaults.standard.bool(forKey: cacheKey) {
+            hasEditorialAccess = true
+        }
+        // Beim Wiederherstellen der Sitzung kann der erste Rollencheck noch
+        // mit einem gerade erneuerten Token kollidieren. Kurze Wiederholungen
+        // verhindern, dass der Redaktionsmodus dadurch komplett verschwindet.
+        for attempt in 0..<3 {
+            if await editorialRepository.hasAccess(token: token) {
+                hasEditorialAccess = true
+                UserDefaults.standard.set(true, forKey: cacheKey)
+                return
+            }
+            if attempt < 2 { try? await Task.sleep(for: .milliseconds(450)) }
+        }
     }
 
     @ViewBuilder
@@ -162,8 +177,18 @@ struct ProfileView: View {
                 Toggle(
                     BiometricAuth.availableBiometryKind == .faceID ? "Face ID zum Schutz nutzen" : "Touch ID zum Schutz nutzen",
                     isOn: Binding(
-                        get: { BiometricAuth.isEnabled },
-                        set: { UserDefaults.standard.set($0, forKey: BiometricAuth.enabledStorageKey) }
+                        get: { biometricProtectionEnabled },
+                        set: { enabled in
+                            if enabled {
+                                Task {
+                                    if (try? await BiometricAuth.authenticate(reason: "Biometrischen Schutz für Klangradar aktivieren")) == true {
+                                        biometricProtectionEnabled = true
+                                    }
+                                }
+                            } else {
+                                biometricProtectionEnabled = false
+                            }
+                        }
                     )
                 )
             }

@@ -97,7 +97,6 @@ final class HomeViewModel: ObservableObject {
             // schon ein paar Events abzieht und danach noch personalisiert
             // sortiert wird. 100 deckt realistisch mehrere Wochen ab.
             let events = try await repository.upcomingEvents(limit: 100)
-            if showsLoading { state = .loaded(events) }
             async let enrichedTask: [ConcertEvent]? = try? repository.enrichingImages(in: events)
             async let personalizedTask = loadPersonalizedEntityIDs()
             async let modulesTask = loadHomeModules()
