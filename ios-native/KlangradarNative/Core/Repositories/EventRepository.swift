@@ -90,7 +90,7 @@ struct LiveEventRepository: EventRepository {
             queryItems: [
                 URLQueryItem(
                     name: "select",
-                    value: "id,slug,title,subtitle,start_datetime,venue_detail,image_urls,status,category,is_free,venues(id,name,photo_url),event_genres(genres(id,slug,label_de)),event_participants(persons(id,full_name,photo_url),ensembles(id,name,photo_url))"
+                    value: "id,slug,title,subtitle,start_datetime,venue_detail,image_urls,updated_at,status,category,is_free,venues(id,name,photo_url),event_genres(genres(id,slug,label_de)),event_participants(persons(id,full_name,photo_url),ensembles(id,name,photo_url))"
                 ),
                 URLQueryItem(name: "status", value: "eq.scheduled"),
                 URLQueryItem(
@@ -111,11 +111,12 @@ struct LiveEventRepository: EventRepository {
         })
         guard !ids.isEmpty else { return events }
         var rows: [JSONObject] = []
+        var currentEventRows: [JSONObject] = []
         let allIDs = Array(ids)
         for start in stride(from: 0, to: allIDs.count, by: 75) {
             let chunk = allIDs[start..<min(start + 75, allIDs.count)]
             let page: [JSONObject] = try await client.get(table: "images", queryItems: [
-                URLQueryItem(name: "select", value: "origin_id,storage_path,source_url,sort_order"),
+                URLQueryItem(name: "select", value: "origin_id,storage_path,source_url,sort_order,updated_at"),
                 URLQueryItem(name: "origin_id", value: "in.(\(chunk.map(\.uuidString).joined(separator: ",")))"),
                 URLQueryItem(name: "license_status", value: "in.(confirmed_free,confirmed_licensed)"),
                 URLQueryItem(name: "quality_status", value: "eq.valid"),
@@ -123,10 +124,32 @@ struct LiveEventRepository: EventRepository {
             ])
             rows.append(contentsOf: page)
         }
+        let eventIDs = events.map(\.id)
+        for start in stride(from: 0, to: eventIDs.count, by: 75) {
+            let chunk = eventIDs[start..<min(start + 75, eventIDs.count)]
+            let page: [JSONObject] = try await client.get(table: "events", queryItems: [
+                URLQueryItem(name: "select", value: "id,image_urls,updated_at"),
+                URLQueryItem(name: "id", value: "in.(\(chunk.map(\.uuidString).joined(separator: ",")))")
+            ])
+            currentEventRows.append(contentsOf: page)
+        }
+        let currentByID = Dictionary(uniqueKeysWithValues: currentEventRows.compactMap { row -> (String, JSONObject)? in
+            guard let id = row.string("id") else { return nil }
+            return (id.lowercased(), row)
+        })
         let galleryURLs = Dictionary(grouping: rows, by: { $0.string("origin_id") ?? "" }).mapValues { values in
             values.compactMap { row -> String? in
-                if let path = row.string("storage_path") { return client.publicStorageURL(bucket: "ingested-images", path: path).absoluteString }
-                return row.string("source_url")
+                let raw: String?
+                if let path = row.string("storage_path") { raw = client.publicStorageURL(bucket: "ingested-images", path: path).absoluteString }
+                else { raw = row.string("source_url") }
+                guard let raw, var components = URLComponents(string: raw) else { return raw }
+                if let version = row.string("updated_at") {
+                    var items = components.queryItems ?? []
+                    items.removeAll { $0.name == "kr_v" }
+                    items.append(URLQueryItem(name: "kr_v", value: version))
+                    components.queryItems = items
+                }
+                return components.url?.absoluteString ?? raw
             }
         }
         return events.map { event in
@@ -137,22 +160,28 @@ struct LiveEventRepository: EventRepository {
             // Bild) wurden dadurch still ignoriert und auf das Mitwirkenden-eigene
             // photo_url zurückgefallen (Nutzerfeedback: falsches Bild angezeigt).
             let fallback = candidateIDs.flatMap { galleryURLs[$0.uuidString.lowercased()] ?? [] }
+            let current = currentByID[event.id.uuidString.lowercased()]
             return ConcertEvent(
                 id: event.id,
                 slug: event.slug,
                 title: event.title,
                 subtitle: event.subtitle,
                 startDatetime: event.startDatetime,
-                imageUrls: event.imageUrls,
+                imageUrls: current?.strings("image_urls") ?? event.imageUrls,
                 status: event.status,
                 venues: event.venues,
                 eventParticipants: event.eventParticipants,
                 fallbackImageUrls: fallback,
-                ownGalleryImageUrls: galleryURLs[event.id.uuidString.lowercased()],
+                // Ein leeres Array ist hier absichtlich ein aktueller Zustand:
+                // Ein zuvor vorhandenes, inzwischen gelöschtes Galeriebild
+                // darf nicht aus dem alten Feedobjekt weiterleben.
+                ownGalleryImageUrls: galleryURLs[event.id.uuidString.lowercased()] ?? [],
                 category: event.category,
                 genreIDs: event.genreIDs,
                 genreLabels: event.genreLabels,
-                isFree: event.isFree
+                isFree: event.isFree,
+                venueDetail: event.venueDetail,
+                updatedAt: current?.string("updated_at") ?? event.updatedAt
             )
         }
     }
@@ -163,7 +192,7 @@ struct LiveEventRepository: EventRepository {
             queryItems: [
                 URLQueryItem(
                     name: "select",
-                    value: "id,slug,title,subtitle,start_datetime,image_urls,status,category,is_free,venues(id,name,photo_url),event_genres!inner(genre_id,genres(id,slug,label_de)),event_participants(persons(id,full_name,photo_url),ensembles(id,name,photo_url))"
+                    value: "id,slug,title,subtitle,start_datetime,image_urls,updated_at,status,category,is_free,venues(id,name,photo_url),event_genres!inner(genre_id,genres(id,slug,label_de)),event_participants(persons(id,full_name,photo_url),ensembles(id,name,photo_url))"
                 ),
                 URLQueryItem(name: "status", value: "eq.scheduled"),
                 // Filtert direkt auf der Spalte der eingebetteten Zwischentabelle

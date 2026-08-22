@@ -36,6 +36,9 @@ struct SearchView: View {
     @State private var isLoadingInspiration = false
     @State private var inspirationCategories: [InspirationCategory] = []
     @State private var resultScope: ResultScope = .all
+    @State private var genreResultCache: [UUID: [ConcertEvent]] = [:]
+    @State private var inspirationResultCache: [String: [ConcertEvent]] = [:]
+    @State private var activeLoadID = UUID()
 
     private var visibleHits: [SearchHit] {
         guard resultScope != .all else { return hits }
@@ -52,7 +55,7 @@ struct SearchView: View {
                         searchContent
                     }
                     .padding(.horizontal, KlangradarTheme.pagePadding)
-                    .padding(.bottom, 110)
+                    .padding(.bottom, 132)
                 }
                 .scrollDismissesKeyboard(.interactively)
             }
@@ -223,56 +226,94 @@ struct SearchView: View {
     }
 
     @ViewBuilder private func genreFilterSection(_ genre: GenreFilterRouter.Genre) -> some View {
+        filteredEventResults(
+            title: "Veranstaltungen · \(genre.label)",
+            filterTitle: genre.label,
+            symbol: "music.quarternote.3",
+            isLoading: isLoadingGenreEvents,
+            values: genreEvents,
+            emptyMessage: "Keine kommenden Veranstaltungen mit diesem Tag gefunden.",
+            close: { activeGenre = nil; genreEvents = [] }
+        )
+    }
+
+    @ViewBuilder private func inspirationSection(_ category: InspirationCategory) -> some View {
+        filteredEventResults(
+            title: category.title.replacingOccurrences(of: "\n", with: " "),
+            filterTitle: category.title.replacingOccurrences(of: "\n", with: " "),
+            symbol: category.symbol ?? "music.note",
+            isLoading: isLoadingInspiration,
+            values: inspirationEvents,
+            emptyMessage: "Keine passenden Termine gefunden.",
+            close: { activeInspiration = nil; inspirationEvents = [] }
+        )
+    }
+
+    @ViewBuilder private func filteredEventResults(
+        title: String,
+        filterTitle: String,
+        symbol: String,
+        isLoading: Bool,
+        values: [ConcertEvent],
+        emptyMessage: String,
+        close: @escaping () -> Void
+    ) -> some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack(spacing: 12) {
-                Label(genre.label, systemImage: "music.quarternote.3")
+                Label(filterTitle, systemImage: symbol)
                     .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
                     .foregroundStyle(KlangradarTheme.accent)
-                Spacer()
-                Button("Filter entfernen") { activeGenre = nil; genreEvents = [] }
-                    .font(.caption)
+                Spacer(minLength: 8)
+                Button("Zurück", action: close)
+                    .font(.caption.weight(.semibold))
             }
-            .padding(14)
-            .background(.regularMaterial, in: .capsule)
-            Text("Veranstaltungen · \(genre.label)").font(.title2.bold())
-            if isLoadingGenreEvents {
-                ProgressView().frame(maxWidth: .infinity)
-            } else if genreEvents.isEmpty {
-                Text("Keine kommenden Veranstaltungen mit diesem Tag gefunden.")
-                    .foregroundStyle(.secondary)
+            .padding(.horizontal, 14)
+            .frame(height: 48)
+            .background(.regularMaterial, in: .rect(cornerRadius: 16))
+
+            Text(title)
+                .font(.title2.bold())
+                .multilineTextAlignment(.leading)
+                .lineLimit(2)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            if isLoading {
+                SearchResultsSkeleton()
+            } else if values.isEmpty {
+                ContentUnavailableView(emptyMessage, systemImage: symbol)
+                    .frame(maxWidth: .infinity)
             } else {
-                LazyVStack(spacing: 0) { eventRows(genreEvents) }
+                LazyVStack(spacing: 0) { eventRows(values) }
                     .padding(.horizontal, 14)
                     .background(.regularMaterial, in: .rect(cornerRadius: 24))
             }
         }
     }
 
-    @ViewBuilder private func inspirationSection(_ category: InspirationCategory) -> some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack {
-                Label(category.title.replacingOccurrences(of: "\n", with: " "), systemImage: category.symbol ?? "music.note")
-                    .font(.subheadline.weight(.semibold)).foregroundStyle(KlangradarTheme.accent)
-                Spacer()
-                Button("Zurück") { activeInspiration = nil; inspirationEvents = [] }.font(.caption)
-            }.padding(14).background(.regularMaterial, in: .capsule)
-            if isLoadingInspiration { ProgressView().frame(maxWidth: .infinity) }
-            else if inspirationEvents.isEmpty { ContentUnavailableView("Keine passenden Termine", systemImage: category.symbol ?? "music.note") }
-            else { LazyVStack(spacing: 0) { eventRows(inspirationEvents) }.padding(.horizontal, 14).background(.regularMaterial, in: .rect(cornerRadius: 24)) }
-        }
-    }
-
     @MainActor private func loadInspiration(_ category: InspirationCategory) async {
         activeGenre = nil
         activeInspiration = category
-        isLoadingInspiration = true
-        defer { isLoadingInspiration = false }
-        if let remote = try? await eventRepository.inspirationEvents(attributeSlug: category.slug, limit: 60), !remote.isEmpty {
-            inspirationEvents = remote
-        } else {
-            inspirationEvents = localInspirationEvents(for: category)
+        if let cached = inspirationResultCache[category.slug] {
+            inspirationEvents = cached
+            isLoadingInspiration = false
+            return
         }
-        if let enriched = try? await eventRepository.enrichingImages(in: inspirationEvents) { inspirationEvents = enriched }
+        let loadID = UUID()
+        activeLoadID = loadID
+        inspirationEvents = []
+        isLoadingInspiration = true
+        let loaded: [ConcertEvent]
+        if let remote = try? await eventRepository.inspirationEvents(attributeSlug: category.slug, limit: 60), !remote.isEmpty {
+            loaded = remote
+        } else {
+            loaded = localInspirationEvents(for: category)
+        }
+        let final = (try? await eventRepository.enrichingImages(in: loaded)) ?? loaded
+        guard activeLoadID == loadID else { return }
+        inspirationEvents = final
+        inspirationResultCache[category.slug] = final
+        isLoadingInspiration = false
     }
 
     @ViewBuilder private func resultRow(_ hit: SearchHit) -> some View {
@@ -303,14 +344,28 @@ struct SearchView: View {
     }
 
     @MainActor private func loadGenreEvents(_ genreID: UUID) async {
+        if let cached = genreResultCache[genreID] {
+            genreEvents = cached
+            isLoadingGenreEvents = false
+            return
+        }
+        let loadID = UUID()
+        activeLoadID = loadID
+        genreEvents = []
         isLoadingGenreEvents = true
-        defer { isLoadingGenreEvents = false }
-        genreEvents = (try? await eventRepository.events(genreID: genreID, limit: 60)) ?? []
+        var loaded = (try? await eventRepository.events(genreID: genreID, limit: 60)) ?? []
+        if let enriched = try? await eventRepository.enrichingImages(in: loaded) { loaded = enriched }
+        guard activeLoadID == loadID else { return }
+        genreEvents = loaded
+        genreResultCache[genreID] = loaded
+        isLoadingGenreEvents = false
     }
 
     @ViewBuilder private func eventRows(_ values: [ConcertEvent]) -> some View {
-        ForEach(values) { event in
+        ForEach(Array(values.enumerated()), id: \.element.id) { index, event in
             NavigationLink(value: event) { SearchEventRow(event: event) }
+                .buttonStyle(.plain)
+            if index < values.count - 1 { Divider().padding(.leading, 72) }
         }
     }
 
@@ -548,16 +603,51 @@ private struct SearchEventRow: View {
     var body: some View {
         HStack(spacing: 12) {
             EventArtwork(event: event)
-                .frame(width: 54, height: 54)
+                .frame(width: 60, height: 60)
                 .clipped()
                 .clipShape(.rect(cornerRadius: 12))
             VStack(alignment: .leading, spacing: 3) {
-                Text(event.title).font(.headline).lineLimit(2)
-                Text(event.dateLine).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                Text(event.title)
+                    .font(.headline)
+                    .multilineTextAlignment(.leading)
+                    .lineLimit(2, reservesSpace: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text(event.dateLine)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(.rect)
+    }
+}
+
+private struct SearchResultsSkeleton: View {
+    var body: some View {
+        VStack(spacing: 0) {
+            ForEach(0..<5, id: \.self) { index in
+                HStack(spacing: 12) {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(.quaternary)
+                        .frame(width: 60, height: 60)
+                    VStack(alignment: .leading, spacing: 8) {
+                        RoundedRectangle(cornerRadius: 4).fill(.quaternary).frame(height: 15)
+                        RoundedRectangle(cornerRadius: 4).fill(.quaternary).frame(width: 170, height: 11)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(.vertical, 8)
+                if index < 4 { Divider().padding(.leading, 72) }
             }
         }
-        .padding(.vertical, 2)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 14)
+        .background(.regularMaterial, in: .rect(cornerRadius: 24))
+        .redacted(reason: .placeholder)
+        .accessibilityLabel("Veranstaltungen werden geladen")
     }
 }
 

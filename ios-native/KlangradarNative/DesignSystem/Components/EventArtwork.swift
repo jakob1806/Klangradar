@@ -78,7 +78,7 @@ struct EventArtwork: View {
     let event: ConcertEvent
 
     var body: some View {
-        AsyncImage(url: event.primaryImageURL) { phase in
+        CachedAsyncImage(url: event.primaryImageURL) { phase in
             switch phase {
             case let .success(image):
                 image
