@@ -157,20 +157,34 @@ actively developed on a real machine.
 
 ## Next recommended feature
 
-This pass built exactly one fully-wired screen (Home) as a template. In
-priority order:
+All core screens (Home, Suche, Karte, Kalender, Profil incl. password
+auth/Favoriten/Follows/Interessen) are now wired against live repositories
+— see `MIGRATION_STATUS.md`'s 2026-08-23 entry for exactly what's covered
+and what isn't. In priority order from here:
 
-1. Run the app on a real emulator/device — this pass never got past
-   `assembleDebug`; Compose previews/runtime behavior are unverified.
-2. Build out Search, Karte (map), Kalender to at least the depth
-   ios-native already has, reusing this pass's repository/theme patterns.
-3. Password-based auth UI (signup/login/forgot-password) in Profil,
-   mirroring the onboarding redesign already shipped in Flutter and
-   ios-native (see their `MIGRATION_STATUS.md`/`CLAUDE.md` history) —
-   `AuthRepository` already has the backing methods, just no UI yet.
-4. A real preview/sample-data fallback (`KlangradarApp.isUsingPreviewData`
+1. **Run the app on a real emulator/device** — every pass so far only got
+   as far as `assembleDebug`; Compose runtime behavior (scrolling, image
+   loading, navigation transitions, dark mode, TalkBack, tablet layout)
+   is completely unverified. Nothing should move to ✅ in
+   `MIGRATION_STATUS.md` until this happens.
+2. **Entity detail screens** (person/ensemble/venue/work) — the single
+   biggest structural gap. Without these, search results and followed
+   entities are dead ends, and there's no natural place for a "Folgen"
+   button. Read `ios-native/KlangradarNative/Features/Directory/
+   EntityDetailView.swift` first.
+3. Push notifications — blocked on the user providing Firebase/FCM
+   credentials (a `google-services.json` or equivalent); ask before
+   attempting, don't invent placeholder credentials.
+4. A full interactive map — blocked on a Google Maps API key from the
+   user; the current venue-list-with-`geo:`-intent fallback works without
+   one and should stay as the fallback if a key never arrives.
+5. Onboarding flow, Sign in with Apple/Google, biometric unlock, personal
+   data editing (name/birthday/avatar/phone/address) — mirror the
+   onboarding redesign already shipped in Flutter and ios-native (see
+   their `MIGRATION_STATUS.md`/`CLAUDE.md` history).
+6. A real preview/sample-data fallback (`KlangradarApp.isUsingPreviewData`
    currently only shows a "not configured" message instead of iOS's full
    `PreviewEventRepository` equivalent) so the app is demoable without
    secrets.
-5. Real app icon (current one is a placeholder vector glyph) and a launch
+7. Real app icon (current one is a placeholder vector glyph) and a launch
    splash screen.

@@ -16,7 +16,10 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import de.klangradar.android.KlangradarApp
 import de.klangradar.android.ui.calendar.CalendarScreen
+import de.klangradar.android.ui.favorites.FavoritesScreen
+import de.klangradar.android.ui.follows.FollowsScreen
 import de.klangradar.android.ui.home.HomeScreen
+import de.klangradar.android.ui.interests.InterestsScreen
 import de.klangradar.android.ui.map.MapScreen
 import de.klangradar.android.ui.profile.ProfileScreen
 import de.klangradar.android.ui.search.SearchScreen
@@ -57,10 +60,20 @@ fun RootScaffold(app: KlangradarApp) {
             modifier = androidx.compose.ui.Modifier.padding(innerPadding)
         ) {
             composable(AppTab.Home.route) { HomeScreen(app) }
-            composable(AppTab.Search.route) { SearchScreen() }
-            composable(AppTab.Map.route) { MapScreen() }
-            composable(AppTab.Calendar.route) { CalendarScreen() }
-            composable(AppTab.Profile.route) { ProfileScreen(app) }
+            composable(AppTab.Search.route) { SearchScreen(app) }
+            composable(AppTab.Map.route) { MapScreen(app) }
+            composable(AppTab.Calendar.route) { CalendarScreen(app) }
+            composable(AppTab.Profile.route) {
+                ProfileScreen(
+                    app,
+                    onOpenFavorites = { navController.navigate("favorites") },
+                    onOpenFollows = { navController.navigate("follows") },
+                    onOpenInterests = { navController.navigate("interests") }
+                )
+            }
+            composable("favorites") { FavoritesScreen(app, onBack = { navController.popBackStack() }) }
+            composable("follows") { FollowsScreen(app, onBack = { navController.popBackStack() }) }
+            composable("interests") { InterestsScreen(app, onBack = { navController.popBackStack() }) }
         }
     }
 }

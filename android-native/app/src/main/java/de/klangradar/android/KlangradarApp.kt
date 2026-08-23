@@ -5,7 +5,9 @@ import de.klangradar.android.core.auth.AuthRepository
 import de.klangradar.android.core.auth.SessionStore
 import de.klangradar.android.core.config.ApiConfig
 import de.klangradar.android.core.network.SupabaseRestClient
+import de.klangradar.android.data.repository.ContentRepository
 import de.klangradar.android.data.repository.EventRepository
+import de.klangradar.android.data.repository.FollowsRepository
 import de.klangradar.android.data.repository.UserRepository
 
 /**
@@ -28,4 +30,6 @@ class KlangradarApp : Application() {
     }
     val eventRepository: EventRepository? by lazy { restClient?.let(::EventRepository) }
     val userRepository: UserRepository? by lazy { restClient?.let(::UserRepository) }
+    val contentRepository: ContentRepository? by lazy { restClient?.let(::ContentRepository) }
+    val followsRepository: FollowsRepository? by lazy { restClient?.let(::FollowsRepository) }
 }

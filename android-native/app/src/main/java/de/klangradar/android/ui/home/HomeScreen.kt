@@ -12,10 +12,15 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -61,10 +66,30 @@ fun HomeScreen(app: KlangradarApp) {
                 contentPadding = PaddingValues(vertical = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(28.dp)
             ) {
-                item { EventRail("Für dich empfohlen", current.recommended) }
-                item { EventRail("Beliebt in München", current.popular) }
-                item { EventRail("Neu für dich entdecken", current.discovery) }
-                item { EventRail("Demnächst in München", current.events) }
+                item {
+                    EventRail(
+                        "Für dich empfohlen", current.recommended, current.favoriteIds,
+                        onToggleFavorite = viewModel::toggleFavorite
+                    )
+                }
+                item {
+                    EventRail(
+                        "Beliebt in München", current.popular, current.favoriteIds,
+                        onToggleFavorite = viewModel::toggleFavorite
+                    )
+                }
+                item {
+                    EventRail(
+                        "Neu für dich entdecken", current.discovery, current.favoriteIds,
+                        onToggleFavorite = viewModel::toggleFavorite
+                    )
+                }
+                item {
+                    EventRail(
+                        "Demnächst in München", current.events, current.favoriteIds,
+                        onToggleFavorite = viewModel::toggleFavorite
+                    )
+                }
             }
         }
     }
@@ -87,7 +112,12 @@ private fun NotConfiguredNotice(padding: PaddingValues) {
  *  horizontal, self-hiding rail of event cards (renders nothing if empty,
  *  same as EventRail's `if !events.isEmpty` on iOS). */
 @Composable
-fun EventRail(title: String, events: List<ConcertEvent>) {
+fun EventRail(
+    title: String,
+    events: List<ConcertEvent>,
+    favoriteIds: Set<String> = emptySet(),
+    onToggleFavorite: (String) -> Unit = {}
+) {
     if (events.isEmpty()) return
     Column {
         Text(
@@ -100,20 +130,31 @@ fun EventRail(title: String, events: List<ConcertEvent>) {
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             contentPadding = PaddingValues(horizontal = 20.dp)
         ) {
-            items(events, key = { it.id }) { event -> EventCard(event) }
+            items(events, key = { it.id }) { event ->
+                EventCard(event, isFavorite = event.id in favoriteIds, onToggleFavorite = { onToggleFavorite(event.id) })
+            }
         }
     }
 }
 
 @Composable
-fun EventCard(event: ConcertEvent) {
+fun EventCard(event: ConcertEvent, isFavorite: Boolean = false, onToggleFavorite: () -> Unit = {}) {
     Card(modifier = Modifier.width(196.dp)) {
-        AsyncImage(
-            model = event.primaryImageUrl,
-            contentDescription = event.title,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxWidth().height(110.dp)
-        )
+        Box {
+            AsyncImage(
+                model = event.primaryImageUrl,
+                contentDescription = event.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxWidth().height(110.dp)
+            )
+            IconButton(onClick = onToggleFavorite, modifier = Modifier.align(Alignment.TopEnd)) {
+                Icon(
+                    if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                    contentDescription = if (isFavorite) "Favorit entfernen" else "Als Favorit merken",
+                    tint = if (isFavorite) MaterialTheme.colorScheme.error else androidx.compose.ui.graphics.Color.White
+                )
+            }
+        }
         Column(Modifier.padding(10.dp)) {
             Text(
                 event.title,

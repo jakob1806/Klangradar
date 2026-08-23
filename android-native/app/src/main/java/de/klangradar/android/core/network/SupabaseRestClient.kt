@@ -61,6 +61,44 @@ class SupabaseRestClient(private val config: ApiConfig) {
         return execute(builder.build())
     }
 
+    /** POST (insert) a row into `/rest/v1/{table}` — `Prefer: return=minimal`,
+     *  same as ios-native's `SupabaseRESTClient.insert`. */
+    suspend fun insert(table: String, values: JsonElement, accessToken: String? = null): String {
+        val request = Request.Builder()
+            .url("${config.baseUrl}/rest/v1/$table")
+            .post(values.toString().toRequestBody(jsonMediaType))
+            .authHeaders(accessToken)
+            .header("Prefer", "return=minimal")
+            .build()
+        return execute(request)
+    }
+
+    /** DELETE rows from `/rest/v1/{table}` matching `filters` (PostgREST filter syntax, e.g. "eq.<value>"). */
+    suspend fun delete(table: String, filters: List<Pair<String, String>>, accessToken: String? = null): String {
+        val urlBuilder = "${config.baseUrl}/rest/v1/$table".toHttpUrl().newBuilder()
+        for ((key, value) in filters) urlBuilder.addQueryParameter(key, value)
+        val request = Request.Builder()
+            .url(urlBuilder.build())
+            .delete()
+            .authHeaders(accessToken)
+            .header("Prefer", "return=minimal")
+            .build()
+        return execute(request)
+    }
+
+    /** PATCH rows in `/rest/v1/{table}` matching `filters`. */
+    suspend fun patch(table: String, filters: List<Pair<String, String>>, values: JsonElement, accessToken: String? = null): String {
+        val urlBuilder = "${config.baseUrl}/rest/v1/$table".toHttpUrl().newBuilder()
+        for ((key, value) in filters) urlBuilder.addQueryParameter(key, value)
+        val request = Request.Builder()
+            .url(urlBuilder.build())
+            .patch(values.toString().toRequestBody(jsonMediaType))
+            .authHeaders(accessToken)
+            .header("Prefer", "return=minimal")
+            .build()
+        return execute(request)
+    }
+
     private fun Request.Builder.authHeaders(accessToken: String?): Request.Builder {
         header("apikey", config.anonKey)
         header("Authorization", "Bearer ${accessToken ?: config.anonKey}")

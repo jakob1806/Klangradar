@@ -34,4 +34,17 @@ class EventRepository(private val client: SupabaseRestClient) {
         )
         return SupabaseJson.decodeFromString(listSerializer, raw)
     }
+
+    /** Pages through every upcoming event (same filter as [upcomingEvents],
+     *  no fixed cap) — mirrors ios-native's EventRepository.allUpcomingEvents,
+     *  used by the calendar screen. */
+    suspend fun allUpcomingEvents(accessToken: String? = null): List<ConcertEvent> {
+        val result = mutableListOf<ConcertEvent>()
+        val pageSize = 500
+        while (true) {
+            val page = upcomingEvents(limit = pageSize, offset = result.size, accessToken = accessToken)
+            result += page
+            if (page.size < pageSize) return result
+        }
+    }
 }
