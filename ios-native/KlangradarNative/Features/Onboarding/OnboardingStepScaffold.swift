@@ -29,6 +29,19 @@ struct KlangradarAppIcon: View {
     }
 }
 
+struct GoogleSignInLabel: View {
+    var body: some View {
+        Label {
+            Text("Mit Google anmelden")
+        } icon: {
+            Image("GoogleG")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 18, height: 18)
+        }
+    }
+}
+
 struct OnboardingProgressHeader: View {
     let current: Int
     let total: Int

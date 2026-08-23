@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useState, useTransition } from "react";
 import {
   applyEditorialAiProposals,
   type EditorialAiProposal,
@@ -61,7 +61,6 @@ export function EntityAuditFixButton({
   const [proposals, setProposals] = useState<EditorialAiProposal[]>(initialCorrection?.proposals ?? []);
   const [correctionReady, setCorrectionReady] = useState(Boolean(initialCorrection));
   const [appliedFields, setAppliedFields] = useState<string[]>([]);
-  const startedAutomatically = useRef(false);
 
   const runSuggestion = useCallback(async (force = false) => {
     setError(null);
@@ -89,15 +88,6 @@ export function EntityAuditFixButton({
       setSuggesting(false);
     }
   }, [entityId, entityType, flagId, issueMessage, issueSuggestion]);
-
-  // Der alte Zustand kündigte eine automatische Vorbereitung nur im Text an,
-  // startete die Server Action aber nie. Dadurch blieb jede neue Meldung
-  // dauerhaft ohne reparierbaren Vorschlag.
-  useEffect(() => {
-    if (correctionReady || startedAutomatically.current) return;
-    startedAutomatically.current = true;
-    void runSuggestion(false);
-  }, [correctionReady, runSuggestion]);
 
   function handleApply(proposal: EditorialAiProposal) {
     setApplying(proposal.field);
@@ -148,12 +138,17 @@ export function EntityAuditFixButton({
       <div className="mt-3 rounded-lg border border-violet-100 bg-violet-50/50 px-3 py-2">
         <div className="flex items-center gap-2 text-xs font-medium text-violet-800">
           <span className={`h-2 w-2 rounded-full bg-violet-500 ${suggesting ? "animate-pulse" : ""}`} />
-          {suggesting ? "KI recherchiert und erstellt einen Korrekturvorschlag…" : "KI-Korrektur wird automatisch vorbereitet…"}
+          {suggesting ? "KI recherchiert und erstellt einen Korrekturvorschlag…" : "KI-Korrektur ist in der Hintergrund-Warteschlange…"}
         </div>
         {error && <p className="max-w-xs text-right text-xs text-red-600">{error}</p>}
         {error && (
           <button type="button" onClick={() => void runSuggestion(true)} className="mt-1 text-xs font-medium text-violet-700">
             Erneut versuchen
+          </button>
+        )}
+        {!suggesting && !error && (
+          <button type="button" onClick={() => void runSuggestion(false)} className="mt-1 text-xs font-medium text-violet-700">
+            Jetzt priorisieren
           </button>
         )}
       </div>

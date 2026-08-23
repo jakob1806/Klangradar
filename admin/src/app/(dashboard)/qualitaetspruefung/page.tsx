@@ -112,6 +112,7 @@ export default async function QualitaetspruefungPage({
       .eq("entity_type", activeType)
       .eq("status", "open")
       .order("display_name")
+      .limit(100)
       .returns<FlagRow[]>(),
     Promise.all(
       TABS.map(async (tab) => {

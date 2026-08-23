@@ -42,8 +42,8 @@ export function EntityAuditBulkSelection({ children, ids, missingSuggestionIds =
     startTransition(async () => {
       try {
         const result = await prepareEntityAuditCorrections(batch);
-        if (result.failed > 0) {
-          setMessage(`${result.generated} KI-Vorschläge vorbereitet, ${result.failed} fehlgeschlagen.${result.errors.length ? ` ${result.errors.join(" · ")}` : ""}`);
+        if (result.autoApplied > 0 || result.failed > 0) {
+          setMessage(`${result.generated} KI-Vorschläge vorbereitet${result.autoApplied ? `, ${result.autoApplied} sichere Korrekturen automatisch übernommen` : ""}${result.failed ? `, ${result.failed} fehlgeschlagen` : ""}.${result.errors.length ? ` ${result.errors.join(" · ")}` : ""}`);
         }
         router.refresh();
       } catch (error) {

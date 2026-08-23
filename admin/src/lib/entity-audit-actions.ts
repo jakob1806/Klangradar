@@ -121,31 +121,17 @@ export async function deleteEntityFromAudit(
   const supabase = await createClient();
 
   if (entityType === "person") {
-    await mustSucceed(supabase.from("event_participants").delete().eq("person_id", entityId));
-    await mustSucceed(supabase.from("works").update({ composer_id: null }).eq("composer_id", entityId));
-    await mustSucceed(supabase.from("sources").update({ person_id: null }).eq("person_id", entityId));
-    await mustSucceed(supabase.from("entity_candidates").update({ created_person_id: null }).eq("created_person_id", entityId));
+    await mustSucceed(supabase.rpc("delete_person", { p_person_id: entityId }));
   } else if (entityType === "ensemble") {
-    await mustSucceed(supabase.from("event_participants").delete().eq("ensemble_id", entityId));
-    await mustSucceed(supabase.from("sources").update({ ensemble_id: null }).eq("ensemble_id", entityId));
-    await mustSucceed(supabase.from("entity_candidates").update({ created_ensemble_id: null }).eq("created_ensemble_id", entityId));
+    await mustSucceed(supabase.rpc("delete_ensemble", { p_ensemble_id: entityId }));
   } else if (entityType === "venue") {
-    await mustSucceed(supabase.from("events").update({ venue_id: null }).eq("venue_id", entityId));
-    await mustSucceed(supabase.from("ensembles").update({ home_venue_id: null }).eq("home_venue_id", entityId));
-    await mustSucceed(supabase.from("sources").update({ venue_id: null }).eq("venue_id", entityId));
-    await mustSucceed(supabase.from("entity_candidates").update({ created_venue_id: null }).eq("created_venue_id", entityId));
+    await mustSucceed(supabase.rpc("delete_venue", { p_venue_id: entityId }));
   } else if (entityType === "work") {
     await mustSucceed(supabase.from("event_works").delete().eq("work_id", entityId));
+    await mustSucceed(supabase.from("works").delete().eq("id", entityId));
+  } else if (entityType === "event") {
+    await mustSucceed(supabase.rpc("delete_event", { p_event_id: entityId }));
   }
-
-  const table: Record<AuditableEntityType, string> = {
-    person: "persons",
-    ensemble: "ensembles",
-    venue: "venues",
-    work: "works",
-    event: "events",
-  };
-  await mustSucceed(supabase.from(table[entityType]).delete().eq("id", entityId));
   await mustSucceed(supabase.from("entity_audit_flags").delete().eq("id", flagId));
   revalidatePath("/qualitaetspruefung");
 }
@@ -160,6 +146,7 @@ export interface BulkAuditActionResult {
 export interface AuditPreparationResult {
   generated: number;
   existing: number;
+  autoApplied: number;
   empty: number;
   failed: number;
   errors: string[];
@@ -255,7 +242,7 @@ export async function applyAllEntityAuditCorrections(ids: string[]): Promise<Bul
  * fortsetzen, ohne bereits erfolgreiche Vorschläge erneut zu berechnen. */
 export async function prepareEntityAuditCorrections(ids: string[]): Promise<AuditPreparationResult> {
   const uniqueIds = [...new Set(ids)].slice(0, 12);
-  const result: AuditPreparationResult = { generated: 0, existing: 0, empty: 0, failed: 0, errors: [] };
+  const result: AuditPreparationResult = { generated: 0, existing: 0, autoApplied: 0, empty: 0, failed: 0, errors: [] };
   if (uniqueIds.length === 0) return result;
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -287,8 +274,27 @@ export async function prepareEntityAuditCorrections(ids: string[]): Promise<Audi
           suggestions.join(" ") || null,
           Boolean(stored),
         );
-        if (correction.proposals.length > 0) result.generated += 1;
-        else result.empty += 1;
+        if (correction.proposals.length > 0) {
+          result.generated += 1;
+          // Nur vollständig bestätigte Vorschläge werden im Hintergrund
+          // übernommen. "likely" und "unclear" bleiben sichtbar für eine
+          // redaktionelle Entscheidung; Mischpakete werden nicht teilweise
+          // angewendet, damit der Datensatz konsistent bleibt.
+          if (correction.proposals.every((proposal) => proposal.confidence === "confirmed")) {
+            await applyEditorialAiProposals(
+              row.entity_type as AuditableEntityType,
+              row.entity_id,
+              correction.proposals,
+            );
+            const { error: resolveError } = await supabase
+              .from("entity_audit_flags")
+              .update({ status: "resolved", resolved_at: new Date().toISOString() })
+              .eq("id", row.id)
+              .eq("status", "open");
+            if (resolveError) throw resolveError;
+            result.autoApplied += 1;
+          }
+        } else result.empty += 1;
       } catch (cause) {
         result.failed += 1;
         result.errors.push(cause instanceof Error ? cause.message : "Unbekannter Fehler");

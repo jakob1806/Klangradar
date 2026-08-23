@@ -59,7 +59,7 @@ struct WelcomeStepView: View {
                 }
                 if auth.isGoogleSignInAvailable {
                     Button { Task { await oauth { try await auth.signInWithGoogle() } } } label: {
-                        Label("Mit Google anmelden", systemImage: "g.circle.fill").frame(maxWidth: .infinity)
+                        GoogleSignInLabel().frame(maxWidth: .infinity)
                     }
                     .authSecondaryButtonStyle()
                     .controlSize(.large)

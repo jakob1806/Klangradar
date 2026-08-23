@@ -1,3 +1,5 @@
+import { assessEnsembleName } from "../_shared/entityNameValidation.ts";
+
 export type AuditEntityType = "person" | "ensemble" | "venue" | "work" | "event";
 export type AuditSeverity = "critical" | "warning" | "info";
 
@@ -254,6 +256,21 @@ export function basicNameIssues(
       suggestion: "Den offiziellen Ensemblenamen recherchieren (z. B. \"Bayerischer Staatsopernchor\").",
       source: "rule",
     });
+  }
+  if (entityType === "ensemble") {
+    const assessment = assessEnsembleName(trimmed);
+    if (!assessment.safe && !GENERIC_ENSEMBLE_NAMES.has(normalized)) {
+      issues.push({
+        id: "ensemble-wrong-entity-type",
+        severity: assessment.reason === "Ticket- oder Informationstext" ? "critical" : "warning",
+        category: "contradiction",
+        message: `Der Eintrag ist wahrscheinlich kein Ensemble (${assessment.reason ?? "uneindeutig"}).`,
+        suggestion: assessment.reason === "sieht wie ein Personenname aus"
+          ? "Als Person prüfen und den falschen Ensemble-Eintrag anschließend entfernen."
+          : "Nicht als Ensemble übernehmen; Quelle und bestehende Verknüpfungen prüfen.",
+        source: "rule",
+      });
+    }
   }
   return issues;
 }

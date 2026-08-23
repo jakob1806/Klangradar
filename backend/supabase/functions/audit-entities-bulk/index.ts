@@ -144,7 +144,7 @@ Deno.serve(async (req) => {
     .order(nameField)
     .limit(20_000);
   const namesByNormalized = new Map<string, { id: string; name: string }[]>();
-  for (const item of (allNamesData ?? []) as Record<string, unknown>[]) {
+  for (const item of (allNamesData ?? []) as unknown as Record<string, unknown>[]) {
     const candidate = { id: String(item.id), name: String(item[nameField] ?? "") };
     const normalized = normalizeName(candidate.name);
     if (!normalized) continue;
@@ -180,7 +180,7 @@ Deno.serve(async (req) => {
     const field = AUDIT_NAME_FIELD[type];
     const { data } = await supabase.from(AUDIT_TABLE[type]).select(`id,${field}`).limit(20_000);
     const map = new Map<string, { id: string; name: string }>();
-    for (const item of (data ?? []) as Record<string, unknown>[]) {
+    for (const item of (data ?? []) as unknown as Record<string, unknown>[]) {
       const name = String(item[field] ?? "");
       const normalized = normalizeName(name);
       if (normalized) map.set(normalized, { id: String(item.id), name });
@@ -211,9 +211,10 @@ Deno.serve(async (req) => {
 
   const useAi = hasAnyAiProviderConfigured();
   let aiFailures = 0;
-  // Die KI sieht nur noch regelauffällige oder lexikalisch wirklich unklare
-  // Namen. Zuvor wurden ausnahmslos alle Datensätze übertragen, was den Lauf
-  // langsam machte und zugleich viele unspezifische Treffer erzeugte.
+  // Die KI sieht nur lexikalisch unklare Namen, für die KEINE eindeutige
+  // Regel bereits einen Treffer geliefert hat. Eindeutige Regelverstöße
+  // nochmals an einen Provider zu schicken machte den Lauf langsam, ohne
+  // den Prüfeintrag zu verbessern.
   const ambiguousForType = (name: string) => {
     const value = normalizeName(name);
     if (entityType === "person") return /\b(chor|orchester|ensemble|theater|philharmoni|oper|quartett)\b/.test(value);
@@ -225,7 +226,7 @@ Deno.serve(async (req) => {
   const aiRows = rows.filter((entity) => {
     const id = String(entity.id);
     const name = String(entity[nameField] ?? "");
-    return issuesByEntityId.has(id) || ambiguousForType(name);
+    return !issuesByEntityId.has(id) && ambiguousForType(name);
   });
   if (useAi && aiRows.length > 0) {
     const batches: Record<string, unknown>[][] = [];

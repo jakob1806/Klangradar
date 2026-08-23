@@ -5,6 +5,8 @@
 // bekommen). Extrahiert aus hydrate-staatsoper-events/index.ts, wo diese
 // Logik zuerst entstand, statt sie für jede weitere Quelle zu duplizieren.
 
+import { assessEnsembleName } from "./entityNameValidation.ts";
+
 // deno-lint-ignore no-explicit-any
 type SupabaseClient = any;
 
@@ -115,8 +117,9 @@ export async function resolvePerson(supabase: SupabaseClient, participant: Event
 const GENERIC_ENSEMBLE_NAMES = new Set(["chor", "chöre", "orchester", "ballett", "ensemble", "choreographie", "choreografie"]);
 
 export async function resolveEnsembles(supabase: SupabaseClient, rawName: string): Promise<string[]> {
-  const name = rawName.replace(/[*_~`]+/g, "").replace(/\s+/g, " ").trim();
-  if (name.length < 3 || GENERIC_ENSEMBLE_NAMES.has(name.toLocaleLowerCase("de"))) return [];
+  const assessment = assessEnsembleName(rawName);
+  const name = assessment.cleaned;
+  if (!assessment.safe || GENERIC_ENSEMBLE_NAMES.has(name.toLocaleLowerCase("de"))) return [];
   const { data: resolved } = await supabase.rpc("resolve_ensemble_entities", { p_name: name });
   if (resolved?.some((row: { resolution: string }) => ["ignore", "ambiguous"].includes(row.resolution))) return [];
   const resolvedIds = (resolved ?? []).map((row: { id: string | null }) => row.id)

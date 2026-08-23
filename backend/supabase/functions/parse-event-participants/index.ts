@@ -1,4 +1,5 @@
 import { callAiFunction, hasAnyAiProviderConfigured, type AiFunctionDeclaration } from "../_shared/ai/router.ts";
+import { assessEnsembleName } from "../_shared/entityNameValidation.ts";
 
 const PARSE_PARTICIPANTS: AiFunctionDeclaration = {
   name: "parse_event_participants",
@@ -87,6 +88,7 @@ Deno.serve(async (req) => {
     const name = typeof value.name === "string" ? value.name.trim() : "";
     const entityType = value.entityType === "ensemble" ? "ensemble" : value.entityType === "person" ? "person" : null;
     if (!name || !entityType) return [];
+    if (entityType === "ensemble" && !assessEnsembleName(name).safe) return [];
     const key = `${entityType}:${name.toLocaleLowerCase("de")}`;
     if (seen.has(key)) return [];
     seen.add(key);

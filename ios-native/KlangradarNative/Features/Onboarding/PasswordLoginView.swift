@@ -72,7 +72,7 @@ struct PasswordLoginView: View {
                         Button {
                             Task { await oauth(provider: "Google") { try await auth.signInWithGoogle() } }
                         } label: {
-                            Label("Mit Google anmelden", systemImage: "g.circle.fill")
+                            GoogleSignInLabel()
                         }
                         .disabled(isWorking)
                     }

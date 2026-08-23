@@ -34,7 +34,7 @@ struct SearchView: View {
     @State private var activeInspiration: InspirationCategory?
     @State private var inspirationEvents: [ConcertEvent] = []
     @State private var isLoadingInspiration = false
-    @State private var inspirationCategories: [InspirationCategory] = []
+    @State private var inspirationCategories: [InspirationCategory] = InspirationCategory.fallback
     @State private var resultScope: ResultScope = .all
     @State private var genreResultCache: [UUID: [ConcertEvent]] = [:]
     @State private var inspirationResultCache: [String: [ConcertEvent]] = [:]
@@ -69,7 +69,11 @@ struct SearchView: View {
             .navigationDestination(for: ConcertEvent.self) { EventDetailView(event: $0, repository: eventRepository, contentRepository: contentRepository) }
             .navigationDestination(for: EntityKind.self) { DirectoryView(kind: $0, repository: contentRepository) }
             .navigationDestination(for: EntityRoute.self) { EntityDetailView(route: $0, repository: contentRepository) }
-            .task { await load() }
+            .task { await loadEventsAndCategories() }
+            .task { await loadDirectory(.person) }
+            .task { await loadDirectory(.ensemble) }
+            .task { await loadDirectory(.venue) }
+            .task { await loadDirectory(.work) }
             .task(id: query) { await search() }
             // TabView baut den Suche-Tab erst beim ersten Betreten auf — wird
             // genau dieser Tab-Wechsel durch einen Genre-Chip-Tap ausgelöst,
@@ -379,25 +383,25 @@ struct SearchView: View {
         }
     }
 
-    private func load() async {
+    @MainActor private func loadDirectory(_ kind: EntityKind) async {
+        guard directories[kind] == nil else { return }
+        if let values = try? await contentRepository.directory(kind: kind) {
+            directories[kind] = values
+        }
+    }
+
+    private func loadEventsAndCategories() async {
         do {
             async let loadedEvents = eventRepository.allUpcomingEvents()
-            async let persons = contentRepository.directory(kind: .person)
-            async let ensembles = contentRepository.directory(kind: .ensemble)
-            async let venues = contentRepository.directory(kind: .venue)
-            async let works = contentRepository.directory(kind: .work)
+            async let categories = try? eventRepository.inspirationCategories()
             let basicEvents = try await loadedEvents
-            let remoteCategories = (try? await eventRepository.inspirationCategories()) ?? []
+            let remoteCategories = await categories ?? []
             inspirationCategories = remoteCategories.isEmpty ? InspirationCategory.fallback : remoteCategories
-            let loadedDirectories: [EntityKind: [DirectoryItem]] = try await [
-                .person: persons, .ensemble: ensembles, .venue: venues, .work: works
-            ]
             if let enriched = try? await eventRepository.enrichingImages(in: basicEvents) {
                 events = enriched
             } else {
                 events = basicEvents
             }
-            directories = loadedDirectories
         } catch { errorMessage = error.localizedDescription }
     }
 
