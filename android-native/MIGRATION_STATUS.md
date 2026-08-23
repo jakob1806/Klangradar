@@ -55,17 +55,17 @@ none of this has run on a device/emulator yet.
 - ✅ **Suche**: `ContentRepository.search` (RPC `search_all`, same
   ensemble-visibility filtering as ios-native's `ContentRepository.search`)
   wired to a debounced search field + result list (person/ensemble/venue/
-  work icons). Tapping a result currently does nothing — there is no
-  entity detail screen yet on Android (see below).
+  work icons). Tapping a result now opens the entity detail screen.
 - ✅ **Kalender**: `EventRepository.allUpcomingEvents` (pages through every
   upcoming event, same query as ios-native's `allUpcomingEvents`) grouped
   by day into sticky-style date headers.
 - 🟡 **Karte**: `ContentRepository.venueLocations` (RPC
   `venues_with_latlng`) rendered as a sorted venue list, not an embedded
   interactive map — there is no Google Maps API key configured for this
-  app (see `CLAUDE.md`). Tapping a venue opens the device's own Maps app
-  via a `geo:` intent, which needs no API key and genuinely works, but is
-  not the same experience as ios-native's in-app `VenueMapView`.
+  app (see `CLAUDE.md`). Tapping a venue row opens its entity detail page;
+  a separate directions icon opens the device's own Maps app via a `geo:`
+  intent, which needs no API key and genuinely works, but is not the same
+  experience as ios-native's in-app `VenueMapView`.
 - ✅ **Profil — Passwort-Login/Registrierung/Reset**: a real form (not a
   placeholder) covering sign in, sign up, and "Passwort vergessen" against
   `AuthRepository`'s already-existing methods. No onboarding flow, no
@@ -76,21 +76,15 @@ none of this has run on a device/emulator yet.
   reachable from Profil.
 - ✅ **Follows (Personen/Ensembles/Orte)**: `FollowsRepository`
   (`user_favorite_persons`/`_ensembles`/`_venues`) — a "Meine Follows"
-  screen grouped by kind, each row with a notify-toggle and "Entfolgen",
-  reachable from Profil. There is no follow *button* anywhere yet (no
-  entity detail screens exist to put one on) — only management of
-  existing follows.
+  screen grouped by kind, each row with a notify-toggle, "Entfolgen", and
+  now also tappable through to the entity's detail page, reachable from
+  Profil.
 - ✅ **Interessen**: `UserRepository.genreOptions`/`selectedGenreIds`/
   `setGenreInterest` (`genres` + `profile_interest_genres` tables) — a
   toggle-list screen reachable from Profil. Work/person/venue interests
   (the other `InterestCategory` cases on iOS) aren't exposed as a
   separate UI here, same as how ios-native only surfaces genre interests
   plus follows for the rest.
-- ⬜ **No entity detail screens at all** (person/ensemble/venue/work) —
-  this is the single biggest remaining structural gap. Search results and
-  followed entities can't be tapped through to a detail page; there's
-  nowhere to put a "Folgen" button either. This is real, nontrivial work
-  (biography/gallery/linked-events per entity kind) — next priority.
 - ⬜ **Push notifications** — blocked on a Firebase project + FCM
   credentials this session has no access to (Flutter uses
   `firebase_messaging`); needs the user to provide a `google-services.json`
@@ -100,6 +94,42 @@ none of this has run on a device/emulator yet.
   data editing (name/birthday/avatar/phone/address) — none built yet.
 - ⬜ Admin/editorial features are intentionally out of scope for any
   native client (Flutter's admin is a separate web app).
+
+## Entity detail screens (2026-08-23, ✅ build-verified, ⬜ never run)
+
+Closed the "biggest remaining structural gap" flagged in the previous
+entry: search results and follows were dead ends, with nowhere to put a
+follow button. Same caveat as always — compiles and packages, never run
+on a device/emulator.
+
+- ✅ `ContentRepository.detail(kind, identifier)` — fetches one
+  person/ensemble/venue/work row (`*` select, `+composer` join for
+  works), plus its linked upcoming events (`event_participants`/
+  `event_works`/direct `venue_id` filter depending on kind, mirroring
+  ios-native's `linkedEvents`) and, for venues, lat/lng via the
+  `venue_with_latlng` RPC.
+- ✅ `EntityDetailScreen` — avatar/hero image, title/subtitle, a
+  Folgen/Gefolgt toggle (person/ensemble/venue only, wired to
+  `FollowsRepository`, hidden for anonymous users), description text,
+  website link, and an upcoming-events rail.
+- ✅ Wired as a new `entity/{kind}/{identifier}` nav route
+  (`NavController.navigateToEntity`) from: Suche result rows, Follows
+  rows, and Karte venue rows (tapping the row opens the detail page now;
+  a separate "Directions" icon still opens the external Maps app).
+- ⬜ Not ported: photo gallery, "similar items", ensemble parent/child
+  tree, person `member_of` link, richer metadata table (capacity,
+  accessibility, etc.) — ios-native's `EntityDetailView` has all of
+  these, this pass only covers the load-bearing fields.
+- ⬜ No caching/prefetching — every screen visit refetches from Supabase.
+
+## Tooling (2026-08-23)
+
+- ✅ `Scripts/import_flutter_env.rb` — mirrors ios-native's own script:
+  reads the developer's real `app/.env` and writes `local.properties`
+  (gitignored), without ever printing the credentials. Needed because
+  this repo's own `app/.env` only ever contains placeholder values (no
+  real Supabase project is reachable from the cloud sandbox this was
+  built in) — the user must run this locally where their real `.env` is.
 
 ## Definition of feature parity
 

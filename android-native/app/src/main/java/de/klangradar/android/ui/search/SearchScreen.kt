@@ -1,5 +1,6 @@
 package de.klangradar.android.ui.search
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -35,7 +36,7 @@ import de.klangradar.android.domain.model.SearchHit
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SearchScreen(app: KlangradarApp) {
+fun SearchScreen(app: KlangradarApp, onSelect: (EntityKind, String) -> Unit = { _, _ -> }) {
     Scaffold(topBar = { TopAppBar(title = { Text("Suche") }) }) { padding ->
         if (app.isUsingPreviewData) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
@@ -73,7 +74,12 @@ fun SearchScreen(app: KlangradarApp) {
                         }
                     } else {
                         LazyColumn {
-                            items(current.hits, key = { it.id }) { hit -> SearchResultRow(hit) }
+                            items(current.hits, key = { it.id }) { hit ->
+                                SearchResultRow(hit) {
+                                    val kind = hit.kind ?: return@SearchResultRow
+                                    onSelect(kind, hit.slug ?: hit.id)
+                                }
+                            }
                         }
                     }
                 }
@@ -83,11 +89,12 @@ fun SearchScreen(app: KlangradarApp) {
 }
 
 @Composable
-private fun SearchResultRow(hit: SearchHit) {
+private fun SearchResultRow(hit: SearchHit, onClick: () -> Unit) {
     ListItem(
         headlineContent = { Text(hit.title) },
         supportingContent = hit.subtitle?.let { { Text(it) } },
-        leadingContent = { Icon(iconFor(hit.kind), contentDescription = null) }
+        leadingContent = { Icon(iconFor(hit.kind), contentDescription = null) },
+        modifier = Modifier.clickable(onClick = onClick)
     )
 }
 

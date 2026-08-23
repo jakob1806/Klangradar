@@ -151,27 +151,30 @@ echo "sdk.dir=/opt/android-sdk" > android-native/local.properties
 `local.properties.example`. Never read, print or paste real credentials
 into chat output, source code, or build logs.
 
-There is no `import_flutter_env.rb`-equivalent script yet (ios-native has
-one for its `Secrets.plist`); worth adding once this project is being
-actively developed on a real machine.
+To import the already configured Flutter client values locally without
+exposing them, run `ruby Scripts/import_flutter_env.rb` (mirrors
+ios-native's own script) — reads `app/.env` and writes
+`local.properties`, preserving any existing `sdk.dir` line.
 
 ## Next recommended feature
 
 All core screens (Home, Suche, Karte, Kalender, Profil incl. password
-auth/Favoriten/Follows/Interessen) are now wired against live repositories
-— see `MIGRATION_STATUS.md`'s 2026-08-23 entry for exactly what's covered
-and what isn't. In priority order from here:
+auth/Favoriten/Follows/Interessen) plus entity detail pages are now wired
+against live repositories — see `MIGRATION_STATUS.md`'s 2026-08-23
+entries for exactly what's covered and what isn't. In priority order from
+here:
 
 1. **Run the app on a real emulator/device** — every pass so far only got
    as far as `assembleDebug`; Compose runtime behavior (scrolling, image
    loading, navigation transitions, dark mode, TalkBack, tablet layout)
    is completely unverified. Nothing should move to ✅ in
-   `MIGRATION_STATUS.md` until this happens.
-2. **Entity detail screens** (person/ensemble/venue/work) — the single
-   biggest structural gap. Without these, search results and followed
-   entities are dead ends, and there's no natural place for a "Folgen"
-   button. Read `ios-native/KlangradarNative/Features/Directory/
-   EntityDetailView.swift` first.
+   `MIGRATION_STATUS.md` until this happens. The user needs to run
+   `Scripts/import_flutter_env.rb` locally first (real credentials only
+   exist on their machine, not in this sandbox).
+2. Round out entity detail screens to closer parity: photo gallery,
+   "similar items", ensemble parent/child tree, person `member_of` link —
+   read `ios-native/KlangradarNative/Features/Directory/
+   EntityDetailView.swift` for the full feature set this pass didn't port.
 3. Push notifications — blocked on the user providing Firebase/FCM
    credentials (a `google-services.json` or equivalent); ask before
    attempting, don't invent placeholder credentials.

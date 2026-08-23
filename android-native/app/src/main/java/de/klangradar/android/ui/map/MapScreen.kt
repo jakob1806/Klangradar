@@ -12,11 +12,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Directions
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -34,7 +36,7 @@ import de.klangradar.android.domain.model.VenueLocation
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MapScreen(app: KlangradarApp) {
+fun MapScreen(app: KlangradarApp, onSelectVenue: (String) -> Unit = {}) {
     Scaffold(topBar = { TopAppBar(title = { Text("Karte") }) }) { padding ->
         if (app.isUsingPreviewData) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
@@ -59,7 +61,11 @@ fun MapScreen(app: KlangradarApp) {
             }
             is MapUiState.Loaded -> LazyColumn(Modifier.fillMaxSize().padding(padding)) {
                 items(current.venues, key = { it.id }) { venue ->
-                    VenueRow(venue) { openInMapsApp(context, venue) }
+                    VenueRow(
+                        venue,
+                        onClick = { onSelectVenue(venue.slug ?: venue.id) },
+                        onDirections = { openInMapsApp(context, venue) }
+                    )
                 }
             }
         }
@@ -67,11 +73,16 @@ fun MapScreen(app: KlangradarApp) {
 }
 
 @Composable
-private fun VenueRow(venue: VenueLocation, onClick: () -> Unit) {
+private fun VenueRow(venue: VenueLocation, onClick: () -> Unit, onDirections: () -> Unit) {
     ListItem(
         headlineContent = { Text(venue.name) },
         supportingContent = venue.addressCity?.let { { Text(it) } },
         leadingContent = { Icon(Icons.Filled.Place, contentDescription = null) },
+        trailingContent = {
+            IconButton(onClick = onDirections) {
+                Icon(Icons.Filled.Directions, contentDescription = "In Karten-App öffnen")
+            }
+        },
         modifier = Modifier.clickable(onClick = onClick)
     )
 }

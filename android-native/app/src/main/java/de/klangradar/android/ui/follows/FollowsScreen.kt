@@ -1,5 +1,6 @@
 package de.klangradar.android.ui.follows
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -29,11 +30,12 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import de.klangradar.android.KlangradarApp
 import de.klangradar.android.data.repository.FollowKind
+import de.klangradar.android.domain.model.EntityKind
 import de.klangradar.android.domain.model.FollowedEntity
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FollowsScreen(app: KlangradarApp, onBack: () -> Unit) {
+fun FollowsScreen(app: KlangradarApp, onBack: () -> Unit, onSelect: (EntityKind, String) -> Unit = { _, _ -> }) {
     val viewModel: FollowsViewModel = viewModel(factory = FollowsViewModel.factory(app))
     val state by viewModel.uiState.collectAsState()
 
@@ -67,9 +69,9 @@ fun FollowsScreen(app: KlangradarApp, onBack: () -> Unit) {
                     }
                 } else {
                     LazyColumn(Modifier.fillMaxSize().padding(padding)) {
-                        section("Personen", follows.persons, FollowKind.PERSON, viewModel)
-                        section("Ensembles", follows.ensembles, FollowKind.ENSEMBLE, viewModel)
-                        section("Orte", follows.venues, FollowKind.VENUE, viewModel)
+                        section("Personen", follows.persons, FollowKind.PERSON, viewModel, onSelect)
+                        section("Ensembles", follows.ensembles, FollowKind.ENSEMBLE, viewModel, onSelect)
+                        section("Orte", follows.venues, FollowKind.VENUE, viewModel, onSelect)
                     }
                 }
             }
@@ -81,7 +83,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.section(
     title: String,
     entities: List<FollowedEntity>,
     kind: FollowKind,
-    viewModel: FollowsViewModel
+    viewModel: FollowsViewModel,
+    onSelect: (EntityKind, String) -> Unit
 ) {
     if (entities.isEmpty()) return
     item(key = "header-$title") {
@@ -93,14 +96,26 @@ private fun androidx.compose.foundation.lazy.LazyListScope.section(
         )
     }
     items(entities, key = { "$kind-${it.id}" }) { entity ->
-        FollowRow(entity, onUnfollow = { viewModel.unfollow(kind, entity.id) }, onNotifyChange = { viewModel.setNotify(kind, entity.id, it) })
+        FollowRow(
+            entity,
+            onClick = { onSelect(kind.toEntityKind(), entity.slug ?: entity.id) },
+            onUnfollow = { viewModel.unfollow(kind, entity.id) },
+            onNotifyChange = { viewModel.setNotify(kind, entity.id, it) }
+        )
     }
 }
 
+private fun FollowKind.toEntityKind() = when (this) {
+    FollowKind.PERSON -> EntityKind.PERSON
+    FollowKind.ENSEMBLE -> EntityKind.ENSEMBLE
+    FollowKind.VENUE -> EntityKind.VENUE
+}
+
 @Composable
-private fun FollowRow(entity: FollowedEntity, onUnfollow: () -> Unit, onNotifyChange: (Boolean) -> Unit) {
+private fun FollowRow(entity: FollowedEntity, onClick: () -> Unit, onUnfollow: () -> Unit, onNotifyChange: (Boolean) -> Unit) {
     ListItem(
         headlineContent = { Text(entity.name) },
+        modifier = Modifier.clickable(onClick = onClick),
         trailingContent = {
             androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
                 Switch(checked = entity.notifyNewEvents, onCheckedChange = onNotifyChange)
