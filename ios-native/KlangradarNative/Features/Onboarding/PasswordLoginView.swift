@@ -5,6 +5,11 @@ import SwiftUI
 /// für E-Mail-Bestätigung/Passwort-Reset). Wird sowohl vom Profil-Tab
 /// (bestehender Login-Button) als auch vom Onboarding ("Anmelden" auf dem
 /// Einstiegs-Screen für wiederkehrende Nutzer) als Sheet präsentiert.
+///
+/// Nutzt bewusst dieselbe schlichte VStack/`.roundedBorder`/
+/// `.borderedProminent`-Sprache wie `WelcomeStepView`/`SignUpStepView` im
+/// Onboarding, statt eines System-`Form` — vorher sah dieser Screen mit
+/// seinen grauen Listenzeilen sichtbar anders aus als der Rest der App.
 struct PasswordLoginView: View {
     @ObservedObject var auth: AuthStore
     var onSignedIn: () -> Void = {}
@@ -16,54 +21,50 @@ struct PasswordLoginView: View {
     @State private var errorMessage: String?
     @State private var showsForgotPassword = false
 
+    private var isValid: Bool {
+        !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !password.isEmpty
+    }
+
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
-                    TextField("E-Mail-Adresse", text: $email)
-                        .textContentType(.username)
-                        .textInputAutocapitalization(.never)
-                        .keyboardType(.emailAddress)
-                    SecureField("Passwort", text: $password)
-                        .textContentType(.password)
-                }
+            ScrollView {
+                VStack(spacing: 20) {
+                    VStack(spacing: 12) {
+                        TextField("E-Mail-Adresse", text: $email)
+                            .textFieldStyle(.roundedBorder)
+                            .textContentType(.username)
+                            .textInputAutocapitalization(.never)
+                            .keyboardType(.emailAddress)
+                        SecureField("Passwort", text: $password)
+                            .textFieldStyle(.roundedBorder)
+                            .textContentType(.password)
+                    }
 
-                if let errorMessage {
-                    Section {
+                    if let errorMessage {
                         Label(errorMessage, systemImage: "exclamationmark.triangle")
+                            .font(.footnote)
                             .foregroundStyle(.red)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                }
 
-                Section {
-                    Button("Anmelden") { Task { await login() } }
-                        .disabled(
-                            isWorking
-                                || email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                                || password.isEmpty
-                        )
-                    Button("Passwort vergessen?") { showsForgotPassword = true }
-                        .font(.footnote)
-                        .disabled(isWorking)
-                }
-
-                Section("Oder anmelden mit") {
-                    Button {
-                        Task { await oauth(provider: "Apple") { try await auth.signInWithApple() } }
-                    } label: {
-                        Label("Mit Apple anmelden", systemImage: "apple.logo")
+                    VStack(spacing: 12) {
+                        Button("Anmelden") { Task { await login() } }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.large)
+                            .frame(maxWidth: .infinity)
+                            .disabled(isWorking || !isValid)
+                        Button("Passwort vergessen?") { showsForgotPassword = true }
+                            .font(.footnote)
+                            .disabled(isWorking)
                     }
-                    .disabled(isWorking)
 
-                    if auth.isGoogleSignInAvailable {
-                        Button {
-                            Task { await oauth(provider: "Google") { try await auth.signInWithGoogle() } }
-                        } label: {
-                            Label("Mit Google anmelden", systemImage: "g.circle.fill")
-                        }
-                        .disabled(isWorking)
+                    if isWorking {
+                        ProgressView()
                     }
+
+                    oauthSection
                 }
+                .padding(24)
             }
             .navigationTitle("Anmelden")
             .navigationBarTitleDisplayMode(.inline)
@@ -77,6 +78,58 @@ struct PasswordLoginView: View {
                 ForgotPasswordView(auth: auth)
             }
         }
+    }
+
+    @ViewBuilder
+    private var oauthSection: some View {
+        if auth.isAppleSignInAvailable || auth.isGoogleSignInAvailable {
+            VStack(spacing: 14) {
+                HStack(spacing: 10) {
+                    line
+                    Text("Oder anmelden mit")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    line
+                }
+
+                if auth.isAppleSignInAvailable {
+                    Button {
+                        Task { await oauth(provider: "Apple") { try await auth.signInWithApple() } }
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "apple.logo")
+                            Text("Mit Apple anmelden")
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
+                    .disabled(isWorking)
+                }
+
+                if auth.isGoogleSignInAvailable {
+                    Button {
+                        Task { await oauth(provider: "Google") { try await auth.signInWithGoogle() } }
+                    } label: {
+                        HStack(spacing: 8) {
+                            GoogleLogoView()
+                                .frame(width: 18, height: 18)
+                            Text("Mit Google anmelden")
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
+                    .disabled(isWorking)
+                }
+            }
+        }
+    }
+
+    private var line: some View {
+        Rectangle()
+            .fill(.separator)
+            .frame(height: 1)
     }
 
     private func login() async {

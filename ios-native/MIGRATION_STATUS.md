@@ -226,6 +226,50 @@ Rest des Texts) existierte nirgends *in* der App selbst.
 - ⬜ Kein Xcode/Swift-Toolchain hier verfügbar — Build, Light/Dark,
   Dynamic Type und die visuelle Prüfung stehen noch aus.
 
+## Sitzungspersistenz-Fix & Login-Screen-Redesign (2026-08-24, 🟡 unverified)
+
+Nutzerbericht: "man muss sich in der app immmer neu anmelden, wenn man die
+app einmal ganz geschlossen hat" sowie ein Screenshot des Anmelden-Sheets
+mit "das sieht noch alles sehr uneinheitlich aus. auch ist das 'g' bei mit
+google anmelden nicht richtig das echte google 'g'".
+
+- 🟡 **Root Cause gefunden und behoben** (`Core/Authentication/
+  AuthService.swift`): `restoreOrCreateSession()` hat bei *jedem* Fehler
+  aus `deduplicatedRefresh(session.refreshToken)` — nicht nur bei einer
+  echten 400/401-Ablehnung durch Supabase, sondern auch bei reinen
+  Netzwerkfehlern (z.B. `URLError` direkt beim Kaltstart, bevor die
+  Netzwerkverbindung des Geräts wieder steht) — die Keychain-Session
+  bedingungslos gelöscht und eine neue anonyme Session angelegt. Genau das
+  hat jeden vollständigen App-Neustart effektiv ausgeloggt: ein einziger
+  verpasster Refresh-Versuch beim Start hat die echte Session zerstört.
+  Neue private Methode `isAuthRejection(_:)` prüft jetzt gezielt auf
+  `APIError.httpStatus(400/401, _)`; nur dann wird die Keychain-Session
+  verworfen und anonymisiert, jeder andere Fehler wird stattdessen
+  weitergereicht. `AuthStore.bootstrap()` fängt den weitergereichten
+  Fehler bereits ab und setzt `state = .failed(...)`;
+  `ProfileView.swift`s bestehender `.failed`-Zweig zeigt dafür schon einen
+  "Erneut versuchen"-Button — die echte Session bleibt also erhalten und
+  kann beim nächsten Versuch (Retry oder nächster App-Start mit Netz)
+  wiederhergestellt werden, statt stillschweigend verloren zu gehen.
+- 🟡 Neue `DesignSystem/Components/GoogleLogoView.swift` — Googles echtes
+  vierfarbiges "G"-Logo, als SwiftUI `Path`-Vektorgrafik nachgebaut (statt
+  des bisherigen einfarbigen `g.circle.fill`-SF-Symbol-Platzhalters).
+- 🟡 `Features/Onboarding/PasswordLoginView.swift` komplett neu gestaltet:
+  vorheriges `Form`/`Section`-Listenlayout (grau, uneinheitlich zum Rest
+  der App) ersetzt durch dieselbe schlichte
+  `VStack`/`.roundedBorder`/`.borderedProminent`/`.controlSize(.large)`-
+  Sprache wie `WelcomeStepView`/`SignUpStepView`; nutzt jetzt
+  `GoogleLogoView` statt des Platzhalter-Symbols. Funktional unverändert
+  (gleiche Methodennamen/-signaturen, gleiches Fehlerhandling).
+- 🟡 `ruby Scripts/generate_project.rb` in dieser Sandbox-Session
+  ausgeführt, damit die neue `GoogleLogoView.swift` im Xcode-Projekt
+  referenziert ist.
+- ⬜ Kein Xcode/Swift-Toolchain hier verfügbar — weder der Build, noch das
+  eigentliche Login-Verhalten nach echtem App-Kill, noch die visuelle
+  Prüfung (Light/Dark, iPad, Dynamic Type) konnten in dieser Sandbox
+  getestet werden. Muss auf einem echten Gerät/Simulator verifiziert
+  werden.
+
 ## Definition of feature parity
 
 A row can be marked complete only when it:

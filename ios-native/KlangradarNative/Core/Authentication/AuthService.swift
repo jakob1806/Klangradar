@@ -36,12 +36,18 @@ actor AuthService {
             do {
                 return try await deduplicatedRefresh(session.refreshToken)
             } catch {
-                // Supabase-Refresh-Tokens sind Einmal-Tokens: schlägt der Refresh
-                // fehl (z.B. weil er bereits verbraucht wurde), bleibt die kaputte
-                // Session sonst dauerhaft in der Keychain liegen — "Erneut
-                // versuchen" würde denselben ungültigen Token immer wieder lesen
-                // und nie mehr durchkommen. Verworfene Session löschen und wie
-                // beim allerersten Start anonym neu starten.
+                // Nur bei einer echten Ablehnung durch Supabase (401/400 —
+                // der Refresh-Token ist tatsächlich ungültig/bereits
+                // verbraucht) ist die Session wirklich kaputt und muss
+                // verworfen werden, sonst bliebe ein toter Token dauerhaft
+                // in der Keychain liegen. Jeder andere Fehler (kein Netz,
+                // Timeout, 5xx) ist möglich, ohne dass am Token etwas falsch
+                // ist — das passiert typischerweise direkt beim Kaltstart,
+                // bevor die Netzwerkverbindung des Geräts wieder steht.
+                // Genau das hat vorher jeden App-Neustart effektiv ausgeloggt:
+                // ein einziger verpasster Refresh-Versuch beim Start hat die
+                // echte Session gelöscht und eine neue anonyme angelegt.
+                guard isAuthRejection(error) else { throw error }
                 cachedSession = nil
                 try? keychain.delete(account: sessionAccount)
                 return try await signInAnonymously()
@@ -49,6 +55,15 @@ actor AuthService {
         }
 
         return try await signInAnonymously()
+    }
+
+    /// Nur eine echte 400/401-Ablehnung durch Supabase bedeutet "dieser
+    /// Refresh-Token ist wirklich ungültig". Netzwerkfehler (kein `APIError`,
+    /// z.B. `URLError` bei fehlender Verbindung) oder 5xx-Serverfehler sagen
+    /// nichts über die Gültigkeit des Tokens aus.
+    private func isAuthRejection(_ error: Error) -> Bool {
+        guard case let APIError.httpStatus(status, _) = error else { return false }
+        return status == 400 || status == 401
     }
 
     /// Bündelt gleichzeitige Refresh-Aufrufe auf denselben Token in eine
