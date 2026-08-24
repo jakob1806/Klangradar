@@ -35,8 +35,7 @@ class ListDetailScreen extends ConsumerWidget {
             child: Text(l10n.myListsCancel),
           ),
           FilledButton(
-            onPressed: () =>
-                Navigator.of(dialogContext).pop(controller.text),
+            onPressed: () => Navigator.of(dialogContext).pop(controller.text),
             child: Text(l10n.myListsSave),
           ),
         ],
@@ -115,9 +114,7 @@ class ListDetailScreen extends ConsumerWidget {
                     MaterialPageRoute(
                       builder: (_) => EventPickerScreen(
                         listId: listId,
-                        currentEventIds: list.events
-                            .map((e) => e.id)
-                            .toSet(),
+                        currentEventIds: list.events.map((e) => e.id).toSet(),
                       ),
                     ),
                   );
@@ -193,8 +190,18 @@ class ListDetailScreen extends ConsumerWidget {
                                     ? CachedNetworkImage(
                                         imageUrl: e.imageUrl!,
                                         fit: BoxFit.cover,
-                                        memCacheWidth: (48 * MediaQuery.devicePixelRatioOf(context)).round(),
-                                        memCacheHeight: (48 * MediaQuery.devicePixelRatioOf(context)).round(),
+                                        memCacheWidth:
+                                            (48 *
+                                                    MediaQuery.devicePixelRatioOf(
+                                                      context,
+                                                    ))
+                                                .round(),
+                                        memCacheHeight:
+                                            (48 *
+                                                    MediaQuery.devicePixelRatioOf(
+                                                      context,
+                                                    ))
+                                                .round(),
                                         errorWidget: (context, url, error) =>
                                             GenreArtwork(genre: e.genre),
                                         placeholder: (context, url) =>
@@ -274,8 +281,12 @@ class _CoverEditorState extends ConsumerState<_CoverEditor> {
               CachedNetworkImage(
                 imageUrl: widget.coverImageUrl!,
                 fit: BoxFit.cover,
-                memCacheWidth: (MediaQuery.sizeOf(context).width * MediaQuery.devicePixelRatioOf(context)).round(),
-                memCacheHeight: (140 * MediaQuery.devicePixelRatioOf(context)).round(),
+                memCacheWidth:
+                    (MediaQuery.sizeOf(context).width *
+                            MediaQuery.devicePixelRatioOf(context))
+                        .round(),
+                memCacheHeight: (140 * MediaQuery.devicePixelRatioOf(context))
+                    .round(),
               )
             else
               Center(
@@ -290,7 +301,10 @@ class _CoverEditorState extends ConsumerState<_CoverEditor> {
                     const SizedBox(height: 6),
                     Text(
                       l10n.myListsAddCoverImage,
-                      style: TextStyle(color: colors.textTertiary, fontSize: 12.5),
+                      style: TextStyle(
+                        color: colors.textTertiary,
+                        fontSize: 12.5,
+                      ),
                     ),
                   ],
                 ),
@@ -312,7 +326,9 @@ class _CoverEditorState extends ConsumerState<_CoverEditor> {
             if (_isWorking)
               Positioned.fill(
                 child: DecoratedBox(
-                  decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.4)),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.4),
+                  ),
                   child: const Center(
                     child: CircularProgressIndicator(color: Colors.white),
                   ),
@@ -397,7 +413,11 @@ class _CoverEditorState extends ConsumerState<_CoverEditor> {
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(AppLocalizations.of(context)!.myListsCoverError(error.toString()))),
+        SnackBar(
+          content: Text(
+            AppLocalizations.of(context)!.myListsCoverError(error.toString()),
+          ),
+        ),
       );
     } finally {
       if (mounted) setState(() => _isWorking = false);

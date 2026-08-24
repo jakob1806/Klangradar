@@ -12,7 +12,10 @@ final class AuthStore: ObservableObject {
 
     @Published private(set) var state: State
     @Published private(set) var enabledOAuthProviders: Set<String> = []
+    @Published var isCompletingPasswordRecovery = false
+    @Published var callbackErrorMessage: String?
     private let service: AuthService?
+    private var operationGeneration = 0
 
     init(service: AuthService?) {
         self.service = service
@@ -33,21 +36,20 @@ final class AuthStore: ObservableObject {
 
     func bootstrap() async {
         guard let service else { return }
+        let generation = operationGeneration
         do {
             enabledOAuthProviders = (try? await service.enabledOAuthProviders()) ?? []
-            apply(try await service.restoreOrCreateSession())
+            let session = try await service.restoreOrCreateSession()
+            guard generation == operationGeneration else { return }
+            apply(session)
         } catch {
+            guard generation == operationGeneration else { return }
             state = .failed(error.localizedDescription)
         }
     }
 
-    func sendEmailCode(to email: String) async throws {
-        guard let service else { throw AuthStoreError.unavailable }
-        try await service.sendEmailCode(to: email)
-    }
-
     /// Legt den Account an. Ändert `state` bewusst NICHT — solange die
-    /// E-Mail nicht per `verifyEmailCode(type: "signup")` bestätigt ist,
+    /// E-Mail nicht per `verifySignupCode` bestätigt ist,
     /// gibt es keine Session, der Nutzer bleibt in der aktuellen (meist
     /// anonymen) Bootstrap-Session.
     func signUp(email: String, password: String) async throws {
@@ -70,9 +72,9 @@ final class AuthStore: ObservableObject {
         try await service.resendSignupConfirmation(email: email)
     }
 
-    func verifyEmailCode(_ code: String, email: String, type: String = "email") async throws {
+    func verifySignupCode(_ code: String, email: String) async throws {
         guard let service else { throw AuthStoreError.unavailable }
-        apply(try await service.verifyEmailCode(code, email: email, type: type))
+        apply(try await service.verifySignupCode(code, email: email))
     }
 
     func signInWithGoogle() async throws {
@@ -102,6 +104,19 @@ final class AuthStore: ObservableObject {
         try await service.updatePassword(password)
     }
 
+    func handleAuthCallback(_ url: URL) async {
+        guard url.scheme == AuthService.callbackScheme, url.host == "auth-callback", let service else { return }
+        operationGeneration += 1
+        callbackErrorMessage = nil
+        do {
+            let action = try await service.handleCallback(url)
+            if let session = try? await service.restoreOrCreateSession() { apply(session) }
+            isCompletingPasswordRecovery = action == .passwordRecovery
+        } catch {
+            callbackErrorMessage = error.localizedDescription
+        }
+    }
+
     private func apply(_ session: AuthSession) {
         state = session.user.isAnonymous == true
             ? .anonymous(session)
@@ -111,4 +126,18 @@ final class AuthStore: ObservableObject {
 
 enum AuthStoreError: Error {
     case unavailable
+}
+
+enum AuthPasswordPolicy {
+    static func requirements(for password: String) -> [(title: String, isMet: Bool)] {
+        [
+            ("Mindestens 8 Zeichen", password.count >= 8),
+            ("Groß- und Kleinbuchstaben", password.contains(where: \.isUppercase) && password.contains(where: \.isLowercase)),
+            ("Mindestens eine Zahl", password.contains(where: \.isNumber))
+        ]
+    }
+
+    static func isValid(_ password: String) -> Bool {
+        requirements(for: password).allSatisfy(\.isMet)
+    }
 }

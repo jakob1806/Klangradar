@@ -251,19 +251,35 @@ google anmelden nicht richtig das echte google 'g'".
   "Erneut versuchen"-Button — die echte Session bleibt also erhalten und
   kann beim nächsten Versuch (Retry oder nächster App-Start mit Netz)
   wiederhergestellt werden, statt stillschweigend verloren zu gehen.
-- 🟡 Neue `DesignSystem/Components/GoogleLogoView.swift` — Googles echtes
-  vierfarbiges "G"-Logo, als SwiftUI `Path`-Vektorgrafik nachgebaut (statt
-  des bisherigen einfarbigen `g.circle.fill`-SF-Symbol-Platzhalters).
-- 🟡 `Features/Onboarding/PasswordLoginView.swift` komplett neu gestaltet:
-  vorheriges `Form`/`Section`-Listenlayout (grau, uneinheitlich zum Rest
-  der App) ersetzt durch dieselbe schlichte
-  `VStack`/`.roundedBorder`/`.borderedProminent`/`.controlSize(.large)`-
-  Sprache wie `WelcomeStepView`/`SignUpStepView`; nutzt jetzt
-  `GoogleLogoView` statt des Platzhalter-Symbols. Funktional unverändert
-  (gleiche Methodennamen/-signaturen, gleiches Fehlerhandling).
-- 🟡 `ruby Scripts/generate_project.rb` in dieser Sandbox-Session
-  ausgeführt, damit die neue `GoogleLogoView.swift` im Xcode-Projekt
-  referenziert ist.
+- 🟡 Ursprünglich wurde hier eine eigene `GoogleLogoView.swift` (Path-
+  Vektorgrafik) sowie ein neu gestaltetes `PasswordLoginView.swift`
+  gebaut. Beim Zusammenführen mit zwischenzeitlich auf `main` gelandeter
+  Arbeit ("Add dynamic recommendations, attributes, and onboarding
+  updates") stellte sich heraus, dass dort bereits ein umfangreicheres
+  Passwort-Login (Face-/Touch-ID-Angebot nach Anmeldung, Inline-
+  Kontoerstellung, "Passwort vergessen" über einen sicheren Link) sowie
+  ein echtes Google-"G"-Bildasset (`Resources/Assets.xcassets/GoogleG`,
+  über `GoogleSignInLabel`) verfügbar waren — beides eine strikte
+  Verbesserung gegenüber der eigenen Path-Nachbildung. Die eigene
+  `GoogleLogoView.swift` wurde daher wieder entfernt und
+  `PasswordLoginView.swift` übernimmt jetzt vollständig die `main`-Version.
+  Das eigentliche Ziel des Nutzerberichts (echtes Google-"G" statt
+  Platzhalter, einheitliches Erscheinungsbild) ist damit über die bereits
+  vorhandene Implementierung erreicht.
+- 🟡 `ruby Scripts/generate_project.rb` in dieser Sandbox-Session erneut
+  ausgeführt, damit der Merge (u.a. Entfernen von `GoogleLogoView.swift`)
+  im Xcode-Projekt korrekt reflektiert ist.
+- 🟡 Beim Zusammenführen mit `main` gab es außerdem einen echten
+  Inhaltskonflikt in `HomeView.swift`: diese Sitzung hatte
+  `HomeRecommendationCategory` um granulare `.followedPersons`/
+  `.followedEnsembles`/`.followedVenues`-Reihen erweitert, während `main`
+  unabhängig davon eine kombinierte `.followed`-Reihe sowie neue
+  `.taste`/`.entitySpotlight`-Empfehlungstypen eingeführt hatte. Auf
+  Nutzerwunsch wurden beide Schemata zusammengeführt (alle Fälle bleiben
+  im Enum und sind über "Homepage anordnen" wählbar); die Standard-
+  Reihenfolge zeigt die granulare Variante (`.followedPersons/
+  Ensembles/Venues`) statt der kombinierten `.followed`/`.entitySpotlight`,
+  da sie mehr Information zeigt.
 - ⬜ Kein Xcode/Swift-Toolchain hier verfügbar — weder der Build, noch das
   eigentliche Login-Verhalten nach echtem App-Kill, noch die visuelle
   Prüfung (Light/Dark, iPad, Dynamic Type) konnten in dieser Sandbox

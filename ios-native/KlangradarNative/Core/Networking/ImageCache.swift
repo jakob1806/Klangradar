@@ -22,7 +22,11 @@ final class ImageCache: @unchecked Sendable {
 
     func image(for url: URL) async -> UIImage? {
         if let cached = cached(url) { return cached }
-        guard let (data, _) = try? await URLSession.shared.data(from: url),
+        var request = URLRequest(url: url)
+        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              (response as? HTTPURLResponse)?.statusCode == 200,
               let image = UIImage(data: data) else { return nil }
         cache.setObject(image, forKey: url as NSURL)
         return image

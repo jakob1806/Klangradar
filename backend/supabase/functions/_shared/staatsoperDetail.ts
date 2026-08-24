@@ -57,10 +57,23 @@ export function parseStaatsoperDetail(markdown: string): StaatsoperDetail {
         : "solist";
       // Mehrere Personen stehen auf der Staatsoper-Seite häufig in EINER
       // Instrumentenzeile. Alle Links lesen, nicht nur den ersten.
+      //
+      // Bug (Tölzer Knabenchor als "person" angelegt): die Staatsoper
+      // verlinkt auch Ensembles (Chöre etc.) unter einer Rollen-Überschrift
+      // wie "**Chor**" auf ihre eigene /biographien/-Profilseite — exakt
+      // dasselbe Markup wie bei Solist:innen/Dirigent:innen. Ohne diese
+      // Prüfung landete jeder verlinkte Name unabhängig vom Namen als
+      // "person" (siehe unten den identischen Regex im plain-bullet-Zweig),
+      // wurde also NIE durch resolveEnsembles()/resolve_ensemble_entities
+      // aufgelöst und legte stattdessen einen eigenen persons-Datensatz an.
       for (const link of line.matchAll(/\[([^\]]+)\]\((https:\/\/www\.staatsoper\.de\/biographien\/[^)]+)\)/g)) {
         const name = stripMarkdownEmphasis(link[1]);
         if (!name || /^(N\.N\.?|TBA|TBD)$/i.test(name)) continue;
-        add({ name, profileUrl: link[2], role, type: "person" });
+        if (/(?:orchester|chor|ensemble|ballett)/i.test(name) && isPlausibleEnsembleName(name)) {
+          add({ name, profileUrl: link[2], role: null, type: "ensemble" });
+        } else {
+          add({ name, profileUrl: link[2], role, type: "person" });
+        }
       }
       continue;
     }

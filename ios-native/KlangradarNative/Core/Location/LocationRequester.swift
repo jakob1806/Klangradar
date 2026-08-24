@@ -39,11 +39,11 @@ final class LocationRequester: NSObject, CLLocationManagerDelegate {
         }
     }
 
-    nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+    nonisolated func locationManagerDidChangeAuthorization(_ : CLLocationManager) {
         Task { @MainActor in
-            switch manager.authorizationStatus {
+            switch self.manager.authorizationStatus {
             case .authorizedWhenInUse, .authorizedAlways:
-                manager.requestLocation()
+                self.manager.requestLocation()
             case .denied, .restricted:
                 finish(.failure(LocationRequestError.denied))
             case .notDetermined:

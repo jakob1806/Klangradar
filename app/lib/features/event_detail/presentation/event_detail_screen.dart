@@ -653,33 +653,38 @@ class EventDetailScreen extends ConsumerWidget {
                           ],
                         ),
                       ],
-                      if (event['attribution_notice'] != null ||
-                          event['last_verified_at'] != null) ...[
-                        const SizedBox(height: AppSpacing.xl),
-                        if (event['attribution_notice'] != null)
-                          _AttributionNotice(
-                            notice: event['attribution_notice'] as String,
-                            licenseUrl:
-                                event['attribution_license_url'] as String?,
-                            colors: colors,
+                      const SizedBox(height: AppSpacing.xl),
+                      if (event['attribution_notice'] != null)
+                        _AttributionNotice(
+                          notice: event['attribution_notice'] as String,
+                          licenseUrl:
+                              event['attribution_license_url'] as String?,
+                          colors: colors,
+                        )
+                      else
+                        Text(
+                          l10n.eventDataSourceUnknown,
+                          style: TextStyle(
+                            color: colors.textTertiary,
+                            fontSize: 11,
+                            fontStyle: FontStyle.italic,
                           ),
-                        if (event['last_verified_at'] != null) ...[
-                          if (event['attribution_notice'] != null)
-                            const SizedBox(height: 2),
-                          Text(
-                            l10n.eventLastVerified(
-                              _formatVerifiedDate(
-                                DateTime.parse(
-                                  event['last_verified_at'] as String,
-                                ),
+                        ),
+                      if (event['last_verified_at'] != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          l10n.eventLastVerified(
+                            _formatVerifiedDate(
+                              DateTime.parse(
+                                event['last_verified_at'] as String,
                               ),
                             ),
-                            style: TextStyle(
-                              color: colors.textTertiary,
-                              fontSize: 11,
-                            ),
                           ),
-                        ],
+                          style: TextStyle(
+                            color: colors.textTertiary,
+                            fontSize: 11,
+                          ),
+                        ),
                       ],
                       const SizedBox(height: AppSpacing.sm),
                       ReportContentLink(

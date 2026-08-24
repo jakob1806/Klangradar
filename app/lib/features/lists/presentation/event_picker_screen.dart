@@ -119,8 +119,7 @@ class _EventPickerScreenState extends ConsumerState<EventPickerScreen> {
           ),
           Expanded(
             child: eventsAsync.when(
-              loading: () =>
-                  const Center(child: CircularProgressIndicator()),
+              loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) => Center(
                 child: Text(
                   l10n.errorLoadingGeneric(e.toString()),
@@ -140,9 +139,7 @@ class _EventPickerScreenState extends ConsumerState<EventPickerScreen> {
                           .toList();
 
                 return ListView.builder(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: AppSpacing.sm,
-                  ),
+                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
                   itemCount: filtered.length,
                   itemBuilder: (context, index) {
                     final e = filtered[index];

@@ -7,11 +7,12 @@ struct VenueLocation: Identifiable, Hashable, Sendable {
     let slug: String?
     let city: String?
     let upcomingEventCount: Int
+    let imageURL: URL?
     let latitude: Double
     let longitude: Double
 
-    init(id: UUID, name: String, slug: String? = nil, city: String? = nil, upcomingEventCount: Int = 0, latitude: Double, longitude: Double) {
-        self.id = id; self.name = name; self.slug = slug; self.city = city; self.upcomingEventCount = upcomingEventCount; self.latitude = latitude; self.longitude = longitude
+    init(id: UUID, name: String, slug: String? = nil, city: String? = nil, upcomingEventCount: Int = 0, imageURL: URL? = nil, latitude: Double, longitude: Double) {
+        self.id = id; self.name = name; self.slug = slug; self.city = city; self.upcomingEventCount = upcomingEventCount; self.imageURL = imageURL; self.latitude = latitude; self.longitude = longitude
     }
 
     var coordinate: CLLocationCoordinate2D {

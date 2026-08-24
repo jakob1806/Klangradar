@@ -12,26 +12,18 @@ struct InterestsStepView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            VStack(spacing: 6) {
-                Text("Deine Interessen")
-                    .font(.title.bold())
-                Text("Genres, Künstler:innen, Ensembles und Orte — für passendere Empfehlungen. Kann jederzeit im Profil geändert werden.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 24)
-            }
-            .padding(.top, 16)
-            .padding(.bottom, 8)
-
             InterestsView(auth: auth, repository: repository)
-
-            Button("Weiter") { onFinished() }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal, 28)
-                .padding(.vertical, 14)
+        }
+        .navigationTitle("Was interessiert dich?")
+        .navigationBarTitleDisplayMode(.inline)
+        .safeAreaInset(edge: .bottom) {
+            VStack(spacing: 8) {
+                Button(action: onFinished) { Text("Weiter").frame(maxWidth: .infinity) }
+                    .authPrimaryButtonStyle().controlSize(.large)
+                Button("Jetzt überspringen", action: onFinished)
+                    .font(.footnote.weight(.medium))
+            }
+            .authBottomActionLayout()
         }
     }
 }

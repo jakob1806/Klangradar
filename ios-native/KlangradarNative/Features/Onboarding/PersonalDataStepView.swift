@@ -1,10 +1,8 @@
 import SwiftUI
 
-/// Schritt "Persönliche Daten". Vor-/Nachname verpflichtend, alles andere
-/// optional — Profilbild nutzt den bestehenden ProfileAvatarEditor
-/// unverändert (der ist bereits an `auth`/`repository` gebunden und
-/// funktioniert unabhängig davon, ob er im Profil-Tab oder hier im
-/// Onboarding angezeigt wird).
+/// Bewusst kurzer Profilschritt: Nur der Vorname ist erforderlich. Nachname
+/// und Geburtsdatum sind freiwillig; Profilbild, Telefon und Adresse bleiben
+/// im späteren Profil und blockieren die Registrierung nicht.
 struct PersonalDataStepView: View {
     @ObservedObject var auth: AuthStore
     let repository: UserRepository?
@@ -12,69 +10,44 @@ struct PersonalDataStepView: View {
 
     @State private var firstName = ""
     @State private var lastName = ""
-    @State private var birthDate = Date()
+    @State private var birthDate = Calendar.current.date(byAdding: .year, value: -30, to: .now) ?? .now
     @State private var hasBirthDate = false
-    @State private var phone = ""
-    @State private var address = ""
     @State private var isWorking = false
     @State private var errorMessage: String?
 
     private var isValid: Bool {
         !firstName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !lastName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     var body: some View {
-        VStack(spacing: 20) {
-            VStack(spacing: 8) {
-                Text("Persönliche Daten")
-                    .font(.largeTitle.bold())
-                Text("Damit dein Profil zu dir passt.")
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
+        Form {
+            Section {
+                TextField("Vorname", text: $firstName).textContentType(.givenName)
+                TextField("Nachname (optional)", text: $lastName).textContentType(.familyName)
+                Toggle("Geburtsdatum angeben", isOn: $hasBirthDate.animation())
+                if hasBirthDate {
+                    DatePicker("Geburtsdatum", selection: $birthDate, in: ...Date.now, displayedComponents: .date)
+                }
+            } header: {
+                Text("Über dich")
+            } footer: {
+                Text("Nachname und Geburtsdatum sind freiwillig. Profilbild, Telefonnummer und Adresse kannst du später im Profil ergänzen.")
             }
-            .padding(.top, 8)
-
-            ProfileAvatarEditor(auth: auth, repository: repository)
-
-            Form {
-                Section {
-                    TextField("Vorname", text: $firstName)
-                        .textContentType(.givenName)
-                    TextField("Nachname", text: $lastName)
-                        .textContentType(.familyName)
-                }
-                Section {
-                    Toggle("Geburtstag hinterlegen", isOn: $hasBirthDate.animation())
-                    if hasBirthDate {
-                        DatePicker("Geburtstag", selection: $birthDate, in: ...Date.now, displayedComponents: .date)
-                    }
-                }
-                Section {
-                    TextField("Telefonnummer (optional)", text: $phone)
-                        .textContentType(.telephoneNumber)
-                        .keyboardType(.phonePad)
-                    TextField("Adresse / Wohnort (optional)", text: $address)
-                        .textContentType(.fullStreetAddress)
-                }
-                if let errorMessage {
-                    Section {
-                        Label(errorMessage, systemImage: "exclamationmark.triangle")
-                            .foregroundStyle(.red)
-                    }
-                }
+            if let errorMessage {
+                Section { Label(errorMessage, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.red) }
             }
-            .scrollContentBackground(.hidden)
-
-            Button("Weiter") { Task { await save() } }
-                .buttonStyle(.borderedProminent)
+        }
+        .navigationTitle("Über dich")
+        .navigationBarTitleDisplayMode(.inline)
+        .safeAreaInset(edge: .bottom) {
+            Button { Task { await save() } } label: { Text("Weiter").frame(maxWidth: .infinity) }
+                .authPrimaryButtonStyle()
                 .controlSize(.large)
-                .frame(maxWidth: .infinity)
                 .disabled(!isValid || isWorking)
-                .padding(.horizontal, 28)
-                .padding(.bottom, 20)
+                .authBottomActionLayout()
         }
         .overlay { if isWorking { ProgressView().controlSize(.large) } }
+        .interactiveDismissDisabled(isWorking)
     }
 
     private func save() async {
@@ -85,17 +58,13 @@ struct PersonalDataStepView: View {
             onSaved()
             return
         }
+        let cleanFirst = firstName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanLast = lastName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let displayName = cleanLast.isEmpty ? cleanFirst : "\(cleanFirst) \(cleanLast)"
         do {
-            try await repository.updatePersonalData(
-                firstName: firstName,
-                lastName: lastName,
-                phone: phone.isEmpty ? nil : phone,
-                address: address.isEmpty ? nil : address,
-                userID: userID,
-                token: token
-            )
+            try await repository.updatePersonalData(firstName: cleanFirst, lastName: cleanLast, userID: userID, token: token)
             if hasBirthDate {
-                try await repository.updateProfile(displayName: "\(firstName) \(lastName)", birthDate: birthDate, userID: userID, token: token)
+                try await repository.updateProfile(displayName: displayName, birthDate: birthDate, userID: userID, token: token)
             }
             onSaved()
         } catch {

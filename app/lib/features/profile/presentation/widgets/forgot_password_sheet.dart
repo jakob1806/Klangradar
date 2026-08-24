@@ -1,15 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/auth/auth_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 
-enum _Step { email, code, password, done }
-
-/// "Passwort vergessen"-Flow: E-Mail -> Code aus der Recovery-Mail -> neues
-/// Passwort. Nutzt denselben `verify`-Endpoint wie die Signup-Bestätigung,
-/// nur mit `OtpType.recovery` (siehe AuthService.verifyEmailCode).
+/// Recovery ist bewusst ein Link-Flow. Der Link öffnet die App und Supabase
+/// meldet `passwordRecovery`; main.dart navigiert dann zu /reset-password.
 class ForgotPasswordSheet extends StatefulWidget {
   const ForgotPasswordSheet({super.key});
 
@@ -18,56 +16,27 @@ class ForgotPasswordSheet extends StatefulWidget {
 }
 
 class _ForgotPasswordSheetState extends State<ForgotPasswordSheet> {
-  final _emailController = TextEditingController();
-  final _codeController = TextEditingController();
-  final _passwordController = TextEditingController();
-  final _passwordConfirmController = TextEditingController();
-  _Step _step = _Step.email;
+  final _email = TextEditingController();
   bool _loading = false;
+  bool _sent = false;
   String? _error;
 
   @override
   void dispose() {
-    _emailController.dispose();
-    _codeController.dispose();
-    _passwordController.dispose();
-    _passwordConfirmController.dispose();
+    _email.dispose();
     super.dispose();
   }
 
-  Future<void> _submit() async {
+  Future<void> _send() async {
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      switch (_step) {
-        case _Step.email:
-          await AuthService.requestPasswordReset(_emailController.text.trim());
-          setState(() => _step = _Step.code);
-        case _Step.code:
-          await AuthService.verifyEmailCode(
-            email: _emailController.text.trim(),
-            code: _codeController.text.trim(),
-            type: OtpType.recovery,
-          );
-          setState(() => _step = _Step.password);
-        case _Step.password:
-          if (_passwordController.text.length < 8) {
-            setState(() => _error = 'Mindestens 8 Zeichen.');
-            return;
-          }
-          if (_passwordController.text != _passwordConfirmController.text) {
-            setState(() => _error = 'Die Passwörter stimmen nicht überein.');
-            return;
-          }
-          await AuthService.updatePassword(_passwordController.text);
-          setState(() => _step = _Step.done);
-        case _Step.done:
-          if (mounted) Navigator.of(context).pop();
-      }
-    } on AuthException catch (e) {
-      setState(() => _error = e.message);
+      await AuthService.requestPasswordReset(_email.text.trim().toLowerCase());
+      if (mounted) setState(() => _sent = true);
+    } on AuthException catch (error) {
+      if (mounted) setState(() => _error = error.message);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -76,111 +45,159 @@ class _ForgotPasswordSheetState extends State<ForgotPasswordSheet> {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
-    return Padding(
-      padding: EdgeInsets.only(
-        left: AppSpacing.screenPaddingMobile,
-        right: AppSpacing.screenPaddingMobile,
-        top: AppSpacing.lg,
-        bottom: MediaQuery.of(context).viewInsets.bottom + AppSpacing.lg,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            'Passwort vergessen',
-            style: Theme.of(context).textTheme.headlineSmall,
-          ),
-          const SizedBox(height: AppSpacing.md),
-          if (_step == _Step.email) ...[
-            TextField(
-              controller: _emailController,
-              keyboardType: TextInputType.emailAddress,
-              autofillHints: const [AutofillHints.email],
-              decoration: const InputDecoration(
-                hintText: 'E-Mail-Adresse',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ] else if (_step == _Step.code) ...[
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          AppSpacing.screenPaddingMobile,
+          AppSpacing.lg,
+          AppSpacing.screenPaddingMobile,
+          MediaQuery.viewInsetsOf(context).bottom + AppSpacing.lg,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
             Text(
-              'Wir haben einen Code an ${_emailController.text.trim()} geschickt.',
-              style: TextStyle(color: colors.textSecondary, fontSize: 12.5),
+              'Passwort zurücksetzen',
+              style: Theme.of(context).textTheme.headlineSmall,
             ),
-            const SizedBox(height: AppSpacing.sm),
-            TextField(
-              controller: _codeController,
-              keyboardType: TextInputType.number,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 20, letterSpacing: 8),
-              decoration: const InputDecoration(
-                hintText: '000000',
-                border: OutlineInputBorder(),
-                counterText: '',
-              ),
-              maxLength: 6,
-            ),
-          ] else if (_step == _Step.password) ...[
-            TextField(
-              controller: _passwordController,
-              obscureText: true,
-              autofillHints: const [AutofillHints.newPassword],
-              decoration: const InputDecoration(
-                hintText: 'Neues Passwort (mind. 8 Zeichen)',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            TextField(
-              controller: _passwordConfirmController,
-              obscureText: true,
-              autofillHints: const [AutofillHints.newPassword],
-              decoration: const InputDecoration(
-                hintText: 'Passwort wiederholen',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ] else ...[
-            Row(
-              children: [
-                Icon(Icons.check_circle, color: colors.accentPrimary),
-                const SizedBox(width: AppSpacing.sm),
-                const Expanded(child: Text('Dein Passwort wurde geändert.')),
-              ],
-            ),
-          ],
-          if (_error != null) ...[
             const SizedBox(height: AppSpacing.sm),
             Text(
-              _error!,
-              style: TextStyle(color: colors.error, fontSize: 12.5),
+              _sent
+                  ? 'Öffne den sicheren Link aus der E-Mail auf diesem Gerät. Prüfe auch deinen Spam-Ordner.'
+                  : 'Wir schicken dir einen sicheren Link, mit dem du ein neues Passwort festlegen kannst.',
+              style: TextStyle(color: colors.textSecondary),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            if (!_sent)
+              TextField(
+                controller: _email,
+                keyboardType: TextInputType.emailAddress,
+                autofillHints: const [AutofillHints.email],
+                decoration: const InputDecoration(labelText: 'E-Mail-Adresse'),
+              )
+            else
+              Icon(
+                Icons.mark_email_read_rounded,
+                size: 56,
+                color: colors.accentPrimary,
+              ),
+            if (_error != null) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Text(_error!, style: TextStyle(color: colors.error)),
+            ],
+            const SizedBox(height: AppSpacing.lg),
+            FilledButton(
+              onPressed: _loading
+                  ? null
+                  : (_sent ? () => Navigator.pop(context) : _send),
+              child: Text(
+                _loading
+                    ? 'Bitte warten …'
+                    : (_sent ? 'Fertig' : 'Reset-Link senden'),
+              ),
             ),
           ],
-          const SizedBox(height: AppSpacing.lg),
-          FilledButton(
-            onPressed: _loading ? null : _submit,
-            style: FilledButton.styleFrom(
-              minimumSize: const Size.fromHeight(46),
-              backgroundColor: colors.accentPrimary,
-            ),
-            child: Text(_primaryLabel),
-          ),
-        ],
+        ),
       ),
     );
   }
+}
 
-  String get _primaryLabel {
-    if (_loading) return 'Bitte warten …';
-    switch (_step) {
-      case _Step.email:
-        return 'Code senden';
-      case _Step.code:
-        return 'Code bestätigen';
-      case _Step.password:
-        return 'Passwort speichern';
-      case _Step.done:
-        return 'Fertig';
+class ResetPasswordScreen extends StatefulWidget {
+  const ResetPasswordScreen({super.key});
+
+  @override
+  State<ResetPasswordScreen> createState() => _ResetPasswordScreenState();
+}
+
+class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
+  final _password = TextEditingController();
+  final _confirmation = TextEditingController();
+  bool _showPassword = false;
+  bool _loading = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _password.dispose();
+    _confirmation.dispose();
+    super.dispose();
+  }
+
+  bool get _valid {
+    final value = _password.text;
+    return value.length >= 8 &&
+        RegExp('[A-Z]').hasMatch(value) &&
+        RegExp('[a-z]').hasMatch(value) &&
+        RegExp('[0-9]').hasMatch(value) &&
+        value == _confirmation.text;
+  }
+
+  Future<void> _save() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      await AuthService.updatePassword(_password.text);
+      if (mounted) context.go('/home');
+    } on AuthException catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
   }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Neues Passwort')),
+    body: ListView(
+      padding: const EdgeInsets.all(AppSpacing.xl),
+      children: [
+        TextField(
+          controller: _password,
+          obscureText: !_showPassword,
+          autofillHints: const [AutofillHints.newPassword],
+          decoration: const InputDecoration(labelText: 'Neues Passwort'),
+          onChanged: (_) => setState(() {}),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        TextField(
+          controller: _confirmation,
+          obscureText: !_showPassword,
+          decoration: const InputDecoration(labelText: 'Passwort bestätigen'),
+          onChanged: (_) => setState(() {}),
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          value: _showPassword,
+          onChanged: (value) => setState(() => _showPassword = value),
+          title: const Text('Passwörter anzeigen'),
+        ),
+        for (final item in <(String, bool)>[
+          ('Mindestens 8 Zeichen', _password.text.length >= 8),
+          (
+            'Groß- und Kleinbuchstaben',
+            RegExp('[A-Z]').hasMatch(_password.text) &&
+                RegExp('[a-z]').hasMatch(_password.text),
+          ),
+          ('Mindestens eine Zahl', RegExp('[0-9]').hasMatch(_password.text)),
+        ])
+          ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(item.$2 ? Icons.check_circle : Icons.circle_outlined),
+            title: Text(item.$1),
+          ),
+        if (_error != null)
+          Text(_error!, style: TextStyle(color: context.appColors.error)),
+        const SizedBox(height: AppSpacing.lg),
+        FilledButton(
+          onPressed: _valid && !_loading ? _save : null,
+          child: const Text('Passwort speichern'),
+        ),
+      ],
+    ),
+  );
 }

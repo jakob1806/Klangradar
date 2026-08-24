@@ -91,6 +91,9 @@ class _KlassikMuenchenAppState extends ConsumerState<KlassikMuenchenApp> {
             if (data.event == AuthChangeEvent.signedIn) {
               PushService.initialize();
             }
+            if (data.event == AuthChangeEvent.passwordRecovery) {
+              _router.go('/reset-password');
+            }
           });
     } catch (_) {
       // Supabase wurde nicht initialisiert (z. B. in Widget-Tests ohne main()) — kein Push-Setup nötig.

@@ -1,0 +1,37 @@
+import { createClient } from "@/lib/supabase/server";
+import { assignAttribute, deleteAttribute, removeAssignment, saveAttribute } from "./actions";
+
+export const dynamic = "force-dynamic";
+type Attribute = { id:string; slug:string; label_de:string; group_key:string; inspiration_title:string|null; inspiration_enabled:boolean; icon_name:string|null; color_key:string; sort_order:number };
+type Assignment = { type:string; entityId:string; attributeId:string; entityName:string; weight:number; source:string };
+
+export default async function AttributesPage() {
+  const supabase = await createClient();
+  const [attributeResult, events, works, persons, ensembles, venues, eventLinks, workLinks, personLinks, ensembleLinks, venueLinks] = await Promise.all([
+    supabase.from("attributes").select("*").order("sort_order"),
+    supabase.from("events").select("id,title").order("title").limit(2000), supabase.from("works").select("id,title").order("title").limit(2000),
+    supabase.from("persons").select("id,full_name").order("full_name").limit(2000), supabase.from("ensembles").select("id,name").order("name").limit(2000),
+    supabase.from("venues").select("id,name").order("name").limit(2000),
+    supabase.from("event_attributes").select("event_id,attribute_id,weight,source,events(title)").limit(5000),
+    supabase.from("work_attributes").select("work_id,attribute_id,weight,source,works(title)").limit(5000),
+    supabase.from("person_attributes").select("person_id,attribute_id,weight,source,persons(full_name)").limit(5000),
+    supabase.from("ensemble_attributes").select("ensemble_id,attribute_id,weight,source,ensembles(name)").limit(5000),
+    supabase.from("venue_attributes").select("venue_id,attribute_id,weight,source,venues(name)").limit(5000),
+  ]);
+  const attributes = (attributeResult.data ?? []) as Attribute[];
+  const mapLinks = (rows:Record<string,unknown>[]|null,type:string,key:string,relation:string,nameKey:string):Assignment[] => (rows??[]).map(row=>({type,entityId:String(row[key]),attributeId:String(row.attribute_id),weight:Number(row.weight),source:String(row.source),entityName:String((row[relation] as Record<string,unknown>|null)?.[nameKey]??row[key])}));
+  const assignments = [...mapLinks(eventLinks.data as never,"event","event_id","events","title"),...mapLinks(workLinks.data as never,"work","work_id","works","title"),...mapLinks(personLinks.data as never,"person","person_id","persons","full_name"),...mapLinks(ensembleLinks.data as never,"ensemble","ensemble_id","ensembles","name"),...mapLinks(venueLinks.data as never,"venue","venue_id","venues","name")];
+  const counts=assignments.reduce<Record<string,number>>((m,a)=>({...m,[a.attributeId]:(m[a.attributeId]??0)+1}),{});
+  const options=[...(events.data??[]).map(x=>({id:x.id,label:`Event · ${x.title}`})),...(works.data??[]).map(x=>({id:x.id,label:`Werk · ${x.title}`})),...(persons.data??[]).map(x=>({id:x.id,label:`Person · ${x.full_name}`})),...(ensembles.data??[]).map(x=>({id:x.id,label:`Ensemble · ${x.name}`})),...(venues.data??[]).map(x=>({id:x.id,label:`Venue · ${x.name}`}))];
+  const colors=["accent","purple","pink","orange","teal","blue","indigo"];
+
+  return <div className="p-8"><h1 className="text-xl font-semibold">Attribute & Inspiration</h1><p className="mt-1 text-sm text-neutral-500">Beliebig erweiterbare gewichtete Taxonomie. Neue Inspirationsattribute erscheinen ohne App-Update.</p>
+    <form action={saveAttribute} className="mt-6 grid grid-cols-4 gap-3 rounded-xl border bg-white p-4">
+      <input name="label_de" required placeholder="Name" className="rounded-lg border px-3 py-2"/><input name="slug" required placeholder="slug" className="rounded-lg border px-3 py-2"/><input name="group_key" defaultValue="thema" placeholder="Gruppe" className="rounded-lg border px-3 py-2"/><input name="inspiration_title" placeholder="Inspirationstitel" className="rounded-lg border px-3 py-2"/>
+      <input name="icon_name" placeholder="SF Symbol" className="rounded-lg border px-3 py-2"/><select name="color_key" className="rounded-lg border px-3 py-2">{colors.map(x=><option key={x}>{x}</option>)}</select><label className="flex items-center gap-2"><input type="checkbox" name="inspiration_enabled"/> In Inspiration zeigen</label><button className="rounded-lg bg-black px-4 py-2 text-white">Anlegen</button>
+    </form>
+    <div className="mt-6 space-y-3">{attributes.map(a=><form action={saveAttribute} key={a.id} className="grid grid-cols-12 items-center gap-2 rounded-xl border bg-white p-3 text-sm"><input type="hidden" name="id" value={a.id}/><input name="label_de" defaultValue={a.label_de} className="col-span-2 rounded border px-2 py-1.5 font-medium"/><input name="slug" defaultValue={a.slug} className="col-span-2 rounded border px-2 py-1.5"/><input name="group_key" defaultValue={a.group_key} className="rounded border px-2 py-1.5"/><input name="inspiration_title" defaultValue={a.inspiration_title??""} className="col-span-2 rounded border px-2 py-1.5"/><input name="icon_name" defaultValue={a.icon_name??""} className="col-span-2 rounded border px-2 py-1.5"/><input type="hidden" name="color_key" value={a.color_key}/><input type="hidden" name="sort_order" value={a.sort_order}/><label><input type="checkbox" name="inspiration_enabled" defaultChecked={a.inspiration_enabled}/> Inspiration</label><span>{counts[a.id]??0}×</span><span className="flex gap-1"><button className="rounded bg-black px-2 py-1 text-white">Speichern</button><button formAction={deleteAttribute.bind(null,a.id)} className="rounded bg-red-50 px-2 py-1 text-red-700">Löschen</button></span></form>)}</div>
+    <h2 className="mt-10 text-lg font-semibold">Zuordnung hinzufügen</h2><form action={assignAttribute} className="mt-3 grid grid-cols-5 gap-3 rounded-xl border bg-white p-4"><select name="entity_type" className="rounded-lg border px-3 py-2">{["event","work","person","ensemble","venue"].map(x=><option key={x}>{x}</option>)}</select><input list="entities" name="entity_id" required placeholder="Entitäts-UUID auswählen" className="col-span-2 rounded-lg border px-3 py-2"/><datalist id="entities">{options.map(x=><option key={`${x.label}-${x.id}`} value={x.id}>{x.label}</option>)}</datalist><select name="attribute_id" className="rounded-lg border px-3 py-2">{attributes.map(a=><option key={a.id} value={a.id}>{a.label_de}</option>)}</select><div className="flex gap-2"><input name="weight" type="number" min="0.01" max="1" step="0.05" defaultValue="1" className="w-20 rounded-lg border px-2"/><button className="rounded-lg bg-black px-3 text-white">Zuordnen</button></div></form>
+    <h2 className="mt-10 text-lg font-semibold">Bestehende Zuordnungen</h2><div className="mt-3 overflow-hidden rounded-xl border bg-white"><table className="w-full text-sm"><thead><tr className="border-b text-left"><th className="px-4 py-3">Entität</th><th>Typ</th><th>Attribut</th><th>Gewicht</th><th>Quelle</th><th/></tr></thead><tbody className="divide-y">{assignments.slice(0,1000).map((x,i)=><tr key={`${x.type}-${x.entityId}-${x.attributeId}-${i}`}><td className="px-4 py-2">{x.entityName}</td><td>{x.type}</td><td>{attributes.find(a=>a.id===x.attributeId)?.label_de}</td><td>{x.weight.toFixed(2)}</td><td>{x.source}</td><td><form action={removeAssignment.bind(null,x.type,x.entityId,x.attributeId)}><button className="text-red-700">Entfernen</button></form></td></tr>)}</tbody></table></div>
+  </div>;
+}

@@ -157,7 +157,7 @@ max_indexes = 5
 enabled = true
 # The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
 # in emails.
-site_url = "https://ko-kal-x-claude.vercel.app"
+site_url = "https://klangradar.com"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
@@ -165,7 +165,8 @@ additional_redirect_urls = [
   "https://127.0.0.1:3000",
   "http://localhost:3000/auth/callback",
   "http://127.0.0.1:3000/auth/callback",
-  "https://ko-kal-x-claude.vercel.app/auth/callback",
+  "https://klangradar.com/auth/callback",
+  "de.klangradar.native://auth-callback",
   "de.klassikmuenchen://login-callback",
 ]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
@@ -206,7 +207,7 @@ password_requirements = "lower_upper_letters_digits"
 
 [auth.rate_limit]
 # Number of emails that can be sent per hour. Requires auth.email.smtp to be enabled.
-email_sent = 2
+email_sent = 30
 # Number of SMS messages that can be sent per hour. Requires auth.sms to be enabled.
 sms_sent = 30
 # Number of anonymous sign-ins that can be made per hour per IP address. Requires enable_anonymous_sign_ins = true.
@@ -260,10 +261,13 @@ pass = "env(RESEND_SMTP_PASSWORD)"
 admin_email = "noreply@klangradar.com"
 sender_name = "Klangradar"
 
-# Uncomment to customize email template
-# [auth.email.template.invite]
-# subject = "You have been invited"
-# content_path = "./supabase/templates/invite.html"
+[auth.email.template.confirmation]
+subject = "Dein Klangradar Bestätigungscode"
+content_path = "./supabase/templates/confirmation.html"
+
+[auth.email.template.recovery]
+subject = "Klangradar Passwort zurücksetzen"
+content_path = "./supabase/templates/recovery.html"
 
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]

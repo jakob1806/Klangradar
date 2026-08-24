@@ -122,6 +122,7 @@
   "eventLastVerified": "Last checked: {date}",
   "eventVenueSectionTitle": "Venue",
   "eventDataSource": "Source: {notice}",
+  "eventDataSourceUnknown": "Photographer/source unknown",
   "eventSimilarEvents": "Similar events",
   "ticketStatusAvailable": "Tickets available",
   "ticketStatusFewLeft": "Few tickets left",

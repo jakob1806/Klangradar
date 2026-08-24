@@ -46,6 +46,7 @@ import {
   callAiFunction,
   hasAnyAiProviderConfigured,
 } from "../_shared/ai/router.ts";
+import { assessEnsembleName } from "../_shared/entityNameValidation.ts";
 import { logSystemAction } from "../_shared/systemLog.ts";
 import { enrichCandidateContext } from "../_shared/entityEnrichment.ts";
 import { fetchPageText } from "../_shared/pageText.ts";
@@ -938,6 +939,9 @@ Deno.serve(async (req) => {
       name: string,
       _type: string | null,
     ): Promise<string[] | null> {
+      const assessment = assessEnsembleName(name);
+      if (!assessment.safe) return [];
+      name = assessment.cleaned;
       const key = name.toLowerCase();
       if (ensembleCache.has(key)) return ensembleCache.get(key) ?? null;
       const { data: resolvedEntities } = await supabase.rpc(

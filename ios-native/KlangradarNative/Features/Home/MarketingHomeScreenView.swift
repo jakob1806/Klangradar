@@ -1,14 +1,16 @@
 import SwiftUI
 
-/// Homescreen-Nachbau für Social-Media-Screenshots: identisches Layout,
-/// dieselben Komponenten (`EventCard`, `EventArtwork`, `KlangradarTheme`,
-/// `KlangradarBackground`) wie `HomeView`, aber mit fest hinterlegten
-/// Demo-Konzerten statt Supabase-Daten — kein Netzwerkzugriff, kein
-/// ViewModel. Nur zum Erzeugen von Marketing-Screenshots verwenden, niemals
-/// im echten Nutzerfluss einhängen.
+/// Homescreen-Nachbau für Social-Media-Screenshots: identisches Layout wie
+/// `HomeView` (`KlangradarBackground`, Hero + Rails, gleiche Fonts/Abstände/
+/// Kartenform), aber mit frei editierbaren Inhalten statt Supabase-Daten —
+/// über den Stift-Button oben rechts direkt im Simulator bearbeitbar (Texte,
+/// Kategorien, Reihenfolge, Bilder per URL oder aus der Fotomediathek).
+/// Kein Netzwerkzugriff außer zum Laden der eingetragenen Bild-URLs. Nur für
+/// Marketing-Screenshots gedacht, niemals im echten Nutzerfluss einhängen.
 struct MarketingHomeScreenView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    @StateObject private var favorites = FavoriteStore(auth: AuthStore(service: nil), repository: nil)
+    @StateObject private var store = MarketingContentStore()
+    @State private var showsEditor = false
 
     var body: some View {
         NavigationStack {
@@ -18,13 +20,13 @@ struct MarketingHomeScreenView: View {
 
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 34) {
-                        MarketingHeroEventView(
-                            event: MarketingDemoData.hero,
+                        MarketingHeroView(
+                            hero: store.content.hero,
                             height: horizontalSizeClass == .regular ? 280 : 224
                         )
 
-                        ForEach(MarketingDemoData.rails) { rail in
-                            MarketingEventRail(title: rail.title, events: rail.events)
+                        ForEach(store.content.modules) { module in
+                            MarketingEventRail(title: module.title, events: module.events)
                         }
                     }
                     .padding(.top, 8)
@@ -33,104 +35,64 @@ struct MarketingHomeScreenView: View {
                 .frame(maxWidth: KlangradarTheme.contentMaxWidth)
             }
             .navigationTitle("Klangradar")
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button { showsEditor = true } label: {
+                        Label("Bearbeiten", systemImage: "pencil")
+                    }
+                }
+            }
+            .sheet(isPresented: $showsEditor) {
+                MarketingContentEditorView()
+                    .environmentObject(store)
+            }
         }
-        .environmentObject(favorites)
     }
 }
 
-// MARK: - Demo-Daten
+// MARK: - Layout (1:1 Nachbau der Darstellung aus HomeView, mit freien Texten/Bildern)
 
-/// Hier frei anpassen: Titel, Untertitel, Datum/Uhrzeit, Ort und Bild-URL
-/// je Konzert. `startDatetime` ist ISO 8601 in der Europe/Berlin-Zeitzone
-/// (`"yyyy-MM-dd'T'HH:mm:ssZ"`); `imageUrls` nimmt eine oder mehrere
-/// öffentlich erreichbare Bild-URLs, das erste Element wird verwendet.
-private enum MarketingDemoData {
-    struct Rail: Identifiable {
-        let id = UUID()
-        let title: String
-        let events: [ConcertEvent]
+private struct MarketingArtwork: View {
+    let imagePath: String?
+
+    var body: some View {
+        AsyncImage(url: MarketingContentStore.resolvedURL(for: imagePath)) { phase in
+            switch phase {
+            case let .success(image):
+                image.resizable().scaledToFill()
+            case .failure:
+                placeholder
+            case .empty:
+                placeholder.overlay { ProgressView().tint(.white) }
+            @unknown default:
+                placeholder
+            }
+        }
+        .accessibilityHidden(true)
     }
 
-    static let hero = ConcertEvent(
-        id: UUID(),
-        slug: "sommerliches-orgelkonzert-muenchner-dom",
-        title: "Sommerliches Orgelkonzert im Münchner Dom",
-        subtitle: nil,
-        startDatetime: "2026-08-21T19:30:00+02:00",
-        imageUrls: ["https://images.unsplash.com/photo-1520523839897-bd0b52f945a0?w=1600&q=80"],
-        status: "published",
-        venues: VenueSummary(id: UUID(), name: "Frauenkirche (Dom zu Unserer Lieben Frau)")
-    )
-
-    static let rails: [Rail] = [
-        Rail(title: "Für dich", events: [
-            ConcertEvent(
-                id: UUID(),
-                slug: "bro-beethoven-9",
-                title: "Symphonieorchester des Bayerischen Rundfunks: Beethoven 9",
-                subtitle: nil,
-                startDatetime: "2026-10-01T20:00:00+02:00",
-                imageUrls: ["https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=1200&q=80"],
-                status: "published",
-                venues: VenueSummary(id: UUID(), name: "Isarphilharmonie")
-            ),
-            ConcertEvent(
-                id: UUID(),
-                slug: "simon-rattle-beethoven-9",
-                title: "Sir Simon Rattle | Beethoven 9",
-                subtitle: nil,
-                startDatetime: "2026-09-24T19:00:00+02:00",
-                imageUrls: ["https://images.unsplash.com/photo-1514320291840-2e0a9bf2a9ae?w=1200&q=80"],
-                status: "published",
-                venues: VenueSummary(id: UUID(), name: "Herkulessaal")
-            ),
-            ConcertEvent(
-                id: UUID(),
-                slug: "mozart-requiem",
-                title: "Mozart Requiem",
-                subtitle: nil,
-                startDatetime: "2026-09-27T20:00:00+02:00",
-                imageUrls: ["https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=1200&q=80"],
-                status: "published",
-                venues: VenueSummary(id: UUID(), name: "Prinzregententheater")
+    private var placeholder: some View {
+        ZStack {
+            LinearGradient(
+                colors: [KlangradarTheme.deepInk, KlangradarTheme.accent],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
             )
-        ]),
-        Rail(title: "Münchner Philharmoniker", events: [
-            ConcertEvent(
-                id: UUID(),
-                slug: "philharmoniker-strawinsky-ravel",
-                title: "Münchner Philharmoniker: Strawinsky & Ravel",
-                subtitle: nil,
-                startDatetime: "2026-10-02T20:00:00+02:00",
-                imageUrls: ["https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=1200&q=80"],
-                status: "published",
-                venues: VenueSummary(id: UUID(), name: "Isarphilharmonie")
-            ),
-            ConcertEvent(
-                id: UUID(),
-                slug: "philharmoniker-bruckner-8",
-                title: "Münchner Philharmoniker: Bruckner 8",
-                subtitle: nil,
-                startDatetime: "2026-10-03T19:30:00+02:00",
-                imageUrls: ["https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=1200&q=80"],
-                status: "published",
-                venues: VenueSummary(id: UUID(), name: "Isarphilharmonie")
-            )
-        ])
-    ]
+            Image(systemName: "music.note.list")
+                .font(.system(size: 42, weight: .light))
+                .foregroundStyle(.white.opacity(0.75))
+        }
+    }
 }
 
-// MARK: - Layout (1:1 Kopie der Darstellung aus HomeView)
-
-/// Exakter Nachbau von `HeroEventView` aus `HomeView.swift` — dieselbe
-/// Schrift, Abstände, Verlauf und Kartenform, nur ohne `NavigationLink`.
-private struct MarketingHeroEventView: View {
-    let event: ConcertEvent
+/// Exakter Nachbau von `HeroEventView` aus `HomeView.swift`.
+private struct MarketingHeroView: View {
+    let hero: MarketingHeroData
     let height: CGFloat
 
     var body: some View {
         GeometryReader { proxy in
-            EventArtwork(event: event)
+            MarketingArtwork(imagePath: hero.imagePath)
                 .frame(width: proxy.size.width, height: height)
                 .clipped()
                 .overlay(alignment: .bottom) {
@@ -147,17 +109,17 @@ private struct MarketingHeroEventView: View {
                 }
                 .overlay(alignment: .bottomLeading) {
                     VStack(alignment: .leading, spacing: 7) {
-                        Text(heroDate(event))
+                        Text(hero.dateLabel)
                             .font(.caption.weight(.bold))
                             .tracking(0.8)
                             .foregroundStyle(.white.opacity(0.9))
 
-                        Text(event.title)
+                        Text(hero.title)
                             .font(.title3.weight(.bold))
                             .lineLimit(2)
                             .fixedSize(horizontal: false, vertical: true)
 
-                        Label(event.subtitle ?? event.venueName, systemImage: "mappin")
+                        Label(hero.venue, systemImage: "mappin")
                             .font(.subheadline.weight(.medium))
                             .lineLimit(1)
                             .foregroundStyle(.white.opacity(0.78))
@@ -173,19 +135,43 @@ private struct MarketingHeroEventView: View {
         .padding(.horizontal, KlangradarTheme.pagePadding)
         .accessibilityElement(children: .combine)
     }
+}
 
-    private func heroDate(_ event: ConcertEvent) -> String {
-        guard let date = event.startDate else { return "NÄCHSTE VERANSTALTUNG" }
-        let day = KlangradarDateTime.calendar.isDateInToday(date) ? "HEUTE" : KlangradarDateTime.string(date, format: "EEE, d. MMM").uppercased()
-        return "\(day) · \(date.formatted(date: .omitted, time: .shortened))"
+/// Exakter Nachbau von `EventCard` aus DesignSystem/Components/EventCard.swift.
+private struct MarketingEventCard: View {
+    let event: MarketingEventData
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            MarketingArtwork(imagePath: event.imagePath)
+                .frame(width: 196, height: 110)
+                .clipped()
+                .clipShape(.rect(cornerRadius: 18))
+                .overlay(alignment: .topTrailing) {
+                    GlassIconButton(systemImage: "heart", accessibilityLabel: "Zu Favoriten hinzufügen") {}
+                        .padding(8)
+                }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(event.title)
+                    .font(.headline)
+                    .lineLimit(2)
+                Text(event.subtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+        }
+        .frame(width: 196, height: 192, alignment: .topLeading)
+        .contentShape(.rect)
+        .accessibilityElement(children: .combine)
     }
 }
 
-/// Exakter Nachbau von `EventRail` aus `HomeView.swift` — nutzt dieselbe
-/// `EventCard`, denselben Titel-Font und dieselben Abstände.
+/// Exakter Nachbau von `EventRail` aus `HomeView.swift`.
 private struct MarketingEventRail: View {
     let title: String
-    let events: [ConcertEvent]
+    let events: [MarketingEventData]
 
     var body: some View {
         if !events.isEmpty {
@@ -197,7 +183,7 @@ private struct MarketingEventRail: View {
                 ScrollView(.horizontal) {
                     LazyHStack(alignment: .top, spacing: 16) {
                         ForEach(events) { event in
-                            EventCard(event: event)
+                            MarketingEventCard(event: event)
                         }
                     }
                     .padding(.horizontal, KlangradarTheme.pagePadding)

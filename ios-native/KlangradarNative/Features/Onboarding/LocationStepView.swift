@@ -16,8 +16,8 @@ struct LocationStepView: View {
 
     var body: some View {
         OnboardingStepScaffold(
-            title: "Dein Standort",
-            subtitle: "Für Veranstaltungen in deiner Nähe.",
+            title: "Konzerte in deiner Nähe entdecken",
+            subtitle: "Dein Standort hilft uns, passende Veranstaltungen in deiner Umgebung zu zeigen. Im iOS-Dialog kannst du auch nur den ungefähren Standort teilen.",
             systemImage: "location.circle",
             content: {
                 if let activeRegionName {
@@ -38,7 +38,7 @@ struct LocationStepView: View {
     }
 
     private var manualFallbackTitle: String {
-        activeRegionName.map { "Ohne Standort fortfahren — \($0) verwenden" } ?? "Ohne Standort fortfahren"
+        activeRegionName.map { "Nicht jetzt — \($0) verwenden" } ?? "Nicht jetzt"
     }
 
     private func loadActiveRegion() async {

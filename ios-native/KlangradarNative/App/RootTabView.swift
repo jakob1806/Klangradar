@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct RootTabView: View {
+    @Environment(\.scenePhase) private var scenePhase
     let environment: AppEnvironment
 
     @State private var selection: AppTab = .home
@@ -16,6 +17,9 @@ struct RootTabView: View {
     @AppStorage("didCompleteOnboarding") private var didCompleteOnboarding = false
     @State private var showsOnboarding = false
     @AppStorage("appearance") private var appearance = "system"
+    @AppStorage(BiometricAuth.enabledStorageKey) private var biometricProtectionEnabled = false
+    @State private var isBiometricUnlocked = !BiometricAuth.isEnabled
+    @State private var isAuthenticatingBiometrics = false
 
     init(environment: AppEnvironment) {
         self.environment = environment
@@ -34,10 +38,13 @@ struct RootTabView: View {
                 auth: environment.auth,
                 userRepository: environment.restClient.map(UserRepository.init(client:))
             )
+            .id(auth.userID)
             .tag(AppTab.home)
             .tabItem {
                 Label("Home", systemImage: "house")
             }
+
+
 
             SearchView(
                 eventRepository: environment.events,
@@ -88,8 +95,15 @@ struct RootTabView: View {
         .task {
             await auth.bootstrap()
             await refreshOnboardingGate()
+            await unlockWithBiometricsIfNeeded()
         }
-        .onChange(of: auth.userID) { _, _ in Task { await refreshOnboardingGate() } }
+        .onChange(of: auth.userID) { _, _ in
+            Task {
+                await refreshOnboardingGate()
+                await favorites.load()
+                await follows.load()
+            }
+        }
         .task { await favorites.load() }
         .task { await follows.load() }
         .fullScreenCover(isPresented: $showsOnboarding) {
@@ -101,7 +115,20 @@ struct RootTabView: View {
                 showsOnboarding = false
             }
         }
+        .sheet(isPresented: $auth.isCompletingPasswordRecovery) {
+            PasswordResetCompletionView(auth: auth)
+        }
+        .alert("Link konnte nicht geöffnet werden", isPresented: callbackErrorBinding) {
+            Button("OK", role: .cancel) { auth.callbackErrorMessage = nil }
+        } message: {
+            Text(auth.callbackErrorMessage ?? "Bitte fordere einen neuen Link an.")
+        }
         .onOpenURL { url in
+            if url.scheme == AuthService.callbackScheme, url.host == "auth-callback" {
+                showsOnboarding = false
+                Task { await auth.handleAuthCallback(url) }
+                return
+            }
             let path = url.path.lowercased()
             if path.contains("search") { selection = .search }
             else if path.contains("map") || path.contains("venue") { selection = .map }
@@ -110,6 +137,48 @@ struct RootTabView: View {
             else { selection = .home }
         }
         .preferredColorScheme(preferredColorScheme)
+        .overlay {
+            if shouldShowBiometricLock {
+                BiometricLockView(isAuthenticating: isAuthenticatingBiometrics) {
+                    Task { await unlockWithBiometricsIfNeeded() }
+                }
+                .transition(.opacity)
+                .zIndex(100)
+            }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background, biometricProtectionEnabled, case .authenticated = auth.state {
+                isBiometricUnlocked = false
+            } else if phase == .active {
+                Task { await unlockWithBiometricsIfNeeded() }
+            }
+        }
+        .onChange(of: biometricProtectionEnabled) { _, enabled in
+            isBiometricUnlocked = !enabled
+            if enabled { Task { await unlockWithBiometricsIfNeeded() } }
+        }
+    }
+
+    private var callbackErrorBinding: Binding<Bool> {
+        Binding(
+            get: { auth.callbackErrorMessage != nil },
+            set: { if !$0 { auth.callbackErrorMessage = nil } }
+        )
+    }
+
+    private var shouldShowBiometricLock: Bool {
+        guard case .authenticated = auth.state else { return false }
+        return biometricProtectionEnabled && !isBiometricUnlocked
+    }
+
+    @MainActor
+    private func unlockWithBiometricsIfNeeded() async {
+        guard shouldShowBiometricLock, !isAuthenticatingBiometrics else { return }
+        isAuthenticatingBiometrics = true
+        defer { isAuthenticatingBiometrics = false }
+        if (try? await BiometricAuth.authenticate(reason: "Klangradar entsperren")) == true {
+            withAnimation(.easeOut(duration: 0.2)) { isBiometricUnlocked = true }
+        }
     }
 
     private var preferredColorScheme: ColorScheme? {
@@ -123,6 +192,10 @@ struct RootTabView: View {
     /// noch nicht gesetzt ist — deckt Neuinstall/anderes Gerät mit
     /// bestehendem Account ab, ohne den lokalen Gast-Skip zu verlieren.
     private func refreshOnboardingGate() async {
+        guard !auth.isCompletingPasswordRecovery else {
+            showsOnboarding = false
+            return
+        }
         guard
             case .authenticated = auth.state,
             let userID = auth.userID,
@@ -133,7 +206,38 @@ struct RootTabView: View {
             return
         }
         let completed = (try? await repository.isOnboardingCompleted(userID: userID, token: token)) ?? true
-        showsOnboarding = !didCompleteOnboarding || !completed
+        // Ein bestehender Nutzer, der sich bewusst aus dem Profil anmeldet,
+        // darf nicht zurück in den Registrierungsflow gezwungen werden. Das
+        // serverseitige Flag hilft nur auf einer frischen Installation; ein
+        // lokal bereits abgeschlossenes (auch als Gast übersprungenes)
+        // Onboarding hat Vorrang.
+        showsOnboarding = !didCompleteOnboarding && !completed
+    }
+}
+
+private struct BiometricLockView: View {
+    let isAuthenticating: Bool
+    let retry: () -> Void
+
+    var body: some View {
+        ZStack {
+            Color(uiColor: .systemBackground).ignoresSafeArea()
+            VStack(spacing: 18) {
+                Image(systemName: BiometricAuth.availableBiometryKind == .touchID ? "touchid" : "faceid")
+                    .font(.system(size: 48, weight: .regular))
+                    .foregroundStyle(KlangradarTheme.accent)
+                Text("Klangradar ist geschützt")
+                    .font(.title2.bold())
+                Text("Authentifiziere dich, um fortzufahren.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Button("Entsperren", systemImage: "lock.open") { retry() }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .disabled(isAuthenticating)
+            }
+            .padding(32)
+        }
     }
 }
 

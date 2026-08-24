@@ -12,6 +12,7 @@ const LABEL: Record<AuditableEntityType, string> = {
   person: "Alle Personen prüfen",
   ensemble: "Alle Ensembles prüfen",
   venue: "Alle Venues prüfen",
+  work: "Alle Werke prüfen",
   event: "Alle Veranstaltungen prüfen",
 };
 
@@ -19,6 +20,7 @@ const PENDING_LABEL: Record<AuditableEntityType, string> = {
   person: "Prüft alle Personen…",
   ensemble: "Prüft alle Ensembles…",
   venue: "Prüft alle Venues…",
+  work: "Prüft alle Werke…",
   event: "Prüft alle Veranstaltungen…",
 };
 

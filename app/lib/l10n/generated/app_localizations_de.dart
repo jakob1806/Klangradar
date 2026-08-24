@@ -1,5 +1,6 @@
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
+
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -383,6 +384,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String eventDataSource(String notice) {
     return 'Datenquelle: $notice';
   }
+
+  @override
+  String get eventDataSourceUnknown => 'Fotograf/Quelle nicht bekannt';
 
   @override
   String get eventSimilarEvents => 'Ähnliche Veranstaltungen';

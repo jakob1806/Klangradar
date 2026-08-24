@@ -9,6 +9,7 @@ Deno.test("parses Staatsoper production image and performing cast", () => {
 *   **Musikalische Leitung**[Antonino Fogliani](https://www.staatsoper.de/biographien/fogliani-antonino)
 *   **Inszenierung**[Jean-Pierre Ponnelle](https://www.staatsoper.de/biographien/ponnelle-jean-pierre)
 *   **Chor**[Franz Obermair](https://www.staatsoper.de/biographien/obermair-franz)
+*   **Chor**[Tölzer Knabenchor](https://www.staatsoper.de/biographien/toelzer-knabenchor)
 *   **Don Ramiro**[Liam Bonthrone](https://www.staatsoper.de/biographien/bonthorne-liam)
 *   **Violine**[So-Young Kim](https://www.staatsoper.de/biographien/kim-so-young)[Julia Pfister](https://www.staatsoper.de/biographien/pfister-julia-1)
 *   Bayerisches Staatsorchester
@@ -20,6 +21,12 @@ Deno.test("parses Staatsoper production image and performing cast", () => {
   assertEquals(detail.participants.map((p) => [p.name, p.role, p.type]), [
     ["Antonino Fogliani", "dirigent", "person"],
     ["Franz Obermair", "chorleiter", "person"],
+    // Regressionstest: ein per Markdown-Link auf die eigene /biographien/-
+    // Seite verwiesenes Ensemble (nicht nur ein reiner Bullet-Text-Name)
+    // muss trotzdem als "ensemble" erkannt werden, sonst wird es als
+    // eigenständige Person angelegt statt über resolve_ensemble_entities
+    // auf den bestehenden Ensemble-Datensatz aufgelöst.
+    ["Tölzer Knabenchor", null, "ensemble"],
     ["Liam Bonthrone", "solist", "person"],
     ["So-Young Kim", "solist", "person"],
     ["Julia Pfister", "solist", "person"],

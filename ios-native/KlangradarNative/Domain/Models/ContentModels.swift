@@ -1,5 +1,14 @@
 import Foundation
 
+extension String {
+    /// Normalisiert nutzerseitig sichtbare Kategorien, ohne Eigennamen oder
+    /// den restlichen Text wie bei `capitalized` umzuschreiben.
+    var leadingUppercased: String {
+        guard let first else { return self }
+        return String(first).uppercased() + dropFirst()
+    }
+}
+
 enum EntityKind: String, CaseIterable, Codable, Hashable, Sendable {
     case person
     case ensemble
@@ -71,6 +80,10 @@ struct GalleryImage: Identifiable, Hashable, Sendable {
     let altText: String?
     let photographer: String?
     let license: String?
+    /// Ursprüngliche externe Fundstelle — nur gesetzt, wenn sie von `url`
+    /// abweicht (sonst würde der Credit-Link nur auf das Bild selbst
+    /// zeigen), siehe ContentRepository.gallery(kind:entityID:).
+    let sourceURL: URL?
 }
 
 struct LinkedEvent: Identifiable, Hashable, Sendable {

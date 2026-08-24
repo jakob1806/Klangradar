@@ -43,9 +43,9 @@ class DismissalService {
 
     // Sofort clientseitig ausblenden, nicht erst nach dem Netzwerk-Write —
     // die Karte verschwindet ohne wahrnehmbare Verzögerung.
-    ref.read(dismissedEntityIdsProvider.notifier).update(
-      (ids) => {...ids, entityId},
-    );
+    ref
+        .read(dismissedEntityIdsProvider.notifier)
+        .update((ids) => {...ids, entityId});
 
     await Supabase.instance.client.from('content_dismissals').upsert({
       'user_id': user.id,
@@ -63,9 +63,9 @@ class DismissalService {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) return;
 
-    ref.read(dismissedEntityIdsProvider.notifier).update(
-      (ids) => {...ids}..remove(entityId),
-    );
+    ref
+        .read(dismissedEntityIdsProvider.notifier)
+        .update((ids) => {...ids}..remove(entityId));
 
     await Supabase.instance.client
         .from('content_dismissals')

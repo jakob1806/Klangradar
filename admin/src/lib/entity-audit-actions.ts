@@ -8,7 +8,7 @@ import {
   type EditorialAiProposal,
 } from "@/lib/editorial-ai-actions";
 
-export type AuditableEntityType = "person" | "ensemble" | "venue" | "event";
+export type AuditableEntityType = "person" | "ensemble" | "venue" | "work" | "event";
 
 export interface EntityAuditPageResult {
   checkedInPage: number;
@@ -104,6 +104,38 @@ export async function resolveEntityAuditFlag(id: string): Promise<void> {
   revalidatePath("/qualitaetspruefung");
 }
 
+async function mustSucceed(operation: PromiseLike<{ error: { message: string } | null }>) {
+  const { error } = await operation;
+  if (error) throw new Error(error.message);
+}
+
+/** Löscht einen beanstandeten Stammdatensatz direkt aus der Prüfung. Vorher
+ * werden bekannte optionale Verweise gelöst; fachliche Datensätze wie Events
+ * bleiben erhalten, wenn z. B. eine Person, ein Ensemble oder ein Venue
+ * entfernt wird. */
+export async function deleteEntityFromAudit(
+  entityType: AuditableEntityType,
+  entityId: string,
+  flagId: string,
+): Promise<void> {
+  const supabase = await createClient();
+
+  if (entityType === "person") {
+    await mustSucceed(supabase.rpc("delete_person", { p_person_id: entityId }));
+  } else if (entityType === "ensemble") {
+    await mustSucceed(supabase.rpc("delete_ensemble", { p_ensemble_id: entityId }));
+  } else if (entityType === "venue") {
+    await mustSucceed(supabase.rpc("delete_venue", { p_venue_id: entityId }));
+  } else if (entityType === "work") {
+    await mustSucceed(supabase.from("event_works").delete().eq("work_id", entityId));
+    await mustSucceed(supabase.from("works").delete().eq("id", entityId));
+  } else if (entityType === "event") {
+    await mustSucceed(supabase.rpc("delete_event", { p_event_id: entityId }));
+  }
+  await mustSucceed(supabase.from("entity_audit_flags").delete().eq("id", flagId));
+  revalidatePath("/qualitaetspruefung");
+}
+
 export interface BulkAuditActionResult {
   completed: number;
   skipped: number;
@@ -114,6 +146,7 @@ export interface BulkAuditActionResult {
 export interface AuditPreparationResult {
   generated: number;
   existing: number;
+  autoApplied: number;
   empty: number;
   failed: number;
   errors: string[];
@@ -209,7 +242,7 @@ export async function applyAllEntityAuditCorrections(ids: string[]): Promise<Bul
  * fortsetzen, ohne bereits erfolgreiche Vorschläge erneut zu berechnen. */
 export async function prepareEntityAuditCorrections(ids: string[]): Promise<AuditPreparationResult> {
   const uniqueIds = [...new Set(ids)].slice(0, 12);
-  const result: AuditPreparationResult = { generated: 0, existing: 0, empty: 0, failed: 0, errors: [] };
+  const result: AuditPreparationResult = { generated: 0, existing: 0, autoApplied: 0, empty: 0, failed: 0, errors: [] };
   if (uniqueIds.length === 0) return result;
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -241,8 +274,27 @@ export async function prepareEntityAuditCorrections(ids: string[]): Promise<Audi
           suggestions.join(" ") || null,
           Boolean(stored),
         );
-        if (correction.proposals.length > 0) result.generated += 1;
-        else result.empty += 1;
+        if (correction.proposals.length > 0) {
+          result.generated += 1;
+          // Nur vollständig bestätigte Vorschläge werden im Hintergrund
+          // übernommen. "likely" und "unclear" bleiben sichtbar für eine
+          // redaktionelle Entscheidung; Mischpakete werden nicht teilweise
+          // angewendet, damit der Datensatz konsistent bleibt.
+          if (correction.proposals.every((proposal) => proposal.confidence === "confirmed")) {
+            await applyEditorialAiProposals(
+              row.entity_type as AuditableEntityType,
+              row.entity_id,
+              correction.proposals,
+            );
+            const { error: resolveError } = await supabase
+              .from("entity_audit_flags")
+              .update({ status: "resolved", resolved_at: new Date().toISOString() })
+              .eq("id", row.id)
+              .eq("status", "open");
+            if (resolveError) throw resolveError;
+            result.autoApplied += 1;
+          }
+        } else result.empty += 1;
       } catch (cause) {
         result.failed += 1;
         result.errors.push(cause instanceof Error ? cause.message : "Unbekannter Fehler");

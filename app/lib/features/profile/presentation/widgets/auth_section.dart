@@ -1,24 +1,29 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/auth/auth_service.dart';
+import '../../../../core/auth/biometric_auth.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import 'forgot_password_sheet.dart';
 
 /// Passwort ersetzt den E-Mail-Code als Anmeldeweg (Onboarding-Redesign) —
-/// der Code bleibt intern nur für Signup-Bestätigung und Passwort-Reset
-/// (siehe forgot_password_sheet.dart und den Onboarding-Signup-Schritt).
+/// der Code bleibt intern nur für die Signup-Bestätigung. Der Passwort-Reset
+/// kehrt über einen sicheren Link in die App zurück.
 class AuthSection extends ConsumerStatefulWidget {
-  const AuthSection({super.key, this.onSignedIn});
+  const AuthSection({super.key, this.onSignedIn, this.onCreateAccount});
 
   /// Wird nach erfolgreicher Anmeldung (Passwort oder OAuth) aufgerufen —
   /// beim Aufruf aus dem Onboarding-"Anmelden"-Sheet nutzt der Aufrufer das,
   /// um das Sheet zu schließen. Im normalen Profil-Tab bleibt es ungesetzt,
   /// dort reicht der automatische Rebuild über currentUserProvider.
   final VoidCallback? onSignedIn;
+  final VoidCallback? onCreateAccount;
 
   @override
   ConsumerState<AuthSection> createState() => _AuthSectionState();
@@ -28,12 +33,24 @@ class _AuthSectionState extends ConsumerState<AuthSection> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _loading = false;
+  bool _showPassword = false;
+  bool _waitingForOAuth = false;
   String? _error;
   Set<String> _oauthProviders = const {};
+  StreamSubscription<AuthState>? _authSubscription;
 
   @override
   void initState() {
     super.initState();
+    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((
+      state,
+    ) {
+      if (_waitingForOAuth &&
+          state.event == AuthChangeEvent.signedIn &&
+          state.session?.user.isAnonymous == false) {
+        widget.onSignedIn?.call();
+      }
+    });
     AuthService.enabledOAuthProviders().then((providers) {
       if (mounted) setState(() => _oauthProviders = providers);
     });
@@ -41,6 +58,7 @@ class _AuthSectionState extends ConsumerState<AuthSection> {
 
   @override
   void dispose() {
+    _authSubscription?.cancel();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -56,7 +74,7 @@ class _AuthSectionState extends ConsumerState<AuthSection> {
     });
     try {
       await AuthService.signInWithPassword(email: email, password: password);
-      // Erfolgreicher Login löst onAuthStateChange aus, ProfileScreen rebuilt automatisch.
+      await _offerBiometrics();
       widget.onSignedIn?.call();
     } on AuthException catch (e) {
       setState(() => _error = e.message);
@@ -71,16 +89,53 @@ class _AuthSectionState extends ConsumerState<AuthSection> {
   ) async {
     setState(() {
       _loading = true;
+      _waitingForOAuth = true;
       _error = null;
     });
     try {
-      await signIn();
-      widget.onSignedIn?.call();
+      final launched = await signIn();
+      if (!launched && mounted) {
+        setState(() {
+          _waitingForOAuth = false;
+          _error = '$providerLabel-Anmeldung konnte nicht geöffnet werden.';
+        });
+      }
     } on AuthException catch (e) {
-      setState(() => _error = '$providerLabel: ${e.message}');
+      setState(() {
+        _waitingForOAuth = false;
+        _error = '$providerLabel: ${e.message}';
+      });
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  Future<void> _offerBiometrics() async {
+    if (!await BiometricAuth.isAvailable ||
+        await BiometricAuth.isEnabled ||
+        !mounted) {
+      return;
+    }
+    final enable = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Face ID oder Touch ID aktivieren?'),
+        content: const Text(
+          'Damit kannst du deinen angemeldeten Account auf diesem Gerät zusätzlich schützen.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Später'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Aktivieren'),
+          ),
+        ],
+      ),
+    );
+    if (enable == true) await BiometricAuth.setEnabled(true);
   }
 
   @override
@@ -89,8 +144,26 @@ class _AuthSectionState extends ConsumerState<AuthSection> {
     final l10n = AppLocalizations.of(context)!;
     return Column(
       children: [
-        CircleAvatar(radius: 32, backgroundColor: colors.accentPrimary),
-        const SizedBox(height: AppSpacing.sm),
+        Container(
+          width: 76,
+          height: 76,
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(17),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x26000000),
+                blurRadius: 18,
+                offset: Offset(0, 7),
+              ),
+            ],
+          ),
+          child: Image.asset(
+            'ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-1024x1024@1x.png',
+            fit: BoxFit.cover,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
         Text(
           l10n.authSignInTitle,
           style: Theme.of(context).textTheme.headlineSmall,
@@ -112,11 +185,20 @@ class _AuthSectionState extends ConsumerState<AuthSection> {
         const SizedBox(height: AppSpacing.sm),
         TextField(
           controller: _passwordController,
-          obscureText: true,
+          obscureText: !_showPassword,
           autofillHints: const [AutofillHints.password],
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             hintText: 'Passwort',
-            border: OutlineInputBorder(),
+            border: const OutlineInputBorder(),
+            suffixIcon: IconButton(
+              onPressed: () => setState(() => _showPassword = !_showPassword),
+              icon: Icon(
+                _showPassword ? Icons.visibility_off : Icons.visibility,
+              ),
+              tooltip: _showPassword
+                  ? 'Passwort verbergen'
+                  : 'Passwort anzeigen',
+            ),
           ),
           onSubmitted: (_) => _signIn(),
         ),
@@ -138,6 +220,12 @@ class _AuthSectionState extends ConsumerState<AuthSection> {
                   builder: (_) => const ForgotPasswordSheet(),
                 ),
           child: const Text('Passwort vergessen?'),
+        ),
+        TextButton(
+          onPressed: _loading
+              ? null
+              : (widget.onCreateAccount ?? () => context.push('/onboarding')),
+          child: const Text('Noch kein Konto? Registrieren'),
         ),
         if (_error != null) ...[
           const SizedBox(height: AppSpacing.sm),

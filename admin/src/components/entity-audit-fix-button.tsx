@@ -138,12 +138,17 @@ export function EntityAuditFixButton({
       <div className="mt-3 rounded-lg border border-violet-100 bg-violet-50/50 px-3 py-2">
         <div className="flex items-center gap-2 text-xs font-medium text-violet-800">
           <span className={`h-2 w-2 rounded-full bg-violet-500 ${suggesting ? "animate-pulse" : ""}`} />
-          {suggesting ? "KI recherchiert und erstellt einen Korrekturvorschlag…" : "KI-Korrektur wird automatisch vorbereitet…"}
+          {suggesting ? "KI recherchiert und erstellt einen Korrekturvorschlag…" : "KI-Korrektur ist in der Hintergrund-Warteschlange…"}
         </div>
         {error && <p className="max-w-xs text-right text-xs text-red-600">{error}</p>}
         {error && (
           <button type="button" onClick={() => void runSuggestion(true)} className="mt-1 text-xs font-medium text-violet-700">
             Erneut versuchen
+          </button>
+        )}
+        {!suggesting && !error && (
+          <button type="button" onClick={() => void runSuggestion(false)} className="mt-1 text-xs font-medium text-violet-700">
+            Jetzt priorisieren
           </button>
         )}
       </div>

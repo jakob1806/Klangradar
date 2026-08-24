@@ -11,13 +11,13 @@ struct OnboardingSummaryView: View {
 
     var body: some View {
         OnboardingStepScaffold(
-            title: "Klangradar ist bereit",
+            title: "Dein Profil ist eingerichtet",
             subtitle: selectedCount > 0
                 ? "\(selectedCount) Interessen gespeichert — deine Empfehlungen richten sich ab jetzt danach."
                 : "Du kannst deine Interessen jederzeit im Profil ergänzen.",
             systemImage: "checkmark.circle.fill",
             content: { EmptyView() },
-            primaryTitle: "Los geht's",
+            primaryTitle: "Konzerte für dich entdecken",
             onPrimary: { onFinished() }
         )
         .task { await loadSummary() }

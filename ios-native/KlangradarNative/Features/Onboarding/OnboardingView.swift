@@ -15,7 +15,7 @@ struct OnboardingView: View {
 
     private enum Step: Hashable {
         case signUp
-        case verifyEmail(email: String)
+        case verifyEmail(email: String, marketingEmailOptIn: Bool)
         case personalData
         case interests
         case location
@@ -29,18 +29,25 @@ struct OnboardingView: View {
     var body: some View {
         NavigationStack(path: $path) {
             WelcomeStepView(
+                auth: auth,
                 onCreateAccount: { path.append(.signUp) },
                 onLogIn: { showsLogin = true },
-                onContinueAsGuest: { onFinished() }
+                onContinueAsGuest: { onFinished() },
+                onAuthenticated: onFinished
             )
             .navigationDestination(for: Step.self) { step in
                 switch step {
                 case .signUp:
-                    SignUpStepView(auth: auth) { email in
-                        path.append(.verifyEmail(email: email))
+                    SignUpStepView(auth: auth) { email, marketingEmailOptIn in
+                        path.append(.verifyEmail(email: email, marketingEmailOptIn: marketingEmailOptIn))
                     }
-                case let .verifyEmail(email):
-                    VerifyEmailStepView(auth: auth, repository: repository, email: email) {
+                case let .verifyEmail(email, marketingEmailOptIn):
+                    VerifyEmailStepView(
+                        auth: auth,
+                        repository: repository,
+                        email: email,
+                        marketingEmailOptIn: marketingEmailOptIn
+                    ) {
                         path.append(.personalData)
                     }
                 case .personalData:
@@ -65,12 +72,36 @@ struct OnboardingView: View {
                     }
                 }
             }
-            .toolbar(.hidden, for: .navigationBar)
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if let currentProgressStep {
+                OnboardingProgressHeader(current: currentProgressStep, total: 6)
+            }
         }
         .sheet(isPresented: $showsLogin) {
-            PasswordLoginView(auth: auth) { onFinished() }
+            PasswordLoginView(
+                auth: auth,
+                repository: repository,
+                onSignedIn: onFinished,
+                onCreatedAccount: {
+                    showsLogin = false
+                    path = [.personalData]
+                }
+            )
         }
         .interactiveDismissDisabled()
+    }
+
+    private var currentProgressStep: Int? {
+        switch path.last {
+        case .signUp: 1
+        case .verifyEmail: 2
+        case .personalData: 3
+        case .interests: 4
+        case .location: 5
+        case .notifications, .summary: 6
+        case nil: nil
+        }
     }
 
     private func finish() async {

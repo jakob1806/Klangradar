@@ -44,10 +44,13 @@ struct ConcertEvent: Codable, Identifiable, Hashable, Sendable {
     let genreIDs: [UUID]
     let genreLabels: [String]
     let isFree: Bool?
+    /// Ändert sich bei jeder redaktionellen Bildänderung und wird als
+    /// Cache-Buster an die effektive Bild-URL gehängt.
+    let updatedAt: String?
 
     private enum CodingKeys: String, CodingKey {
         case id, slug, title, subtitle, startDatetime, venueDetail, imageUrls, status, venues
-        case eventParticipants, fallbackImageUrls, ownGalleryImageUrls, category, genreIDs, genreLabels, isFree
+        case eventParticipants, fallbackImageUrls, ownGalleryImageUrls, category, genreIDs, genreLabels, isFree, updatedAt
     }
 
     var startDate: Date? {
@@ -55,11 +58,12 @@ struct ConcertEvent: Codable, Identifiable, Hashable, Sendable {
     }
 
     var primaryImageURL: URL? {
-        ownGalleryImageUrls?.compactMap(URL.init(string:)).first
+        let raw = ownGalleryImageUrls?.compactMap(URL.init(string:)).first
             ?? imageUrls?.compactMap(URL.init(string:)).first
             ?? fallbackImageUrls?.compactMap(URL.init(string:)).first
             ?? eventParticipants?.compactMap(\.imageURL).first
             ?? venues?.photoURL
+        return raw?.cacheVersioned(with: updatedAt)
     }
 
     var venueName: String {
@@ -92,7 +96,8 @@ struct ConcertEvent: Codable, Identifiable, Hashable, Sendable {
         genreIDs: [UUID] = [],
         genreLabels: [String] = [],
         isFree: Bool? = nil,
-        venueDetail: String? = nil
+        venueDetail: String? = nil,
+        updatedAt: String? = nil
     ) {
         self.id = id
         self.slug = slug
@@ -110,6 +115,7 @@ struct ConcertEvent: Codable, Identifiable, Hashable, Sendable {
         self.genreIDs = genreIDs
         self.genreLabels = genreLabels
         self.isFree = isFree
+        self.updatedAt = updatedAt
     }
 
     init?(json: JSONObject) {
@@ -145,7 +151,8 @@ struct ConcertEvent: Codable, Identifiable, Hashable, Sendable {
             genreIDs: genreRows.compactMap { $0.string("id").flatMap(UUID.init(uuidString:)) },
             genreLabels: genreRows.compactMap { $0.string("label_de") ?? $0.string("slug") },
             isFree: json.bool("is_free"),
-            venueDetail: json.string("venue_detail")
+            venueDetail: json.string("venue_detail"),
+            updatedAt: json.string("updated_at")
         )
     }
 
@@ -167,7 +174,8 @@ struct ConcertEvent: Codable, Identifiable, Hashable, Sendable {
             genreIDs: try values.decodeIfPresent([UUID].self, forKey: .genreIDs) ?? [],
             genreLabels: try values.decodeIfPresent([String].self, forKey: .genreLabels) ?? [],
             isFree: try values.decodeIfPresent(Bool.self, forKey: .isFree),
-            venueDetail: try values.decodeIfPresent(String.self, forKey: .venueDetail)
+            venueDetail: try values.decodeIfPresent(String.self, forKey: .venueDetail),
+            updatedAt: try values.decodeIfPresent(String.self, forKey: .updatedAt)
         )
     }
 
@@ -189,6 +197,7 @@ struct ConcertEvent: Codable, Identifiable, Hashable, Sendable {
         try values.encode(genreIDs, forKey: .genreIDs)
         try values.encode(genreLabels, forKey: .genreLabels)
         try values.encodeIfPresent(isFree, forKey: .isFree)
+        try values.encodeIfPresent(updatedAt, forKey: .updatedAt)
     }
 
     func matchesFeedTerms(_ terms: [String]) -> Bool {
@@ -198,6 +207,17 @@ struct ConcertEvent: Codable, Identifiable, Hashable, Sendable {
             .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "de_DE"))
             .lowercased()
         return terms.contains { haystack.contains($0) }
+    }
+}
+
+private extension URL {
+    func cacheVersioned(with version: String?) -> URL {
+        guard let version, !version.isEmpty, var components = URLComponents(url: self, resolvingAgainstBaseURL: false) else { return self }
+        var items = components.queryItems ?? []
+        items.removeAll { $0.name == "kr_v" }
+        items.append(URLQueryItem(name: "kr_v", value: version))
+        components.queryItems = items
+        return components.url ?? self
     }
 }
 

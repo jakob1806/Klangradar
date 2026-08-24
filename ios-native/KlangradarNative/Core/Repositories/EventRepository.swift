@@ -1,5 +1,60 @@
 import Foundation
 
+struct InspirationCategory: Codable, Identifiable, Sendable, Equatable {
+    let id: UUID
+    let slug: String
+    let title: String
+    let symbol: String?
+    let colorKey: String
+    enum CodingKeys: String, CodingKey { case id, slug, title = "inspiration_title", symbol = "icon_name", colorKey = "color_key" }
+}
+
+extension InspirationCategory {
+    /// Bleibt sichtbar, wenn die dynamische Attribut-Tabelle vorübergehend
+    /// nicht erreichbar oder noch nicht migriert ist. Sobald der Server
+    /// Kategorien liefert, werden diese Werte vollständig ersetzt.
+    static let fallback: [InspirationCategory] = [
+        item(1, "oper", "Oper & Musiktheater", "theatermasks.fill", "purple"),
+        item(2, "kostenlos", "Freier Eintritt", "ticket.fill", "teal"),
+        item(3, "kammermusik", "Kammermusik entdecken", "music.quarternote.3", "indigo"),
+        item(4, "symphonik", "Große Symphonik", "music.note.house.fill", "blue"),
+        item(5, "vokal", "Chor & Vokalmusik", "person.3.fill", "pink"),
+        item(6, "neue_musik", "Neue Musik", "waveform", "orange"),
+        item(7, "orgel", "Orgel entdecken", "pianokeys", "teal"),
+        item(8, "lied", "Lied & Gesang", "music.mic", "purple"),
+        item(9, "klavier", "Klavier Highlights", "pianokeys.inverse", "blue"),
+        item(10, "streicher", "Violine & Streicher", "music.note", "pink"),
+        item(11, "alte_musik", "Alte Musik", "scroll.fill", "orange"),
+        item(12, "ballett_tanz", "Ballett & Tanz", "figure.dance", "purple"),
+        item(13, "festival", "Festivals & Reihen", "sparkles", "indigo"),
+        item(14, "familie", "Familienkonzerte", "figure.2.and.child.holdinghands", "teal"),
+        item(15, "barock", "Barocke Klangwelten", "music.note", "orange"),
+        item(16, "romantik", "Romantik pur", "heart.fill", "pink"),
+        item(17, "solo", "Solo-Abende", "person.fill", "blue"),
+        item(18, "open_air", "Open Air Konzerte", "sun.max.fill", "teal"),
+        item(19, "matinee", "Matineen am Sonntag", "cup.and.saucer.fill", "orange"),
+        item(20, "musik_20_jh", "Musik des 20. Jahrhunderts", "waveform", "indigo"),
+        item(21, "geistlich", "Geistliche Musik", "building.columns.fill", "purple"),
+        item(22, "blechblaeser", "Blechbläser & Brass", "music.note", "orange"),
+        item(23, "schlagwerk", "Schlagwerk & Rhythmus", "circle.grid.cross.fill", "pink"),
+        item(24, "zupfinstrumente", "Gitarre & Zupfinstrumente", "music.note", "teal"),
+        item(25, "jazz", "Jazz trifft Klassik", "music.mic", "blue"),
+        item(26, "dirigieren", "Dirigent:innen im Fokus", "figure.wave", "indigo"),
+        item(27, "komponistin", "Komponistinnen entdecken", "person.fill", "purple"),
+        item(28, "premiere", "Uraufführungen & Premieren", "star.fill", "pink")
+    ]
+
+    private static func item(_ number: Int, _ slug: String, _ title: String, _ symbol: String, _ color: String) -> InspirationCategory {
+        InspirationCategory(
+            id: UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", number))!,
+            slug: slug,
+            title: title,
+            symbol: symbol,
+            colorKey: color
+        )
+    }
+}
+
 protocol EventRepository: Sendable {
     func upcomingEvents(limit: Int) async throws -> [ConcertEvent]
     func allUpcomingEvents() async throws -> [ConcertEvent]
@@ -8,6 +63,8 @@ protocol EventRepository: Sendable {
     /// Für antippbare Genre-Chips (siehe GenreFilterRouter) — kommende
     /// Veranstaltungen, die dieses Genre über event_genres verlinkt haben.
     func events(genreID: UUID, limit: Int) async throws -> [ConcertEvent]
+    func inspirationEvents(attributeSlug: String, limit: Int) async throws -> [ConcertEvent]
+    func inspirationCategories() async throws -> [InspirationCategory]
 }
 
 struct LiveEventRepository: EventRepository {
@@ -33,7 +90,7 @@ struct LiveEventRepository: EventRepository {
             queryItems: [
                 URLQueryItem(
                     name: "select",
-                    value: "id,slug,title,subtitle,start_datetime,venue_detail,image_urls,status,category,is_free,venues(id,name,photo_url),event_genres(genres(id,slug,label_de)),event_participants(persons(id,full_name,photo_url),ensembles(id,name,photo_url))"
+                    value: "id,slug,title,subtitle,start_datetime,venue_detail,image_urls,updated_at,status,category,is_free,venues(id,name,photo_url),event_genres(genres(id,slug,label_de)),event_participants(persons(id,full_name,photo_url),ensembles(id,name,photo_url))"
                 ),
                 URLQueryItem(name: "status", value: "eq.scheduled"),
                 URLQueryItem(
@@ -54,11 +111,12 @@ struct LiveEventRepository: EventRepository {
         })
         guard !ids.isEmpty else { return events }
         var rows: [JSONObject] = []
+        var currentEventRows: [JSONObject] = []
         let allIDs = Array(ids)
         for start in stride(from: 0, to: allIDs.count, by: 75) {
             let chunk = allIDs[start..<min(start + 75, allIDs.count)]
             let page: [JSONObject] = try await client.get(table: "images", queryItems: [
-                URLQueryItem(name: "select", value: "origin_id,storage_path,source_url,sort_order"),
+                URLQueryItem(name: "select", value: "origin_id,storage_path,source_url,sort_order,updated_at"),
                 URLQueryItem(name: "origin_id", value: "in.(\(chunk.map(\.uuidString).joined(separator: ",")))"),
                 URLQueryItem(name: "license_status", value: "in.(confirmed_free,confirmed_licensed)"),
                 URLQueryItem(name: "quality_status", value: "eq.valid"),
@@ -66,10 +124,32 @@ struct LiveEventRepository: EventRepository {
             ])
             rows.append(contentsOf: page)
         }
+        let eventIDs = events.map(\.id)
+        for start in stride(from: 0, to: eventIDs.count, by: 75) {
+            let chunk = eventIDs[start..<min(start + 75, eventIDs.count)]
+            let page: [JSONObject] = try await client.get(table: "events", queryItems: [
+                URLQueryItem(name: "select", value: "id,image_urls,updated_at"),
+                URLQueryItem(name: "id", value: "in.(\(chunk.map(\.uuidString).joined(separator: ",")))")
+            ])
+            currentEventRows.append(contentsOf: page)
+        }
+        let currentByID = Dictionary(uniqueKeysWithValues: currentEventRows.compactMap { row -> (String, JSONObject)? in
+            guard let id = row.string("id") else { return nil }
+            return (id.lowercased(), row)
+        })
         let galleryURLs = Dictionary(grouping: rows, by: { $0.string("origin_id") ?? "" }).mapValues { values in
             values.compactMap { row -> String? in
-                if let path = row.string("storage_path") { return client.publicStorageURL(bucket: "ingested-images", path: path).absoluteString }
-                return row.string("source_url")
+                let raw: String?
+                if let path = row.string("storage_path") { raw = client.publicStorageURL(bucket: "ingested-images", path: path).absoluteString }
+                else { raw = row.string("source_url") }
+                guard let raw, var components = URLComponents(string: raw) else { return raw }
+                if let version = row.string("updated_at") {
+                    var items = components.queryItems ?? []
+                    items.removeAll { $0.name == "kr_v" }
+                    items.append(URLQueryItem(name: "kr_v", value: version))
+                    components.queryItems = items
+                }
+                return components.url?.absoluteString ?? raw
             }
         }
         return events.map { event in
@@ -80,22 +160,28 @@ struct LiveEventRepository: EventRepository {
             // Bild) wurden dadurch still ignoriert und auf das Mitwirkenden-eigene
             // photo_url zurückgefallen (Nutzerfeedback: falsches Bild angezeigt).
             let fallback = candidateIDs.flatMap { galleryURLs[$0.uuidString.lowercased()] ?? [] }
+            let current = currentByID[event.id.uuidString.lowercased()]
             return ConcertEvent(
                 id: event.id,
                 slug: event.slug,
                 title: event.title,
                 subtitle: event.subtitle,
                 startDatetime: event.startDatetime,
-                imageUrls: event.imageUrls,
+                imageUrls: current?.strings("image_urls") ?? event.imageUrls,
                 status: event.status,
                 venues: event.venues,
                 eventParticipants: event.eventParticipants,
                 fallbackImageUrls: fallback,
-                ownGalleryImageUrls: galleryURLs[event.id.uuidString.lowercased()],
+                // Ein leeres Array ist hier absichtlich ein aktueller Zustand:
+                // Ein zuvor vorhandenes, inzwischen gelöschtes Galeriebild
+                // darf nicht aus dem alten Feedobjekt weiterleben.
+                ownGalleryImageUrls: galleryURLs[event.id.uuidString.lowercased()] ?? [],
                 category: event.category,
                 genreIDs: event.genreIDs,
                 genreLabels: event.genreLabels,
-                isFree: event.isFree
+                isFree: event.isFree,
+                venueDetail: event.venueDetail,
+                updatedAt: current?.string("updated_at") ?? event.updatedAt
             )
         }
     }
@@ -106,7 +192,7 @@ struct LiveEventRepository: EventRepository {
             queryItems: [
                 URLQueryItem(
                     name: "select",
-                    value: "id,slug,title,subtitle,start_datetime,image_urls,status,category,is_free,venues(id,name,photo_url),event_genres!inner(genre_id,genres(id,slug,label_de)),event_participants(persons(id,full_name,photo_url),ensembles(id,name,photo_url))"
+                    value: "id,slug,title,subtitle,start_datetime,image_urls,updated_at,status,category,is_free,venues(id,name,photo_url),event_genres!inner(genre_id,genres(id,slug,label_de)),event_participants(persons(id,full_name,photo_url),ensembles(id,name,photo_url))"
                 ),
                 URLQueryItem(name: "status", value: "eq.scheduled"),
                 // Filtert direkt auf der Spalte der eingebetteten Zwischentabelle
@@ -122,6 +208,21 @@ struct LiveEventRepository: EventRepository {
                 URLQueryItem(name: "limit", value: String(limit))
             ]
         )
+    }
+
+    func inspirationEvents(attributeSlug: String, limit: Int = 60) async throws -> [ConcertEvent] {
+        try await client.rpc("inspiration_events", parameters: [
+            "p_attribute_slug": .string(attributeSlug),
+            "p_result_limit": .number(Double(limit))
+        ])
+    }
+
+    func inspirationCategories() async throws -> [InspirationCategory] {
+        try await client.get(table: "attributes", queryItems: [
+            URLQueryItem(name: "select", value: "id,slug,inspiration_title,icon_name,color_key"),
+            URLQueryItem(name: "inspiration_enabled", value: "eq.true"),
+            URLQueryItem(name: "order", value: "sort_order.asc")
+        ])
     }
 
     func eventDetail(slug: String) async throws -> JSONObject? {
@@ -374,6 +475,11 @@ struct PreviewEventRepository: EventRepository {
     func events(genreID: UUID, limit: Int = 60) async throws -> [ConcertEvent] {
         Array(SampleData.events.filter { $0.genreIDs.contains(genreID) }.prefix(limit))
     }
+
+    func inspirationEvents(attributeSlug: String, limit: Int = 60) async throws -> [ConcertEvent] {
+        Array(SampleData.events.prefix(limit))
+    }
+    func inspirationCategories() async throws -> [InspirationCategory] { [] }
 
     func eventDetail(slug: String) async throws -> JSONObject? {
         guard let event = SampleData.events.first(where: { $0.slug == slug }) else { return nil }

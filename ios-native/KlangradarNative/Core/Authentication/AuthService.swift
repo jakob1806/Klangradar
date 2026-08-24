@@ -3,6 +3,13 @@ import AuthenticationServices
 import UIKit
 
 actor AuthService {
+    static let callbackScheme = "de.klangradar.native"
+    static let callbackURL = "de.klangradar.native://auth-callback"
+
+    enum CallbackAction {
+        case signedIn
+        case passwordRecovery
+    }
     private let configuration: APIConfiguration
     private let client: any HTTPClient
     private let keychain: KeychainStore
@@ -89,11 +96,11 @@ actor AuthService {
     /// Erstellt einen Account mit Passwort. Solange `enable_confirmations`
     /// aktiv ist (siehe config.toml), liefert Supabase hierfür KEINE Session
     /// zurück — nur den angelegten, noch unbestätigten Nutzer. Erst
-    /// `verifyEmailCode(type: "signup")` nach Eingabe des per Mail
+    /// `verifySignupCode` nach Eingabe des per Mail
     /// verschickten Codes gibt eine echte Session.
     func signUp(email: String, password: String) async throws -> AuthUser {
         let data = try await perform(
-            path: "signup",
+            path: "signup?redirect_to=\(Self.encodedCallbackURL)",
             body: [
                 "email": .string(email),
                 "password": .string(password)
@@ -112,22 +119,12 @@ actor AuthService {
         )
     }
 
-    /// Löst den "Passwort vergessen"-Mailversand aus. Der darin enthaltene
-    /// Code wird wie bei der Signup-Bestätigung über
-    /// `verifyEmailCode(type: "recovery")` eingelöst — das liefert eine
-    /// kurzlebige Session, mit der anschließend `updatePassword(_:)` das
-    /// neue Passwort setzt.
+    /// Verschickt den sicheren Recovery-Link. Der Link öffnet die App über
+    /// `callbackURL`; erst diese Callback-Session darf das Passwort ändern.
     func requestPasswordReset(email: String) async throws {
-        _ = try await perform(path: "recover", body: ["email": .string(email)])
-    }
-
-    func sendEmailCode(to email: String) async throws {
         _ = try await perform(
-            path: "otp",
-            body: [
-                "email": .string(email),
-                "create_user": .bool(true)
-            ]
+            path: "recover?redirect_to=\(Self.encodedCallbackURL)",
+            body: ["email": .string(email)]
         )
     }
 
@@ -145,16 +142,15 @@ actor AuthService {
         )
     }
 
-    /// `type` unterscheidet, welchen Code-Versand Supabase gerade bestätigt:
-    /// "email" (Login-Code über `sendEmailCode`), "signup" (Bestätigung
-    /// nach `signUp`) oder "recovery" (nach `requestPasswordReset`).
-    func verifyEmailCode(_ code: String, email: String, type: String = "email") async throws -> AuthSession {
+    /// Bestätigt ausschließlich den sechsstelligen Registrierungs-Code.
+    /// Passwort-Recovery läuft absichtlich nicht über diesen Endpoint.
+    func verifySignupCode(_ code: String, email: String) async throws -> AuthSession {
         try await performSessionRequest(
             path: "verify",
             body: [
                 "email": .string(email),
                 "token": .string(code),
-                "type": .string(type)
+                "type": .string("signup")
             ]
         )
     }
@@ -194,6 +190,24 @@ actor AuthService {
         try await updateUser(["password": .string(password)])
     }
 
+    /// Übernimmt die Session aus einem Supabase-Mail-Link. Recovery-Links
+    /// enthalten die Tokens im URL-Fragment; anschließend darf der Nutzer
+    /// genau einmal ein neues Passwort festlegen.
+    func handleCallback(_ url: URL) async throws -> CallbackAction {
+        guard url.scheme == Self.callbackScheme, url.host == "auth-callback" else {
+            throw AuthServiceError.invalidCallback
+        }
+        let values = Self.callbackValues(from: url)
+        if let message = values["error_description"] ?? values["error"] {
+            throw AuthServiceError.server(Self.friendlyMessage(message))
+        }
+        guard let accessToken = values["access_token"], let refreshToken = values["refresh_token"] else {
+            throw AuthServiceError.invalidCallback
+        }
+        _ = try await session(accessToken: accessToken, refreshToken: refreshToken, values: values)
+        return values["type"] == "recovery" ? .passwordRecovery : .signedIn
+    }
+
     private func updateUser(_ values: JSONObject) async throws {
         guard let session = cachedSession else { throw AuthStoreError.unavailable }
         var request = authorizedRequest(path: "user", token: session.accessToken)
@@ -202,10 +216,7 @@ actor AuthService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         let (data, response) = try await client.data(for: request)
         guard 200..<300 ~= response.statusCode else {
-            throw APIError.httpStatus(
-                response.statusCode,
-                String(data: data, encoding: .utf8) ?? "Account konnte nicht aktualisiert werden"
-            )
+            throw AuthServiceError.server(Self.errorMessage(from: data, statusCode: response.statusCode))
         }
     }
 
@@ -217,32 +228,33 @@ actor AuthService {
     }
 
     private func signInWithOAuth(provider: String) async throws -> AuthSession {
-        let callbackScheme = "de.klangradar.native"
-        let redirectURL = "\(callbackScheme)://login-callback"
         var components = URLComponents(
             url: configuration.supabaseURL.appendingPathComponent("auth/v1/authorize"),
             resolvingAgainstBaseURL: false
         )!
         components.queryItems = [
             URLQueryItem(name: "provider", value: provider),
-            URLQueryItem(name: "redirect_to", value: redirectURL)
+            URLQueryItem(name: "redirect_to", value: Self.callbackURL)
         ]
         guard let authorizeURL = components.url else { throw AuthStoreError.unavailable }
-        let callback = try await OAuthWebAuthentication.authenticate(url: authorizeURL, callbackScheme: callbackScheme)
-        let values = Self.oauthValues(from: callback)
+        let callback = try await OAuthWebAuthentication.authenticate(url: authorizeURL, callbackScheme: Self.callbackScheme)
+        let values = Self.callbackValues(from: callback)
         if let message = values["error_description"] ?? values["error"] {
-            throw APIError.httpStatus(400, message)
+            throw AuthServiceError.server(Self.friendlyMessage(message))
         }
         guard let accessToken = values["access_token"], let refreshToken = values["refresh_token"] else {
-            throw APIError.httpStatus(400, "Der OAuth-Anbieter hat keine gueltige Sitzung zurueckgegeben.")
+            throw AuthServiceError.invalidCallback
         }
-        let expiresIn = Int(values["expires_in"] ?? "3600") ?? 3600
+        return try await session(accessToken: accessToken, refreshToken: refreshToken, values: values)
+    }
 
+    private func session(accessToken: String, refreshToken: String, values: [String: String]) async throws -> AuthSession {
+        let expiresIn = Int(values["expires_in"] ?? "3600") ?? 3600
         var userRequest = authorizedRequest(path: "user", token: accessToken)
         userRequest.httpMethod = "GET"
         let (userData, response) = try await client.data(for: userRequest)
         guard 200..<300 ~= response.statusCode else {
-            throw APIError.httpStatus(response.statusCode, String(data: userData, encoding: .utf8) ?? "Benutzerkonto konnte nicht geladen werden")
+            throw AuthServiceError.server(Self.errorMessage(from: userData, statusCode: response.statusCode))
         }
         let user = try JSONDecoder.supabase.decode(AuthUser.self, from: userData)
         let session = AuthSession(
@@ -258,15 +270,19 @@ actor AuthService {
         return session
     }
 
-    private static func oauthValues(from url: URL) -> [String: String] {
+    private static func callbackValues(from url: URL) -> [String: String] {
         let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
         var items = components?.queryItems ?? []
         if let fragment = components?.fragment {
             items += URLComponents(string: "?\(fragment)")?.queryItems ?? []
         }
-        return Dictionary(uniqueKeysWithValues: items.compactMap { item in
-            item.value.map { (item.name, $0) }
-        })
+        return items.reduce(into: [:]) { values, item in
+            if let value = item.value { values[item.name] = value }
+        }
+    }
+
+    private static var encodedCallbackURL: String {
+        callbackURL.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? callbackURL
     }
 
     private func performSessionRequest(
@@ -287,10 +303,27 @@ actor AuthService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         let (data, response) = try await client.data(for: request)
         guard 200..<300 ~= response.statusCode else {
-            let message = String(data: data, encoding: .utf8) ?? "Authentifizierung fehlgeschlagen"
-            throw APIError.httpStatus(response.statusCode, message)
+            throw AuthServiceError.server(Self.errorMessage(from: data, statusCode: response.statusCode))
         }
         return data
+    }
+
+    private static func errorMessage(from data: Data, statusCode: Int) -> String {
+        let response = try? JSONDecoder().decode(AuthErrorResponse.self, from: data)
+        let original = response?.message ?? response?.msg ?? response?.errorDescription ?? response?.error
+        guard let original else { return "Das hat leider nicht funktioniert. Bitte versuche es erneut." }
+        return friendlyMessage(original, statusCode: statusCode)
+    }
+
+    private static func friendlyMessage(_ message: String, statusCode: Int = 400) -> String {
+        let value = message.lowercased()
+        if value.contains("invalid login credentials") { return "E-Mail-Adresse oder Passwort ist nicht korrekt." }
+        if value.contains("email not confirmed") { return "Bitte bestätige zuerst deine E-Mail-Adresse." }
+        if value.contains("user already registered") || value.contains("already been registered") { return "Für diese E-Mail-Adresse gibt es bereits einen Account. Melde dich an oder setze dein Passwort zurück." }
+        if value.contains("password") && (value.contains("weak") || value.contains("least")) { return "Das Passwort erfüllt die Anforderungen noch nicht." }
+        if value.contains("rate limit") || statusCode == 429 { return "Zu viele Versuche. Bitte warte kurz und probiere es dann erneut." }
+        if value.contains("expired") { return "Dieser Link oder Code ist abgelaufen. Fordere bitte einen neuen an." }
+        return message
     }
 
     private func authorizedRequest(path: String, token: String) -> URLRequest {
@@ -309,6 +342,30 @@ actor AuthService {
         request.setValue(configuration.supabaseAnonKey, forHTTPHeaderField: "apikey")
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         return request
+    }
+}
+
+private struct AuthErrorResponse: Decodable {
+    let message: String?
+    let msg: String?
+    let error: String?
+    let errorDescription: String?
+
+    enum CodingKeys: String, CodingKey {
+        case message, msg, error
+        case errorDescription = "error_description"
+    }
+}
+
+private enum AuthServiceError: LocalizedError {
+    case invalidCallback
+    case server(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidCallback: "Der Anmeldelink ist ungültig oder unvollständig. Fordere bitte einen neuen Link an."
+        case let .server(message): message
+        }
     }
 }
 

@@ -13,7 +13,6 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/interest_picker.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../profile/presentation/widgets/auth_section.dart';
-import '../../profile/presentation/widgets/profile_avatar_editor.dart';
 
 /// Reihenfolge aus dem Onboarding-Konzept: Willkommen (Anmelden/Account
 /// erstellen/Gast) -> Account erstellen -> E-Mail bestätigen -> Persönliche
@@ -33,15 +32,24 @@ enum _Step {
 }
 
 class OnboardingScreen extends StatefulWidget {
-  const OnboardingScreen({super.key});
+  const OnboardingScreen({super.key, this.startWithAccountCreation = false});
+
+  final bool startWithAccountCreation;
 
   @override
   State<OnboardingScreen> createState() => _OnboardingScreenState();
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
-  _Step _step = _Step.welcome;
+  late _Step _step;
   String? _pendingEmail;
+  bool _pendingMarketingOptIn = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _step = widget.startWithAccountCreation ? _Step.signUp : _Step.welcome;
+  }
 
   void _goTo(_Step step) => setState(() => _step = step);
 
@@ -81,6 +89,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               Navigator.of(sheetContext).pop();
               _finish();
             },
+            onCreateAccount: () {
+              Navigator.of(sheetContext).pop();
+              _goTo(_Step.signUp);
+            },
           ),
         ),
       ),
@@ -91,45 +103,95 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
-        child: switch (_step) {
-          _Step.welcome => _WelcomeStep(
-            onCreateAccount: () => _goTo(_Step.signUp),
-            onLogIn: _showLoginSheet,
-            onContinueAsGuest: _finish,
-          ),
-          _Step.signUp => _SignUpStep(
-            onSignedUp: (email) {
-              _pendingEmail = email;
-              _goTo(_Step.verifyEmail);
-            },
-          ),
-          _Step.verifyEmail => _VerifyEmailStep(
-            email: _pendingEmail ?? '',
-            onVerified: () => _goTo(_Step.personalData),
-          ),
-          _Step.personalData => _PersonalDataStep(
-            onSaved: () => _goTo(_Step.interests),
-          ),
-          _Step.interests => _StepScaffold(
-            title: 'Deine Interessen',
-            subtitle:
-                'Genres, Künstler:innen, Ensembles und Orte — für passendere '
-                'Empfehlungen. Kann jederzeit im Profil geändert werden.',
-            primaryLabel: 'Weiter',
-            onPrimary: () => _goTo(_Step.location),
-            child: const InterestPicker(),
-          ),
-          _Step.location => _LocationStep(
-            onFinished: () => _goTo(_Step.notifications),
-          ),
-          _Step.notifications => _NotificationsStep(
-            onFinished: () => _goTo(_Step.summary),
-          ),
-          _Step.summary => _SummaryStep(onFinished: _finish),
-        },
+        child: Column(
+          children: [
+            if (_progressStep != null)
+              _ProgressHeader(current: _progressStep!, total: 6),
+            Expanded(
+              child: switch (_step) {
+                _Step.welcome => _WelcomeStep(
+                  onCreateAccount: () => _goTo(_Step.signUp),
+                  onLogIn: _showLoginSheet,
+                  onContinueAsGuest: _finish,
+                  onAuthenticated: _finish,
+                ),
+                _Step.signUp => _SignUpStep(
+                  onSignedUp: (email, marketingOptIn) {
+                    _pendingEmail = email;
+                    _pendingMarketingOptIn = marketingOptIn;
+                    _goTo(_Step.verifyEmail);
+                  },
+                ),
+                _Step.verifyEmail => _VerifyEmailStep(
+                  email: _pendingEmail ?? '',
+                  marketingEmailOptIn: _pendingMarketingOptIn,
+                  onVerified: () => _goTo(_Step.personalData),
+                ),
+                _Step.personalData => _PersonalDataStep(
+                  onSaved: () => _goTo(_Step.interests),
+                ),
+                _Step.interests => _StepScaffold(
+                  title: 'Was interessiert dich?',
+                  subtitle:
+                      'Genres, Künstler:innen, Ensembles und Orte — für passendere '
+                      'Empfehlungen. Kann jederzeit im Profil geändert werden.',
+                  primaryLabel: 'Weiter',
+                  onPrimary: () => _goTo(_Step.location),
+                  secondaryLabel: 'Jetzt überspringen',
+                  onSecondary: () => _goTo(_Step.location),
+                  child: const InterestPicker(),
+                ),
+                _Step.location => _LocationStep(
+                  onFinished: () => _goTo(_Step.notifications),
+                ),
+                _Step.notifications => _NotificationsStep(
+                  onFinished: () => _goTo(_Step.summary),
+                ),
+                _Step.summary => _SummaryStep(onFinished: _finish),
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
+
+  int? get _progressStep => switch (_step) {
+    _Step.welcome => null,
+    _Step.signUp => 1,
+    _Step.verifyEmail => 2,
+    _Step.personalData => 3,
+    _Step.interests => 4,
+    _Step.location => 5,
+    _Step.notifications || _Step.summary => 6,
+  };
+}
+
+class _ProgressHeader extends StatelessWidget {
+  const _ProgressHeader({required this.current, required this.total});
+  final int current;
+  final int total;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(
+      AppSpacing.xl,
+      AppSpacing.sm,
+      AppSpacing.xl,
+      0,
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Schritt $current von $total',
+          style: Theme.of(context).textTheme.labelMedium,
+        ),
+        const SizedBox(height: 6),
+        LinearProgressIndicator(value: current / total),
+      ],
+    ),
+  );
 }
 
 /// Gemeinsames Gerüst für kompakte Schritte (Titel + Inhalt + Primär-Button)
@@ -226,16 +288,78 @@ class _StepScaffold extends StatelessWidget {
   }
 }
 
-class _WelcomeStep extends StatelessWidget {
+class _WelcomeStep extends StatefulWidget {
   const _WelcomeStep({
     required this.onCreateAccount,
     required this.onLogIn,
     required this.onContinueAsGuest,
+    required this.onAuthenticated,
   });
 
   final VoidCallback onCreateAccount;
   final VoidCallback onLogIn;
   final VoidCallback onContinueAsGuest;
+  final VoidCallback onAuthenticated;
+
+  @override
+  State<_WelcomeStep> createState() => _WelcomeStepState();
+}
+
+class _WelcomeStepState extends State<_WelcomeStep> {
+  Set<String> _providers = const {};
+  bool _loading = false;
+  bool _waitingForOAuth = false;
+  String? _error;
+  StreamSubscription<AuthState>? _authSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((
+      state,
+    ) {
+      if (_waitingForOAuth &&
+          state.event == AuthChangeEvent.signedIn &&
+          state.session?.user.isAnonymous == false) {
+        widget.onAuthenticated();
+      }
+    });
+    AuthService.enabledOAuthProviders().then((value) {
+      if (mounted) setState(() => _providers = value);
+    });
+  }
+
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _oauth(Future<bool> Function() action) async {
+    setState(() {
+      _loading = true;
+      _waitingForOAuth = true;
+      _error = null;
+    });
+    try {
+      final launched = await action();
+      if (!launched && mounted) {
+        setState(() {
+          _waitingForOAuth = false;
+          _error = 'Anmeldung konnte nicht geöffnet werden.';
+        });
+      }
+    } on AuthException catch (error) {
+      if (mounted) {
+        setState(() {
+          _waitingForOAuth = false;
+          _error = error.message;
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -247,7 +371,7 @@ class _WelcomeStep extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Icon(Icons.piano_rounded, size: 72, color: colors.accentPrimary),
+          const _KlangradarLogo(size: 88),
           const SizedBox(height: AppSpacing.lg),
           Text(
             l10n.onboardingWelcomeTitle,
@@ -262,35 +386,84 @@ class _WelcomeStep extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.xxl),
           FilledButton(
-            onPressed: onCreateAccount,
+            onPressed: widget.onLogIn,
             style: FilledButton.styleFrom(
               minimumSize: const Size.fromHeight(46),
               backgroundColor: colors.accentPrimary,
             ),
-            child: const Text('Account erstellen'),
+            child: const Text('Anmelden'),
           ),
           const SizedBox(height: AppSpacing.sm),
           OutlinedButton(
-            onPressed: onLogIn,
+            onPressed: widget.onCreateAccount,
             style: OutlinedButton.styleFrom(
               minimumSize: const Size.fromHeight(46),
             ),
-            child: const Text('Anmelden'),
+            child: const Text('Konto erstellen'),
           ),
           TextButton(
-            onPressed: onContinueAsGuest,
+            onPressed: widget.onContinueAsGuest,
             child: const Text('Ohne Account fortfahren'),
           ),
+          if (_providers.contains('apple'))
+            OutlinedButton.icon(
+              onPressed: _loading
+                  ? null
+                  : () => _oauth(AuthService.signInWithApple),
+              icon: const Icon(Icons.apple),
+              label: const Text('Mit Apple anmelden'),
+            ),
+          if (_providers.contains('google'))
+            OutlinedButton.icon(
+              onPressed: _loading
+                  ? null
+                  : () => _oauth(AuthService.signInWithGoogle),
+              icon: const Icon(Icons.g_mobiledata_rounded),
+              label: const Text('Mit Google anmelden'),
+            ),
+          if (_error != null)
+            Text(
+              _error!,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: colors.error),
+            ),
         ],
       ),
     );
   }
 }
 
+class _KlangradarLogo extends StatelessWidget {
+  const _KlangradarLogo({this.size = 72});
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: size,
+    height: size,
+    margin: const EdgeInsets.symmetric(horizontal: 80),
+    clipBehavior: Clip.antiAlias,
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(size * .225),
+      boxShadow: const [
+        BoxShadow(
+          color: Color(0x29000000),
+          blurRadius: 20,
+          offset: Offset(0, 8),
+        ),
+      ],
+    ),
+    child: Image.asset(
+      'ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-1024x1024@1x.png',
+      fit: BoxFit.cover,
+    ),
+  );
+}
+
 class _SignUpStep extends StatefulWidget {
   const _SignUpStep({required this.onSignedUp});
 
-  final void Function(String email) onSignedUp;
+  final void Function(String email, bool marketingEmailOptIn) onSignedUp;
 
   @override
   State<_SignUpStep> createState() => _SignUpStepState();
@@ -301,6 +474,9 @@ class _SignUpStepState extends State<_SignUpStep> {
   final _passwordController = TextEditingController();
   final _passwordConfirmController = TextEditingController();
   bool _acceptedTerms = false;
+  bool _acceptedPrivacy = false;
+  bool _marketingEmailOptIn = false;
+  bool _showPassword = false;
   bool _isWorking = false;
   String? _error;
 
@@ -329,7 +505,8 @@ class _SignUpStepState extends State<_SignUpStep> {
       _emailController.text.contains('@') &&
       _requirements.every((r) => r.$2) &&
       _passwordController.text == _passwordConfirmController.text &&
-      _acceptedTerms;
+      _acceptedTerms &&
+      _acceptedPrivacy;
 
   Future<void> _signUp() async {
     setState(() {
@@ -342,7 +519,7 @@ class _SignUpStepState extends State<_SignUpStep> {
         email: email,
         password: _passwordController.text,
       );
-      widget.onSignedUp(email);
+      widget.onSignedUp(email, _marketingEmailOptIn);
     } on AuthException catch (e) {
       setState(() => _error = e.message);
     } finally {
@@ -365,6 +542,17 @@ class _SignUpStepState extends State<_SignUpStep> {
       isWorking: _isWorking,
       child: Column(
         children: [
+          const _KlangradarLogo(size: 68),
+          const SizedBox(height: AppSpacing.lg),
+          Text(
+            'Ein Account synchronisiert Favoriten, Interessen und Erinnerungen.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: context.appColors.textSecondary,
+              fontSize: 12.5,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
           TextField(
             controller: _emailController,
             keyboardType: TextInputType.emailAddress,
@@ -378,7 +566,7 @@ class _SignUpStepState extends State<_SignUpStep> {
           const SizedBox(height: AppSpacing.sm),
           TextField(
             controller: _passwordController,
-            obscureText: true,
+            obscureText: !_showPassword,
             autofillHints: const [AutofillHints.newPassword],
             decoration: const InputDecoration(
               hintText: 'Passwort',
@@ -389,13 +577,19 @@ class _SignUpStepState extends State<_SignUpStep> {
           const SizedBox(height: AppSpacing.sm),
           TextField(
             controller: _passwordConfirmController,
-            obscureText: true,
+            obscureText: !_showPassword,
             autofillHints: const [AutofillHints.newPassword],
             decoration: const InputDecoration(
               hintText: 'Passwort wiederholen',
               border: OutlineInputBorder(),
             ),
             onChanged: (_) => setState(() {}),
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            value: _showPassword,
+            onChanged: (value) => setState(() => _showPassword = value),
+            title: const Text('Passwörter anzeigen'),
           ),
           const SizedBox(height: AppSpacing.sm),
           Column(
@@ -435,8 +629,33 @@ class _SignUpStepState extends State<_SignUpStep> {
             onChanged: (value) =>
                 setState(() => _acceptedTerms = value ?? false),
             title: const Text(
-              'Ich akzeptiere die AGB und die Datenschutzerklärung',
+              'Ich akzeptiere die AGB',
               style: TextStyle(fontSize: 12.5),
+            ),
+          ),
+          CheckboxListTile(
+            contentPadding: EdgeInsets.zero,
+            controlAffinity: ListTileControlAffinity.leading,
+            value: _acceptedPrivacy,
+            onChanged: (value) =>
+                setState(() => _acceptedPrivacy = value ?? false),
+            title: const Text(
+              'Ich habe die Datenschutzerklärung gelesen',
+              style: TextStyle(fontSize: 12.5),
+            ),
+          ),
+          CheckboxListTile(
+            contentPadding: EdgeInsets.zero,
+            controlAffinity: ListTileControlAffinity.leading,
+            value: _marketingEmailOptIn,
+            onChanged: (value) =>
+                setState(() => _marketingEmailOptIn = value ?? false),
+            title: const Text(
+              'Neuigkeiten per E-Mail (optional)',
+              style: TextStyle(fontSize: 12.5),
+            ),
+            subtitle: const Text(
+              'Nicht vorausgewählt und jederzeit widerrufbar.',
             ),
           ),
         ],
@@ -446,9 +665,14 @@ class _SignUpStepState extends State<_SignUpStep> {
 }
 
 class _VerifyEmailStep extends StatefulWidget {
-  const _VerifyEmailStep({required this.email, required this.onVerified});
+  const _VerifyEmailStep({
+    required this.email,
+    required this.marketingEmailOptIn,
+    required this.onVerified,
+  });
 
   final String email;
+  final bool marketingEmailOptIn;
   final VoidCallback onVerified;
 
   @override
@@ -473,10 +697,9 @@ class _VerifyEmailStepState extends State<_VerifyEmailStep> {
       _error = null;
     });
     try {
-      await AuthService.verifyEmailCode(
+      await AuthService.verifySignupCode(
         email: widget.email,
         code: _codeController.text.trim(),
-        type: OtpType.signup,
       );
       final user = Supabase.instance.client.auth.currentUser;
       if (user != null) {
@@ -486,6 +709,7 @@ class _VerifyEmailStepState extends State<_VerifyEmailStep> {
               .update({
                 'terms_accepted_at': DateTime.now().toUtc().toIso8601String(),
                 'terms_version': 'v1',
+                'marketing_email_opt_in': widget.marketingEmailOptIn,
               })
               .eq('id', user.id),
         );
@@ -566,8 +790,6 @@ class _PersonalDataStep extends StatefulWidget {
 class _PersonalDataStepState extends State<_PersonalDataStep> {
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
-  final _phoneController = TextEditingController();
-  final _addressController = TextEditingController();
   DateTime? _birthDate;
   bool _isWorking = false;
   String? _error;
@@ -576,14 +798,10 @@ class _PersonalDataStepState extends State<_PersonalDataStep> {
   void dispose() {
     _firstNameController.dispose();
     _lastNameController.dispose();
-    _phoneController.dispose();
-    _addressController.dispose();
     super.dispose();
   }
 
-  bool get _isValid =>
-      _firstNameController.text.trim().isNotEmpty &&
-      _lastNameController.text.trim().isNotEmpty;
+  bool get _isValid => _firstNameController.text.trim().isNotEmpty;
 
   Future<void> _save() async {
     final userId = Supabase.instance.client.auth.currentUser?.id;
@@ -603,11 +821,9 @@ class _PersonalDataStepState extends State<_PersonalDataStep> {
           .update({
             'first_name': firstName,
             'last_name': lastName,
-            'display_name': '$firstName $lastName',
-            if (_phoneController.text.trim().isNotEmpty)
-              'phone': _phoneController.text.trim(),
-            if (_addressController.text.trim().isNotEmpty)
-              'address': _addressController.text.trim(),
+            'display_name': lastName.isEmpty
+                ? firstName
+                : '$firstName $lastName',
             if (_birthDate != null)
               'birth_date':
                   '${_birthDate!.year.toString().padLeft(4, '0')}-'
@@ -625,10 +841,10 @@ class _PersonalDataStepState extends State<_PersonalDataStep> {
 
   @override
   Widget build(BuildContext context) {
-    final userId = Supabase.instance.client.auth.currentUser?.id;
     return _StepScaffold(
-      title: 'Persönliche Daten',
-      subtitle: 'Damit dein Profil zu dir passt.',
+      title: 'Über dich',
+      subtitle:
+          'Nur dein Vorname ist erforderlich. Alles Weitere kannst du später ergänzen.',
       isPrimaryEnabled: _isValid,
       onPrimary: _save,
       primaryLabel: 'Weiter',
@@ -636,8 +852,6 @@ class _PersonalDataStepState extends State<_PersonalDataStep> {
       isWorking: _isWorking,
       child: Column(
         children: [
-          if (userId != null) ProfileAvatarEditor(userId: userId),
-          const SizedBox(height: AppSpacing.md),
           TextField(
             controller: _firstNameController,
             autofillHints: const [AutofillHints.givenName],
@@ -652,7 +866,7 @@ class _PersonalDataStepState extends State<_PersonalDataStep> {
             controller: _lastNameController,
             autofillHints: const [AutofillHints.familyName],
             decoration: const InputDecoration(
-              hintText: 'Nachname',
+              hintText: 'Nachname (optional)',
               border: OutlineInputBorder(),
             ),
             onChanged: (_) => setState(() {}),
@@ -677,22 +891,11 @@ class _PersonalDataStepState extends State<_PersonalDataStep> {
             },
           ),
           const SizedBox(height: AppSpacing.sm),
-          TextField(
-            controller: _phoneController,
-            keyboardType: TextInputType.phone,
-            autofillHints: const [AutofillHints.telephoneNumber],
-            decoration: const InputDecoration(
-              hintText: 'Telefonnummer (optional)',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          TextField(
-            controller: _addressController,
-            autofillHints: const [AutofillHints.fullStreetAddress],
-            decoration: const InputDecoration(
-              hintText: 'Adresse / Wohnort (optional)',
-              border: OutlineInputBorder(),
+          Text(
+            'Profilbild, Telefonnummer und Adresse sind optional und können später im Profil ergänzt werden.',
+            style: TextStyle(
+              color: context.appColors.textSecondary,
+              fontSize: 12.5,
             ),
           ),
         ],
@@ -797,16 +1000,18 @@ class _LocationStepState extends State<_LocationStep> {
   @override
   Widget build(BuildContext context) {
     return _StepScaffold(
-      title: 'Dein Standort',
-      subtitle: 'Für Veranstaltungen in deiner Nähe.',
+      title: 'Konzerte in deiner Nähe entdecken',
+      subtitle:
+          'Dein Standort hilft uns, passende Veranstaltungen in deiner '
+          'Umgebung zu zeigen. Du kannst auch nur den ungefähren Standort freigeben.',
       icon: Icons.location_on_rounded,
       onPrimary: _requesting ? () {} : _requestLocation,
       isPrimaryEnabled: !_requesting,
       primaryLabel: _requesting ? 'Wird ermittelt …' : 'Standort erlauben',
       isWorking: _requesting,
       secondaryLabel: _activeRegionName != null
-          ? 'Ohne Standort fortfahren — $_activeRegionName verwenden'
-          : 'Ohne Standort fortfahren',
+          ? 'Nicht jetzt — $_activeRegionName verwenden'
+          : 'Nicht jetzt',
       onSecondary: _requesting ? null : _useManualFallback,
       child: _activeRegionName != null
           ? Text(
@@ -833,20 +1038,43 @@ class _NotificationsStep extends StatefulWidget {
 
 class _NotificationsStepState extends State<_NotificationsStep> {
   bool _requesting = false;
+  bool _recommendations = true;
+  bool _ticketAlerts = true;
+  bool _almostSoldOut = true;
+  bool _followedArtists = true;
+  bool _savedEventReminders = true;
+
+  Future<void> _savePreferences() async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) return;
+    await Supabase.instance.client.from('notification_preferences').upsert({
+      'user_id': userId,
+      'notify_new_matching_events': _recommendations,
+      'notify_price_changes': _ticketAlerts,
+      'notify_almost_sold_out': _almostSoldOut,
+      'followed_ensemble_new_event': _followedArtists,
+      'notify_reminder_day_before': _savedEventReminders,
+    });
+  }
 
   Future<void> _requestNotifications() async {
     setState(() => _requesting = true);
-    await PushService.initialize();
-    widget.onFinished();
+    try {
+      await _savePreferences();
+      await PushService.initialize();
+      widget.onFinished();
+    } finally {
+      if (mounted) setState(() => _requesting = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return _StepScaffold(
-      title: 'Nichts verpassen',
+      title: 'Verpasse keine interessanten Konzerte',
       subtitle:
-          'Aktiviere Hinweise zu neuen Terminen gefolgter Künstler:innen, '
-          'Preisänderungen und knappen Tickets.',
+          'Wähle zuerst aus, was dich interessiert. Den Systemdialog öffnen '
+          'wir erst, wenn du anschließend aktivierst.',
       icon: Icons.notifications_active_rounded,
       onPrimary: _requestNotifications,
       primaryLabel: _requesting
@@ -854,9 +1082,42 @@ class _NotificationsStepState extends State<_NotificationsStep> {
           : 'Benachrichtigungen aktivieren',
       isPrimaryEnabled: !_requesting,
       isWorking: _requesting,
-      secondaryLabel: 'Ohne Benachrichtigungen fortfahren',
-      onSecondary: _requesting ? null : widget.onFinished,
-      child: const SizedBox.shrink(),
+      secondaryLabel: 'Nicht jetzt',
+      onSecondary: _requesting
+          ? null
+          : () {
+              unawaited(_savePreferences());
+              widget.onFinished();
+            },
+      child: Column(
+        children: [
+          SwitchListTile(
+            value: _recommendations,
+            onChanged: (value) => setState(() => _recommendations = value),
+            title: const Text('Konzertempfehlungen'),
+          ),
+          SwitchListTile(
+            value: _ticketAlerts,
+            onChanged: (value) => setState(() => _ticketAlerts = value),
+            title: const Text('Ticket- und Preis-Alerts'),
+          ),
+          SwitchListTile(
+            value: _almostSoldOut,
+            onChanged: (value) => setState(() => _almostSoldOut = value),
+            title: const Text('Bald ausverkauft'),
+          ),
+          SwitchListTile(
+            value: _followedArtists,
+            onChanged: (value) => setState(() => _followedArtists = value),
+            title: const Text('Neue Events favorisierter Künstler:innen'),
+          ),
+          SwitchListTile(
+            value: _savedEventReminders,
+            onChanged: (value) => setState(() => _savedEventReminders = value),
+            title: const Text('Erinnerungen an gespeicherte Events'),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -869,11 +1130,11 @@ class _SummaryStep extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _StepScaffold(
-      title: 'Klangradar ist bereit',
-      subtitle: 'Du kannst deine Interessen jederzeit im Profil ergänzen.',
+      title: 'Dein Profil ist eingerichtet',
+      subtitle: 'Deine persönlichen Konzertempfehlungen sind jetzt bereit.',
       icon: Icons.check_circle_rounded,
       onPrimary: onFinished,
-      primaryLabel: "Los geht's",
+      primaryLabel: 'Konzerte für dich entdecken',
       child: const SizedBox.shrink(),
     );
   }

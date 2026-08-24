@@ -5,6 +5,7 @@ import {
   EntityAuditSelectCheckbox,
 } from "@/components/entity-audit-bulk-selection";
 import { EntityAuditFixButton } from "@/components/entity-audit-fix-button";
+import { EntityAuditDeleteButton } from "@/components/entity-audit-delete-button";
 import { RunEntityAuditButton } from "@/components/run-entity-audit-button";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -19,6 +20,7 @@ const TABS: { type: AuditableEntityType; label: string }[] = [
   { type: "person", label: "Personen" },
   { type: "ensemble", label: "Ensembles" },
   { type: "venue", label: "Venues" },
+  { type: "work", label: "Werke" },
   { type: "event", label: "Veranstaltungen" },
 ];
 
@@ -26,6 +28,7 @@ const ENTITY_ROUTE: Record<AuditableEntityType, string> = {
   person: "persons",
   ensemble: "ensembles",
   venue: "venues",
+  work: "duplicates/works",
   event: "events",
 };
 
@@ -33,6 +36,7 @@ const TAB_DESCRIPTION: Record<AuditableEntityType, string> = {
   person: "Fehlerhafte, unvollständige oder ungewöhnliche Namen von Solist:innen, Dirigent:innen, Komponist:innen.",
   ensemble: "Fehlerhafte Namen sowie unplausible Gründungsjahre/Mitgliederzahlen von Orchestern und Chören.",
   venue: "Unvollständige Adressen sowie unplausible Postleitzahlen/Kapazitäten.",
+  work: "Doppelte, falsch eingeordnete oder unvollständige Werke und Werktitel.",
   event: "Auffällige Titel sowie widersprüchliche Preis-/Dauerangaben und fehlende Venue-Zuordnung.",
 };
 
@@ -76,6 +80,7 @@ const TYPE_ICON: Record<AuditableEntityType, string> = {
   person: "P",
   ensemble: "E",
   venue: "V",
+  work: "W",
   event: "K",
 };
 
@@ -107,6 +112,7 @@ export default async function QualitaetspruefungPage({
       .eq("entity_type", activeType)
       .eq("status", "open")
       .order("display_name")
+      .limit(100)
       .returns<FlagRow[]>(),
     Promise.all(
       TABS.map(async (tab) => {
@@ -159,7 +165,7 @@ export default async function QualitaetspruefungPage({
         </div>
       </div>
 
-      <div className="mt-5 grid grid-cols-2 gap-2 lg:grid-cols-4">
+      <div className="mt-5 grid grid-cols-2 gap-2 lg:grid-cols-5">
         {TABS.map((tab) => (
           <Link
             key={tab.type}
@@ -234,6 +240,12 @@ export default async function QualitaetspruefungPage({
                       issueMessage={flag.issues.map((i) => i.message).join(" ")}
                       issueSuggestion={flag.issues.map((i) => i.suggestion).filter(Boolean).join(" ") || null}
                       initialCorrection={initialCorrection}
+                    />
+                    <EntityAuditDeleteButton
+                      entityType={activeType}
+                      entityId={flag.entity_id}
+                      flagId={flag.id}
+                      displayName={flag.display_name || "Eintrag"}
                     />
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-2">

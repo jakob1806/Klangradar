@@ -9,75 +9,119 @@ import SwiftUI
 /// gesetzt, sobald eine echte (nicht mehr anonyme) Session existiert.
 struct SignUpStepView: View {
     @ObservedObject var auth: AuthStore
-    let onSignedUp: (String) -> Void
+    let onSignedUp: (String, Bool) -> Void
 
     @State private var email = ""
     @State private var password = ""
     @State private var passwordConfirmation = ""
     @State private var acceptedTerms = false
+    @State private var acceptedPrivacy = false
+    @State private var marketingEmailOptIn = false
+    @State private var showsPassword = false
     @State private var isWorking = false
     @State private var errorMessage: String?
     @State private var showsImpressum = false
 
-    private var requirements: [(String, Bool)] {
-        [
-            ("Mindestens 8 Zeichen", password.count >= 8),
-            ("Groß- und Kleinbuchstaben", password.contains(where: \.isUppercase) && password.contains(where: \.isLowercase)),
-            ("Mindestens eine Zahl", password.contains(where: \.isNumber))
-        ]
-    }
+    private var requirements: [(title: String, isMet: Bool)] { AuthPasswordPolicy.requirements(for: password) }
 
     private var isValid: Bool {
         email.contains("@")
-            && requirements.allSatisfy(\.1)
+            && AuthPasswordPolicy.isValid(password)
             && password == passwordConfirmation
             && acceptedTerms
+            && acceptedPrivacy
     }
 
     var body: some View {
-        OnboardingStepScaffold(
-            title: "Account erstellen",
-            subtitle: "Mit E-Mail und Passwort — ein Passwort brauchst du nur einmal festzulegen.",
-            content: {
-                VStack(spacing: 14) {
-                    TextField("E-Mail-Adresse", text: $email)
-                        .textFieldStyle(.roundedBorder)
-                        .textContentType(.username)
-                        .textInputAutocapitalization(.never)
-                        .keyboardType(.emailAddress)
-                    SecureField("Passwort", text: $password)
-                        .textFieldStyle(.roundedBorder)
-                        .textContentType(.newPassword)
-                    SecureField("Passwort wiederholen", text: $passwordConfirmation)
-                        .textFieldStyle(.roundedBorder)
-                        .textContentType(.newPassword)
+        Form {
+            Section {
+                HStack {
+                    Spacer()
+                    VStack(spacing: 10) {
+                        KlangradarAppIcon(size: 68)
+                        Text("Dein Klangradar Account")
+                            .font(.title2.bold())
+                        Text("Ein Account synchronisiert Favoriten, Interessen und Erinnerungen.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    Spacer()
+                }
+                .listRowBackground(Color.clear)
+            }
 
-                    VStack(alignment: .leading, spacing: 4) {
-                        ForEach(requirements, id: \.0) { requirement in
-                            Label(requirement.0, systemImage: requirement.1 ? "checkmark.circle.fill" : "circle")
-                                .font(.caption)
-                                .foregroundStyle(requirement.1 ? .green : .secondary)
+            Section {
+                    TextField("E-Mail-Adresse", text: $email)
+                        .textContentType(.emailAddress)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.emailAddress)
+                    Group {
+                        if showsPassword {
+                            TextField("Passwort", text: $password)
+                            TextField("Passwort wiederholen", text: $passwordConfirmation)
+                        } else {
+                            SecureField("Passwort", text: $password)
+                            SecureField("Passwort wiederholen", text: $passwordConfirmation)
                         }
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .textContentType(.newPassword)
+                    Toggle("Passwörter anzeigen", isOn: $showsPassword)
+            } header: {
+                Text("Zugangsdaten")
+            } footer: {
+                Text("Mit diesen Zugangsdaten kannst du dich später auf jedem Gerät anmelden.")
+            }
 
-                    Toggle("Ich akzeptiere die AGB und die Datenschutzerklärung", isOn: $acceptedTerms)
-                        .font(.footnote)
-                        .toggleStyle(.switch)
-                    HStack(spacing: 16) {
-                        Button("Impressum (AGB)") { showsImpressum = true }
-                        Link("Datenschutz", destination: URL(string: "https://klangradar.app/datenschutz")!)
-                    }
-                    .font(.caption)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+            Section("Sicheres Passwort") {
+                ForEach(requirements, id: \.title) { requirement in
+                    Label(requirement.title, systemImage: requirement.isMet ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(requirement.isMet ? .green : .secondary)
                 }
-            },
-            primaryTitle: "Weiter",
-            isPrimaryEnabled: isValid,
-            onPrimary: { Task { await signUp() } },
-            errorMessage: errorMessage,
-            isWorking: isWorking
-        )
+                if !passwordConfirmation.isEmpty, password != passwordConfirmation {
+                    Label("Die Passwörter stimmen nicht überein.", systemImage: "exclamationmark.circle.fill")
+                        .foregroundStyle(.red)
+                }
+            }
+
+            Section {
+                Toggle(isOn: $acceptedTerms) {
+                    Text("Ich akzeptiere die AGB.")
+                }
+                Toggle(isOn: $acceptedPrivacy) {
+                    Text("Ich habe die Datenschutzerklärung gelesen.")
+                }
+                Toggle(isOn: $marketingEmailOptIn) {
+                    VStack(alignment: .leading) {
+                        Text("Neuigkeiten per E-Mail")
+                        Text("Optional und jederzeit widerrufbar").font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            } footer: {
+                HStack(spacing: 16) {
+                    Button("Impressum (AGB)") { showsImpressum = true }
+                    Link("Datenschutz", destination: URL(string: "https://klangradar.app/datenschutz")!)
+                }
+            }
+
+            if let errorMessage {
+                Section { Label(errorMessage, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.red) }
+            }
+        }
+        .navigationTitle("Account erstellen")
+        .navigationBarTitleDisplayMode(.inline)
+        .safeAreaInset(edge: .bottom) {
+            Button { Task { await signUp() } } label: {
+                Text("Account erstellen").frame(maxWidth: .infinity)
+            }
+                .authPrimaryButtonStyle()
+                .controlSize(.large)
+                .disabled(!isValid || isWorking)
+                .authBottomActionLayout()
+        }
+        .overlay { if isWorking { ProgressView().controlSize(.large) } }
+        .interactiveDismissDisabled(isWorking)
         .sheet(isPresented: $showsImpressum) {
             NavigationStack {
                 ImpressumView()
@@ -97,7 +141,7 @@ struct SignUpStepView: View {
         let cleanEmail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         do {
             try await auth.signUp(email: cleanEmail, password: password)
-            onSignedUp(cleanEmail)
+            onSignedUp(cleanEmail, marketingEmailOptIn)
         } catch {
             errorMessage = error.localizedDescription
         }

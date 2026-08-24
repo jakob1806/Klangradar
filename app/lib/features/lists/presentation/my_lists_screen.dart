@@ -30,8 +30,7 @@ class MyListsScreen extends ConsumerWidget {
             child: Text(l10n.myListsCancel),
           ),
           FilledButton(
-            onPressed: () =>
-                Navigator.of(dialogContext).pop(controller.text),
+            onPressed: () => Navigator.of(dialogContext).pop(controller.text),
             child: Text(l10n.myListsCreate),
           ),
         ],
@@ -96,9 +95,7 @@ class MyListsScreen extends ConsumerWidget {
                               Text(
                                 l10n.myListsEmptyState,
                                 textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: colors.textSecondary,
-                                ),
+                                style: TextStyle(color: colors.textSecondary),
                               ),
                               const SizedBox(height: AppSpacing.lg),
                               FilledButton(

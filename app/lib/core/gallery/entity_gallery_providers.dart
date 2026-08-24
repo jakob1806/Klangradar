@@ -10,10 +10,25 @@ const _kImagesBucket = 'ingested-images';
 /// (siehe Admin-Crop-Tool). `crop` ist bereits in ein [Rect] umgewandelt
 /// (Anteile 0..1), passend zu [CroppedNetworkImage].
 class GalleryImage {
-  const GalleryImage({required this.url, this.crop});
+  const GalleryImage({
+    required this.url,
+    this.crop,
+    this.photographer,
+    this.sourceUrl,
+  });
 
   final String url;
   final Rect? crop;
+
+  /// Bildnachweis (Urheberrechtshinweis) für dieses Bild, sofern bei der
+  /// redaktionellen/automatisierten Freigabe hinterlegt — nur Bilder mit
+  /// `license_status in (confirmed_free, confirmed_licensed)` erreichen
+  /// diese Galerie überhaupt (siehe entityGalleryProvider unten), sodass
+  /// hier NICHT "Quelle unbekannt" angezeigt wird, wenn photographer fehlt:
+  /// das Bild ist dann bereits als rechtlich unbedenklich geprüft (z.B.
+  /// gemeinfrei/CC0 ohne benannten Fotografen), nur eben ohne Namen.
+  final String? photographer;
+  final String? sourceUrl;
 
   /// Bevorzugt die von uns gehostete Storage-Kopie (`storage_path`) statt
   /// `source_url` direkt zu zeigen (Bugfix: `source_url` ist bei manuellen
@@ -32,12 +47,22 @@ class GalleryImage {
         ? Rect.fromLTWH(x, y, width, height)
         : null;
     final storagePath = row['storage_path'] as String?;
+    final sourceUrl = row['source_url'] as String?;
     final url = storagePath != null
         ? Supabase.instance.client.storage
               .from(_kImagesBucket)
               .getPublicUrl(storagePath)
-        : row['source_url'] as String;
-    return GalleryImage(url: url, crop: crop);
+        : sourceUrl!;
+    return GalleryImage(
+      url: url,
+      crop: crop,
+      photographer: row['photographer'] as String?,
+      // Nur als Credit-Link sinnvoll, wenn er auch von der angezeigten URL
+      // abweicht (sonst verlinkt der Credit nur auf das Bild selbst) — bei
+      // storage_path-Bildern zeigt sourceUrl auf die ursprüngliche externe
+      // Fundstelle, bei reinen source_url-Bildern ist er identisch mit url.
+      sourceUrl: sourceUrl != url ? sourceUrl : null,
+    );
   }
 }
 
@@ -69,7 +94,7 @@ final entityGalleryProvider = FutureProvider.autoDispose
       final rows = await Supabase.instance.client
           .from('images')
           .select(
-            'source_url, storage_path, crop_x, crop_y, crop_width, crop_height',
+            'source_url, storage_path, crop_x, crop_y, crop_width, crop_height, photographer',
           )
           .eq('origin_type', key.originType)
           .eq('origin_id', key.originId)

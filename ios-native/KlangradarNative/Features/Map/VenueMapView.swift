@@ -19,6 +19,8 @@ struct VenueMapView: View {
     @State private var onlyWithEvents = false
     @State private var filterText = ""
     @State private var position: MapCameraPosition = .region(Self.munichRegion)
+    @State private var locationRequester = LocationRequester()
+    @State private var locationError: String?
 
     private static let munichRegion = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 48.1374, longitude: 11.5755),
@@ -54,11 +56,19 @@ struct VenueMapView: View {
                 selectedVenueGroup = nil
                 selectedVenue = venue
             }
-            .presentationDetents([.height(56 + CGFloat((selectedVenueGroup?.count ?? 0)) * 64)])
+            .presentationDetents([.height(72 + CGFloat((selectedVenueGroup?.count ?? 0)) * 76)])
             .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showsFilter) { filterSheet }
         .task { venues = (try? await repository.venueLocations()) ?? [] }
+        .alert("Standort nicht verfügbar", isPresented: Binding(
+            get: { locationError != nil },
+            set: { if !$0 { locationError = nil } }
+        )) {
+            Button("OK", role: .cancel) { locationError = nil }
+        } message: {
+            Text(locationError ?? "Der Standort konnte nicht bestimmt werden.")
+        }
     }
 
     private var showsVenueGroupSheet: Binding<Bool> {
@@ -93,34 +103,54 @@ struct VenueMapView: View {
                 }
         }
         .mapStyle(.standard(elevation: .realistic))
-            .overlay(alignment: .topLeading) {
-                Button("Filter", systemImage: "line.3.horizontal.decrease") { showsFilter = true }
-                    .buttonStyle(.bordered)
-                    .background(.regularMaterial, in: .capsule)
+            .overlay(alignment: .top) {
+                HStack(spacing: 12) {
+                Button { showsFilter = true } label: {
+                    Label("Filter", systemImage: "line.3.horizontal.decrease")
+                        .font(.subheadline.weight(.medium))
+                        .padding(.horizontal, 12)
+                        .frame(height: 36)
+                        .background(.regularMaterial, in: .capsule)
+                }
+                    .buttonStyle(.plain)
                     .foregroundStyle(.primary)
-                    .padding(16)
-            }
-            .overlay(alignment: .topTrailing) {
+                    Spacer()
                 Button {
-                    withAnimation(.easeInOut(duration: 0.35)) {
-                        position = .region(Self.munichRegion)
-                    }
+                    Task { await locateUser() }
                 } label: {
-                    Image(systemName: "location.fill")
+                    Image(systemName: "location.north.fill")
                         .font(.headline)
                         .foregroundStyle(KlangradarTheme.accent)
+                        .rotationEffect(.degrees(28))
                 }
-                    .frame(width: 48, height: 48)
+                    .frame(width: 46, height: 46)
                     .background(.regularMaterial, in: .circle)
                     .contentShape(.circle)
-                    .accessibilityLabel("Karte auf München ausrichten")
-                    .padding(16)
+                    .accessibilityLabel("Meinen Standort anzeigen")
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 10)
             }
             .navigationTitle("Karte")
+            .navigationBarTitleDisplayMode(.large)
             .toolbarBackground(.hidden, for: .navigationBar)
             .onChange(of: selectedVenueID) { _, id in
                 selectedVenue = venues.first { $0.id == id }
             }
+    }
+
+    @MainActor private func locateUser() async {
+        do {
+            let coordinate = try await locationRequester.requestOnce()
+            withAnimation(.easeInOut(duration: 0.35)) {
+                position = .region(MKCoordinateRegion(
+                    center: coordinate,
+                    span: MKCoordinateSpan(latitudeDelta: 0.035, longitudeDelta: 0.035)
+                ))
+            }
+        } catch {
+            locationError = error.localizedDescription
+        }
     }
 
     private func groupTitle(for group: [VenueLocation]) -> String {
@@ -190,14 +220,21 @@ private struct VenuePreviewSheet: View {
                         }.buttonStyle(.plain)
                     }
 
-                    HStack {
+                    HStack(spacing: 12) {
                         Button("Route", systemImage: "arrow.triangle.turn.up.right.diamond") { openRoute() }
-                            .buttonStyle(.bordered).controlSize(.large).frame(maxWidth: .infinity)
+                            .buttonStyle(.bordered)
+                            .controlSize(.large)
+                            .frame(maxWidth: .infinity, minHeight: 50)
                         if let slug = venue.slug {
                             NavigationLink {
                                 EntityDetailView(route: EntityRoute(kind: .venue, identifier: slug), repository: repository)
-                            } label: { Text("Details ansehen").frame(maxWidth: .infinity) }
-                                .buttonStyle(.borderedProminent).controlSize(.large)
+                            } label: {
+                                Text("Details ansehen")
+                                    .lineLimit(1)
+                                    .frame(maxWidth: .infinity, minHeight: 50)
+                            }
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.large)
                         }
                     }
                 }
@@ -241,7 +278,20 @@ private struct VenueGroupPickerSheet: View {
                 Button {
                     onSelect(venue)
                 } label: {
-                    HStack {
+                    HStack(spacing: 12) {
+                        CachedAsyncImage(url: venue.imageURL) { phase in
+                            if case let .success(image) = phase {
+                                image.resizable().scaledToFill()
+                            } else {
+                                ZStack {
+                                    Color.secondary.opacity(0.12)
+                                    Image(systemName: "building.columns")
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        .frame(width: 60, height: 60)
+                        .clipShape(.rect(cornerRadius: 12))
                         VStack(alignment: .leading, spacing: 2) {
                             Text(venue.name).font(.headline).foregroundStyle(.primary)
                             if venue.upcomingEventCount > 0 {
