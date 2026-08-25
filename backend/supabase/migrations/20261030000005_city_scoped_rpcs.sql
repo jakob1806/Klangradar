@@ -22,7 +22,7 @@
 -- MIGRATION-Dokumentation) um p_city_id erweitern.
 drop function if exists search_all(text, int);
 
-create function search_all(q text, result_limit int default 8, p_city_id uuid default (select id from regions where type = 'city' and slug = 'munich'))
+create function search_all(q text, result_limit int default 8, p_city_id uuid default munich_city_id())
 returns table (
   result_type text,
   id uuid,
@@ -144,7 +144,7 @@ grant execute on function search_all(text, int, uuid) to anon, authenticated;
 -- Argument bekommt weiterhin nur München (bisheriges Verhalten).
 drop function if exists venues_with_latlng();
 
-create function venues_with_latlng(p_city_id uuid default (select id from regions where type = 'city' and slug = 'munich'))
+create function venues_with_latlng(p_city_id uuid default munich_city_id())
 returns table (
   id uuid,
   slug text,
@@ -177,7 +177,7 @@ grant execute on function venues_with_latlng(uuid) to anon, authenticated;
 -- popular_events: Home-Feed-Modul nach Stadt.
 drop function if exists popular_events(int);
 
-create function popular_events(p_result_limit int default 10, p_city_id uuid default (select id from regions where type = 'city' and slug = 'munich'))
+create function popular_events(p_result_limit int default 10, p_city_id uuid default munich_city_id())
 returns table (
   id uuid,
   slug text,

@@ -164,3 +164,14 @@ left join regions s on s.id = c.parent_id
 where c.type = 'city';
 
 grant select on city_regions to anon, authenticated;
+
+-- Helfer für Parameter-Defaults in RPCs (siehe 20261030000005 u.a.):
+-- Postgres erlaubt KEINE Subquery direkt in einem DEFAULT-Ausdruck einer
+-- Funktionssignatur ("cannot use subquery in DEFAULT expression"), ein
+-- Funktionsaufruf ist dagegen erlaubt — daher dieser kleine stable-Wrapper
+-- statt `default (select id from regions where slug = 'munich')` direkt
+-- in den betroffenen create function-Signaturen.
+create or replace function munich_city_id() returns uuid
+language sql stable as $$
+  select id from regions where type = 'city' and slug = 'munich';
+$$;
