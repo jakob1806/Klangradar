@@ -1,5 +1,5 @@
 -- Multi-City-Erweiterung: p_city_id für recommended_events/discovery_events
--- nachgezogen (siehe 20261030000005_city_scoped_rpcs.sql — dort bewusst
+-- nachgezogen (siehe 20261031000005_city_scoped_rpcs.sql — dort bewusst
 -- zurückgestellt, weil beide Funktionen seit ihrer Einführung sehr groß/
 -- oft verändert wurden). Beide Bodies sind wortgleich aus der jeweils
 -- aktuellsten Fassung übernommen (recommended_events zuletzt in

@@ -5,7 +5,7 @@
 --
 -- p_city_id default null bei create_venue bedeutet "automatisch anhand
 -- der Ortsangabe vorschlagen" (siehe suggest_city_id_for_locality aus
--- 20261030000007), mit München als letztem Fallback — eine neu über das
+-- 20261031000007), mit München als letztem Fallback — eine neu über das
 -- Admin-Formular angelegte Venue bekommt so NIE eine leere Stadt, auch
 -- wenn das Formular (noch) nicht aktualisiert wurde.
 create or replace function create_venue(
@@ -53,7 +53,7 @@ $$;
 -- Venue darf ein Admin-Formular, das den neuen Parameter noch nicht
 -- mitschickt, niemals versehentlich die Stadt zurücksetzen. Der Cascade-
 -- Effekt auf events.city_id passiert automatisch über den bestehenden
--- Trigger venues_cascade_city_to_events (20261030000002) — die
+-- Trigger venues_cascade_city_to_events (20261031000002) — die
 -- Admin-UI zeigt die betroffene Event-Anzahl VOR dem Speichern separat an
 -- (siehe venue-form.tsx), diese RPC selbst warnt nicht, sie vollzieht nur.
 create or replace function update_venue(

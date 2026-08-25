@@ -83,7 +83,7 @@ where type = 'city' and slug = 'muenchen';
 -- Hierarchie konsistent bleibt und region_name sich weiterhin per Join
 -- ableiten lässt. editorial_status='soft_launch': Schema/Datenmodell ist
 -- fertig, echte Veranstaltungsdaten fehlen zu Beginn noch (siehe
--- 20261030000009_seed_new_city_sources.sql) — is_active bleibt bewusst
+-- 20261031000009_seed_new_city_sources.sql) — is_active bleibt bewusst
 -- false, bis erste echte Daten vorhanden sind und die Redaktion die Stadt
 -- freischaltet (siehe Admin-Regionen-Seite).
 do $$
@@ -165,7 +165,7 @@ where c.type = 'city';
 
 grant select on city_regions to anon, authenticated;
 
--- Helfer für Parameter-Defaults in RPCs (siehe 20261030000005 u.a.):
+-- Helfer für Parameter-Defaults in RPCs (siehe 20261031000005 u.a.):
 -- Postgres erlaubt KEINE Subquery direkt in einem DEFAULT-Ausdruck einer
 -- Funktionssignatur ("cannot use subquery in DEFAULT expression"), ein
 -- Funktionsaufruf ist dagegen erlaubt — daher dieser kleine stable-Wrapper

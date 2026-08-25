@@ -6,7 +6,7 @@
 -- strukturelle SQL-Fragen, keine KI-Bewertungsfragen. "Sichere
 -- automatische Entscheidungen" gibt es hier nur eine (Venue-Stadtwechsel
 -- kaskadiert automatisch auf Events, siehe
--- 20261030000002_city_id_venues_events_sources.sql) — alles unten ist
+-- 20261031000002_city_id_venues_events_sources.sql) — alles unten ist
 -- bewusst nur ein PRÜFBARER VORSCHLAG (reine Leseansicht), kein
 -- automatischer Fix: Venue-Duplikate zusammenzuführen oder eine Stadt
 -- händisch zu korrigieren bleibt eine redaktionelle Entscheidung.
@@ -82,7 +82,7 @@ where similarity(a.name, b.name) > 0.6
 order by name_similarity desc;
 
 -- Quellen ohne Stadt: kann durch NOT NULL auf sources.city_id (siehe
--- 20261030000002) nicht mehr vorkommen (Backfill setzt alles auf
+-- 20261031000002) nicht mehr vorkommen (Backfill setzt alles auf
 -- München), bleibt aber als konsistente Anlaufstelle für die Admin-Seite
 -- falls die Spalte künftig nullable würde bzw. für zukünftige Importe,
 -- die die Spalte versehentlich leer lassen.

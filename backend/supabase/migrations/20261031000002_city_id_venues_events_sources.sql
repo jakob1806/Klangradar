@@ -36,7 +36,7 @@ alter table sources add column city_id uuid references regions(id);
 -- Bestehende Quellen sind aktuell ausschließlich Münchner Quellen (siehe
 -- Prüfung analog zur ursprünglichen Venue-Migration); neue Quellen für
 -- Berlin/Hamburg/Wien/Frankfurt werden ab dieser Migration mit city_id
--- angelegt (siehe 20261030000009_seed_new_city_sources.sql).
+-- angelegt (siehe 20261031000009_seed_new_city_sources.sql).
 update sources set city_id = (select id from regions where type = 'city' and slug = 'munich')
 where city_id is null;
 

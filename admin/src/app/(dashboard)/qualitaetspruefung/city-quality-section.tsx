@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 
 // Rein deterministische, SQL-basierte Stadt-Konsistenzchecks (siehe
-// 20261030000007_city_quality_checks.sql) — bewusst getrennt von der
+// 20261031000007_city_quality_checks.sql) — bewusst getrennt von der
 // KI-gestützten entity_audit_flags-Pipeline der übrigen Tabs auf dieser
 // Seite: das sind strukturelle Fragen (Stadt fehlt/widerspricht sich),
 // keine KI-Bewertungsfragen. Alle admin_quality_*-RPCs sind bereits

@@ -108,7 +108,7 @@ $$;
 grant execute on function editorial_collections_by_city(uuid) to anon, authenticated;
 
 -- Karten-Venues nach Stadt inkl. Konzertregion-Nachbarorte (siehe
--- venues_in_city_region aus 20261030000003_city_area_membership.sql).
+-- venues_in_city_region aus 20261031000003_city_area_membership.sql).
 create function map_venues_by_city(p_city_id uuid)
 returns table (
   id uuid,

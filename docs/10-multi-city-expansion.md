@@ -1,7 +1,7 @@
 # Multi-City-Erweiterung — Schnittstellen für Client-Teams
 
 Backend-only-Umsetzung (Migrationen `backend/supabase/migrations/
-20261030000001` bis `20261030000009`, Admin unter `admin/src/app/
+20261031000001` bis `20261031000009`, Admin unter `admin/src/app/
 (dashboard)/regions`, `venues`). `ios-native/` wurde bewusst NICHT
 angefasst, damit parallel ohne Merge-Konflikte weitergearbeitet werden
 kann — dieses Dokument beschreibt den neuen Vertrag, den ein Client
@@ -110,7 +110,7 @@ start_datetime)` / `venues(city_id, name)`).
 
 ## Echte Erstdaten (Bootstrap, 2026-08-25)
 
-`20261030000010_seed_real_venues_and_events.sql` legt für jede der vier
+`20261031000010_seed_real_venues_and_events.sql` legt für jede der vier
 neuen Städte ein recherchiertes, echtes Flaggschiff-Venue an (Adresse +
 Koordinaten per Websuche verifiziert, keine Platzhalter) sowie einige
 echte, terminierte Konzerte aus deren tatsächlichen September-2026-

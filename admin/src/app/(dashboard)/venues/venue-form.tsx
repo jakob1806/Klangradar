@@ -48,7 +48,7 @@ export function VenueForm({
   cities: CityOption[];
   /** Nur bei Bearbeiten gesetzt: Anzahl Events dieser Venue, die bei einem
    * Stadtwechsel automatisch mitziehen würden (Trigger
-   * venues_cascade_city_to_events, siehe 20261030000002). */
+   * venues_cascade_city_to_events, siehe 20261031000002). */
   affectedEventCount?: number;
 }) {
   const [slug, setSlug] = useState(initial?.slug ?? "");

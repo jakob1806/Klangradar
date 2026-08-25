@@ -8,7 +8,7 @@
 -- um einen kleinen, von Hand kuratierten Ausschnitt (1 Flaggschiff-Venue +
 -- 2-3 Konzerte je neue Stadt) — kein vollständiger Import. Die eigentliche
 -- Ingestion-Pipeline (sources mit status='under_review', siehe
--- 20261030000009) übernimmt die Breite, sobald sie in einer echten
+-- 20261031000009) übernimmt die Breite, sobald sie in einer echten
 -- Supabase-Umgebung mit funktionierendem Scraping läuft; dort kann diese
 -- Sandbox mangels Browser-Rendering für JS-Kalender nicht ran.
 --
