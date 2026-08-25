@@ -10,6 +10,7 @@ import {
 import { ImageStatusBadge } from "@/components/image-status-badge";
 import { ListThumbnail } from "@/components/list-thumbnail";
 import { formatMunichDateTime } from "@/lib/munich-time";
+import { getActiveCityFilter } from "@/lib/city-filter";
 
 // Event-Daten ändern sich häufig (Preise, Restkarten) — nie statisch cachen.
 export const dynamic = "force-dynamic";
@@ -59,6 +60,7 @@ export default async function EventsPage({
   const to = from + PAGE_SIZE - 1;
 
   const supabase = await createClient();
+  const cityFilter = await getActiveCityFilter();
 
   // Server-seitig statt Client-Filter: die Liste ist paginiert (50/Seite),
   // ein reiner Client-Filter würde nur innerhalb der gerade geladenen Seite
@@ -71,6 +73,9 @@ export default async function EventsPage({
   }
   if (q) {
     query = query.ilike("title", `%${q}%`);
+  }
+  if (cityFilter.cityId) {
+    query = query.eq("city_id", cityFilter.cityId);
   }
   const { data, error, count } = await query
     .order("start_datetime", { ascending: true })
@@ -105,7 +110,9 @@ export default async function EventsPage({
     }
   }
 
-  const { data: statusCounts } = await supabase.from("events").select("status");
+  let statusCountsQuery = supabase.from("events").select("status");
+  if (cityFilter.cityId) statusCountsQuery = statusCountsQuery.eq("city_id", cityFilter.cityId);
+  const { data: statusCounts } = await statusCountsQuery;
   const countByStatus = new Map<string, number>();
   for (const row of statusCounts ?? []) {
     countByStatus.set(row.status, (countByStatus.get(row.status) ?? 0) + 1);

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { TableSearchFilter } from "@/components/table-search-filter";
+import { getActiveCityFilter } from "@/lib/city-filter";
 
 export const dynamic = "force-dynamic";
 
@@ -31,11 +32,13 @@ const STATUS_STYLE: Record<string, string> = {
 
 export default async function SourcesPage() {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const cityFilter = await getActiveCityFilter();
+  let query = supabase
     .from("sources")
     .select("id, name, type, status, last_run_at, consecutive_failures")
-    .order("name")
-    .returns<SourceRow[]>();
+    .order("name");
+  if (cityFilter.cityId) query = query.eq("city_id", cityFilter.cityId);
+  const { data, error } = await query.returns<SourceRow[]>();
 
   return (
     <div className="p-8">

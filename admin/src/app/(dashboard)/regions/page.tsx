@@ -1,5 +1,6 @@
 import { ConfirmButton } from "@/components/confirm-button";
 import { createClient } from "@/lib/supabase/server";
+import { getActiveCityFilter } from "@/lib/city-filter";
 import { toggleRegionActive } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -36,7 +37,8 @@ interface CityMetrics {
 
 export default async function RegionsPage() {
   const supabase = await createClient();
-  const [{ data: regions, error }, { data: venues }, { data: cityRows }, { count: eventsMissingCity }] = await Promise.all([
+  const cityFilter = await getActiveCityFilter();
+  const [{ data: regions, error }, { data: venues }, { data: allCityRows }, { count: eventsMissingCity }] = await Promise.all([
     supabase
       .from("regions")
       .select("id, type, name, slug, parent_id, is_active, editorial_status")
@@ -60,6 +62,11 @@ export default async function RegionsPage() {
     venueCountByRegion.set(v.city_id, (venueCountByRegion.get(v.city_id) ?? 0) + 1);
   }
   const byId = new Map((regions ?? []).map((r) => [r.id, r]));
+  // "Alle Städte" zeigt wie bisher jede Stadt-Kachel; bei einer aktiven
+  // Stadtauswahl im globalen Umschalter nur noch deren eigene Kachel.
+  const cityRows = cityFilter.cityId
+    ? (allCityRows ?? []).filter((c) => c.id === cityFilter.cityId)
+    : allCityRows;
 
   // Kennzahlen pro Stadt (Abschnitt 11): kommende Events, Quellenstatus,
   // Duplikatverdacht. Parallel pro Stadt statt einer riesigen Sammel-Query,

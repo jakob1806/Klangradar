@@ -108,31 +108,58 @@ ist einfach ein zusätzliches, indexiertes Filterfeld
 (`events(city_id, start_datetime)` / `events(city_id, status,
 start_datetime)` / `venues(city_id, name)`).
 
+## Echte Erstdaten (Bootstrap, 2026-08-25)
+
+`20261030000010_seed_real_venues_and_events.sql` legt für jede der vier
+neuen Städte ein recherchiertes, echtes Flaggschiff-Venue an (Adresse +
+Koordinaten per Websuche verifiziert, keine Platzhalter) sowie einige
+echte, terminierte Konzerte aus deren tatsächlichen September-2026-
+Spielplänen:
+
+- Berlin: Philharmonie Berlin (Herbert-von-Karajan-Str. 1) — 1 Konzert
+- Hamburg: Elbphilharmonie (Platz der Deutschen Einheit 4) — 3 Konzerte
+- Wien: Wiener Musikverein (Bösendorferstraße 12) — 2 Konzerte
+- Frankfurt: Alte Oper Frankfurt (Opernplatz 1) — 3 Konzerte
+
+Das ist ein von Hand kuratierter Ausschnitt (kein vollständiger Import je
+Stadt) — Dirigent:in/Solist:in/Programm stehen als Klartext in
+`subtitle`, NICHT strukturiert über `event_works`/`event_participants`
+(dafür wären neue Personen-/Werk-Stammdaten nötig gewesen). Die
+jeweilige `sources`-Zeile ist jetzt über `venue_id` verknüpft.
+
 ## Was noch NICHT erledigt ist
 
 1. **`recommended_events`/`discovery_events`** brauchen noch `p_city_id`
    — bewusst zurückgestellt (siehe oben).
-2. **Echte Veranstaltungsdaten** für Berlin/Hamburg/Wien/Frankfurt: es
-   wurden `sources`-Zeilen für alle priorisierten Institutionen mit
-   echten offiziellen URLs angelegt (`status='under_review'`), aber
-   NICHT automatisch gescraped — das braucht eine echte
-   Supabase-Umgebung mit laufenden Edge Functions, die in dieser Sandbox
-   nicht verfügbar ist. Nächster Schritt: Admin → Datenquellen → pro
-   Quelle prüfen/aktivieren, dann Ingestion anstoßen.
-3. **Keine echten `venues`-Zeilen** für die neuen Städte wurden angelegt
-   — das wären erfundene Adressen/Koordinaten gewesen. Venues entstehen
-   über die Ingestion-Pipeline aus echten Quelldaten.
-4. **Migrationen wurden NICHT gegen eine produktive Datenbank getestet**
-   — kein Supabase-CLI/Docker in dieser Sandbox verfügbar. Vor dem Live-
-   Deploy: `supabase db push` (oder Dashboard) in einer Staging-Umgebung
-   verifizieren, insbesondere den `regions`-Slug-Rename (`muenchen` →
-   `munich`) und die NOT-NULL-Backfills auf `venues.city_id`/
-   `sources.city_id`.
-5. **Qualitätsprüfung/Admin-UI**: Neue SQL-Views + `admin_quality_*`-RPCs
+2. **Breite Veranstaltungsdaten** für Berlin/Hamburg/Wien/Frankfurt: über
+   den kuratierten Bootstrap (s.o.) hinaus wurden für alle priorisierten
+   Institutionen `sources`-Zeilen mit echten offiziellen URLs angelegt
+   (`status='under_review'`), aber NICHT automatisch gescraped — die
+   meisten Spielpläne sind JS-gerendert und damit aus dieser Sandbox
+   heraus nicht zuverlässig abrufbar; das braucht die echte Ingestion-
+   Pipeline in einer laufenden Supabase-Umgebung. Nächster Schritt:
+   Admin → Datenquellen → pro Quelle prüfen/aktivieren, dann Ingestion
+   anstoßen.
+3. **Migrationen wurden NICHT gegen eine produktive Datenbank getestet**
+   — kein Supabase-CLI/Docker in dieser Sandbox verfügbar; CI
+   (`migrate-and-seed`) hat sie aber inzwischen erfolgreich gegen eine
+   echte Postgres-Instanz laufen lassen (zwei dabei gefundene echte
+   Bugs wurden gefixt: fehlender `is_active`-Wert bei den Bundesland-
+   Zeilen, Subquery in einem Funktions-Default). Vor dem Live-Deploy
+   trotzdem `supabase db push` gegen eine Staging-Umgebung verifizieren,
+   insbesondere den `regions`-Slug-Rename (`muenchen` → `munich`).
+4. **Qualitätsprüfung/Admin-UI**: Neue SQL-Views + `admin_quality_*`-RPCs
    (Abschnitt 10 der Aufgabenstellung) sind fertig, aber noch NICHT in
    die bestehende `/qualitaetspruefung`-Seite eingebunden (die aktuell
    nur die KI-gestützte Einzel-Entity-Audit-Pipeline anzeigt). Venue-
    Stadtwechsel mit Cascade-Warnung ist in `/venues` bereits eingebaut.
-6. Keine flächendeckenden Stadt-Filter-Dropdowns auf den bestehenden
-   Admin-Listenseiten (`/sources`, `/events`, `/venues`) — nur die neue
-   Städte-Übersicht (`/regions`) und der Venue-Editor wurden angepasst.
+
+## Globaler Stadtfilter im Admin-Dashboard
+
+Umschalter oben rechts im Dashboard (`CityFilterSwitcher`, Cookie
+`admin_city_filter`, 1 Jahr gültig): "Alle Städte" (Standard, unverändertes
+Verhalten) oder eine einzelne Stadt. Wirkt aktuell auf `/venues`,
+`/sources`, `/events` (inkl. Status-Zähler) und `/regions`
+(Städte-Dashboard zeigt dann nur noch die gewählte Stadt-Kachel). Weitere
+Listenseiten können denselben `getActiveCityFilter()`-Helfer
+(`admin/src/lib/city-filter.ts`) übernehmen.

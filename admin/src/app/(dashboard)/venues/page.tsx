@@ -11,6 +11,7 @@ import {
 import { ImageStatusBadge } from "@/components/image-status-badge";
 import { ListThumbnail } from "@/components/list-thumbnail";
 import { TableSearchFilter } from "@/components/table-search-filter";
+import { getActiveCityFilter } from "@/lib/city-filter";
 import { bulkDeleteVenues, bulkSetVenuesVerified } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -27,11 +28,13 @@ interface VenueRow {
 
 export default async function VenuesPage() {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const cityFilter = await getActiveCityFilter();
+  let query = supabase
     .from("venues")
     .select("id, name, address_city, capacity, is_verified, description_de, photo_url")
-    .order("name")
-    .returns<VenueRow[]>();
+    .order("name");
+  if (cityFilter.cityId) query = query.eq("city_id", cityFilter.cityId);
+  const { data, error } = await query.returns<VenueRow[]>();
 
   const missingBioIds = (data ?? []).filter((v) => !v.description_de).map((v) => v.id);
 
