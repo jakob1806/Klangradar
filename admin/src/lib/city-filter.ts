@@ -1,15 +1,8 @@
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+import { ALL_CITIES, type CityFilterOption } from "@/lib/city-filter-types";
 
 export const CITY_FILTER_COOKIE = "admin_city_filter";
-export const ALL_CITIES = "all";
-
-export interface CityFilterOption {
-  id: string;
-  slug: string;
-  name_de: string;
-  short_name_de: string | null;
-}
 
 /** Alle Städte für den globalen Umschalter (nicht nur is_active, damit auch
  * die neuen "soft_launch"-Städte schon im Admin sichtbar/wählbar sind). */

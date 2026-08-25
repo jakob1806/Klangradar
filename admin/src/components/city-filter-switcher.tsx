@@ -3,7 +3,7 @@
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { setCityFilter } from "./city-filter-actions";
-import { ALL_CITIES, type CityFilterOption } from "@/lib/city-filter";
+import { ALL_CITIES, type CityFilterOption } from "@/lib/city-filter-types";
 
 /** Globaler Stadt-Umschalter im Admin-Dashboard: "Alle Städte" zeigt
  * unverändert alles (Standard, kein neues Verhalten für bestehende
