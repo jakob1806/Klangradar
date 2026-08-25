@@ -106,7 +106,7 @@ begin
 
   -- Berlin (Stadtstaat: Bundesland = Stadt selbst, eigener Parent-Eintrag
   -- trotzdem für Konsistenz mit dem übrigen Modell)
-  insert into regions (type, parent_id, name, slug, is_active) values ('state', v_de_id, 'Berlin', 'berlin-land')
+  insert into regions (type, parent_id, name, slug, is_active) values ('state', v_de_id, 'Berlin', 'berlin-land', true)
     returning id into v_state_id;
   insert into regions (
     type, parent_id, name, slug, is_active, short_name_de, country_code,
@@ -117,7 +117,7 @@ begin
   );
 
   -- Hamburg (ebenfalls Stadtstaat)
-  insert into regions (type, parent_id, name, slug, is_active) values ('state', v_de_id, 'Hamburg', 'hamburg-land')
+  insert into regions (type, parent_id, name, slug, is_active) values ('state', v_de_id, 'Hamburg', 'hamburg-land', true)
     returning id into v_state_id;
   insert into regions (
     type, parent_id, name, slug, is_active, short_name_de, country_code,
@@ -128,7 +128,7 @@ begin
   );
 
   -- Wien
-  insert into regions (type, parent_id, name, slug, is_active) values ('state', v_at_id, 'Wien', 'wien-land')
+  insert into regions (type, parent_id, name, slug, is_active) values ('state', v_at_id, 'Wien', 'wien-land', true)
     returning id into v_state_id;
   insert into regions (
     type, parent_id, name, slug, is_active, short_name_de, country_code,
@@ -139,7 +139,7 @@ begin
   );
 
   -- Frankfurt am Main (Bundesland Hessen)
-  insert into regions (type, parent_id, name, slug, is_active) values ('state', v_de_id, 'Hessen', 'hessen')
+  insert into regions (type, parent_id, name, slug, is_active) values ('state', v_de_id, 'Hessen', 'hessen', true)
     returning id into v_state_id;
   insert into regions (
     type, parent_id, name, slug, is_active, short_name_de, country_code,
