@@ -74,7 +74,12 @@ function notificationFor(
   }
 }
 
+import { requireInternalAuth } from "../_shared/internalAuth.ts";
+
 Deno.serve(async (req) => {
+  const unauthorized = await requireInternalAuth(req);
+  if (unauthorized) return unauthorized;
+
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "Nur POST" }), { status: 405 });
   }

@@ -246,6 +246,7 @@ export async function enrichEntityImages(): Promise<EnrichImagesResult> {
         "Content-Type": "application/json",
         apikey: publicAnonKey,
         Authorization: `Bearer ${publicAnonKey}`,
+        "x-internal-secret": process.env.INTERNAL_FUNCTION_SECRET ?? "",
       },
       body: JSON.stringify({ type, limit: 8 }),
       signal: AbortSignal.timeout(90_000),

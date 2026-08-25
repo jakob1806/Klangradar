@@ -48,7 +48,12 @@ interface CandidateRow {
   discovery_context: { possible_match?: unknown } | null;
 }
 
+import { requireInternalAuth } from "../_shared/internalAuth.ts";
+
 Deno.serve(async (req) => {
+  const unauthorized = await requireInternalAuth(req);
+  if (unauthorized) return unauthorized;
+
   let body: { limit?: unknown };
   try {
     body = await req.json();

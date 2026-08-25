@@ -9,7 +9,12 @@ import { json, mapLimit, replaceEventParticipants } from "../_shared/eventPartic
 // staatsoper.de/brso.de gibt es hier kein eigenes Eventfoto (og:image ist
 // überall dasselbe generische Logo, siehe mphilDetail.ts) — der Mehrwert
 // ist die Bio-Link-Rückverlinkung für Dirigent:innen/Solist:innen.
+import { requireInternalAuth } from "../_shared/internalAuth.ts";
+
 Deno.serve(async (req) => {
+  const unauthorized = await requireInternalAuth(req);
+  if (unauthorized) return unauthorized;
+
   if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
   const body = await req.json().catch(() => ({}));
   const limit = Math.min(Math.max(Number(body.limit) || 20, 1), 30);

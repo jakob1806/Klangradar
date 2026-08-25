@@ -1384,7 +1384,12 @@ async function fixReport(
   return await fixViaSourceEvidence(supabase, report);
 }
 
+import { requireInternalAuth } from "../_shared/internalAuth.ts";
+
 Deno.serve(async (req) => {
+  const unauthorized = await requireInternalAuth(req);
+  if (unauthorized) return unauthorized;
+
   let body: { reportId?: unknown; limit?: unknown; adminInitiated?: unknown; retry?: unknown; includeTried?: unknown; platform?: unknown };
   try {
     body = await req.json();

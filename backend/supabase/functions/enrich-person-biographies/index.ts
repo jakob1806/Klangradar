@@ -35,7 +35,12 @@ function personContext(person: PersonRow, eventContext: string[]): string | null
   return parts.length ? parts.join("; ") : null;
 }
 
+import { requireInternalAuth } from "../_shared/internalAuth.ts";
+
 Deno.serve(async (req) => {
+  const unauthorized = await requireInternalAuth(req);
+  if (unauthorized) return unauthorized;
+
   if (!hasAnyAiProviderConfigured()) {
     return jsonResponse({ error: "Kein AI-Provider-Secret gesetzt" }, 500);
   }
