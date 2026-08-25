@@ -49,7 +49,10 @@ class LegalDocumentScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 16),
-              SelectableText(_body, style: const TextStyle(fontSize: 13.5, height: 1.5)),
+              SelectableText(
+                _body,
+                style: const TextStyle(fontSize: 13.5, height: 1.5),
+              ),
             ],
           ),
         ),
