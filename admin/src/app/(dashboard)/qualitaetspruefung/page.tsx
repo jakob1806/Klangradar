@@ -13,6 +13,7 @@ import {
   type AuditableEntityType,
   type EntityAuditCorrection,
 } from "@/lib/entity-audit-actions";
+import { CityQualitySection } from "./city-quality-section";
 
 export const dynamic = "force-dynamic";
 
@@ -100,21 +101,9 @@ export default async function QualitaetspruefungPage({
   searchParams: Promise<{ type?: string }>;
 }) {
   const params = await searchParams;
-  const activeType: AuditableEntityType = TABS.some((t) => t.type === params.type)
-    ? (params.type as AuditableEntityType)
-    : "person";
-
   const supabase = await createClient();
-  const [{ data, error }, countResults] = await Promise.all([
-    supabase
-      .from("entity_audit_flags")
-      .select("id, entity_id, display_name, issues, created_at")
-      .eq("entity_type", activeType)
-      .eq("status", "open")
-      .order("display_name")
-      .limit(100)
-      .returns<FlagRow[]>(),
-    Promise.all(
+  const counts = new Map<AuditableEntityType, number>(
+    await Promise.all(
       TABS.map(async (tab) => {
         const { count } = await supabase
           .from("entity_audit_flags")
@@ -124,8 +113,65 @@ export default async function QualitaetspruefungPage({
         return [tab.type, count ?? 0] as const;
       }),
     ),
-  ]);
-  const counts = new Map<AuditableEntityType, number>(countResults);
+  );
+
+  // "city" ist bewusst kein AuditableEntityType — die Stadt-Checks sind
+  // deterministische SQL-Views (siehe city-quality-section.tsx), keine
+  // KI-gestützten entity_audit_flags wie die übrigen Tabs. Eigener,
+  // früher Zweig statt AuditableEntityType aufzublähen (das würde in
+  // EntityAuditFixButton/-DeleteButton/RunEntityAuditButton usw.
+  // durchschlagen, die alle auf echte Entitäten mit KI-Korrektur zielen).
+  if (params.type === "city") {
+    return (
+      <div className="mx-auto max-w-6xl p-6 lg:p-8">
+        <div className="rounded-2xl border border-black/[0.06] bg-gradient-to-br from-white to-neutral-50 p-5 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#0071e3]">Redaktion</p>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Qualitätsprüfung</h1>
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-neutral-500">
+            Strukturelle Stadt-Konsistenzprüfungen: fehlende oder widersprüchliche Stadtzuordnungen bei Venues,
+            Events und Quellen. Rein deterministisch (kein KI-Check) — jeder Fund ist ein prüfbarer Vorschlag,
+            keine automatische Korrektur.
+          </p>
+        </div>
+        <div className="mt-5 grid grid-cols-2 gap-2 lg:grid-cols-6">
+          {TABS.map((tab) => (
+            <Link
+              key={tab.type}
+              href={`/qualitaetspruefung?type=${tab.type}`}
+              className="flex items-center gap-3 rounded-xl border border-neutral-200 bg-white px-3 py-3 text-sm font-medium text-neutral-600 transition-all hover:border-neutral-300 hover:text-neutral-900"
+            >
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-100 text-xs font-semibold text-neutral-500">
+                {TYPE_ICON[tab.type]}
+              </span>
+              <span className="min-w-0 flex-1">{tab.label}</span>
+              <span className="rounded-full bg-black/[0.05] px-2 py-0.5 text-xs tabular-nums">{counts.get(tab.type) ?? 0}</span>
+            </Link>
+          ))}
+          <Link
+            href="/qualitaetspruefung?type=city"
+            className="flex items-center gap-3 rounded-xl border border-[#0071e3]/30 bg-blue-50 px-3 py-3 text-sm font-medium text-[#0064c8] shadow-sm"
+          >
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#0071e3] text-xs font-semibold text-white">S</span>
+            <span className="min-w-0 flex-1">Städte</span>
+          </Link>
+        </div>
+        <CityQualitySection />
+      </div>
+    );
+  }
+
+  const activeType: AuditableEntityType = TABS.some((t) => t.type === params.type)
+    ? (params.type as AuditableEntityType)
+    : "person";
+
+  const { data, error } = await supabase
+    .from("entity_audit_flags")
+    .select("id, entity_id, display_name, issues, created_at")
+    .eq("entity_type", activeType)
+    .eq("status", "open")
+    .order("display_name")
+    .limit(100)
+    .returns<FlagRow[]>();
   const activeCount = counts.get(activeType) ?? 0;
   const criticalCount = (data ?? []).filter((flag) => highestSeverity(flag.issues) === "critical").length;
   const withCorrectionCount = (data ?? []).filter((flag) => flag.issues.some((issue) => issue.aiCorrection?.proposals?.length)).length;
@@ -165,7 +211,7 @@ export default async function QualitaetspruefungPage({
         </div>
       </div>
 
-      <div className="mt-5 grid grid-cols-2 gap-2 lg:grid-cols-5">
+      <div className="mt-5 grid grid-cols-2 gap-2 lg:grid-cols-6">
         {TABS.map((tab) => (
           <Link
             key={tab.type}
@@ -187,6 +233,15 @@ export default async function QualitaetspruefungPage({
             <span className="rounded-full bg-black/[0.05] px-2 py-0.5 text-xs tabular-nums">{counts.get(tab.type) ?? 0}</span>
           </Link>
         ))}
+        <Link
+          href="/qualitaetspruefung?type=city"
+          className="flex items-center gap-3 rounded-xl border border-neutral-200 bg-white px-3 py-3 text-sm font-medium text-neutral-600 transition-all hover:border-neutral-300 hover:text-neutral-900"
+        >
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-100 text-xs font-semibold text-neutral-500">
+            S
+          </span>
+          <span className="min-w-0 flex-1">Städte</span>
+        </Link>
       </div>
 
       {error && <p className="mt-6 text-sm text-amber-700">Konnte Prüfungen nicht laden: {error.message}</p>}
