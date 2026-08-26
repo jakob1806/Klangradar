@@ -48,7 +48,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     if (_autoFitDone || _userLocation != null || venues.isEmpty) return;
     _autoFitDone = true;
     if (venues.length == 1) {
-      _mapController.move(LatLng(venues.first.lat, venues.first.lng), MapScreen._muenchenZoom);
+      _mapController.move(
+        LatLng(venues.first.lat, venues.first.lng),
+        MapScreen._muenchenZoom,
+      );
       return;
     }
     final bounds = LatLngBounds.fromPoints(
