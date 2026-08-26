@@ -8,6 +8,7 @@ export interface ResolveWithAiResult {
   status: "ok" | "failed";
   processed?: number;
   approved?: number;
+  rejected?: number;
   leftPending?: number;
   totalRemainingPending?: number;
   errors?: string[];
@@ -67,6 +68,7 @@ export async function resolveEntityCandidatesWithAi(): Promise<ResolveWithAiResu
     status: "ok",
     processed: body.processed as number | undefined,
     approved: body.approved as number | undefined,
+    rejected: body.rejected as number | undefined,
     leftPending: body.left_pending as number | undefined,
     totalRemainingPending: body.total_remaining_pending as number | undefined,
     errors: body.errors as string[] | undefined,

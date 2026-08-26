@@ -637,6 +637,16 @@ Deno.serve(async (req) => {
       // musste die Redaktion jeden davon einzeln ablehnen.
       if (isPlaceholderName(name)) return null;
 
+      // Das Modell kann den Participant-Typ falsch ausgeben. Vor Websuche,
+      // Kandidatenanlage und Auto-Insert daher deterministisch gegenprüfen.
+      const nameAssessment = assessEnsembleName(name);
+      if (entityType === "ensemble" && !nameAssessment.safe) return null;
+      if (
+        entityType === "person" &&
+        (nameAssessment.safe || ["multiple_people", "organization", "venue", "role_or_department", "generic", "text"]
+          .includes(nameAssessment.classification))
+      ) return null;
+
       const { data: existingCandidate } = await supabase
         .from("entity_candidates")
         .select("id")
@@ -646,7 +656,7 @@ Deno.serve(async (req) => {
         .maybeSingle();
       if (existingCandidate) return null;
 
-      const enrichment = await enrichCandidateContext(entityType, name);
+      const enrichment = await enrichCandidateContext(entityType, name, event.title);
 
       // Für Personen entfällt die explizite Redaktions-Freigabe komplett
       // (Nutzer-Feedback: zu viel manueller Aufwand) — auch ohne
@@ -657,7 +667,7 @@ Deno.serve(async (req) => {
         const newId = await autoCreateEntity(
           entityType,
           name,
-          enrichment ?? { bioSnippet: null, websiteUrl: null },
+          enrichment ?? { bioSnippet: null, websiteUrl: null, resolvedEntityType: "person" },
         );
         if (newId) return newId;
         // Anlegen fehlgeschlagen (z.B. Slug-Kollision, DB-Fehler) — als
@@ -690,13 +700,25 @@ Deno.serve(async (req) => {
     async function autoCreateEntity(
       entityType: "person" | "ensemble",
       name: string,
-      enrichment: { bioSnippet: string | null; websiteUrl: string | null },
+      enrichment: {
+        bioSnippet: string | null;
+        websiteUrl: string | null;
+        resolvedEntityType?: "person" | "ensemble";
+      },
     ): Promise<string | null> {
+      const assessment = assessEnsembleName(name);
+      if (entityType === "ensemble" && !assessment.safe) return null;
+      if (entityType === "person" && assessment.safe) return null;
+
+      const table = entityType === "person" ? "persons" : "ensembles";
+      const nameField = entityType === "person" ? "full_name" : "name";
+      const { data: existing } = await supabase.from(table).select("id").ilike(nameField, name).limit(1).maybeSingle();
+      if (existing?.id) return existing.id;
+
       const slug = await generateUniqueSlug(
-        entityType === "person" ? "persons" : "ensembles",
+        table,
         name,
       );
-      const table = entityType === "person" ? "persons" : "ensembles";
       const insertResult = entityType === "person"
         ? await supabase.from("persons").insert({
           full_name: name,

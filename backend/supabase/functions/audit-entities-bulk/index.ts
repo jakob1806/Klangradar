@@ -135,78 +135,54 @@ Deno.serve(async (req) => {
     if (ruleIssues.length > 0) issuesByEntityId.set(id, ruleIssues);
   }
 
-  // Duplikate werden deterministisch gegen den gesamten Entitätstyp geprüft,
-  // nicht nur gegen die aktuelle 200er-Seite. Das ist schneller, reproduzierbar
-  // und findet auch Dubletten, die auf unterschiedlichen Seiten liegen.
-  const { data: allNamesData } = await supabase
-    .from(AUDIT_TABLE[entityType])
-    .select(`id,${nameField}`)
-    .order(nameField)
-    .limit(20_000);
-  const namesByNormalized = new Map<string, { id: string; name: string }[]>();
-  for (const item of (allNamesData ?? []) as unknown as Record<string, unknown>[]) {
-    const candidate = { id: String(item.id), name: String(item[nameField] ?? "") };
-    const normalized = normalizeName(candidate.name);
-    if (!normalized) continue;
-    namesByNormalized.set(normalized, [...(namesByNormalized.get(normalized) ?? []), candidate]);
-  }
-  for (const entity of rows) {
-    const id = String(entity.id);
-    const name = String(entity[nameField] ?? "");
-    const duplicates = (namesByNormalized.get(normalizeName(name)) ?? [])
-      .filter((candidate) => candidate.id !== id)
-      .slice(0, 3);
-    if (duplicates.length > 0) {
-      const duplicateAuditIssues: AuditIssue[] = duplicates.map((candidate) => ({
-        id: `duplicate-${candidate.id}`,
+  // Duplikate und exakte Treffer in anderen Entitätstabellen werden jetzt in
+  // EINER indexgestützten DB-Abfrage ermittelt. Zuvor wurden pro 200er-Seite
+  // bis zu 20.000 Namen aus jeder Tabelle heruntergeladen und lokal gruppiert.
+  const { data: exactMatches, error: exactMatchError } = await supabase.rpc(
+    "audit_exact_name_matches",
+    {
+      p_entity_type: entityType,
+      p_rows: rows.map((entity) => ({
+        id: String(entity.id),
+        name: String(entity[nameField] ?? ""),
+      })),
+    },
+  );
+  if (exactMatchError) return json({ error: exactMatchError.message }, 500);
+  const matchesPerEntity = new Map<string, number>();
+  for (const rawMatch of (exactMatches ?? []) as Array<Record<string, unknown>>) {
+    const sourceId = String(rawMatch.source_id ?? "");
+    const matchType = String(rawMatch.match_type ?? "") as AuditEntityType;
+    const matchId = String(rawMatch.match_id ?? "");
+    const matchName = String(rawMatch.match_name ?? "");
+    if (!sourceId || !matchId || !matchName || (matchesPerEntity.get(sourceId) ?? 0) >= 6) continue;
+    const existing = issuesByEntityId.get(sourceId) ?? [];
+    existing.push(matchType === entityType
+      ? {
+        id: `duplicate-${matchId}`,
         severity: "critical",
         category: "duplicate",
-        message: `Doppelter Eintrag mit gleicher normalisierter Schreibweise: „${candidate.name}“.`,
+        message: `Doppelter Eintrag mit gleicher normalisierter Schreibweise: „${matchName}“.`,
         suggestion: "Einträge vergleichen und zusammenführen oder einen davon löschen.",
-        relatedId: candidate.id,
-        relatedName: candidate.name,
+        relatedId: matchId,
+        relatedName: matchName,
         confidence: 1,
         source: "rule",
-      }));
-      issuesByEntityId.set(id, [...(issuesByEntityId.get(id) ?? []), ...duplicateAuditIssues]);
-    }
-  }
-
-  // Exakte Namen in einer anderen Stammdatentabelle sind ein starkes Signal
-  // für falsch klassifizierte Imports (z.B. Person zusätzlich als Ensemble).
-  const crossTypes = (["person", "ensemble", "venue", "work"] as AuditEntityType[])
-    .filter((type) => type !== entityType);
-  const crossNameMaps = await Promise.all(crossTypes.map(async (type) => {
-    const field = AUDIT_NAME_FIELD[type];
-    const { data } = await supabase.from(AUDIT_TABLE[type]).select(`id,${field}`).limit(20_000);
-    const map = new Map<string, { id: string; name: string }>();
-    for (const item of (data ?? []) as unknown as Record<string, unknown>[]) {
-      const name = String(item[field] ?? "");
-      const normalized = normalizeName(name);
-      if (normalized) map.set(normalized, { id: String(item.id), name });
-    }
-    return { type, map };
-  }));
-  for (const entity of rows) {
-    const id = String(entity.id);
-    const name = String(entity[nameField] ?? "");
-    const normalized = normalizeName(name);
-    for (const other of crossNameMaps) {
-      const match = other.map.get(normalized);
-      if (!match) continue;
-      const existing = issuesByEntityId.get(id) ?? [];
-      existing.push({
-        id: `wrong-type-${other.type}-${match.id}`,
+      }
+      : {
+        id: `wrong-type-${matchType}-${matchId}`,
         severity: "critical",
         category: "contradiction",
-        message: `„${name}“ existiert auch als ${ENTITY_LABEL[other.type]}; der Eintrag ist möglicherweise falsch klassifiziert.`,
-        suggestion: "Beide Einträge vergleichen und den falsch eingeordneten Datensatz löschen oder zusammenführen.",
-        relatedId: match.id,
-        relatedName: match.name,
+        message: `Der Name existiert bereits als ${ENTITY_LABEL[matchType]}; dieser Eintrag ist wahrscheinlich falsch klassifiziert.`,
+        suggestion: matchType === "person" && entityType === "ensemble"
+          ? "Mit „Als Person korrigieren“ alle Verknüpfungen atomar verschieben."
+          : "Beide Einträge prüfen und den falsch eingeordneten Datensatz strukturell korrigieren.",
+        relatedId: matchId,
+        relatedName: matchName,
         source: "rule",
       });
-      issuesByEntityId.set(id, existing);
-    }
+    issuesByEntityId.set(sourceId, existing);
+    matchesPerEntity.set(sourceId, (matchesPerEntity.get(sourceId) ?? 0) + 1);
   }
 
   const useAi = hasAnyAiProviderConfigured();

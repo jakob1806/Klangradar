@@ -10,11 +10,12 @@ interface RunningTotals {
   rounds: number;
   processed: number;
   approved: number;
+  rejected: number;
   leftPending: number;
   errors: string[];
 }
 
-const EMPTY_TOTALS: RunningTotals = { rounds: 0, processed: 0, approved: 0, leftPending: 0, errors: [] };
+const EMPTY_TOTALS: RunningTotals = { rounds: 0, processed: 0, approved: 0, rejected: 0, leftPending: 0, errors: [] };
 
 /** Batch-Button: schickt wartende person/ensemble-Kandidaten durch dieselbe
  * Tavily+LLM-Prüfung, die neue Kandidaten schon automatisch entscheidet
@@ -54,6 +55,7 @@ export function ResolveWithAiButton() {
           rounds: acc.rounds + 1,
           processed: acc.processed + (result.processed ?? 0),
           approved: acc.approved + (result.approved ?? 0),
+          rejected: acc.rejected + (result.rejected ?? 0),
           leftPending: acc.leftPending + (result.leftPending ?? 0),
           errors: [...acc.errors, ...(result.errors ?? [])],
         };
@@ -84,7 +86,7 @@ export function ResolveWithAiButton() {
       {totals && (totals.rounds > 0 || failure) && (
         <p className="max-w-xs text-right text-xs text-neutral-600">
           {totals.rounds} Runde{totals.rounds === 1 ? "" : "n"} · {totals.processed} geprüft ·{" "}
-          {totals.approved} automatisch angelegt · {totals.leftPending} weiterhin unklar
+          {totals.approved} automatisch angelegt/verknüpft · {totals.rejected} eindeutig verworfen · {totals.leftPending} weiterhin unklar
           {stopped && <span className="mt-1 block text-amber-700">Sicherheitsdeckel erreicht — einfach nochmal klicken.</span>}
           {totals.errors.length > 0 && <span className="mt-1 block text-red-600">{totals.errors.join("; ")}</span>}
         </p>

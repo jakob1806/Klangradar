@@ -35,6 +35,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { hasAnyAiProviderConfigured } from "../_shared/ai/router.ts";
 import { enrichCandidateContext } from "../_shared/entityEnrichment.ts";
+import { assessEnsembleName } from "../_shared/entityNameValidation.ts";
 import { logSystemAction } from "../_shared/systemLog.ts";
 import { recordFieldSource } from "../_shared/provenance.ts";
 
@@ -87,7 +88,7 @@ Deno.serve(async (req) => {
   }
 
   const list = candidates ?? [];
-  const results: Array<{ outcome: "approved" | "pending" | "error"; error?: string }> = [];
+  const results: Array<{ outcome: "approved" | "rejected" | "pending" | "error"; error?: string }> = [];
 
   // Begrenzte Nebenläufigkeit statt eines sequentiellen for-Loops (siehe
   // run-all-sources/index.ts für dasselbe Muster) — jeder Kandidat braucht
@@ -104,6 +105,7 @@ Deno.serve(async (req) => {
   await Promise.all(Array.from({ length: workerCount }, () => worker()));
 
   const approved = results.filter((r) => r.outcome === "approved").length;
+  const rejected = results.filter((r) => r.outcome === "rejected").length;
   const leftPending = results.filter((r) => r.outcome === "pending").length;
   const errors = results.filter((r) => r.outcome === "error").map((r) => r.error!);
 
@@ -122,6 +124,7 @@ Deno.serve(async (req) => {
   return jsonResponse({
     processed: list.length,
     approved,
+    rejected,
     left_pending: leftPending,
     total_remaining_pending: totalRemainingPending ?? 0,
     errors: errors.slice(0, 10),
@@ -132,7 +135,7 @@ async function processCandidate(
   // deno-lint-ignore no-explicit-any
   supabase: any,
   candidate: CandidateRow,
-): Promise<{ outcome: "approved" | "pending" | "error"; error?: string }> {
+): Promise<{ outcome: "approved" | "rejected" | "pending" | "error"; error?: string }> {
   // Wird auf JEDEM Pfad gestempelt (auch pending/error) — sonst blockieren
   // dieselben unklaren/fehlerhaften Kandidaten für immer den Anfang der
   // Warteliste, siehe Migrationskommentar oben.
@@ -144,24 +147,86 @@ async function processCandidate(
       return { outcome: "pending" };
     }
 
+    const assessment = assessEnsembleName(candidate.name);
+    const deterministicallyWrong = candidate.entity_type === "ensemble"
+      ? !assessment.safe && assessment.classification !== "unknown"
+      : assessment.safe || ["multiple_people", "organization", "venue", "role_or_department", "generic", "text"]
+        .includes(assessment.classification);
+    if (deterministicallyWrong) {
+      const { error: rejectError } = await supabase.from("entity_candidates").update({
+        status: "rejected",
+        reviewed_at: new Date().toISOString(),
+        ai_last_checked_at: new Date().toISOString(),
+        discovery_context: {
+          ...(candidate.discovery_context ?? {}),
+          automatic_rejection: {
+            classification: assessment.classification,
+            reason: assessment.reason,
+          },
+        },
+      }).eq("id", candidate.id).eq("status", "pending");
+      return rejectError
+        ? { outcome: "error", error: `"${candidate.name}": ${rejectError.message}` }
+        : { outcome: "rejected" };
+    }
+
+    // Vor einer teuren Web-/KI-Prüfung vorhandene Stammdaten noch einmal
+    // exakt/über Alias prüfen. So entstehen bei parallelen Läufen keine
+    // neuen Duplikate aus demselben Kandidaten.
+    const table = candidate.entity_type === "person" ? "persons" : "ensembles";
+    const nameField = candidate.entity_type === "person" ? "full_name" : "name";
+    const createdIdColumn = candidate.entity_type === "person" ? "created_person_id" : "created_ensemble_id";
+    const { data: aliasMatches } = await supabase.rpc("resolve_entity_alias", {
+      p_entity_type: candidate.entity_type,
+      p_name: candidate.name,
+    });
+    const aliasId = aliasMatches?.[0]?.id as string | undefined;
+    const { data: exact } = aliasId
+      ? { data: { id: aliasId } }
+      : await supabase.from(table).select("id").ilike(nameField, candidate.name).limit(1).maybeSingle();
+    if (exact?.id) {
+      const { error: linkError } = await supabase.from("entity_candidates").update({
+        status: "approved",
+        reviewed_at: new Date().toISOString(),
+        ai_last_checked_at: new Date().toISOString(),
+        [createdIdColumn]: exact.id,
+      }).eq("id", candidate.id).eq("status", "pending");
+      return linkError
+        ? { outcome: "error", error: `"${candidate.name}": ${linkError.message}` }
+        : { outcome: "approved" };
+    }
+
     const enrichment = await enrichCandidateContext(candidate.entity_type, candidate.name);
     if (!enrichment) {
       await stamp();
       return { outcome: "pending" };
     }
 
-    const table = candidate.entity_type === "person" ? "persons" : "ensembles";
     const slug = await generateUniqueSlug(supabase, table, candidate.name);
     const payload =
       candidate.entity_type === "person"
         ? { full_name: candidate.name, slug, is_verified: false, website_url: enrichment.websiteUrl }
         : { name: candidate.name, slug, type: "sonstiges", is_verified: false, website_url: enrichment.websiteUrl };
 
-    const createdIdColumn = candidate.entity_type === "person" ? "created_person_id" : "created_ensemble_id";
     const { data: created, error: createError } = await supabase.from(table).insert(payload).select("id").single();
     if (createError || !created) {
-      await stamp();
-      return { outcome: "error", error: `"${candidate.name}": ${createError?.message ?? "kein Ergebnis"}` };
+      // Race: ein paralleler Worker/Importer kann denselben Namen zwischen
+      // Exaktprüfung und Insert angelegt haben. Erneut verknüpfen statt einen
+      // zweiten Datensatz/Fehler zu produzieren.
+      const { data: raced } = await supabase.from(table).select("id").ilike(nameField, candidate.name).limit(1).maybeSingle();
+      if (!raced?.id) {
+        await stamp();
+        return { outcome: "error", error: `"${candidate.name}": ${createError?.message ?? "kein Ergebnis"}` };
+      }
+      const { error: raceUpdateError } = await supabase.from("entity_candidates").update({
+        status: "approved",
+        reviewed_at: new Date().toISOString(),
+        ai_last_checked_at: new Date().toISOString(),
+        [createdIdColumn]: raced.id,
+      }).eq("id", candidate.id).eq("status", "pending");
+      return raceUpdateError
+        ? { outcome: "error", error: `"${candidate.name}": ${raceUpdateError.message}` }
+        : { outcome: "approved" };
     }
 
     const { error: updateError } = await supabase

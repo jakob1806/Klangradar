@@ -6,6 +6,7 @@ import {
 } from "@/components/entity-audit-bulk-selection";
 import { EntityAuditFixButton } from "@/components/entity-audit-fix-button";
 import { EntityAuditDeleteButton } from "@/components/entity-audit-delete-button";
+import { EntityAuditStructuralActions } from "@/components/entity-audit-structural-actions";
 import { RunEntityAuditButton } from "@/components/run-entity-audit-button";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -295,6 +296,13 @@ export default async function QualitaetspruefungPage({
                       issueMessage={flag.issues.map((i) => i.message).join(" ")}
                       issueSuggestion={flag.issues.map((i) => i.suggestion).filter(Boolean).join(" ") || null}
                       initialCorrection={initialCorrection}
+                    />
+                    <EntityAuditStructuralActions
+                      entityType={activeType}
+                      entityId={flag.entity_id}
+                      flagId={flag.id}
+                      displayName={flag.display_name || "Eintrag"}
+                      issues={flag.issues.map((issue) => ({ id: issue.id, message: issue.message }))}
                     />
                     <EntityAuditDeleteButton
                       entityType={activeType}

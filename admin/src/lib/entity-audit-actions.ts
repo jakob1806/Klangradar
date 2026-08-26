@@ -152,6 +152,43 @@ export interface AuditPreparationResult {
   errors: string[];
 }
 
+export type EnsembleStructuralRepair = "person" | "people" | "organizer";
+
+/** Korrigiert einen falschen Entitätstyp atomar. Im Gegensatz zu einer
+ * normalen Feldänderung werden Event-Verknüpfungen, Quellen, Favoriten und
+ * Bilder mitgenommen und der falsche Ensemble-Datensatz erst danach gelöscht. */
+export async function repairMisclassifiedEnsemble(
+  ensembleId: string,
+  flagId: string,
+  repair: EnsembleStructuralRepair,
+  names: string[] = [],
+): Promise<void> {
+  const supabase = await createClient();
+  const rpc = repair === "person"
+    ? supabase.rpc("quality_move_ensemble_to_person", { p_ensemble_id: ensembleId })
+    : repair === "organizer"
+    ? supabase.rpc("quality_move_ensemble_to_organizer", { p_ensemble_id: ensembleId })
+    : supabase.rpc("quality_split_ensemble_into_people", {
+      p_ensemble_id: ensembleId,
+      p_names: names.map((name) => name.trim()).filter(Boolean),
+    });
+  await mustSucceed(rpc);
+  await mustSucceed(supabase.from("entity_audit_flags").delete().eq("id", flagId));
+  revalidatePath("/qualitaetspruefung");
+}
+
+function safeAuditProposals(
+  entityType: AuditableEntityType,
+  proposals: EditorialAiProposal[],
+): EditorialAiProposal[] {
+  if (entityType !== "ensemble") return proposals;
+  const validEnsembleTypes = new Set(["chor", "orchester", "kammerensemble", "big_band", "sonstiges"]);
+  return proposals.filter((proposal) =>
+    proposal.field !== "type" ||
+    (typeof proposal.value === "string" && validEnsembleTypes.has(proposal.value))
+  );
+}
+
 export async function resolveEntityAuditFlags(ids: string[]): Promise<BulkAuditActionResult> {
   const uniqueIds = [...new Set(ids)].slice(0, 200);
   if (uniqueIds.length === 0) return { completed: 0, skipped: 0, failed: 0 };
@@ -208,7 +245,10 @@ export async function applyAllEntityAuditCorrections(ids: string[]): Promise<Bul
             true,
           );
         }
-        const proposals = (correction.proposals ?? []).filter((proposal) => proposal.confidence !== "unclear");
+        const proposals = safeAuditProposals(
+          row.entity_type as AuditableEntityType,
+          correction.proposals ?? [],
+        ).filter((proposal) => proposal.confidence !== "unclear");
         if (proposals.length === 0) {
           skipped += 1;
           continue;
@@ -280,11 +320,12 @@ export async function prepareEntityAuditCorrections(ids: string[]): Promise<Audi
           // übernommen. "likely" und "unclear" bleiben sichtbar für eine
           // redaktionelle Entscheidung; Mischpakete werden nicht teilweise
           // angewendet, damit der Datensatz konsistent bleibt.
-          if (correction.proposals.every((proposal) => proposal.confidence === "confirmed")) {
+          const safeProposals = safeAuditProposals(row.entity_type as AuditableEntityType, correction.proposals);
+          if (safeProposals.length > 0 && safeProposals.every((proposal) => proposal.confidence === "confirmed")) {
             await applyEditorialAiProposals(
               row.entity_type as AuditableEntityType,
               row.entity_id,
-              correction.proposals,
+              safeProposals,
             );
             const { error: resolveError } = await supabase
               .from("entity_audit_flags")
@@ -338,11 +379,16 @@ export async function suggestEntityAuditCorrection(
 
   const message = `Behebe folgendes automatisch erkanntes Datenqualitätsproblem: "${issueMessage}"` +
     (issueSuggestion ? ` Hinweis: ${issueSuggestion}` : "") +
-    " Schlage den korrigierten Wert für das betroffene Feld vor, recherchiere falls nötig im Web.";
+    " Schlage den korrigierten Wert für das betroffene Feld vor, recherchiere falls nötig im Web. " +
+    "WICHTIG: Erfinde niemals einen konkreten Eigennamen als Ersatz für einen generischen Begriff. " +
+    "Ein Wechsel zwischen Person, Ensemble, Venue und Veranstalter ist keine Feldkorrektur; schlage dafür weder das Feld type noch Biografiefelder des falschen Entitätstyps vor.";
   const result = await chatWithEditorialAi(entityType, entityId, message);
   const correction: EntityAuditCorrection = {
     answer: typeof result.answer === "string" ? result.answer : null,
-    proposals: Array.isArray(result.proposals) ? (result.proposals as EditorialAiProposal[]) : [],
+    proposals: safeAuditProposals(
+      entityType,
+      Array.isArray(result.proposals) ? (result.proposals as EditorialAiProposal[]) : [],
+    ),
     generatedAt: new Date().toISOString(),
   };
 

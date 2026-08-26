@@ -1,4 +1,7 @@
-import { assessEnsembleName } from "../_shared/entityNameValidation.ts";
+import {
+  assessEnsembleName,
+  isGenericEnsembleName,
+} from "../_shared/entityNameValidation.ts";
 
 export type AuditEntityType = "person" | "ensemble" | "venue" | "work" | "event";
 export type AuditSeverity = "critical" | "warning" | "info";
@@ -42,20 +45,6 @@ const PLACEHOLDER_NAMES = new Set([
   "diverse",
   "verschiedene",
   "noch offen",
-]);
-
-// Live im Bestand aufgefallen: Ensembles, die nur aus einem Gattungswort
-// bestehen ("Chor", "Orchester", …) statt einem konkreten Namen — meist
-// aus einer Rollenbezeichnung ("Chor" im Sinne von Chorleitung) statt einer
-// echten Ensemble-Nennung fehlgeleitet entstanden.
-const GENERIC_ENSEMBLE_NAMES = new Set([
-  "chor",
-  "chore",
-  "orchester",
-  "ballett",
-  "ensemble",
-  "choreographie",
-  "choreografie",
 ]);
 
 export function normalizeName(value: string): string {
@@ -211,7 +200,11 @@ export function basicNameIssues(
       });
     }
   }
-  if (/^[a-zäöüß]/.test(trimmed)) {
+  // Eigenschreibweisen wie „hr-Bigband“ und „via-nova-chor München“ sind
+  // korrekt. Bei Ensembles ist die zentrale Klassifikation verlässlicher als
+  // eine pauschale Großschreibungsregel.
+  const ensembleAssessment = entityType === "ensemble" ? assessEnsembleName(trimmed) : null;
+  if (/^[a-zäöüß]/.test(trimmed) && !(entityType === "ensemble" && ensembleAssessment?.safe)) {
     issues.push({
       id: "name-lowercase",
       severity: "warning",
@@ -247,26 +240,32 @@ export function basicNameIssues(
       source: "rule",
     });
   }
-  if (entityType === "ensemble" && GENERIC_ENSEMBLE_NAMES.has(normalized)) {
+  if (entityType === "ensemble" && isGenericEnsembleName(trimmed)) {
     issues.push({
       id: "ensemble-generic-name",
       severity: "critical",
       category: "name",
       message: `„${trimmed}“ ist ein bloßes Gattungswort statt eines konkreten Ensemblenamens.`,
-      suggestion: "Den offiziellen Ensemblenamen recherchieren (z. B. \"Bayerischer Staatsopernchor\").",
+      suggestion: "Nicht durch einen geratenen Eigennamen ersetzen. Quellkontext prüfen oder den falschen Eintrag samt Verknüpfung entfernen.",
       source: "rule",
     });
   }
   if (entityType === "ensemble") {
-    const assessment = assessEnsembleName(trimmed);
-    if (!assessment.safe && !GENERIC_ENSEMBLE_NAMES.has(normalized)) {
+    const assessment = ensembleAssessment ?? assessEnsembleName(trimmed);
+    if (!assessment.safe && !isGenericEnsembleName(trimmed)) {
       issues.push({
         id: "ensemble-wrong-entity-type",
-        severity: assessment.reason === "Ticket- oder Informationstext" ? "critical" : "warning",
+        severity: assessment.classification === "unknown" ? "warning" : "critical",
         category: "contradiction",
         message: `Der Eintrag ist wahrscheinlich kein Ensemble (${assessment.reason ?? "uneindeutig"}).`,
-        suggestion: assessment.reason === "sieht wie ein Personenname aus"
-          ? "Als Person prüfen und den falschen Ensemble-Eintrag anschließend entfernen."
+        suggestion: assessment.classification === "person"
+          ? "Strukturell als Person übernehmen; Veranstaltungsverknüpfungen verschieben und den falschen Ensemble-Eintrag entfernen."
+          : assessment.classification === "multiple_people"
+          ? "In einzelne Personen aufteilen und die Veranstaltungsverknüpfungen auf diese Personen verschieben."
+          : assessment.classification === "organization"
+          ? "Als Veranstalter/Institution prüfen und nicht durch einen Ensemble-Typwert kaschieren."
+          : assessment.classification === "venue"
+          ? "Mit einer vorhandenen Spielstätte abgleichen und nicht als Ensemble behalten."
           : "Nicht als Ensemble übernehmen; Quelle und bestehende Verknüpfungen prüfen.",
         source: "rule",
       });
