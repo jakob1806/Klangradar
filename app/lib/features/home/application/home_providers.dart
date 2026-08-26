@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/favorites/favorites_providers.dart';
+import '../../../core/regions/region_providers.dart';
 import '../../../core/widgets/genre_artwork.dart';
 import '../../../core/time/munich_time.dart';
 import '../../follows/application/follows_providers.dart';
@@ -268,6 +269,7 @@ final homeDataProvider = FutureProvider.autoDispose<HomeData>((ref) async {
   ref.watch(currentUserProvider);
   ref.watch(favoriteIdsProvider);
   ref.watch(myFollowsProvider);
+  final region = ref.watch(selectedCityRegionProvider);
   final client = Supabase.instance.client;
   final now = MunichTime.now();
   final todayStart = DateTime(now.year, now.month, now.day);
@@ -291,7 +293,16 @@ final homeDataProvider = FutureProvider.autoDispose<HomeData>((ref) async {
     // algorithm.md, Abschnitt 4.1/0) — degradiert für anonyme/interesselose
     // Nutzer serverseitig automatisch zu Popularität + zeitlicher Nähe,
     // kein Sonderfall hier im Client nötig.
-    client.rpc('recommended_events', params: {'p_result_limit': 24}),
+    client.rpc(
+      'recommended_events',
+      // p_city_id: siehe Kommentar in map_providers.dart -- die bereits
+      // live deployte Version dieser RPC (mit zusätzlichem rank_score/
+      // rank_reason) nutzt city_id, keine eigene region_id-Variante.
+      params: {
+        'p_result_limit': 24,
+        if (region != null) 'p_city_id': region.id,
+      },
+    ),
     client.rpc('favorite_events_home', params: {'p_result_limit': 20}),
     client.rpc('followed_events', params: {'p_result_limit': 20}),
     // "Entdecken" (docs/08, Abschnitt 4.3): semantische Ähnlichkeit zu

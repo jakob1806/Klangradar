@@ -21,6 +21,7 @@ export async function discoverSources(_prevState: DiscoverResult, formData: Form
         "Content-Type": "application/json",
         apikey: anonKey ?? "",
         Authorization: `Bearer ${anonKey ?? ""}`,
+        "x-internal-secret": process.env.INTERNAL_FUNCTION_SECRET ?? "",
       },
       body: JSON.stringify({ query }),
     });

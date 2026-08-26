@@ -28,7 +28,12 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendPushToTokens } from "../_shared/fcm.ts";
 
+import { requireInternalAuth } from "../_shared/internalAuth.ts";
+
 Deno.serve(async (req) => {
+  const unauthorized = await requireInternalAuth(req);
+  if (unauthorized) return unauthorized;
+
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "Nur POST" }), { status: 405 });
   }

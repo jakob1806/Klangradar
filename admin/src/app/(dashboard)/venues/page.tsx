@@ -63,7 +63,9 @@ export default async function VenuesPage() {
         <BioSelectionProvider>
           <div className="mt-6">
             <div className="flex items-center justify-between">
-              <TableSearchFilter containerId="venues-table" placeholder="Name durchsuchen…" />
+              <div className="flex items-center gap-2">
+                <TableSearchFilter containerId="venues-table" placeholder="Name durchsuchen…" />
+              </div>
               <BioSelectMissingButton ids={missingBioIds} />
             </div>
             <BioResearchBar
@@ -90,7 +92,11 @@ export default async function VenuesPage() {
                 <tbody className="divide-y divide-neutral-200">
                   {data?.length ? (
                     data.map((venue) => (
-                      <tr key={venue.id} data-search={venue.name.toLowerCase()} className="hover:bg-neutral-50">
+                      <tr
+                        key={venue.id}
+                        data-search={venue.name.toLowerCase()}
+                        className="hover:bg-neutral-50"
+                      >
                         <td className="px-4 py-3">
                           <BioRowCheckbox id={venue.id} />
                         </td>

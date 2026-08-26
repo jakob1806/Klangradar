@@ -628,9 +628,15 @@ class _SignUpStepState extends State<_SignUpStep> {
             value: _acceptedTerms,
             onChanged: (value) =>
                 setState(() => _acceptedTerms = value ?? false),
-            title: const Text(
-              'Ich akzeptiere die AGB',
-              style: TextStyle(fontSize: 12.5),
+            title: GestureDetector(
+              onTap: () => context.push('/legal/terms'),
+              child: const Text(
+                'Ich akzeptiere die AGB',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  decoration: TextDecoration.underline,
+                ),
+              ),
             ),
           ),
           CheckboxListTile(
@@ -639,9 +645,15 @@ class _SignUpStepState extends State<_SignUpStep> {
             value: _acceptedPrivacy,
             onChanged: (value) =>
                 setState(() => _acceptedPrivacy = value ?? false),
-            title: const Text(
-              'Ich habe die Datenschutzerklärung gelesen',
-              style: TextStyle(fontSize: 12.5),
+            title: GestureDetector(
+              onTap: () => context.push('/legal/privacy'),
+              child: const Text(
+                'Ich habe die Datenschutzerklärung gelesen',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  decoration: TextDecoration.underline,
+                ),
+              ),
             ),
           ),
           CheckboxListTile(

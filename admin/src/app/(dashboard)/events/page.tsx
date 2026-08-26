@@ -64,10 +64,14 @@ export default async function EventsPage({
 
   // Server-seitig statt Client-Filter: die Liste ist paginiert (50/Seite),
   // ein reiner Client-Filter würde nur innerhalb der gerade geladenen Seite
-  // suchen, nicht über alle Events hinweg.
+  // suchen, nicht über alle Events hinweg. Städte-Filter kommt über den
+  // globalen Umschalter in der Topbar (siehe city-filter-switcher.tsx),
+  // gilt konsistent für alle Admin-Seiten.
   let query = supabase
     .from("events")
-    .select("id, slug, title, start_datetime, status, venues(name), sources(name), image_urls", { count: "exact" });
+    .select("id, slug, title, start_datetime, status, venues(name), sources(name), image_urls", {
+      count: "exact",
+    });
   if (status !== "all") {
     query = query.eq("status", status);
   }
@@ -120,6 +124,12 @@ export default async function EventsPage({
   const totalCount = statusCounts?.length ?? 0;
 
   const totalPages = count ? Math.ceil(count / PAGE_SIZE) : 1;
+  const qs = (overrides: { status?: string }) => {
+    const p = new URLSearchParams();
+    p.set("status", overrides.status ?? status);
+    if (q) p.set("q", q);
+    return p.toString();
+  };
 
   return (
     <div className="p-8">
@@ -151,7 +161,7 @@ export default async function EventsPage({
           return (
             <Link
               key={tab.value}
-              href={`/events?status=${tab.value}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
+              href={`/events?${qs({ status: tab.value })}`}
               className={`px-4 py-2 text-sm font-medium border-b-2 -mb-0.5 ${
                 isActive
                   ? "border-[#0071e3] text-neutral-900"
@@ -289,7 +299,7 @@ export default async function EventsPage({
               <div className="flex gap-2">
                 {page > 1 && (
                   <Link
-                    href={`/events?status=${status}&page=${page - 1}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
+                    href={`/events?${qs({})}&page=${page - 1}`}
                     className="rounded-lg border border-black/10 px-3 py-1.5 font-medium text-neutral-700 hover:bg-black/[0.04]"
                   >
                     Zurück
@@ -297,7 +307,7 @@ export default async function EventsPage({
                 )}
                 {page < totalPages && (
                   <Link
-                    href={`/events?status=${status}&page=${page + 1}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
+                    href={`/events?${qs({})}&page=${page + 1}`}
                     className="rounded-lg border border-black/10 px-3 py-1.5 font-medium text-neutral-700 hover:bg-black/[0.04]"
                   >
                     Weiter

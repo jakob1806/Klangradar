@@ -45,6 +45,7 @@ function authHeaders() {
     "Content-Type": "application/json",
     apikey: anonKey,
     Authorization: `Bearer ${anonKey}`,
+    "x-internal-secret": process.env.INTERNAL_FUNCTION_SECRET ?? "",
   };
 }
 

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/regions/region_providers.dart';
 import '../../../core/time/munich_time.dart';
 
 class MapVenue {
@@ -38,7 +39,17 @@ class MapVenue {
 final mapVenuesProvider = FutureProvider.autoDispose<List<MapVenue>>((
   ref,
 ) async {
-  final rows = await Supabase.instance.client.rpc('venues_with_latlng');
+  final region = ref.watch(selectedCityRegionProvider);
+  final rows = await Supabase.instance.client.rpc(
+    'venues_with_latlng',
+    // p_city_id, nicht p_region_id: die RPC wird von einer parallel
+    // laufenden Session mit einem eigenen, bereits live gegen Produktion
+    // deployten Stadt-Filter (city_id-Spalte statt region_id, siehe
+    // 20261031000005_city_scoped_rpcs.sql) bereitgestellt -- region.id
+    // bleibt identisch (beide Spalten referenzieren regions.id), nur der
+    // RPC-Parametername unterscheidet sich.
+    params: region == null ? {} : {'p_city_id': region.id},
+  );
   return (rows as List)
       .map((r) => MapVenue.fromRow(r as Map<String, dynamic>))
       .toList();

@@ -13,6 +13,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 // and importing it here would silently register it as this isolate's
 // request handler too (see core.ts's file comment for the bug that caused).
 import { runIngestion, SUPPORTED_TYPES } from "../ingest-source/core.ts";
+import { requireInternalAuth } from "../_shared/internalAuth.ts";
 
 // Bewusst niedrig gehalten: viele Quellen könnten dieselbe Ziel-Domain
 // treffen (z.B. mehrere Gasteig-Säle unter derselben Basis-URL), eine hohe
@@ -28,7 +29,10 @@ interface RunSummary {
   error?: string;
 }
 
-Deno.serve(async (_req) => {
+Deno.serve(async (req) => {
+  const unauthorized = await requireInternalAuth(req);
+  if (unauthorized) return unauthorized;
+
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",

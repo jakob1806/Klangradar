@@ -28,7 +28,12 @@ interface RepairResult {
   detail?: string;
 }
 
+import { requireInternalAuth } from "../_shared/internalAuth.ts";
+
 Deno.serve(async (req) => {
+  const unauthorized = await requireInternalAuth(req);
+  if (unauthorized) return unauthorized;
+
   let body: Record<string, unknown>;
   try {
     body = await req.json();

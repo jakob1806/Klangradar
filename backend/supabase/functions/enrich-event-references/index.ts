@@ -462,7 +462,12 @@ async function extractReferences(
   };
 }
 
+import { requireInternalAuth } from "../_shared/internalAuth.ts";
+
 Deno.serve(async (req) => {
+  const unauthorized = await requireInternalAuth(req);
+  if (unauthorized) return unauthorized;
+
   if (!hasAnyAiProviderConfigured()) {
     return new Response(
       JSON.stringify({

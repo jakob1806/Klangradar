@@ -20,7 +20,12 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { runIngestion } from "./core.ts";
 
+import { requireInternalAuth } from "../_shared/internalAuth.ts";
+
 Deno.serve(async (req) => {
+  const unauthorized = await requireInternalAuth(req);
+  if (unauthorized) return unauthorized;
+
   let body: { source_id?: unknown };
   try {
     body = await req.json();
