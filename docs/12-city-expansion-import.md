@@ -7,9 +7,10 @@ Stand: 2026-08-26. Dokumentiert den Import aus `Klangradar_Stadtkatalog_Import.x
 ## Umfang
 
 128 Personen, 128 Ensembles, 128 Venues (je 32 pro Stadt: Berlin, Hamburg,
-Frankfurt am Main, Wien) plus 384 Aliase. Erweitert den bisher auf München
-fokussierten Scope (siehe README) auf vier weitere Städte — explizite
-Produktentscheidung, nicht nur ein Datenimport.
+Frankfurt am Main, Wien) plus 92 Aliase (von 384 in der Quelldatei — 292
+waren reine Duplikate des kanonischen Namens, siehe unten). Erweitert den
+bisher auf München fokussierten Scope (siehe README) auf vier weitere
+Städte — explizite Produktentscheidung, nicht nur ein Datenimport.
 
 ## Trennung nach Städten
 
@@ -59,6 +60,15 @@ redaktioneller Schritt, sobald die Daten geprüft sind.
   chamber_orchestra→orchester`, `choir/opera_chorus→chor`,
   `string_quartet/chamber_ensemble/early_music_ensemble→kammerensemble`,
   `choir_or_orchestra→sonstiges` (mangels Eindeutigkeit).
+- **Alias-Filterung**: `entity_aliases` hat einen Trigger
+  (`validate_entity_alias_target_trigger`, `20261013000016_canonical_entity_alias_system.sql`),
+  der jeden Alias ablehnt, dessen normalisierte Form exakt dem
+  normalisierten kanonischen Namen entspricht ("Alias must differ from
+  canonical name"). 292 der 384 Alias-Zeilen der Quelldatei waren genau
+  das (z. B. Alias "Berliner Philharmoniker" für das gleichnamige
+  Ensemble — vermutlich ursprünglich für Such-Indexierung gedacht) und
+  wurden vor dem Import herausgefiltert; die verbleibenden 92 sind echte
+  Kurzformen (z. B. "Staatskapelle" als Alias für "Staatskapelle Berlin").
 - **Upsert-Strategie**: Alle Inserts laufen über `ON CONFLICT (slug) DO
   UPDATE`, wie von der Quelldatei selbst vorgegeben (`import_action:
   upsert`/`upsert_global`). `is_verified` wird beim Update **nie**
