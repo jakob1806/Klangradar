@@ -31,10 +31,35 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   final _mapController = MapController();
   LatLng? _userLocation;
 
+  /// Verhindert, dass die Karte den Nutzer nach einem manuellen Pan/Zoom
+  /// wieder zurückzentriert — nur der ERSTE erfolgreiche Fix (Standort oder
+  /// geladene Venues) darf die initiale Münchner Kamera ersetzen. Ohne das
+  /// wären Venues in anderen Städten (Berlin/Hamburg/Frankfurt/Wien, siehe
+  /// Stadt-Erweiterung) unsichtbar, bis man manuell dorthin scrollt/zoomt.
+  bool _autoFitDone = false;
+
   @override
   void initState() {
     super.initState();
     _loadUserLocation();
+  }
+
+  void _autoFitToVenuesIfNeeded(List<MapVenue> venues) {
+    if (_autoFitDone || _userLocation != null || venues.isEmpty) return;
+    _autoFitDone = true;
+    if (venues.length == 1) {
+      _mapController.move(LatLng(venues.first.lat, venues.first.lng), MapScreen._muenchenZoom);
+      return;
+    }
+    final bounds = LatLngBounds.fromPoints(
+      [for (final v in venues) LatLng(v.lat, v.lng)],
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _mapController.fitCamera(
+        CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(40)),
+      );
+    });
   }
 
   @override
@@ -74,6 +99,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       setState(() {
         _userLocation = LatLng(position.latitude, position.longitude);
       });
+      if (!_autoFitDone) {
+        _autoFitDone = true;
+        _mapController.move(_userLocation!, MapScreen._muenchenZoom);
+      }
     } catch (_) {
       // Standort ist eine Zusatzfunktion, kein Blocker für die Karte —
       // jeder Fehler (Timeout, Plattform-Ausnahme, ...) bleibt lautlos.
@@ -99,6 +128,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         ? allVenues
         : allVenues.where((v) => matchingVenueIds.contains(v.id)).toList();
     final venueById = {for (final v in venues) v.id: v};
+
+    _autoFitToVenuesIfNeeded(allVenues);
 
     return Stack(
       children: [

@@ -26,15 +26,17 @@ ihre Stadt-Region — darüber laufen auch alle bestehenden Queries, die
 `events.venue_id → venues.region_id` joinen (siehe
 `20260823000001_source_confidence_thresholds_and_index.sql`).
 
-## `is_active = false` — bewusst nicht sofort live
+## `is_active = true` — auf ausdrücklichen Nutzerwunsch live geschaltet
 
-Alle vier neuen Regionen (Land/Bundesland/Stadt) sind mit `is_active = false`
-angelegt, dem bestehenden Feature-Flag-Muster folgend ("München startet als
-einzige aktive Region", siehe `20260819000005_regions.sql`). Grund: Die
-Quelldatei markiert sich selbst als nicht produktionsreif (QA-Blatt:
-"Koordinaten, Kontaktdaten, Barrierefreiheit und Bildrechte vor
-Produktivimport vervollständigen"). Freischaltung ist ein separater,
-redaktioneller Schritt, sobald die Daten geprüft sind.
+Alle vier neuen Regionen (Land/Bundesland/Stadt) wurden zunächst mit
+`is_active = false` angelegt (Feature-Flag-Muster aus
+`20260819000005_regions.sql`), da die Quelldatei sich selbst als nicht
+produktionsreif markiert (QA-Blatt: "Koordinaten, Kontaktdaten,
+Barrierefreiheit und Bildrechte vor Produktivimport vervollständigen").
+**`20261029000008_activate_city_expansion.sql` schaltet sie dennoch live** —
+explizite Nutzerentscheidung nach Hinweis auf die Konsequenzen (siehe
+Session-Verlauf): Nutzer:innen sehen die 4 Städte jetzt, bevor Bilder,
+redaktionelle Freigabe (`is_verified`) und Events existieren.
 
 ## Was vor dem Import erledigt wurde
 
@@ -84,23 +86,46 @@ redaktioneller Schritt, sobald die Daten geprüft sind.
   erzeugt keine Duplikate/Fehler), alle 384 Aliase lösen korrekt auf, keine
   Venue ohne Koordinate.
 
-## Bekannte Lücke: `home_venue_slug`
+## `home_venue_id`-Backfill (`20261029000009_backfill_home_venues.sql`)
 
-Die Quelldatei lässt `home_venue_slug` für **alle 128 Ensembles** leer
-(`residency_de` verweist stattdessen nur auf die Stadt, z. B. "Berlin;
-konkrete Stammspielstätte vor Import über home_venue_slug verknüpfen").
-**Dieser Import hat das nicht nachgeholt** — eine Zuordnung "Wiener
-Philharmoniker → Musikverein Wien" o. ä. aus allgemeinem Wissen zu raten
-wäre riskanter als eine bewusste Lücke, da falsche Verknüpfungen schwerer zu
-entdecken sind als fehlende. `ensembles.home_venue_id` ist für alle neu
-importierten Ensembles `NULL`. Folge: Diese Ensembles sind aktuell nicht
-über `home_venue_id → venues.region_id` einer Stadt zuordenbar — die einzige
-Stadt-Zuordnung ist die Datei-/Migrationszugehörigkeit selbst. Empfehlung:
-redaktionelle Nachpflege pro Ensemble vor Freischaltung.
+Die Quelldatei ließ `home_venue_slug` für **alle 128 Ensembles** leer.
+`20261029000009` trägt das für **18 Ensembles** nach — bewusst nur die
+Fälle, in denen die Zuordnung öffentlich eindeutig/institutionell
+untrennbar ist (z. B. Berliner Philharmoniker → Philharmonie Berlin,
+Staatskapelle Berlin → Staatsoper Unter den Linden, Wiener Philharmoniker →
+Musikverein). Für die übrigen ~110 Ensembles wurde **bewusst nichts
+geraten** — eine falsche Verknüpfung ist schwerer zu entdecken als eine
+fehlende. Redaktionelle Nachpflege bleibt offen.
 
-## Nicht importiert
+## Karten-Zentrierung (Flutter + iOS-native)
+
+`app/lib/features/map/presentation/map_screen.dart` und
+`ios-native/.../VenueMapView.swift` zentrierten die Kartenansicht fix auf
+München — ohne Fix wären Venues in den 4 neuen Städten unsichtbar gewesen,
+bis man manuell dorthin scrollt. Beide zentrieren jetzt einmalig auf den
+Nutzerstandort (falls verfügbar) oder andernfalls auf die Bounding-Box aller
+geladenen Venues.
+
+**Bekannte Einschränkung, nicht behoben:** Weder Backend-Query
+(`venues_with_latlng`-RPC) noch App/iOS filtern Venues/Events nach Stadt —
+es gibt keinen Regions-/Stadt-Filter irgendwo in der Abfragekette
+(`preferred_region_id` wird gespeichert, aber nirgends benutzt). Mit jetzt 5
+aktiven Städten zeigt die Karte alle ~165 Venues gleichzeitig; der
+Auto-Fit-auf-alle-Venues zoomt entsprechend weit heraus. Ein echter
+Stadt-Umschalter (UI + Filter in `search_all`/`filter_events`/Home-Feed-RPCs
+etc.) ist eine eigene, größere Funktion und war nicht Teil dieser Änderung.
+
+## Event-Ingestion — nicht umgesetzt
 
 Programme/Events selbst sind nicht Teil dieser Datei — nur Stammdaten
-(Personen/Ensembles/Venues). Event-Ingestion für diese Städte bräuchte
-eigene Quellen (siehe `docs/10-legal-status.md` zur rechtlichen Prüfpflicht
-vor jeder neuen Scrape-Quelle).
+(Personen/Ensembles/Venues). Geprüft: Die großen Häuser (Elbphilharmonie,
+Berliner Philharmoniker, Wiener Musikverein, Konzerthaus Berlin, Alte Oper
+Frankfurt) bieten weder RSS/iCal noch Schema.org-Event-Markup auf ihren
+öffentlichen Seiten (nur `Organization`/`WebSite`-Markup) — genau wie
+seinerzeit bei den Münchner Quellen. Echte `scrape`-Connectors bräuchten
+pro Venue handgebaute, gegen die echte Seitenstruktur getestete
+CSS-Selektoren (wie in `parsers/scrape.ts` für die bestehenden 10
+Münchner Scrape-Quellen) — das für 128 Venues blind zu erstellen hätte
+nur leere/kaputte Quellen erzeugt, keinen echten Nutzen. Zusätzlich bräuchte
+jede neue Quelle laut `docs/10-legal-status.md` eine rechtliche
+Einzelprüfung. Event-Ingestion für diese Städte bleibt vollständig offen.

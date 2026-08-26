@@ -21,6 +21,11 @@ struct VenueMapView: View {
     @State private var position: MapCameraPosition = .region(Self.munichRegion)
     @State private var locationRequester = LocationRequester()
     @State private var locationError: String?
+    // Verhindert, dass ein spaeter geladener Venue-Batch die Kamera erneut
+    // verschiebt, nachdem sie schon per Standort/erstem Fit gesetzt wurde --
+    // sonst wuerde jedes Neuladen der Venues (z.B. nach Filteraenderung) den
+    // Nutzer aus einer manuell gewaehlten Ansicht zurueckreissen.
+    @State private var hasAutoFitCamera = false
 
     private static let munichRegion = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 48.1374, longitude: 11.5755),
@@ -60,7 +65,10 @@ struct VenueMapView: View {
             .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showsFilter) { filterSheet }
-        .task { venues = (try? await repository.venueLocations()) ?? [] }
+        .task {
+            venues = (try? await repository.venueLocations()) ?? []
+            fitCameraToVenuesIfNeeded()
+        }
         .alert("Standort nicht verfügbar", isPresented: Binding(
             get: { locationError != nil },
             set: { if !$0 { locationError = nil } }
@@ -142,6 +150,7 @@ struct VenueMapView: View {
     @MainActor private func locateUser() async {
         do {
             let coordinate = try await locationRequester.requestOnce()
+            hasAutoFitCamera = true
             withAnimation(.easeInOut(duration: 0.35)) {
                 position = .region(MKCoordinateRegion(
                     center: coordinate,
@@ -151,6 +160,29 @@ struct VenueMapView: View {
         } catch {
             locationError = error.localizedDescription
         }
+    }
+
+    /// Zentriert die Karte einmalig auf alle geladenen Venues, statt fix auf
+    /// München stehenzubleiben -- sonst wären Venues in anderen Städten
+    /// (Berlin/Hamburg/Frankfurt/Wien, siehe Stadt-Erweiterung) unsichtbar,
+    /// bis man manuell dorthin scrollt/zoomt. Läuft nur, solange weder ein
+    /// Standort-Fix noch ein vorheriger Auto-Fit die Kamera schon gesetzt hat.
+    @MainActor private func fitCameraToVenuesIfNeeded() {
+        guard !hasAutoFitCamera, !venues.isEmpty else { return }
+        hasAutoFitCamera = true
+        let lats = venues.map(\.coordinate.latitude)
+        let lons = venues.map(\.coordinate.longitude)
+        guard let minLat = lats.min(), let maxLat = lats.max(),
+              let minLon = lons.min(), let maxLon = lons.max() else { return }
+        let center = CLLocationCoordinate2D(
+            latitude: (minLat + maxLat) / 2,
+            longitude: (minLon + maxLon) / 2
+        )
+        let span = MKCoordinateSpan(
+            latitudeDelta: max((maxLat - minLat) * 1.3, 0.12),
+            longitudeDelta: max((maxLon - minLon) * 1.3, 0.12)
+        )
+        position = .region(MKCoordinateRegion(center: center, span: span))
     }
 
     private func groupTitle(for group: [VenueLocation]) -> String {
