@@ -266,7 +266,12 @@ export function parseScrape(html: string, config: ScrapeConfig): ParseResult {
         venueName = tags.find((t) => t.href && re.test(t.href))?.text ?? null;
       }
       if (config.venueSelector) {
-        venueName = extractText(item, config.venueSelector) ?? venueName;
+        // Trennzeichen vor dem eigentlichen Namen strippen, z.B.
+        // konzerthaus.at: "∙ Schubert-Saal" (Bullet steht im selben Text-
+        // Node wie der Saalname, kein eigenes Element dafür) — sonst
+        // scheitert der Fuzzy-Match gegen den echten Venue-Namen.
+        const rawVenue = extractText(item, config.venueSelector);
+        venueName = rawVenue ? rawVenue.replace(/^[∙•|·\-–—\s]+/, "").trim() || rawVenue : venueName;
       }
       const venueDetail = config.venueDetailSelector
         ? extractText(item, config.venueDetailSelector)
@@ -488,13 +493,39 @@ function parseFlexibleDate(raw: string): string | null {
     const day = parseInt(numericGerman[1], 10);
     const month = parseInt(numericGerman[2], 10);
     if (month >= 1 && month <= 12) {
-      const timeMatch = text.match(/(\d{1,2})[.:](\d{2})(?=\s*(?:Uhr|[–-]))/);
+      // Fallback auf ein nacktes "HH:MM" ohne "Uhr"/Gedankenstrich danach:
+      // die-hamburgische-staatsoper.de liefert Datum ("Fr 28.8.26") und
+      // Uhrzeit ("19:30") als zwei separate Elemente ohne jedes Suffix am
+      // Zeile-Ende — das Doppelpunkt-Format allein reicht hier schon zur
+      // eindeutigen Unterscheidung vom Punkt-getrennten Datum selbst.
+      const timeMatch = text.match(/(\d{1,2})[.:](\d{2})(?=\s*(?:Uhr|[–-]))/) ??
+        text.match(/\b(\d{1,2}):(\d{2})\b/);
       const hour = timeMatch ? parseInt(timeMatch[1], 10) : 0;
       const minute = timeMatch ? parseInt(timeMatch[2], 10) : 0;
       const parsedYear = numericGerman[3] ? parseInt(numericGerman[3], 10) : null;
       const year = parsedYear != null
         ? (parsedYear < 100 ? 2000 + parsedYear : parsedYear)
         : inferYear(month, day, hour, minute);
+      return toBerlinIsoString(year, month, day, hour, minute);
+    }
+  }
+
+  // Slash-getrenntes numerisches Format "TT/MM/JJ" (konzerthaus.at:
+  // ".text-date" liefert "28/08/26", Uhrzeit separat als "Fr, 19.30 Uhr" —
+  // Punkt statt Doppelpunkt als Dezimaltrenner, deckt das bereits vorhandene
+  // "Uhr"-Regex unten ab ([:.] statt nur [:])). Muss NACH dem
+  // Punkt-getrennten numericGerman-Block stehen (kein Überschneidungsrisiko,
+  // da hier zwingend Slashes statt Punkte nötig sind), sonst rein additiv.
+  const numericSlash = text.match(/(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})/);
+  if (numericSlash) {
+    const day = parseInt(numericSlash[1], 10);
+    const month = parseInt(numericSlash[2], 10);
+    if (month >= 1 && month <= 12) {
+      const timeMatch = text.match(/(\d{1,2})(?:[:.](\d{2}))?\s*Uhr/i);
+      const hour = timeMatch ? parseInt(timeMatch[1], 10) : 0;
+      const minute = timeMatch && timeMatch[2] !== undefined ? parseInt(timeMatch[2], 10) : 0;
+      const parsedYear = parseInt(numericSlash[3], 10);
+      const year = numericSlash[3].length === 2 ? 2000 + parsedYear : parsedYear;
       return toBerlinIsoString(year, month, day, hour, minute);
     }
   }
