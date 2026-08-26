@@ -49,6 +49,10 @@ begin
     'pierre-boulez-saal', 'Pierre Boulez Saal', 'Französische Straße 33 D', '10117', 'Berlin',
     ST_MakePoint(13.3961422, 52.515313)::geography, 'https://www.boulezsaal.de', v_berlin
   )
+  -- Reconciliation: exakte Slug-Kollision mit dem auf einer frischen DB
+  -- chronologisch vorher laufenden Stammdaten-Import, siehe
+  -- 20261031000012 für die ausführliche Begründung.
+  on conflict (slug) do update set updated_at = now()
   returning id into v_boulez;
   update sources set venue_id = v_boulez where id = v_source_boulez;
 
@@ -58,6 +62,7 @@ begin
     'volksoper-wien', 'Volksoper Wien', 'Währinger Straße 78', '1090', 'Wien',
     ST_MakePoint(16.3501, 48.2245)::geography, 'https://www.volksoper.at', v_vienna
   )
+  on conflict (slug) do update set updated_at = now()
   returning id into v_volksoper;
   update sources set venue_id = v_volksoper where id = v_source_volksoper;
 
@@ -67,6 +72,7 @@ begin
     'wiener-staatsoper', 'Wiener Staatsoper', 'Opernring 2', '1010', 'Wien',
     ST_MakePoint(16.36889, 48.20306)::geography, 'https://www.wiener-staatsoper.at', v_vienna
   )
+  on conflict (slug) do update set updated_at = now()
   returning id into v_staatsoper_wien;
   update sources set venue_id = v_staatsoper_wien where id = v_source_staatsoper_wien;
 

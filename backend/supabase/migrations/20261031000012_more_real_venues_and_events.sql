@@ -52,6 +52,13 @@ begin
     'deutsche-oper-berlin', 'Deutsche Oper Berlin', 'Bismarckstraße 35', '10627', 'Berlin',
     ST_MakePoint(13.31056, 52.51194)::geography, 'https://www.deutscheoperberlin.de', v_berlin
   )
+  -- Reconciliation: exakt derselbe Slug existiert auf einer frischen
+  -- DB-Neuaufsetzung bereits aus dem dort chronologisch vorher
+  -- gelaufenen Stammdaten-Import (20261029000004) -- ON CONFLICT statt
+  -- blindem Insert, damit RETURNING in beiden Fällen greift (frisch vs.
+  -- Produktion, wo diese Migration zuerst lief und den Slug selbst
+  -- angelegt hat).
+  on conflict (slug) do update set updated_at = now()
   returning id into v_deutsche_oper;
   update sources set venue_id = v_deutsche_oper where id = v_source_deutsche_oper;
 
@@ -61,6 +68,7 @@ begin
     'staatsoper-unter-den-linden', 'Staatsoper Unter den Linden', 'Unter den Linden 7', '10117', 'Berlin',
     ST_MakePoint(13.39472, 52.51667)::geography, 'https://www.staatsoper-berlin.de', v_berlin
   )
+  on conflict (slug) do update set updated_at = now()
   returning id into v_staatsoper_linden;
   update sources set venue_id = v_staatsoper_linden where id = v_source_staatsoper_linden;
 

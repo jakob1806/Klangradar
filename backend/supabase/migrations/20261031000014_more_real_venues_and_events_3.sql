@@ -49,6 +49,10 @@ begin
     'hr-sendesaal', 'hr-Sendesaal', 'Bertramstraße 8', '60320', 'Frankfurt am Main',
     ST_MakePoint(8.67583, 50.13583)::geography, 'https://www.hr-sendesaal.de', v_frankfurt
   )
+  -- Reconciliation: exakte Slug-Kollision mit dem auf einer frischen DB
+  -- chronologisch vorher laufenden Stammdaten-Import, siehe
+  -- 20261031000012 für die ausführliche Begründung.
+  on conflict (slug) do update set updated_at = now()
   returning id into v_hr_sendesaal;
   update sources set venue_id = v_hr_sendesaal where id = v_source_hr_sendesaal;
 
@@ -66,6 +70,7 @@ begin
     'oper-frankfurt', 'Oper Frankfurt', 'Willy-Brandt-Platz', '60311', 'Frankfurt am Main',
     ST_MakePoint(8.67417, 50.10806)::geography, 'https://www.oper-frankfurt.de', v_frankfurt
   )
+  on conflict (slug) do update set updated_at = now()
   returning id into v_oper_frankfurt;
   update sources set venue_id = v_oper_frankfurt where id = v_source_oper_frankfurt;
 
