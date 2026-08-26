@@ -127,11 +127,20 @@ Ensembles) und `discovery_events()` bleiben bewusst UNGEFILTERT — eine
 gefolgte Person kann in jeder Stadt auftreten, ein Stadt-Filter würde dort
 eher Ergebnisse verstecken als helfen.
 
-**Bekannte Einschränkung, nicht behoben:** Kalender kennt weiterhin
-keinen Stadt-Filter. `preferred_region_id` auf dem Nutzerprofil wird
-gespeichert, aber nirgends gelesen (weder für einen Default noch als
-Fallback ohne aktive Kartenauswahl). iOS-native hat noch keinen
-Städte-Umschalter (siehe unten).
+Seit `0d8792c` filtert zusätzlich der Kalender (Monats- und
+Agenda-Ansicht, `calendar_providers.dart`) über denselben Provider —
+direkte PostgREST-Query auf `events` mit `venues!inner(...)` +
+`.eq('venues.region_id', ...)` statt einer RPC-Änderung. Damit filtern
+jetzt alle vier Haupt-Screens (Karte, Suche, Home, Kalender) konsistent
+über dieselbe In-Memory-Auswahl.
+
+**Bekannte Einschränkung, nicht behoben:** `preferred_region_id` auf dem
+Nutzerprofil wird gespeichert, aber nirgends gelesen (weder für einen
+Default beim App-Start noch als Fallback ohne aktive Kartenauswahl) — die
+Auswahl setzt bei jedem Neustart auf "alle Städte" zurück. iOS-native hat
+noch keinen Städte-Umschalter (siehe unten) — dort noch offen, weil der
+Build/Test-Zyklus laut `ios-native/CLAUDE.md` einen Mac mit Xcode
+voraussetzt, den diese Umgebung nicht hat.
 
 ## Event-Ingestion — je eine echte Quelle pro Stadt, weiterhin weit von München entfernt
 
