@@ -24,7 +24,8 @@ export function TableSearchFilter({
     const rows = container.querySelectorAll<HTMLElement>("tr[data-search]");
     rows.forEach((row) => {
       const match = !query || (row.dataset.search ?? "").includes(query);
-      row.style.display = match ? "" : "none";
+      row.dataset.hiddenBySearch = match ? "" : "1";
+      row.style.display = row.dataset.hiddenBySearch === "1" || row.dataset.hiddenByCity === "1" ? "none" : "";
     });
   }
 

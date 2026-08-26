@@ -42,10 +42,15 @@ const STATUS_TABS = [
   { value: "all", label: "Alle" },
 ] as const;
 
+interface RegionOption {
+  id: string;
+  name: string;
+}
+
 export default async function EventsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; page?: string; q?: string }>;
+  searchParams: Promise<{ status?: string; page?: string; q?: string; region?: string }>;
 }) {
   const params = await searchParams;
   // Entwürfe zuerst als Default: das ist review-pflichtiger Content aus der
@@ -54,23 +59,42 @@ export default async function EventsPage({
   // komplett aus der sichtbaren Liste verdrängt hätte.
   const status = params.status ?? "draft";
   const q = (params.q ?? "").trim();
+  const region = (params.region ?? "").trim();
   const page = Math.max(1, parseInt(params.page ?? "1", 10) || 1);
   const from = (page - 1) * PAGE_SIZE;
   const to = from + PAGE_SIZE - 1;
 
   const supabase = await createClient();
 
+  const { data: regionOptions } = await supabase
+    .from("regions")
+    .select("id, name")
+    .eq("type", "city")
+    .order("name")
+    .returns<RegionOption[]>();
+
   // Server-seitig statt Client-Filter: die Liste ist paginiert (50/Seite),
   // ein reiner Client-Filter würde nur innerhalb der gerade geladenen Seite
-  // suchen, nicht über alle Events hinweg.
+  // suchen, nicht über alle Events hinweg. Städte-Filter (Nutzerfeedback:
+  // "generelle differenzierung zwischen städten oder alle städte anzeigen
+  // im admindashboard" fehlte komplett) joint per venues!inner gegen
+  // regions.id — leere Auswahl ("") bedeutet "alle Städte".
   let query = supabase
     .from("events")
-    .select("id, slug, title, start_datetime, status, venues(name), sources(name), image_urls", { count: "exact" });
+    .select(
+      region
+        ? "id, slug, title, start_datetime, status, venues!inner(name, region_id), sources(name), image_urls"
+        : "id, slug, title, start_datetime, status, venues(name), sources(name), image_urls",
+      { count: "exact" },
+    );
   if (status !== "all") {
     query = query.eq("status", status);
   }
   if (q) {
     query = query.ilike("title", `%${q}%`);
+  }
+  if (region) {
+    query = query.eq("venues.region_id", region);
   }
   const { data, error, count } = await query
     .order("start_datetime", { ascending: true })
@@ -113,6 +137,14 @@ export default async function EventsPage({
   const totalCount = statusCounts?.length ?? 0;
 
   const totalPages = count ? Math.ceil(count / PAGE_SIZE) : 1;
+  const qs = (overrides: { status?: string; region?: string }) => {
+    const p = new URLSearchParams();
+    p.set("status", overrides.status ?? status);
+    const r = overrides.region ?? region;
+    if (r) p.set("region", r);
+    if (q) p.set("q", q);
+    return p.toString();
+  };
 
   return (
     <div className="p-8">
@@ -144,7 +176,7 @@ export default async function EventsPage({
           return (
             <Link
               key={tab.value}
-              href={`/events?status=${tab.value}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
+              href={`/events?${qs({ status: tab.value })}`}
               className={`px-4 py-2 text-sm font-medium border-b-2 -mb-0.5 ${
                 isActive
                   ? "border-[#0071e3] text-neutral-900"
@@ -159,6 +191,18 @@ export default async function EventsPage({
 
       <form method="get" action="/events" className="mb-4 flex items-center gap-2">
         <input type="hidden" name="status" value={status} />
+        <select
+          name="region"
+          defaultValue={region}
+          className="rounded-lg border border-black/10 px-3 py-2 text-sm outline-none focus:border-[#0071e3]"
+        >
+          <option value="">Alle Städte</option>
+          {(regionOptions ?? []).map((r) => (
+            <option key={r.id} value={r.id}>
+              {r.name}
+            </option>
+          ))}
+        </select>
         <input
           type="search"
           name="q"
@@ -172,7 +216,7 @@ export default async function EventsPage({
         >
           Suchen
         </button>
-        {q && (
+        {(q || region) && (
           <Link
             href={`/events?status=${status}`}
             className="text-sm font-medium text-neutral-500 hover:text-[#0071e3]"
@@ -282,7 +326,7 @@ export default async function EventsPage({
               <div className="flex gap-2">
                 {page > 1 && (
                   <Link
-                    href={`/events?status=${status}&page=${page - 1}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
+                    href={`/events?${qs({})}&page=${page - 1}`}
                     className="rounded-lg border border-black/10 px-3 py-1.5 font-medium text-neutral-700 hover:bg-black/[0.04]"
                   >
                     Zurück
@@ -290,7 +334,7 @@ export default async function EventsPage({
                 )}
                 {page < totalPages && (
                   <Link
-                    href={`/events?status=${status}&page=${page + 1}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
+                    href={`/events?${qs({})}&page=${page + 1}`}
                     className="rounded-lg border border-black/10 px-3 py-1.5 font-medium text-neutral-700 hover:bg-black/[0.04]"
                   >
                     Weiter
