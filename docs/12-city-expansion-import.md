@@ -140,31 +140,39 @@ Stadt angelegt (Migrationen `20261029000011`–`20261029000014`):
   von Führungen/Backstage-Terminen)
 - **Hamburg**: Hamburgische Staatsoper inkl. Philharmonisches
   Staatsorchester Hamburg (`scrape`, 25 Termine)
+- **Berlin (2)**: Komische Oper Berlin (`scrape`, 35 Termine — bisher
+  größte Einzelquelle)
+- **Wien (2)**: Volksoper Wien (`scrape`, 27 Termine, 0 Parse-Fehler)
 
-Jede dieser vier Quellen brauchte handgebaute, gegen die echte
+Jede dieser sechs Quellen brauchte handgebaute, gegen die echte
 Seitenstruktur getestete CSS-Selektoren (wie schon bei den 10 Münchner
 Scrape-Quellen) plus in Summe vier additive, durch die bestehende
 Testsuite (`ingest-source/`, weiterhin 5/5 grün) abgesicherte Erweiterungen
 von `parseFlexibleDate()` in `parsers/scrape.ts` für bis dahin nicht
-unterstützte Datums-/Zeitformate. **Elbphilharmonie & Laeiszhalle**
-(dieselbe Nutzer-Liste, Priorität A) bleiben bewusst ausgenommen: deren
-robots.txt enthält `User-agent: ClaudeBot / Disallow: /`, ein expliziter
-Ausschluss für Claude/Anthropic-Crawler, unabhängig vom technisch
-gesendeten User-Agent respektiert. **Wiener Musikverein** und
-**Konzerthaus Berlin** wurden geprüft, aber (noch) nicht umgesetzt: Ersteres
-lädt seinen Kalender rein clientseitig per JS nach (kein Server-HTML, kein
-Schema.org-Markup), Letzteres verteilt Events auf viele Detailseiten (JSON-LD
-pro Event, aber keine einzelne Listing-Seite mit allen Terminen) — beides
-sprengt den Rahmen des bestehenden single-page-`scrape`/`schema_org`-
-Connectors und bräuchte eine grundsätzliche Erweiterung der
-Ingestion-Architektur (Mehrseiten-Crawling), keinen weiteren
-Quellen-Eintrag.
+unterstützte Datums-/Zeitformate.
+
+**Bewusst ausgenommen wegen robots.txt** (`User-agent: ClaudeBot /
+Disallow: /`, unabhängig vom technisch gesendeten User-Agent respektiert):
+Elbphilharmonie & Laeiszhalle, Wiener Staatsoper, Theater an der Wien.
+
+**Geprüft, aber technisch nicht umsetzbar mit dem bestehenden
+single-page-`scrape`/`schema_org`-Connector** (bräuchten entweder
+JS-Rendering — die Seite liefert ohne Browser keinen befüllten HTML-Body —
+oder Mehrseiten-Crawling — Events liegen auf vielen Einzelseiten statt
+einer Listing-Seite): Wiener Musikverein, Konzerthaus Berlin, Berliner
+Philharmoniker, Staatsoper Unter den Linden, Deutsche Oper Berlin,
+Oper Frankfurt, hr-Sinfonieorchester, Ensemble Resonanz, Ensemble Modern,
+Kampnagel, Pierre Boulez Saal. ORF RSO Wien: die in der Quellenliste
+genannte URL (`rso.orf.at/konzerte/`) existiert nicht mehr (404).
 
 Jede neue Quelle bleibt laut `docs/10-legal-status.md` rechtlich ungeprüft
-(so vermerkt in ihrem `legal_basis`-Feld). Reale Volumina liegen bei 4–25
-Terminen pro Stadt zum Zeitpunkt der Erstellung — weit von Münchens ~900
-entfernt, die aus 10 einzeln über Wochen gebauten Quellen stammen. Weitere
-Quellen aus derselben priorisierten Liste (v.a. Priorität A/B: Berliner
-Philharmoniker, Staatsoper Unter den Linden, Deutsche Oper Berlin,
-Wiener Staatsoper, Oper Frankfurt, hr-Sinfonieorchester, Ensemble Resonanz,
-Kampnagel, ...) bleiben offen für Folge-Iterationen.
+(so vermerkt in ihrem `legal_basis`-Feld). Reale Volumina liegen bei 4–35
+Terminen pro Quelle zum Zeitpunkt der Erstellung — weit von Münchens ~900
+entfernt, die aus 10 einzeln über Wochen gebauten Quellen stammen. Um die
+oben als "technisch nicht umsetzbar" markierten JS-lastigen Seiten
+(die Mehrheit der großen Häuser) doch noch zu erschließen, bräuchte es
+entweder eine Ingestion-Architektur-Erweiterung um echtes
+Browser-Rendering (z.B. Headless-Chrome-Fetch statt plain HTTP-GET) oder
+Mehrseiten-Crawling — beides eine größere, hier nicht umgesetzte
+Folgeänderung, kein reiner Config-Eintrag mehr wie bei den sechs
+bestehenden Quellen.
