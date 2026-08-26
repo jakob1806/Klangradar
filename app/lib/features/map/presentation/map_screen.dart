@@ -54,9 +54,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       );
       return;
     }
-    final bounds = LatLngBounds.fromPoints(
-      [for (final v in venues) LatLng(v.lat, v.lng)],
-    );
+    final bounds = LatLngBounds.fromPoints([
+      for (final v in venues) LatLng(v.lat, v.lng),
+    ]);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _mapController.fitCamera(
