@@ -125,17 +125,46 @@ umzustellen (plus die entsprechende UI in Suche/Home/Kalender) ist eine
 größere, hier nicht umgesetzte Folgeänderung. iOS-native hat noch keinen
 Städte-Umschalter (siehe unten).
 
-## Event-Ingestion — nicht umgesetzt
+## Event-Ingestion — je eine echte Quelle pro Stadt, weiterhin weit von München entfernt
 
 Programme/Events selbst sind nicht Teil dieser Datei — nur Stammdaten
-(Personen/Ensembles/Venues). Geprüft: Die großen Häuser (Elbphilharmonie,
-Berliner Philharmoniker, Wiener Musikverein, Konzerthaus Berlin, Alte Oper
-Frankfurt) bieten weder RSS/iCal noch Schema.org-Event-Markup auf ihren
-öffentlichen Seiten (nur `Organization`/`WebSite`-Markup) — genau wie
-seinerzeit bei den Münchner Quellen. Echte `scrape`-Connectors bräuchten
-pro Venue handgebaute, gegen die echte Seitenstruktur getestete
-CSS-Selektoren (wie in `parsers/scrape.ts` für die bestehenden 10
-Münchner Scrape-Quellen) — das für 128 Venues blind zu erstellen hätte
-nur leere/kaputte Quellen erzeugt, keinen echten Nutzen. Zusätzlich bräuchte
-jede neue Quelle laut `docs/10-legal-status.md` eine rechtliche
-Einzelprüfung. Event-Ingestion für diese Städte bleibt vollständig offen.
+(Personen/Ensembles/Venues). Auf Basis einer vom Nutzer bereitgestellten,
+priorisierten Quellenliste (`Klangradar_Konzertquellen_Scraper.xlsx`) wurde
+je eine reale, gegen echtes HTML mit Deno einzeln verifizierte Quelle pro
+Stadt angelegt (Migrationen `20261029000011`–`20261029000014`):
+
+- **Berlin**: berlin.de Ticketseite (`schema_org`, 15 Events, kuratierte
+  Highlight-Auswahl, kein vollständiger Berliner Konzertkalender)
+- **Frankfurt**: Alte Oper Frankfurt (`scrape`, 10 Events)
+- **Wien**: Wiener Konzerthaus (`scrape`, 4 echte Konzerte nach Ausfiltern
+  von Führungen/Backstage-Terminen)
+- **Hamburg**: Hamburgische Staatsoper inkl. Philharmonisches
+  Staatsorchester Hamburg (`scrape`, 25 Termine)
+
+Jede dieser vier Quellen brauchte handgebaute, gegen die echte
+Seitenstruktur getestete CSS-Selektoren (wie schon bei den 10 Münchner
+Scrape-Quellen) plus in Summe vier additive, durch die bestehende
+Testsuite (`ingest-source/`, weiterhin 5/5 grün) abgesicherte Erweiterungen
+von `parseFlexibleDate()` in `parsers/scrape.ts` für bis dahin nicht
+unterstützte Datums-/Zeitformate. **Elbphilharmonie & Laeiszhalle**
+(dieselbe Nutzer-Liste, Priorität A) bleiben bewusst ausgenommen: deren
+robots.txt enthält `User-agent: ClaudeBot / Disallow: /`, ein expliziter
+Ausschluss für Claude/Anthropic-Crawler, unabhängig vom technisch
+gesendeten User-Agent respektiert. **Wiener Musikverein** und
+**Konzerthaus Berlin** wurden geprüft, aber (noch) nicht umgesetzt: Ersteres
+lädt seinen Kalender rein clientseitig per JS nach (kein Server-HTML, kein
+Schema.org-Markup), Letzteres verteilt Events auf viele Detailseiten (JSON-LD
+pro Event, aber keine einzelne Listing-Seite mit allen Terminen) — beides
+sprengt den Rahmen des bestehenden single-page-`scrape`/`schema_org`-
+Connectors und bräuchte eine grundsätzliche Erweiterung der
+Ingestion-Architektur (Mehrseiten-Crawling), keinen weiteren
+Quellen-Eintrag.
+
+Jede neue Quelle bleibt laut `docs/10-legal-status.md` rechtlich ungeprüft
+(so vermerkt in ihrem `legal_basis`-Feld). Reale Volumina liegen bei 4–25
+Terminen pro Stadt zum Zeitpunkt der Erstellung — weit von Münchens ~900
+entfernt, die aus 10 einzeln über Wochen gebauten Quellen stammen. Weitere
+Quellen aus derselben priorisierten Liste (v.a. Priorität A/B: Berliner
+Philharmoniker, Staatsoper Unter den Linden, Deutsche Oper Berlin,
+Wiener Staatsoper, Oper Frankfurt, hr-Sinfonieorchester, Ensemble Resonanz,
+Kampnagel, ...) bleiben offen für Folge-Iterationen.
