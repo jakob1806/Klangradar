@@ -488,7 +488,12 @@ function parseFlexibleDate(raw: string): string | null {
   // timeSelector als eigenes Element dazu (z.B. "18:00") und wird an den
   // Datumstext angehängt, bevor geparst wird — Doppelpunkt statt "Uhr"
   // unterscheidet die Uhrzeit zuverlässig von den Punkten im Datum selbst.
-  const numericGerman = text.match(/(\d{1,2})\.(\d{1,2})\.(?:(\d{2}|\d{4}))?/);
+  // \d{4} MUSS vor \d{2} in der Alternation stehen: Regex-Alternation
+  // versucht Alternativen von links nach rechts und nimmt den ERSTEN
+  // Treffer, prüft nicht, ob die längere Alternative auch passen würde —
+  // bei "\d{2}|\d{4}" zuerst würde ein 4-stelliges Jahr wie "2026" nur als
+  // "20" (+2020 statt 2026) gelesen (hfm-berlin.de: "10.09.2026").
+  const numericGerman = text.match(/(\d{1,2})\.(\d{1,2})\.(?:(\d{4}|\d{2}))?/);
   if (numericGerman) {
     const day = parseInt(numericGerman[1], 10);
     const month = parseInt(numericGerman[2], 10);
@@ -498,7 +503,9 @@ function parseFlexibleDate(raw: string): string | null {
       // Uhrzeit ("19:30") als zwei separate Elemente ohne jedes Suffix am
       // Zeile-Ende — das Doppelpunkt-Format allein reicht hier schon zur
       // eindeutigen Unterscheidung vom Punkt-getrennten Datum selbst.
-      const timeMatch = text.match(/(\d{1,2})[.:](\d{2})(?=\s*(?:Uhr|[–-]))/) ??
+      // "H" als weiteres Uhrzeit-Suffix neben "Uhr": hfm-berlin.de schreibt
+      // "19.30 H" statt "19.30 Uhr".
+      const timeMatch = text.match(/(\d{1,2})[.:](\d{2})(?=\s*(?:Uhr|H\b|[–-]))/) ??
         text.match(/\b(\d{1,2}):(\d{2})\b/);
       const hour = timeMatch ? parseInt(timeMatch[1], 10) : 0;
       const minute = timeMatch ? parseInt(timeMatch[2], 10) : 0;
@@ -516,7 +523,7 @@ function parseFlexibleDate(raw: string): string | null {
   // "Uhr"-Regex unten ab ([:.] statt nur [:])). Muss NACH dem
   // Punkt-getrennten numericGerman-Block stehen (kein Überschneidungsrisiko,
   // da hier zwingend Slashes statt Punkte nötig sind), sonst rein additiv.
-  const numericSlash = text.match(/(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})/);
+  const numericSlash = text.match(/(\d{1,2})\/(\d{1,2})\/(\d{4}|\d{2})/);
   if (numericSlash) {
     const day = parseInt(numericSlash[1], 10);
     const month = parseInt(numericSlash[2], 10);
