@@ -117,12 +117,20 @@ Filterleiste, nur sichtbar sobald mehr als eine Stadt aktiv ist. Die Auswahl
 ist bewusst nur In-Memory (kein Persistieren über SharedPreferences), setzt
 bei App-Neustart also auf "alle Städte" zurück.
 
-**Bekannte Einschränkung, nicht behoben:** Nur die Karte filtert. Suche
-(`search_all`), Home-Feed und Kalender kennen weiterhin keinen Stadt-Filter
-— `preferred_region_id` auf dem Nutzerprofil wird gespeichert, aber
-nirgends gelesen. Diese RPCs auf denselben `p_region_id`-Parameter
-umzustellen (plus die entsprechende UI in Suche/Home/Kalender) ist eine
-größere, hier nicht umgesetzte Folgeänderung. iOS-native hat noch keinen
+Seit `20261029000020`/`20261029000021` filtern zusätzlich Suche
+(`search_all`) und Home-Feed (`recommended_events`, das regelbasierte
+"Für dich"-Modul) über denselben `selectedCityRegionProvider` — beide
+lesen die auf der Karte getroffene Stadt-Auswahl mit, kein eigener
+UI-Umschalter auf diesen Screens nötig. `favorite_events_home()`/
+`followed_events()` (rein persönliche Rails: gefolgte Personen/Venues/
+Ensembles) und `discovery_events()` bleiben bewusst UNGEFILTERT — eine
+gefolgte Person kann in jeder Stadt auftreten, ein Stadt-Filter würde dort
+eher Ergebnisse verstecken als helfen.
+
+**Bekannte Einschränkung, nicht behoben:** Kalender kennt weiterhin
+keinen Stadt-Filter. `preferred_region_id` auf dem Nutzerprofil wird
+gespeichert, aber nirgends gelesen (weder für einen Default noch als
+Fallback ohne aktive Kartenauswahl). iOS-native hat noch keinen
 Städte-Umschalter (siehe unten).
 
 ## Event-Ingestion — je eine echte Quelle pro Stadt, weiterhin weit von München entfernt
