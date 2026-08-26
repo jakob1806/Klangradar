@@ -295,9 +295,12 @@ final homeDataProvider = FutureProvider.autoDispose<HomeData>((ref) async {
     // kein Sonderfall hier im Client nötig.
     client.rpc(
       'recommended_events',
+      // p_city_id: siehe Kommentar in map_providers.dart -- die bereits
+      // live deployte Version dieser RPC (mit zusätzlichem rank_score/
+      // rank_reason) nutzt city_id, keine eigene region_id-Variante.
       params: {
         'p_result_limit': 24,
-        if (region != null) 'p_region_id': region.id,
+        if (region != null) 'p_city_id': region.id,
       },
     ),
     client.rpc('favorite_events_home', params: {'p_result_limit': 20}),

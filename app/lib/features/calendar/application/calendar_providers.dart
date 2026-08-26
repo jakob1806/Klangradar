@@ -43,8 +43,12 @@ final monthEventsProvider = FutureProvider.autoDispose
 
       // Städte-Filter (dieselbe Auswahl wie Karte/Suche/Home, siehe
       // selectedCityRegionProvider) -- venues!inner nötig, damit .eq auf
-      // dem eingebetteten venues.region_id tatsächlich filtert statt nur
-      // mitzuladen (PostgREST-Verhalten).
+      // dem eingebetteten venues.city_id tatsächlich filtert statt nur
+      // mitzuladen (PostgREST-Verhalten). city_id statt region_id: die
+      // parallel gegen Produktion deployte Stadt-Erweiterung (siehe
+      // 20261031000002_city_id_venues_events_sources.sql) hat city_id als
+      // vollständig befüllte, kanonische Spalte etabliert (region_id blieb
+      // bei einigen älteren Venues leer).
       final region = ref.watch(selectedCityRegionProvider);
       var query = Supabase.instance.client
           .from('events')
@@ -60,7 +64,7 @@ final monthEventsProvider = FutureProvider.autoDispose
           .gte('start_datetime', start.toIso8601String())
           .lt('start_datetime', end.toIso8601String());
       if (region != null) {
-        query = query.eq('venues.region_id', region.id);
+        query = query.eq('venues.city_id', region.id);
       }
       final rows = await query.order('start_datetime', ascending: true);
 
@@ -181,7 +185,7 @@ final agendaEventsProvider = FutureProvider.autoDispose<AgendaEvents>((
       // ohne die Konvertierung.
       .gte('start_datetime', _dayKey(now).toUtc().toIso8601String());
   if (region != null) {
-    query = query.eq('venues.region_id', region.id);
+    query = query.eq('venues.city_id', region.id);
   }
   final rows = await query
       .order('start_datetime', ascending: true)
