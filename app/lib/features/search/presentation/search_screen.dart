@@ -54,10 +54,13 @@ final _searchResultsProvider =
       final region = ref.watch(selectedCityRegionProvider);
       final results = await Supabase.instance.client.rpc(
         'search_all',
+        // p_city_id: siehe Kommentar in map_providers.dart -- diese RPC
+        // wird von der bereits live deployten city_id-basierten Version
+        // bereitgestellt, nicht von einer eigenen region_id-Variante.
         params: {
           'q': searchTerm,
           'result_limit': 8,
-          if (region != null) 'p_region_id': region.id,
+          if (region != null) 'p_city_id': region.id,
         },
       );
 

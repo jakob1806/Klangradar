@@ -47,6 +47,35 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
 
+      # Einmaliger Reparatur-Schritt: eine parallel laufende Session hat
+      # ihre Stadt-Erweiterungs-Migrationen zunächst unter der Nummerierung
+      # 20261030* direkt gegen Produktion gepusht, dann wegen einer
+      # Nummern-Kollision mit dieser Session lokal auf 20261031* umbenannt
+      # und erneut gepusht — die alten 20261030*-Versionsnummern (plus ein
+      # einzelner Ausreißer 20261031000022 ohne zugehörige Datei) blieben
+      # dadurch als verwaiste Einträge in der entfernten
+      # Migrations-Historie zurück und blockierten jeden weiteren
+      # `db push` ("Remote migration versions not found in local
+      # migrations directory"). `migration repair --status reverted`
+      # ändert AUSSCHLIESSLICH die Buchführungs-Tabelle
+      # supabase_migrations.schema_migrations, führt keinerlei SQL gegen
+      # Anwendungstabellen aus — betrifft also nie echte Daten. Idempotent:
+      # ein bereits als reverted markierter Eintrag bleibt bei erneutem
+      # Lauf unverändert. Sobald diese verwaisten Einträge endgültig
+      # bereinigt sind, kann dieser Schritt wieder entfernt werden.
+      - name: Verwaiste Migrations-Historie reparieren
+        working-directory: backend
+        run: |
+          supabase migration repair --status reverted \
+            20261030000001 20261030000002 20261030000004 20261030000005 \
+            20261030000006 20261030000007 20261030000008 20261030000009 \
+            20261030000010 20261030000011 20261030000012 20261030000013 \
+            20261030000014 20261030000015 20261030000016 20261030000017 \
+            20261030000018 20261030000019 20261030000020 20261031000022
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
       - name: Migrationen gegen Produktion anwenden
         working-directory: backend
         run: supabase db push
