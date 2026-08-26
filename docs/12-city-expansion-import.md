@@ -134,13 +134,16 @@ direkte PostgREST-Query auf `events` mit `venues!inner(...)` +
 jetzt alle vier Haupt-Screens (Karte, Suche, Home, Kalender) konsistent
 über dieselbe In-Memory-Auswahl.
 
-**Bekannte Einschränkung, nicht behoben:** `preferred_region_id` auf dem
-Nutzerprofil wird gespeichert, aber nirgends gelesen (weder für einen
-Default beim App-Start noch als Fallback ohne aktive Kartenauswahl) — die
-Auswahl setzt bei jedem Neustart auf "alle Städte" zurück. iOS-native hat
-noch keinen Städte-Umschalter (siehe unten) — dort noch offen, weil der
-Build/Test-Zyklus laut `ios-native/CLAUDE.md` einen Mac mit Xcode
-voraussetzt, den diese Umgebung nicht hat.
+Seit `8254042` seedet `selectedCityRegionProvider` sich außerdem einmalig
+aus `profiles.preferred_region_id` (`preferredCityRegionProvider`), sobald
+sie vorliegt und der Nutzer noch keine eigene Auswahl in dieser Session
+getroffen hat — vorher wurde dieses beim Onboarding gesetzte Feld nirgends
+gelesen.
+
+**Bekannte Einschränkung, nicht behoben:** iOS-native hat noch keinen
+Städte-Umschalter (siehe unten) — dort noch offen, weil der Build/Test-
+Zyklus laut `ios-native/CLAUDE.md` einen Mac mit Xcode voraussetzt, den
+diese Umgebung nicht hat.
 
 ## Event-Ingestion — je eine echte Quelle pro Stadt, weiterhin weit von München entfernt
 
