@@ -106,14 +106,24 @@ bis man manuell dorthin scrollt. Beide zentrieren jetzt einmalig auf den
 Nutzerstandort (falls verfügbar) oder andernfalls auf die Bounding-Box aller
 geladenen Venues.
 
-**Bekannte Einschränkung, nicht behoben:** Weder Backend-Query
-(`venues_with_latlng`-RPC) noch App/iOS filtern Venues/Events nach Stadt —
-es gibt keinen Regions-/Stadt-Filter irgendwo in der Abfragekette
-(`preferred_region_id` wird gespeichert, aber nirgends benutzt). Mit jetzt 5
-aktiven Städten zeigt die Karte alle ~165 Venues gleichzeitig; der
-Auto-Fit-auf-alle-Venues zoomt entsprechend weit heraus. Ein echter
-Stadt-Umschalter (UI + Filter in `search_all`/`filter_events`/Home-Feed-RPCs
-etc.) ist eine eigene, größere Funktion und war nicht Teil dieser Änderung.
+## Stadt-Filter für die Karte (`20261029000010_venues_with_latlng_region_filter.sql`)
+
+`venues_with_latlng()` bekam einen optionalen `p_region_id`-Parameter
+(rückwärtskompatibel: `null` = alle Venues, altes Verhalten). Die Flutter-App
+hat jetzt einen Städte-Umschalter auf der Karte
+(`app/lib/core/regions/region_providers.dart`,
+`selectedCityRegionProvider`/`activeCityRegionsProvider`) — Chip in der
+Filterleiste, nur sichtbar sobald mehr als eine Stadt aktiv ist. Die Auswahl
+ist bewusst nur In-Memory (kein Persistieren über SharedPreferences), setzt
+bei App-Neustart also auf "alle Städte" zurück.
+
+**Bekannte Einschränkung, nicht behoben:** Nur die Karte filtert. Suche
+(`search_all`), Home-Feed und Kalender kennen weiterhin keinen Stadt-Filter
+— `preferred_region_id` auf dem Nutzerprofil wird gespeichert, aber
+nirgends gelesen. Diese RPCs auf denselben `p_region_id`-Parameter
+umzustellen (plus die entsprechende UI in Suche/Home/Kalender) ist eine
+größere, hier nicht umgesetzte Folgeänderung. iOS-native hat noch keinen
+Städte-Umschalter (siehe unten).
 
 ## Event-Ingestion — nicht umgesetzt
 

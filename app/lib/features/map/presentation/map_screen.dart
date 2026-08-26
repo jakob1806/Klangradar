@@ -10,6 +10,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/events/event_filters.dart';
 import '../../../core/events/filtered_events_providers.dart';
 import '../../../core/interests/interests_providers.dart';
+import '../../../core/regions/region_providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/external_maps.dart';
@@ -116,6 +117,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   Widget build(BuildContext context) {
     final colors = context.appColors;
     final l10n = AppLocalizations.of(context)!;
+    // Ein Städtewechsel muss die Kamera neu auf die dann geladenen Venues
+    // ausrichten dürfen -- sonst bliebe sie auf der vorherigen Stadt stehen.
+    ref.listen(selectedCityRegionProvider, (previous, next) {
+      if (previous?.id != next?.id) {
+        setState(() => _autoFitDone = false);
+      }
+    });
     final venuesAsync = ref.watch(mapVenuesProvider);
     final filters = ref.watch(eventFiltersProvider);
     final allVenues = venuesAsync.valueOrNull ?? const <MapVenue>[];
@@ -236,10 +244,23 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             child: _RecenterButton(
               color: colors.backgroundElevated,
               iconColor: colors.textPrimary,
-              onTap: () => _mapController.move(
-                MapScreen._muenchenCenter,
-                MapScreen._muenchenZoom,
-              ),
+              // Zentriert auf den Nutzerstandort, sonst auf alle aktuell
+              // geladenen (ggf. stadtgefilterten) Venues -- nicht mehr fix
+              // auf München, das wäre bei einer anderen ausgewählten Stadt
+              // (oder für Nutzer:innen außerhalb Münchens) irreführend.
+              onTap: () {
+                if (_userLocation != null) {
+                  _mapController.move(_userLocation!, MapScreen._muenchenZoom);
+                } else if (allVenues.isNotEmpty) {
+                  _autoFitDone = false;
+                  _autoFitToVenuesIfNeeded(allVenues);
+                } else {
+                  _mapController.move(
+                    MapScreen._muenchenCenter,
+                    MapScreen._muenchenZoom,
+                  );
+                }
+              },
             ),
           ),
         ),
@@ -366,6 +387,43 @@ class _ClusterBubble extends StatelessWidget {
 /// anklickt, sollen sie wieder entwählt werden." — die Direkt-Umschalter
 /// sind komplett weg, stattdessen zeigt die Leiste die aktuell gewählten
 /// Genres als eigene Chips, die per Tap wieder entfernt werden.
+void _showCityPicker(
+  BuildContext context,
+  WidgetRef ref,
+  List<CityRegion> cities,
+  CityRegion? selected,
+) {
+  showModalBottomSheet(
+    context: context,
+    builder: (sheetContext) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          RadioListTile<String?>(
+            title: const Text('Alle Städte'),
+            value: null,
+            groupValue: selected?.id,
+            onChanged: (_) {
+              ref.read(selectedCityRegionProvider.notifier).state = null;
+              Navigator.of(sheetContext).pop();
+            },
+          ),
+          for (final city in cities)
+            RadioListTile<String?>(
+              title: Text(city.name),
+              value: city.id,
+              groupValue: selected?.id,
+              onChanged: (_) {
+                ref.read(selectedCityRegionProvider.notifier).state = city;
+                Navigator.of(sheetContext).pop();
+              },
+            ),
+        ],
+      ),
+    ),
+  );
+}
+
 class _FilterBar extends ConsumerWidget {
   const _FilterBar({required this.filters});
 
@@ -376,6 +434,8 @@ class _FilterBar extends ConsumerWidget {
     final l10n = AppLocalizations.of(context)!;
     final genres = ref.watch(genreOptionsProvider).valueOrNull ?? const [];
     final genreLabels = {for (final g in genres) g.id: g.label};
+    final cities = ref.watch(activeCityRegionsProvider).valueOrNull ?? const [];
+    final selectedCity = ref.watch(selectedCityRegionProvider);
 
     void removeGenre(String genreId) {
       ref.read(eventFiltersProvider.notifier).state = EventFilters(
@@ -392,6 +452,18 @@ class _FilterBar extends ConsumerWidget {
       scrollDirection: Axis.horizontal,
       child: Row(
         children: [
+          // Nur relevant, seit es mehr als eine aktive Stadt gibt (Berlin/
+          // Hamburg/Frankfurt/Wien neben München) -- vorher wäre ein
+          // Städte-Chip mit genau einer Option sinnlos gewesen.
+          if (cities.length > 1) ...[
+            _BarChip(
+              label: selectedCity?.name ?? 'Alle Städte',
+              icon: Icons.location_city_rounded,
+              active: selectedCity != null,
+              onTap: () => _showCityPicker(context, ref, cities, selectedCity),
+            ),
+            const SizedBox(width: 8),
+          ],
           _BarChip(
             label: filters.activeCount > 0
                 ? l10n.mapFilterLabelCount(filters.activeCount)
