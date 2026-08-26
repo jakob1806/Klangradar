@@ -429,15 +429,22 @@ function parseFlexibleDate(raw: string): string | null {
     return toBerlinIsoString(year, month, day, hour, minute);
   }
 
+  // Punkt nach der Tageszahl optional (nicht zwingend "\."): alteoper.de
+  // schreibt "14 September 2026" ohne Punkt, während die meisten anderen
+  // bisherigen Quellen "14. September 2026" mit Punkt liefern — beide
+  // Formen sind hier bewusst gleichwertig zugelassen.
   const german = text.match(
-    /(\d{1,2})\.\s*(Januar|Februar|März|Maerz|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember)\s*(\d{4})/i,
+    /(\d{1,2})\.?\s*(Januar|Februar|März|Maerz|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember)\s*(\d{4})/i,
   );
   if (german) {
     const day = parseInt(german[1], 10);
     const month = GERMAN_MONTHS[german[2].toLowerCase()];
     const year = parseInt(german[3], 10);
     if (!month) return null;
-    const timeMatch = text.match(/(\d{1,2})(?:[:.](\d{2}))?\s*Uhr/i);
+    // "19 Uhr" ODER ein nacktes "HH:MM" ohne "Uhr"-Suffix (alteoper.de:
+    // "... 2026 20:00 Großer Saal", kein "Uhr"-Wort im Text).
+    const timeMatch = text.match(/(\d{1,2})(?:[:.](\d{2}))?\s*Uhr/i) ??
+      text.match(/\b(\d{1,2}):(\d{2})\b/);
     const hour = timeMatch ? parseInt(timeMatch[1], 10) : 0;
     const minute = timeMatch && timeMatch[2] !== undefined ? parseInt(timeMatch[2], 10) : 0;
     return toBerlinIsoString(year, month, day, hour, minute);
