@@ -16,6 +16,7 @@ import '../../../core/widgets/event_filter_sheet.dart';
 import '../../../core/widgets/genre_artwork.dart';
 import '../../../core/widgets/liquid_glass/liquid_glass.dart';
 import '../../../core/constants/role_labels.dart';
+import '../../../core/regions/region_providers.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../home/application/home_providers.dart';
 import '../application/directory_providers.dart';
@@ -50,9 +51,14 @@ final _searchResultsProvider =
       // (matcht dann ausnahmslos alles) aufzurufen.
       final searchTerm = parsed.coreQuery.isEmpty ? rawQuery : parsed.coreQuery;
 
+      final region = ref.watch(selectedCityRegionProvider);
       final results = await Supabase.instance.client.rpc(
         'search_all',
-        params: {'q': searchTerm, 'result_limit': 8},
+        params: {
+          'q': searchTerm,
+          'result_limit': 8,
+          if (region != null) 'p_region_id': region.id,
+        },
       );
 
       var rows = (results as List).cast<Map<String, dynamic>>();
@@ -567,9 +573,8 @@ class _EmptyState extends ConsumerWidget {
                     children: [
                       Text(
                         l10n.searchHistoryTitle,
-                        style: Theme.of(
-                          context,
-                        ).textTheme.labelSmall?.copyWith(letterSpacing: 1),
+                        style: Theme.of(context).textTheme.labelSmall
+                            ?.copyWith(letterSpacing: 1),
                       ),
                       const SizedBox(height: AppSpacing.sm),
                       for (final q in history)
@@ -596,9 +601,8 @@ class _EmptyState extends ConsumerWidget {
         ),
         Text(
           l10n.searchTrendingTitle,
-          style: Theme.of(
-            context,
-          ).textTheme.labelSmall?.copyWith(letterSpacing: 1),
+          style: Theme.of(context).textTheme.labelSmall
+              ?.copyWith(letterSpacing: 1),
         ),
         const SizedBox(height: AppSpacing.sm),
         Wrap(
@@ -623,9 +627,8 @@ class _EmptyState extends ConsumerWidget {
         const SizedBox(height: AppSpacing.xl),
         Text(
           l10n.searchBrowseTitle,
-          style: Theme.of(
-            context,
-          ).textTheme.labelSmall?.copyWith(letterSpacing: 1),
+          style: Theme.of(context).textTheme.labelSmall
+              ?.copyWith(letterSpacing: 1),
         ),
         const SizedBox(height: AppSpacing.sm),
         SegmentedButton<String>(
@@ -948,9 +951,8 @@ class _ResultsList extends StatelessWidget {
           if (grouped[type] != null) ...[
             Text(
               _typeLabel(l10n, type),
-              style: Theme.of(
-                context,
-              ).textTheme.labelSmall?.copyWith(letterSpacing: 1),
+              style: Theme.of(context).textTheme.labelSmall
+                  ?.copyWith(letterSpacing: 1),
             ),
             const SizedBox(height: 4),
             for (final r in grouped[type]!)
