@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/auth/auth_providers.dart';
+import '../../../core/regions/region_providers.dart';
 import '../../../core/time/munich_time.dart';
 import '../../home/application/home_providers.dart';
 
@@ -40,13 +41,28 @@ final monthEventsProvider = FutureProvider.autoDispose
       final start = DateTime(key.year, key.month, 1).toUtc();
       final end = DateTime(key.year, key.month + 1, 1).toUtc();
 
-      final rows = await Supabase.instance.client
+      // Städte-Filter (dieselbe Auswahl wie Karte/Suche/Home, siehe
+      // selectedCityRegionProvider) -- venues!inner nötig, damit .eq auf
+      // dem eingebetteten venues.region_id tatsächlich filtert statt nur
+      // mitzuladen (PostgREST-Verhalten).
+      final region = ref.watch(selectedCityRegionProvider);
+      var query = Supabase.instance.client
           .from('events')
-          .select(_calendarEventColumns)
+          .select(
+            region == null
+                ? _calendarEventColumns
+                : _calendarEventColumns.replaceFirst(
+                    'venues(name)',
+                    'venues!inner(name)',
+                  ),
+          )
           .eq('status', 'scheduled')
           .gte('start_datetime', start.toIso8601String())
-          .lt('start_datetime', end.toIso8601String())
-          .order('start_datetime', ascending: true);
+          .lt('start_datetime', end.toIso8601String());
+      if (region != null) {
+        query = query.eq('venues.region_id', region.id);
+      }
+      final rows = await query.order('start_datetime', ascending: true);
 
       final byDay = <DateTime, List<HomeEventItem>>{};
       for (final row in rows as List) {
@@ -149,13 +165,25 @@ final agendaEventsProvider = FutureProvider.autoDispose<AgendaEvents>((
   ref,
 ) async {
   final now = MunichTime.now();
-  final rows = await Supabase.instance.client
+  final region = ref.watch(selectedCityRegionProvider);
+  var query = Supabase.instance.client
       .from('events')
-      .select(_calendarEventColumns)
+      .select(
+        region == null
+            ? _calendarEventColumns
+            : _calendarEventColumns.replaceFirst(
+                'venues(name)',
+                'venues!inner(name)',
+              ),
+      )
       .eq('status', 'scheduled')
       // .toUtc(): siehe Kommentar bei monthEventsProvider — derselbe Bug
       // ohne die Konvertierung.
-      .gte('start_datetime', _dayKey(now).toUtc().toIso8601String())
+      .gte('start_datetime', _dayKey(now).toUtc().toIso8601String());
+  if (region != null) {
+    query = query.eq('venues.region_id', region.id);
+  }
+  final rows = await query
       .order('start_datetime', ascending: true)
       .limit(_agendaPageSize);
 
