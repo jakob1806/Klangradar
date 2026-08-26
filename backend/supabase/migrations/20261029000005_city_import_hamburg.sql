@@ -11,6 +11,13 @@
 -- Ensembles, zuletzt Aliase. ON CONFLICT DO UPDATE überschreibt is_verified
 -- NICHT auf false, falls eine Zeile bereits redaktionell freigegeben war.
 
+-- Reconciliation: Slug-Angleichung an bereits produktiv angelegte Venues
+-- der parallelen Codex-Session (20261031000010/013/015), siehe gleiche
+-- Begründung in 20261029000004_city_import_berlin.sql.
+update venues set slug = 'elbphilharmonie-grosser-saal' where slug = 'elbphilharmonie-hamburg';
+update venues set slug = 'resonanzraum-st-pauli' where slug = 'resonanzraum-hamburg';
+update venues set slug = 'jazzhall-hamburg' where slug = 'hfmt-hamburg';
+
 -- ===== Venues (Hamburg) =====
 insert into venues (slug, name, description_de, address_street, address_zip, address_city, location, website_url, capacity, accessibility, parking_info_de, mvv_stops, is_verified, region_id, city_id, phone, email, history_de, district, venue_type, arrival_info_de, doors_info_de, catering_info_de, profile_checked_at) values ('elbphilharmonie-grosser-saal', 'Elbphilharmonie – Großer Saal', 'Elbphilharmonie – Großer Saal ist eine Spielstätte in Hamburg. zentraler Weinbergsaal und Heimstätte des NDR Elbphilharmonie Orchesters.', 'Platz der Deutschen Einheit 1', '20457', 'Hamburg', ST_MakePoint(9.9842058, 53.5412917)::geography, null, 2100, '{}'::jsonb, 'Parkmöglichkeiten und aktuelle Zufahrtsregeln prüfen.', '[]'::jsonb, false, (select id from regions where slug = 'hamburg'), (select id from regions where slug = 'hamburg'), null, null, 'Elbphilharmonie – Großer Saal ist eine Spielstätte in Hamburg. zentraler Weinbergsaal und Heimstätte des NDR Elbphilharmonie Orchesters.', 'HafenCity', 'concert_hall', 'ÖPNV, barrierefreie Zugänge, Fahrrad- und Taxihinweise auf der offiziellen Hausseite prüfen.', 'Einlass-, Garderoben- und Sicherheitsinformationen vor Veröffentlichung ergänzen.', 'Gastronomieangebot und Öffnungszeiten prüfen.', '2026-08-25')
   on conflict (slug) do update set name = excluded.name, description_de = excluded.description_de, address_street = excluded.address_street, address_zip = excluded.address_zip, address_city = excluded.address_city, location = excluded.location, website_url = excluded.website_url, capacity = excluded.capacity, accessibility = excluded.accessibility, parking_info_de = excluded.parking_info_de, mvv_stops = excluded.mvv_stops, region_id = excluded.region_id, city_id = excluded.city_id, phone = excluded.phone, email = excluded.email, history_de = excluded.history_de, district = excluded.district, venue_type = excluded.venue_type, arrival_info_de = excluded.arrival_info_de, doors_info_de = excluded.doors_info_de, catering_info_de = excluded.catering_info_de, profile_checked_at = excluded.profile_checked_at, updated_at = now();

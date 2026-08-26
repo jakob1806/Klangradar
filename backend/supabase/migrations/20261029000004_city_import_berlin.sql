@@ -11,6 +11,20 @@
 -- Ensembles, zuletzt Aliase. ON CONFLICT DO UPDATE überschreibt is_verified
 -- NICHT auf false, falls eine Zeile bereits redaktionell freigegeben war.
 
+-- Reconciliation: die parallel gegen Produktion gepushte Codex-Session
+-- (20261031000010/012/013/015) hat drei dieser Gebäude bereits unter
+-- anderem Slug angelegt, bevor dieser Import lief. Slug-Angleichung VOR
+-- den Upserts unten, damit "on conflict (slug)" die bestehende Zeile
+-- anreichert statt eine Dublette für dasselbe physische Gebäude
+-- anzulegen (Events bleiben über die stabile venue_id erhalten, nur der
+-- Slug ändert sich). Auf einer frischen/leeren DB betrifft das 0 Zeilen
+-- (kein Fehler) -- dort legt der Insert unten die *-grosser-saal-Zeile
+-- direkt neu an, exakte Rekonstruktion des Produktionsstands ist für
+-- dieses Rekonziliations-Update kein Ziel.
+update venues set slug = 'philharmonie-berlin-grosser-saal' where slug = 'philharmonie-berlin';
+update venues set slug = 'konzerthaus-berlin-grosser-saal' where slug = 'konzerthaus-berlin';
+update venues set slug = 'radialsystem' where slug = 'radialsystem-berlin';
+
 -- ===== Venues (Berlin) =====
 insert into venues (slug, name, description_de, address_street, address_zip, address_city, location, website_url, capacity, accessibility, parking_info_de, mvv_stops, is_verified, region_id, city_id, phone, email, history_de, district, venue_type, arrival_info_de, doors_info_de, catering_info_de, profile_checked_at) values ('philharmonie-berlin-grosser-saal', 'Philharmonie Berlin – Großer Saal', 'Philharmonie Berlin – Großer Saal ist eine Spielstätte in Berlin. Hauptsaal der Berliner Philharmonie; Heimstätte der Berliner Philharmoniker.', 'Herbert-von-Karajan-Straße 1', '10785', 'Berlin', ST_MakePoint(13.3696059, 52.5099888)::geography, null, 2440, '{}'::jsonb, 'Parkmöglichkeiten und aktuelle Zufahrtsregeln prüfen.', '[]'::jsonb, false, (select id from regions where slug = 'berlin'), (select id from regions where slug = 'berlin'), null, null, 'Philharmonie Berlin – Großer Saal ist eine Spielstätte in Berlin. Hauptsaal der Berliner Philharmonie; Heimstätte der Berliner Philharmoniker.', 'Tiergarten', 'concert_hall', 'ÖPNV, barrierefreie Zugänge, Fahrrad- und Taxihinweise auf der offiziellen Hausseite prüfen.', 'Einlass-, Garderoben- und Sicherheitsinformationen vor Veröffentlichung ergänzen.', 'Gastronomieangebot und Öffnungszeiten prüfen.', '2026-08-25')
   on conflict (slug) do update set name = excluded.name, description_de = excluded.description_de, address_street = excluded.address_street, address_zip = excluded.address_zip, address_city = excluded.address_city, location = excluded.location, website_url = excluded.website_url, capacity = excluded.capacity, accessibility = excluded.accessibility, parking_info_de = excluded.parking_info_de, mvv_stops = excluded.mvv_stops, region_id = excluded.region_id, city_id = excluded.city_id, phone = excluded.phone, email = excluded.email, history_de = excluded.history_de, district = excluded.district, venue_type = excluded.venue_type, arrival_info_de = excluded.arrival_info_de, doors_info_de = excluded.doors_info_de, catering_info_de = excluded.catering_info_de, profile_checked_at = excluded.profile_checked_at, updated_at = now();

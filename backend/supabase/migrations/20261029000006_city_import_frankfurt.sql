@@ -11,6 +11,14 @@
 -- Ensembles, zuletzt Aliase. ON CONFLICT DO UPDATE überschreibt is_verified
 -- NICHT auf false, falls eine Zeile bereits redaktionell freigegeben war.
 
+-- Reconciliation: Slug-Angleichung an bereits produktiv angelegte Venues
+-- der parallelen Codex-Session (20261031000015), siehe gleiche
+-- Begründung in 20261029000004_city_import_berlin.sql. 'oper-frankfurt'
+-- und 'hr-sendesaal' brauchen keine Angleichung -- exakt gleicher Slug
+-- dort bereits, "on conflict" unten greift direkt.
+update venues set slug = 'alte-oper-frankfurt-grosser-saal' where slug = 'alte-oper-frankfurt';
+update venues set slug = 'mousonturm' where slug = 'kuenstlerhaus-mousonturm';
+
 -- ===== Venues (Frankfurt am Main) =====
 insert into venues (slug, name, description_de, address_street, address_zip, address_city, location, website_url, capacity, accessibility, parking_info_de, mvv_stops, is_verified, region_id, city_id, phone, email, history_de, district, venue_type, arrival_info_de, doors_info_de, catering_info_de, profile_checked_at) values ('alte-oper-frankfurt-grosser-saal', 'Alte Oper Frankfurt – Großer Saal', 'Alte Oper Frankfurt – Großer Saal ist eine Spielstätte in Frankfurt am Main. großer Konzertsaal für internationale Orchester und Solisten.', 'Opernplatz 1', '60313', 'Frankfurt am Main', ST_MakePoint(8.6719866, 50.1160471)::geography, null, 2450, '{}'::jsonb, 'Parkmöglichkeiten und aktuelle Zufahrtsregeln prüfen.', '[]'::jsonb, false, (select id from regions where slug = 'frankfurt'), (select id from regions where slug = 'frankfurt'), null, null, 'Alte Oper Frankfurt – Großer Saal ist eine Spielstätte in Frankfurt am Main. großer Konzertsaal für internationale Orchester und Solisten.', 'Innenstadt', 'concert_hall', 'ÖPNV, barrierefreie Zugänge, Fahrrad- und Taxihinweise auf der offiziellen Hausseite prüfen.', 'Einlass-, Garderoben- und Sicherheitsinformationen vor Veröffentlichung ergänzen.', 'Gastronomieangebot und Öffnungszeiten prüfen.', '2026-08-25')
   on conflict (slug) do update set name = excluded.name, description_de = excluded.description_de, address_street = excluded.address_street, address_zip = excluded.address_zip, address_city = excluded.address_city, location = excluded.location, website_url = excluded.website_url, capacity = excluded.capacity, accessibility = excluded.accessibility, parking_info_de = excluded.parking_info_de, mvv_stops = excluded.mvv_stops, region_id = excluded.region_id, city_id = excluded.city_id, phone = excluded.phone, email = excluded.email, history_de = excluded.history_de, district = excluded.district, venue_type = excluded.venue_type, arrival_info_de = excluded.arrival_info_de, doors_info_de = excluded.doors_info_de, catering_info_de = excluded.catering_info_de, profile_checked_at = excluded.profile_checked_at, updated_at = now();
