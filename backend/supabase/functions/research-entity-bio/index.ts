@@ -41,7 +41,12 @@ function yearOf(dateStr: unknown): number | undefined {
   return Number.isFinite(year) ? year : undefined;
 }
 
+import { requireInternalAuth } from "../_shared/internalAuth.ts";
+
 Deno.serve(async (req) => {
+  const unauthorized = await requireInternalAuth(req);
+  if (unauthorized) return unauthorized;
+
   if (!hasAnyAiProviderConfigured()) {
     return jsonResponse({ error: "Kein AI-Provider-Secret gesetzt (siehe _shared/ai/router.ts)" }, 500);
   }

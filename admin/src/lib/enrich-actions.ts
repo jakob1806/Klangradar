@@ -36,7 +36,12 @@ export async function enrichEntity(entityType: EnrichEntityType, entityId: strin
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
   const res = await fetch(functionsUrl("enrich-entity-oncall"), {
     method: "POST",
-    headers: { "Content-Type": "application/json", apikey: anonKey, Authorization: `Bearer ${anonKey}` },
+    headers: {
+      "Content-Type": "application/json",
+      apikey: anonKey,
+      Authorization: `Bearer ${anonKey}`,
+      "x-internal-secret": process.env.INTERNAL_FUNCTION_SECRET ?? "",
+    },
     body: JSON.stringify({ entityType, entityId }),
     // Websuche-Fallback + KI-Aufruf können zusammen deutlich länger als
     // einen einzelnen Seitenabruf brauchen (siehe auto-fix-content-report's

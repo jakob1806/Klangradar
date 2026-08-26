@@ -66,7 +66,12 @@ const EXTRACTION_FUNCTION: AiFunctionDeclaration = {
   },
 };
 
+import { requireInternalAuth } from "../_shared/internalAuth.ts";
+
 Deno.serve(async (req) => {
+  const unauthorized = await requireInternalAuth(req);
+  if (unauthorized) return unauthorized;
+
   let body: { query?: unknown; region_id?: unknown };
   try {
     body = await req.json();

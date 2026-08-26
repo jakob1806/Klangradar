@@ -26,7 +26,12 @@ import { extractEventsWithLlm } from "./llm.ts";
 
 const MANUAL_SOURCE_NAME = "Manuelles Hinzufügen via URL";
 
+import { requireInternalAuth } from "../_shared/internalAuth.ts";
+
 Deno.serve(async (req) => {
+  const unauthorized = await requireInternalAuth(req);
+  if (unauthorized) return unauthorized;
+
   let body: { url?: unknown };
   try {
     body = await req.json();

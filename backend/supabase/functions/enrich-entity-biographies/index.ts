@@ -52,7 +52,12 @@ function entityContext(type: EntityType, entity: EntityRow, events: string[]): s
   return parts.length ? parts.join("; ") : null;
 }
 
+import { requireInternalAuth } from "../_shared/internalAuth.ts";
+
 Deno.serve(async (req) => {
+  const unauthorized = await requireInternalAuth(req);
+  if (unauthorized) return unauthorized;
+
   if (!hasAnyAiProviderConfigured()) return json({ error: "Kein AI-Provider-Secret gesetzt" }, 500);
   let body: { type?: unknown; limit?: unknown; entityId?: unknown } = {};
   try {

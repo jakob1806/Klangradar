@@ -11,6 +11,7 @@ import {
 import { ImageStatusBadge } from "@/components/image-status-badge";
 import { ListThumbnail } from "@/components/list-thumbnail";
 import { TableSearchFilter } from "@/components/table-search-filter";
+import { CityFilter } from "@/components/city-filter";
 import { bulkDeleteVenues, bulkSetVenuesVerified } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -23,15 +24,19 @@ interface VenueRow {
   is_verified: boolean;
   description_de: string | null;
   photo_url: string | null;
+  region_id: string | null;
 }
 
 export default async function VenuesPage() {
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("venues")
-    .select("id, name, address_city, capacity, is_verified, description_de, photo_url")
-    .order("name")
-    .returns<VenueRow[]>();
+  const [{ data, error }, { data: regionOptions }] = await Promise.all([
+    supabase
+      .from("venues")
+      .select("id, name, address_city, capacity, is_verified, description_de, photo_url, region_id")
+      .order("name")
+      .returns<VenueRow[]>(),
+    supabase.from("regions").select("id, name").eq("type", "city").order("name"),
+  ]);
 
   const missingBioIds = (data ?? []).filter((v) => !v.description_de).map((v) => v.id);
 
@@ -60,7 +65,10 @@ export default async function VenuesPage() {
         <BioSelectionProvider>
           <div className="mt-6">
             <div className="flex items-center justify-between">
-              <TableSearchFilter containerId="venues-table" placeholder="Name durchsuchen…" />
+              <div className="flex items-center gap-2">
+                <TableSearchFilter containerId="venues-table" placeholder="Name durchsuchen…" />
+                <CityFilter containerId="venues-table" regions={regionOptions ?? []} />
+              </div>
               <BioSelectMissingButton ids={missingBioIds} />
             </div>
             <BioResearchBar
@@ -87,7 +95,12 @@ export default async function VenuesPage() {
                 <tbody className="divide-y divide-neutral-200">
                   {data?.length ? (
                     data.map((venue) => (
-                      <tr key={venue.id} data-search={venue.name.toLowerCase()} className="hover:bg-neutral-50">
+                      <tr
+                        key={venue.id}
+                        data-search={venue.name.toLowerCase()}
+                        data-region={venue.region_id ?? ""}
+                        className="hover:bg-neutral-50"
+                      >
                         <td className="px-4 py-3">
                           <BioRowCheckbox id={venue.id} />
                         </td>

@@ -21,7 +21,12 @@ interface EventRow {
   venues: { name: string } | null;
 }
 
+import { requireInternalAuth } from "../_shared/internalAuth.ts";
+
 Deno.serve(async (req) => {
+  const unauthorized = await requireInternalAuth(req);
+  if (unauthorized) return unauthorized;
+
   if (!Deno.env.get("GEMINI_API_KEY")) {
     return new Response(JSON.stringify({ error: "GEMINI_API_KEY nicht gesetzt" }), { status: 500 });
   }

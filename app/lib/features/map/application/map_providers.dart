@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/regions/region_providers.dart';
 import '../../../core/time/munich_time.dart';
 
 class MapVenue {
@@ -38,7 +39,11 @@ class MapVenue {
 final mapVenuesProvider = FutureProvider.autoDispose<List<MapVenue>>((
   ref,
 ) async {
-  final rows = await Supabase.instance.client.rpc('venues_with_latlng');
+  final region = ref.watch(selectedCityRegionProvider);
+  final rows = await Supabase.instance.client.rpc(
+    'venues_with_latlng',
+    params: region == null ? {} : {'p_region_id': region.id},
+  );
   return (rows as List)
       .map((r) => MapVenue.fromRow(r as Map<String, dynamic>))
       .toList();

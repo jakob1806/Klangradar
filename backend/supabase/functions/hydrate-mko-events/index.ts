@@ -9,7 +9,12 @@ import { json, mapLimit, replaceEventParticipants } from "../_shared/eventPartic
 // Kein Eventfoto nötig (bereits über die bestehende
 // coverImageDetection.ts-Kaskade abgedeckt, siehe mkoDetail.ts) — nur die
 // strukturierte Besetzung.
+import { requireInternalAuth } from "../_shared/internalAuth.ts";
+
 Deno.serve(async (req) => {
+  const unauthorized = await requireInternalAuth(req);
+  if (unauthorized) return unauthorized;
+
   if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
   const body = await req.json().catch(() => ({}));
   const limit = Math.min(Math.max(Number(body.limit) || 20, 1), 30);

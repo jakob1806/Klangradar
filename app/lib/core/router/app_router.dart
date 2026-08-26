@@ -8,6 +8,7 @@ import '../../features/favorites/presentation/favorites_screen.dart';
 import '../../features/follows/presentation/my_follows_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
 import '../../features/interests/presentation/interests_screen.dart';
+import '../../features/legal/presentation/legal_document_screen.dart';
 import '../../features/map/presentation/map_screen.dart';
 import '../../features/notifications/presentation/notification_settings_screen.dart';
 import '../../features/onboarding/presentation/onboarding_screen.dart';
@@ -155,6 +156,24 @@ GoRouter buildAppRouter({String initialLocation = '/home'}) => GoRouter(
       path: '/reset-password',
       parentNavigatorKey: rootNavigatorKey,
       builder: (context, state) => const ResetPasswordScreen(),
+    ),
+    GoRoute(
+      path: '/legal/privacy',
+      parentNavigatorKey: rootNavigatorKey,
+      builder: (context, state) =>
+          const LegalDocumentScreen(document: LegalDocument.privacyPolicy),
+    ),
+    GoRoute(
+      path: '/legal/terms',
+      parentNavigatorKey: rootNavigatorKey,
+      builder: (context, state) =>
+          const LegalDocumentScreen(document: LegalDocument.terms),
+    ),
+    GoRoute(
+      path: '/legal/imprint',
+      parentNavigatorKey: rootNavigatorKey,
+      builder: (context, state) =>
+          const LegalDocumentScreen(document: LegalDocument.imprint),
     ),
   ],
 );

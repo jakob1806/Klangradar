@@ -42,6 +42,7 @@ export async function researchBio(entityType: BioEntityType, entityId: string): 
         "Content-Type": "application/json",
         apikey: anonKey ?? "",
         Authorization: `Bearer ${anonKey ?? ""}`,
+        "x-internal-secret": process.env.INTERNAL_FUNCTION_SECRET ?? "",
       },
       body: JSON.stringify({ entityType, entityId }),
       // 30s war zu knapp: researchBiography() kann bis zu ZWEI KI-Aufrufe

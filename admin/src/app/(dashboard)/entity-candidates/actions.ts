@@ -36,6 +36,7 @@ export async function resolveEntityCandidatesWithAi(): Promise<ResolveWithAiResu
         "Content-Type": "application/json",
         apikey: anonKey ?? "",
         Authorization: `Bearer ${anonKey ?? ""}`,
+        "x-internal-secret": process.env.INTERNAL_FUNCTION_SECRET ?? "",
       },
       body: JSON.stringify({}),
       signal: AbortSignal.timeout(155_000),

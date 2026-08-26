@@ -4,7 +4,12 @@ import { ensureCoverImage } from "../_shared/imagePipeline.ts";
 const VENUE_ID = "df97bb11-57b4-4cbe-b513-e3db4c2074ba";
 const SOURCE_URL = "https://commons.wikimedia.org/wiki/Special:Redirect/file/2019-01-26_Bayerische_Nationaltheater_03.jpg?width=1600";
 
+import { requireInternalAuth } from "../_shared/internalAuth.ts";
+
 Deno.serve(async (req) => {
+  const unauthorized = await requireInternalAuth(req);
+  if (unauthorized) return unauthorized;
+
   if (req.method !== "POST") return response({ error: "method not allowed" }, 405);
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
