@@ -230,8 +230,8 @@ export default async function QualitaetspruefungPage({
             >
               {TYPE_ICON[tab.type]}
             </span>
-            <span className="min-w-0 flex-1">{tab.label}</span>
-            <span className="rounded-full bg-black/[0.05] px-2 py-0.5 text-xs tabular-nums">{counts.get(tab.type) ?? 0}</span>
+            <span className="min-w-0 flex-1 truncate">{tab.label}</span>
+            <span className="shrink-0 rounded-full bg-black/[0.05] px-2 py-0.5 text-xs tabular-nums">{counts.get(tab.type) ?? 0}</span>
           </Link>
         ))}
         <Link

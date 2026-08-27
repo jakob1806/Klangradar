@@ -824,6 +824,29 @@ Deno.serve(async (req) => {
     // real (z.B. mehrere "Michael Schmidt"), das entscheidet ein Redakteur.
     const FUZZY_AUTO_THRESHOLD = 0.85;
     const FUZZY_FLAG_THRESHOLD = 0.5;
+    // Roher pg_trgm-similarity() auf dem vollen Namen ist bei Personen kein
+    // verlässliches Signal für "möglicherweise dieselbe Person": kurze,
+    // generische Vor-/Nachnamen-Kombinationen ("Christian Spuck" vs.
+    // "Christian Springer", "Michael Hoppe" vs. "Michael Hornek") landen
+    // schon bei ~0.52 über FUZZY_FLAG_THRESHOLD, obwohl es zwei völlig
+    // verschiedene Personen sind — live in /entity-candidates beobachtet.
+    // Ohne zusätzliche Prüfung wird das dem Redakteur als "möglicherweise
+    // identisch" angezeigt. Ein einfacher, robuster Zusatzfilter: unterhalb
+    // FUZZY_SURNAME_ONLY_THRESHOLD nur noch warnen, wenn der letzte
+    // Namensbestandteil (typischerweise der Nachname) tatsächlich
+    // übereinstimmt — Abkürzungsfälle ("Chr. Spuck" vs. "Christian Spuck")
+    // bleiben davon unberührt, weil ihr Nachname identisch ist.
+    const FUZZY_SURNAME_ONLY_THRESHOLD = 0.75;
+    function lastNameToken(fullName: string): string {
+      const tokens = fullName.trim().toLowerCase().split(/\s+/).filter(Boolean);
+      return tokens[tokens.length - 1] ?? "";
+    }
+    function isPlausiblePersonMatch(name: string, matchName: string, similarityScore: number): boolean {
+      if (similarityScore >= FUZZY_SURNAME_ONLY_THRESHOLD) return true;
+      const a = lastNameToken(name);
+      const b = lastNameToken(matchName);
+      return a.length > 0 && a === b;
+    }
 
     async function getOrCreatePerson(name: string): Promise<string | null> {
       const key = name.toLowerCase();
@@ -871,7 +894,9 @@ Deno.serve(async (req) => {
       const autoCreatedId = await flagEntityCandidate(
         "person",
         name,
-        bestMatch && bestMatch.similarity >= FUZZY_FLAG_THRESHOLD
+        bestMatch &&
+          bestMatch.similarity >= FUZZY_FLAG_THRESHOLD &&
+          isPlausiblePersonMatch(name, bestMatch.full_name, bestMatch.similarity)
           ? {
             id: bestMatch.id,
             name: bestMatch.full_name,

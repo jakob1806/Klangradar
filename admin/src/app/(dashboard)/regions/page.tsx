@@ -33,18 +33,35 @@ interface CityMetrics {
   sourcesActive: number;
   sourcesTotal: number;
   duplicateSuspects: number;
+  venueImageCoverage: { total: number; withImage: number };
+  ensembleImageCoverage: { total: number; withImage: number };
 }
 
 export default async function RegionsPage() {
   const supabase = await createClient();
   const cityFilter = await getActiveCityFilter();
-  const [{ data: regions, error }, { data: venues }, { data: allCityRows }, { count: eventsMissingCity }] = await Promise.all([
+  const [
+    { data: regions, error },
+    { data: venues },
+    { data: ensembles },
+    { data: images },
+    { data: allCityRows },
+    { count: eventsMissingCity },
+  ] = await Promise.all([
     supabase
       .from("regions")
       .select("id, type, name, slug, parent_id, is_active, editorial_status")
       .order("type")
       .returns<RegionRow[]>(),
-    supabase.from("venues").select("city_id"),
+    supabase.from("venues").select("id, city_id"),
+    // Ensembles haben kein eigenes city_id — Stadtbezug kommt (wie überall
+    // sonst in diesem Katalog) über das home_venue_id → venues.city_id.
+    supabase.from("ensembles").select("id, home_venue_id"),
+    supabase
+      .from("images")
+      .select("origin_type, origin_id")
+      .in("origin_type", ["venue", "ensemble"])
+      .neq("license_status", "rejected"),
     supabase
       .from("city_regions")
       .select("id, slug, name_de, short_name_de, editorial_status, sort_order")
@@ -57,9 +74,32 @@ export default async function RegionsPage() {
   ]);
 
   const venueCountByRegion = new Map<string, number>();
+  const venueCityById = new Map<string, string>();
   for (const v of venues ?? []) {
     if (!v.city_id) continue;
     venueCountByRegion.set(v.city_id, (venueCountByRegion.get(v.city_id) ?? 0) + 1);
+    venueCityById.set(v.id, v.city_id);
+  }
+
+  const ensembleCityById = new Map<string, string>();
+  const ensembleCountByRegion = new Map<string, number>();
+  for (const e of ensembles ?? []) {
+    const cityId = e.home_venue_id ? venueCityById.get(e.home_venue_id) : undefined;
+    if (!cityId) continue;
+    ensembleCityById.set(e.id, cityId);
+    ensembleCountByRegion.set(cityId, (ensembleCountByRegion.get(cityId) ?? 0) + 1);
+  }
+
+  const venuesWithImageByRegion = new Map<string, Set<string>>();
+  const ensemblesWithImageByRegion = new Map<string, Set<string>>();
+  for (const img of images ?? []) {
+    const byRegion = img.origin_type === "venue" ? venuesWithImageByRegion : ensemblesWithImageByRegion;
+    const cityById = img.origin_type === "venue" ? venueCityById : ensembleCityById;
+    const cityId = cityById.get(img.origin_id);
+    if (!cityId) continue;
+    const set = byRegion.get(cityId) ?? new Set<string>();
+    set.add(img.origin_id);
+    byRegion.set(cityId, set);
   }
   const byId = new Map((regions ?? []).map((r) => [r.id, r]));
   // "Alle Städte" zeigt wie bisher jede Stadt-Kachel; bei einer aktiven
@@ -95,6 +135,14 @@ export default async function RegionsPage() {
           sourcesActive: sourcesActive ?? 0,
           sourcesTotal: sourcesTotal ?? 0,
           duplicateSuspects: dupes?.length ?? 0,
+          venueImageCoverage: {
+            total: venueCountByRegion.get(city.id) ?? 0,
+            withImage: venuesWithImageByRegion.get(city.id)?.size ?? 0,
+          },
+          ensembleImageCoverage: {
+            total: ensembleCountByRegion.get(city.id) ?? 0,
+            withImage: ensemblesWithImageByRegion.get(city.id)?.size ?? 0,
+          },
         },
       ];
     }),
@@ -150,6 +198,14 @@ export default async function RegionsPage() {
                 <dt className="text-neutral-500">Duplikatverdacht</dt>
                 <dd className={`text-right font-medium ${m && m.duplicateSuspects > 0 ? "text-amber-700" : "text-neutral-900"}`}>
                   {m?.duplicateSuspects ?? 0}
+                </dd>
+                <dt className="text-neutral-500">Venue-Bilder</dt>
+                <dd className="text-right font-medium text-neutral-900">
+                  {m?.venueImageCoverage.withImage ?? 0}/{m?.venueImageCoverage.total ?? 0}
+                </dd>
+                <dt className="text-neutral-500">Ensemble-Bilder</dt>
+                <dd className="text-right font-medium text-neutral-900">
+                  {m?.ensembleImageCoverage.withImage ?? 0}/{m?.ensembleImageCoverage.total ?? 0}
                 </dd>
               </dl>
 
