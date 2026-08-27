@@ -2,7 +2,7 @@
 
 Stand: 2026-08-26. Dokumentiert den Import aus `Klangradar_Stadtkatalog_Import.xlsx`
 (kuratierte Recherche, Stand 26.08.2026) in die Migrationen
-`20261029000003`–`20261029000007`.
+`20261101000010`–`20261101000014`.
 
 ## Umfang
 
@@ -15,10 +15,10 @@ Städte — explizite Produktentscheidung, nicht nur ein Datenimport.
 ## Trennung nach Städten
 
 Jede Stadt hat eine eigene Migrationsdatei
-(`20261029000004_city_import_berlin.sql` usw.), damit ein Fehler oder eine
+(`20261101000011_city_import_berlin.sql` usw.), damit ein Fehler oder eine
 nötige Korrektur in den Daten einer Stadt isoliert behoben/zurückgerollt
 werden kann, ohne die anderen drei anzufassen. `regions`-Migration
-(`20261029000003`) legt für jede Stadt eine eigene `country → state → city`
+(`20261101000010`) legt für jede Stadt eine eigene `country → state → city`
 Kette an (Berlin/Hamburg/Wien: Land = Stadtname, da Stadtstaaten;
 Frankfurt: Land = Hessen), analog zur bestehenden München-Struktur aus
 `20260819000005_regions.sql`. `venues.region_id` verlinkt jede Venue auf
@@ -33,7 +33,7 @@ Alle vier neuen Regionen (Land/Bundesland/Stadt) wurden zunächst mit
 `20260819000005_regions.sql`), da die Quelldatei sich selbst als nicht
 produktionsreif markiert (QA-Blatt: "Koordinaten, Kontaktdaten,
 Barrierefreiheit und Bildrechte vor Produktivimport vervollständigen").
-**`20261029000008_activate_city_expansion.sql` schaltet sie dennoch live** —
+**`20261101000015_activate_city_expansion.sql` schaltet sie dennoch live** —
 explizite Nutzerentscheidung nach Hinweis auf die Konsequenzen (siehe
 Session-Verlauf): Nutzer:innen sehen die 4 Städte jetzt, bevor Bilder,
 redaktionelle Freigabe (`is_verified`) und Events existieren.
@@ -86,10 +86,10 @@ redaktionelle Freigabe (`is_verified`) und Events existieren.
   erzeugt keine Duplikate/Fehler), alle 384 Aliase lösen korrekt auf, keine
   Venue ohne Koordinate.
 
-## `home_venue_id`-Backfill (`20261029000009_backfill_home_venues.sql`)
+## `home_venue_id`-Backfill (`20261101000016_backfill_home_venues.sql`)
 
 Die Quelldatei ließ `home_venue_slug` für **alle 128 Ensembles** leer.
-`20261029000009` trägt das für **18 Ensembles** nach — bewusst nur die
+`20261101000016` trägt das für **18 Ensembles** nach — bewusst nur die
 Fälle, in denen die Zuordnung öffentlich eindeutig/institutionell
 untrennbar ist (z. B. Berliner Philharmoniker → Philharmonie Berlin,
 Staatskapelle Berlin → Staatsoper Unter den Linden, Wiener Philharmoniker →
@@ -151,7 +151,7 @@ Programme/Events selbst sind nicht Teil dieser Datei — nur Stammdaten
 (Personen/Ensembles/Venues). Auf Basis einer vom Nutzer bereitgestellten,
 priorisierten Quellenliste (`Klangradar_Konzertquellen_Scraper.xlsx`) wurde
 je eine reale, gegen echtes HTML mit Deno einzeln verifizierte Quelle pro
-Stadt angelegt (Migrationen `20261029000011`–`20261029000014`):
+Stadt angelegt (Migrationen `20261101000017`–`20261101000020`):
 
 - **Berlin**: berlin.de Ticketseite (`schema_org`, 15 Events, kuratierte
   Highlight-Auswahl, kein vollständiger Berliner Konzertkalender)
@@ -223,3 +223,23 @@ Importe derselben realen Institutionen — werden von der bestehenden
 Venue-Dedup-Review-Queue (`detect_venue_duplicate_candidates`, wöchentlicher
 Cron) automatisch zur redaktionellen Prüfung vorgeschlagen, nicht
 automatisch gemergt.
+
+### Nachtrag 2026-08-27: Migrationsreihenfolge korrigiert
+
+Der ursprüngliche Zeitstempel-Block (`20261029000003`–`20261029000019`)
+lief in einem frischen `migrate-and-seed`-Durchlauf (CI, komplette
+Neuaufsetzung nach Dateireihenfolge) VOR Codex' `20261031000002`, das die
+`city_id`-Spalte auf `venues` erst anlegt — obwohl er inhaltlich davon
+abhängt (`city_id` in allen Venue-/Source-Inserts). In der echten
+Produktionshistorie hatte das keine Auswirkung, weil Codex' Migration
+bereits direkt (außerhalb dieser Pipeline) lief, bevor dieser Block je
+über `supabase db push` angewendet wurde — ein frischer CI-Durchlauf
+deckte die eigentliche Abhängigkeit aber sofort auf (Fehler `column
+"city_id" of relation "venues" does not exist`). Behoben durch Umbenennen
+des gesamten Blocks auf `20261101000010`–`20261101000025` (Inhalt
+unverändert), sodass er nach dem vollständigen Codex-Block
+(`20261031000001`–`013`) läuft — die Dateien waren zu diesem Zeitpunkt
+noch nie erfolgreich über die Deploy-Pipeline auf Produktion angewendet
+worden (alle bisherigen `deploy-migrations`-Läufe seit PR #168 blieben in
+"waiting"/"cancelled"/"failure" hängen), das Umbenennen war daher
+gefahrlos möglich.

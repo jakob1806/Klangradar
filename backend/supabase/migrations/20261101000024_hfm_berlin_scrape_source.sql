@@ -15,7 +15,7 @@
 -- Jahr in diesem Format ("10.09.2026") -- alle bisherigen Quellen nutzten
 -- zweistellige Jahre, daher blieb der Bug unbemerkt. Fix: Alternation auf
 -- "(\d{4}|\d{2})" umgestellt (4-stellig zuerst versuchen), betrifft auch
--- das slash-getrennte Format von 20261029000013. Durch die bestehende
+-- das slash-getrennte Format von 20261101000019. Durch die bestehende
 -- Testsuite (5/5 weiterhin grün) und Neu-Verifikation aller bisherigen
 -- HTML-Fixtures (Wien, Hamburg, Kronberg -- alle unverändert korrekt)
 -- als rein additiv/nicht-regressiv abgesichert.

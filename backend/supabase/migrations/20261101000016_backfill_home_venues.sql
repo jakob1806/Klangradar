@@ -1,4 +1,4 @@
--- Trägt home_venue_id für einen Teil der in 20261029000004-000007 importierten
+-- Trägt home_venue_id für einen Teil der in 20261101000011-000014 importierten
 -- Ensembles nach (dort war home_venue_slug für ALLE 128 Ensembles leer, siehe
 -- docs/12-city-expansion-import.md). Bewusst nur die Fälle, in denen die
 -- Zuordnung eindeutig und öffentlich bekannt ist (namensgleiche/institutionell
