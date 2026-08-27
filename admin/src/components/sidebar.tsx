@@ -17,7 +17,10 @@ import { usePathname } from "next/navigation";
 const NAV_GROUPS = [
   {
     label: "Wichtig",
-    items: [{ href: "/wichtig", label: "Offene Aufgaben" }],
+    items: [
+      { href: "/wichtig", label: "Offene Aufgaben" },
+      { href: "/todos", label: "To-Dos" },
+    ],
   },
   {
     label: "Redaktion & Medien",
