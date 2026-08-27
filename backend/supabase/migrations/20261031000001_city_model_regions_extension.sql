@@ -86,11 +86,23 @@ where type = 'city' and slug = 'muenchen';
 -- 20261031000009_seed_new_city_sources.sql) — is_active bleibt bewusst
 -- false, bis erste echte Daten vorhanden sind und die Redaktion die Stadt
 -- freischaltet (siehe Admin-Regionen-Seite).
+-- Idempotent (wie 20261029000003_city_expansion_regions.sql): eine
+-- parallel laufende Session hat unabhängig dieselbe Städte-Erweiterung mit
+-- denselben Slugs bereits angelegt (siehe deren Kommentar) -- regions.slug
+-- ist unique, ein blinder zweiter Insert bricht bei einem frischen
+-- Migrationslauf (CI/lokale Instanz) mit einem Constraint-Fehler ab, weil
+-- 20261029000003 chronologisch zuerst läuft. Bereits vorhandene state-
+-- Zeilen werden übernommen statt dupliziert; bereits vorhandene city-
+-- Zeilen bekommen die hier zusätzlich gepflegten Felder (short_name_de,
+-- Koordinaten, editorial_status, sort_order) per UPDATE nachgetragen, da
+-- 20261029000003 nur die Basisspalten kennt (die restlichen Spalten
+-- existieren zu dessen Laufzeit noch nicht).
 do $$
 declare
   v_de_id uuid;
   v_at_id uuid;
   v_state_id uuid;
+  v_city_id uuid;
 begin
   select id into v_de_id from regions where type = 'country' and slug = 'de';
   if v_de_id is null then
@@ -106,48 +118,88 @@ begin
 
   -- Berlin (Stadtstaat: Bundesland = Stadt selbst, eigener Parent-Eintrag
   -- trotzdem für Konsistenz mit dem übrigen Modell)
-  insert into regions (type, parent_id, name, slug, is_active) values ('state', v_de_id, 'Berlin', 'berlin-land', true)
-    returning id into v_state_id;
-  insert into regions (
-    type, parent_id, name, slug, is_active, short_name_de, country_code,
-    latitude, longitude, default_zoom, search_radius_km, editorial_status, sort_order
-  ) values (
-    'city', v_state_id, 'Berlin', 'berlin', false, 'Berlin', 'DE',
-    52.5200, 13.4050, 10.8, 45, 'soft_launch', 1
-  );
+  select id into v_state_id from regions where type = 'state' and slug = 'berlin-land';
+  if v_state_id is null then
+    insert into regions (type, parent_id, name, slug, is_active) values ('state', v_de_id, 'Berlin', 'berlin-land', true)
+      returning id into v_state_id;
+  end if;
+  select id into v_city_id from regions where type = 'city' and slug = 'berlin';
+  if v_city_id is null then
+    insert into regions (
+      type, parent_id, name, slug, is_active, short_name_de, country_code,
+      latitude, longitude, default_zoom, search_radius_km, editorial_status, sort_order
+    ) values (
+      'city', v_state_id, 'Berlin', 'berlin', false, 'Berlin', 'DE',
+      52.5200, 13.4050, 10.8, 45, 'soft_launch', 1
+    );
+  else
+    update regions set short_name_de = 'Berlin', country_code = 'DE', latitude = 52.5200, longitude = 13.4050,
+      default_zoom = 10.8, search_radius_km = 45, editorial_status = 'soft_launch', sort_order = 1
+      where id = v_city_id;
+  end if;
 
   -- Hamburg (ebenfalls Stadtstaat)
-  insert into regions (type, parent_id, name, slug, is_active) values ('state', v_de_id, 'Hamburg', 'hamburg-land', true)
-    returning id into v_state_id;
-  insert into regions (
-    type, parent_id, name, slug, is_active, short_name_de, country_code,
-    latitude, longitude, default_zoom, search_radius_km, editorial_status, sort_order
-  ) values (
-    'city', v_state_id, 'Hamburg', 'hamburg', false, 'Hamburg', 'DE',
-    53.5511, 9.9937, 11.2, 40, 'soft_launch', 2
-  );
+  select id into v_state_id from regions where type = 'state' and slug = 'hamburg-land';
+  if v_state_id is null then
+    insert into regions (type, parent_id, name, slug, is_active) values ('state', v_de_id, 'Hamburg', 'hamburg-land', true)
+      returning id into v_state_id;
+  end if;
+  select id into v_city_id from regions where type = 'city' and slug = 'hamburg';
+  if v_city_id is null then
+    insert into regions (
+      type, parent_id, name, slug, is_active, short_name_de, country_code,
+      latitude, longitude, default_zoom, search_radius_km, editorial_status, sort_order
+    ) values (
+      'city', v_state_id, 'Hamburg', 'hamburg', false, 'Hamburg', 'DE',
+      53.5511, 9.9937, 11.2, 40, 'soft_launch', 2
+    );
+  else
+    update regions set short_name_de = 'Hamburg', country_code = 'DE', latitude = 53.5511, longitude = 9.9937,
+      default_zoom = 11.2, search_radius_km = 40, editorial_status = 'soft_launch', sort_order = 2
+      where id = v_city_id;
+  end if;
 
   -- Wien
-  insert into regions (type, parent_id, name, slug, is_active) values ('state', v_at_id, 'Wien', 'wien-land', true)
-    returning id into v_state_id;
-  insert into regions (
-    type, parent_id, name, slug, is_active, short_name_de, country_code,
-    latitude, longitude, default_zoom, search_radius_km, editorial_status, sort_order
-  ) values (
-    'city', v_state_id, 'Wien', 'vienna', false, 'Wien', 'AT',
-    48.2082, 16.3738, 11.2, 40, 'soft_launch', 3
-  );
+  select id into v_state_id from regions where type = 'state' and slug = 'wien-land';
+  if v_state_id is null then
+    insert into regions (type, parent_id, name, slug, is_active) values ('state', v_at_id, 'Wien', 'wien-land', true)
+      returning id into v_state_id;
+  end if;
+  select id into v_city_id from regions where type = 'city' and slug = 'vienna';
+  if v_city_id is null then
+    insert into regions (
+      type, parent_id, name, slug, is_active, short_name_de, country_code,
+      latitude, longitude, default_zoom, search_radius_km, editorial_status, sort_order
+    ) values (
+      'city', v_state_id, 'Wien', 'vienna', false, 'Wien', 'AT',
+      48.2082, 16.3738, 11.2, 40, 'soft_launch', 3
+    );
+  else
+    update regions set short_name_de = 'Wien', country_code = 'AT', latitude = 48.2082, longitude = 16.3738,
+      default_zoom = 11.2, search_radius_km = 40, editorial_status = 'soft_launch', sort_order = 3
+      where id = v_city_id;
+  end if;
 
   -- Frankfurt am Main (Bundesland Hessen)
-  insert into regions (type, parent_id, name, slug, is_active) values ('state', v_de_id, 'Hessen', 'hessen', true)
-    returning id into v_state_id;
-  insert into regions (
-    type, parent_id, name, slug, is_active, short_name_de, country_code,
-    latitude, longitude, default_zoom, search_radius_km, editorial_status, sort_order
-  ) values (
-    'city', v_state_id, 'Frankfurt am Main', 'frankfurt', false, 'Frankfurt', 'DE',
-    50.1109, 8.6821, 11.5, 35, 'soft_launch', 4
-  );
+  select id into v_state_id from regions where type = 'state' and slug = 'hessen';
+  if v_state_id is null then
+    insert into regions (type, parent_id, name, slug, is_active) values ('state', v_de_id, 'Hessen', 'hessen', true)
+      returning id into v_state_id;
+  end if;
+  select id into v_city_id from regions where type = 'city' and slug = 'frankfurt';
+  if v_city_id is null then
+    insert into regions (
+      type, parent_id, name, slug, is_active, short_name_de, country_code,
+      latitude, longitude, default_zoom, search_radius_km, editorial_status, sort_order
+    ) values (
+      'city', v_state_id, 'Frankfurt am Main', 'frankfurt', false, 'Frankfurt', 'DE',
+      50.1109, 8.6821, 11.5, 35, 'soft_launch', 4
+    );
+  else
+    update regions set short_name_de = 'Frankfurt', country_code = 'DE', latitude = 50.1109, longitude = 8.6821,
+      default_zoom = 11.5, search_radius_km = 35, editorial_status = 'soft_launch', sort_order = 4
+      where id = v_city_id;
+  end if;
 end $$;
 
 -- Bequemer Zugriff für Admin/RPCs: nur die city-Zeilen, mit aufgelöstem
