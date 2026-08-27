@@ -24,8 +24,8 @@ declare
   v_vienna uuid := (select id from regions where type = 'city' and slug = 'vienna');
   v_frankfurt uuid := (select id from regions where type = 'city' and slug = 'frankfurt');
 
-  v_philharmonie_berlin uuid := (select id from venues where slug = 'philharmonie-berlin');
-  v_musikverein uuid := (select id from venues where slug = 'wiener-musikverein');
+  v_philharmonie_berlin uuid := (select id from venues where slug = 'philharmonie-berlin-grosser-saal');
+  v_musikverein uuid := (select id from venues where slug = 'musikverein-wien-grosser-saal');
 
   v_resonanzraum uuid;
   v_kunstkulturkirche uuid;

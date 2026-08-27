@@ -19,11 +19,11 @@ declare
   v_vienna uuid := (select id from regions where type = 'city' and slug = 'vienna');
   v_frankfurt uuid := (select id from regions where type = 'city' and slug = 'frankfurt');
 
-  v_elbphilharmonie uuid := (select id from venues where slug = 'elbphilharmonie-hamburg');
-  v_philharmonie_berlin uuid := (select id from venues where slug = 'philharmonie-berlin');
-  v_konzerthaus_berlin uuid := (select id from venues where slug = 'konzerthaus-berlin');
-  v_alte_oper uuid := (select id from venues where slug = 'alte-oper-frankfurt');
-  v_wiener_konzerthaus uuid := (select id from venues where slug = 'wiener-konzerthaus');
+  v_elbphilharmonie uuid := (select id from venues where slug = 'elbphilharmonie-grosser-saal');
+  v_philharmonie_berlin uuid := (select id from venues where slug = 'philharmonie-berlin-grosser-saal');
+  v_konzerthaus_berlin uuid := (select id from venues where slug = 'konzerthaus-berlin-grosser-saal');
+  v_alte_oper uuid := (select id from venues where slug = 'alte-oper-frankfurt-grosser-saal');
+  v_wiener_konzerthaus uuid := (select id from venues where slug = 'wiener-konzerthaus-grosser-saal');
 
   v_hr_sendesaal uuid;
   v_orf_radiokulturhaus uuid;
