@@ -34,9 +34,9 @@ alter table sources add column if not exists city_id uuid references regions(id)
 -- (kein Fehler) -- dort legt der Insert unten die *-grosser-saal-Zeile
 -- direkt neu an, exakte Rekonstruktion des Produktionsstands ist für
 -- dieses Rekonziliations-Update kein Ziel.
-update venues set slug = 'philharmonie-berlin-grosser-saal' where slug = 'philharmonie-berlin';
-update venues set slug = 'konzerthaus-berlin-grosser-saal' where slug = 'konzerthaus-berlin';
-update venues set slug = 'radialsystem' where slug = 'radialsystem-berlin';
+update venues set slug = 'philharmonie-berlin-grosser-saal' where slug = 'philharmonie-berlin' and not exists (select 1 from venues v2 where v2.slug = 'philharmonie-berlin-grosser-saal');
+update venues set slug = 'konzerthaus-berlin-grosser-saal' where slug = 'konzerthaus-berlin' and not exists (select 1 from venues v2 where v2.slug = 'konzerthaus-berlin-grosser-saal');
+update venues set slug = 'radialsystem' where slug = 'radialsystem-berlin' and not exists (select 1 from venues v2 where v2.slug = 'radialsystem');
 
 -- ===== Venues (Berlin) =====
 insert into venues (slug, name, description_de, address_street, address_zip, address_city, location, website_url, capacity, accessibility, parking_info_de, mvv_stops, is_verified, region_id, city_id, phone, email, history_de, district, venue_type, arrival_info_de, doors_info_de, catering_info_de, profile_checked_at) values ('philharmonie-berlin-grosser-saal', 'Philharmonie Berlin – Großer Saal', 'Philharmonie Berlin – Großer Saal ist eine Spielstätte in Berlin. Hauptsaal der Berliner Philharmonie; Heimstätte der Berliner Philharmoniker.', 'Herbert-von-Karajan-Straße 1', '10785', 'Berlin', ST_MakePoint(13.3696059, 52.5099888)::geography, null, 2440, '{}'::jsonb, 'Parkmöglichkeiten und aktuelle Zufahrtsregeln prüfen.', '[]'::jsonb, false, (select id from regions where slug = 'berlin'), (select id from regions where slug = 'berlin'), null, null, 'Philharmonie Berlin – Großer Saal ist eine Spielstätte in Berlin. Hauptsaal der Berliner Philharmonie; Heimstätte der Berliner Philharmoniker.', 'Tiergarten', 'concert_hall', 'ÖPNV, barrierefreie Zugänge, Fahrrad- und Taxihinweise auf der offiziellen Hausseite prüfen.', 'Einlass-, Garderoben- und Sicherheitsinformationen vor Veröffentlichung ergänzen.', 'Gastronomieangebot und Öffnungszeiten prüfen.', '2026-08-25')

@@ -40,6 +40,7 @@ begin
     'kampnagel-hamburg', 'Kampnagel', 'Jarrestraße 20', '22303', 'Hamburg',
     ST_MakePoint(10.0193846, 53.5837067)::geography, 'https://www.kampnagel.de', v_hamburg
   )
+  on conflict (slug) do update set updated_at = now()
   returning id into v_kampnagel;
   update sources set venue_id = v_kampnagel where id = v_source_kampnagel;
 

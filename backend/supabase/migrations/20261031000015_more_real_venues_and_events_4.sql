@@ -59,6 +59,7 @@ begin
     'resonanzraum-hamburg', 'resonanzraum', 'Feldstraße 66', '20359', 'Hamburg',
     ST_MakePoint(9.9636, 53.5606)::geography, 'https://www.ensembleresonanz.com', v_hamburg
   )
+  on conflict (slug) do update set updated_at = now()
   returning id into v_resonanzraum;
   update sources set venue_id = v_resonanzraum where id = v_source_ensemble_resonanz;
 
@@ -69,6 +70,7 @@ begin
     'kunstkulturkirche-allerheiligen', 'KunstKulturKirche Allerheiligen', 'Thüringer Straße 35', '60316', 'Frankfurt am Main',
     ST_MakePoint(8.6923, 50.1145)::geography, 'https://www.kunstkulturkirche.de', v_frankfurt
   )
+  on conflict (slug) do update set updated_at = now()
   returning id into v_kunstkulturkirche;
 
   -- Haus der Deutschen Ensemble Akademie — Schwedlerstraße 2-4, 60314
@@ -78,6 +80,7 @@ begin
     'haus-der-deutschen-ensemble-akademie', 'Haus der Deutschen Ensemble Akademie', 'Schwedlerstraße 2-4', '60314', 'Frankfurt am Main',
     ST_MakePoint(8.7048, 50.1101)::geography, 'https://www.deutsche-ensemble-akademie.de', v_frankfurt
   )
+  on conflict (slug) do update set updated_at = now()
   returning id into v_dea_haus;
   update sources set venue_id = v_dea_haus where id = v_source_ensemble_modern;
 
@@ -87,6 +90,7 @@ begin
     'radialsystem-berlin', 'Radialsystem', 'Holzmarktstraße 33', '10243', 'Berlin',
     ST_MakePoint(13.4392, 52.5097)::geography, 'https://www.radialsystem.de', v_berlin
   )
+  on conflict (slug) do update set updated_at = now()
   returning id into v_radialsystem;
   update sources set venue_id = v_radialsystem where id = v_source_radialsystem;
 
@@ -96,6 +100,7 @@ begin
     'kuenstlerhaus-mousonturm', 'Künstlerhaus Mousonturm', 'Waldschmidtstraße 4', '60316', 'Frankfurt am Main',
     ST_MakePoint(8.6912, 50.1214)::geography, 'https://www.mousonturm.de', v_frankfurt
   )
+  on conflict (slug) do update set updated_at = now()
   returning id into v_mousonturm;
   update sources set venue_id = v_mousonturm where id = v_source_mousonturm;
 
@@ -106,6 +111,7 @@ begin
     'hfmt-hamburg', 'Hochschule für Musik und Theater Hamburg', 'Harvestehuder Weg 12', '20148', 'Hamburg',
     ST_MakePoint(9.9975, 53.5691)::geography, 'https://www.hfmt-hamburg.de', v_hamburg
   )
+  on conflict (slug) do update set updated_at = now()
   returning id into v_hfmt_hamburg;
   update sources set venue_id = v_hfmt_hamburg where id = v_source_hfmt_hamburg;
 

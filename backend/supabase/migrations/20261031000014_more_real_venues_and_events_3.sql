@@ -62,6 +62,7 @@ begin
     'orf-radiokulturhaus', 'ORF RadioKulturhaus', 'Argentinierstraße 30a', '1040', 'Wien',
     ST_MakePoint(16.373, 48.1946)::geography, 'https://radiokulturhaus.orf.at', v_vienna
   )
+  on conflict (slug) do update set updated_at = now()
   returning id into v_orf_radiokulturhaus;
 
   -- Oper Frankfurt — Willy-Brandt-Platz, 60311 Frankfurt am Main.

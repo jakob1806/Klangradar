@@ -16,10 +16,10 @@
 -- gleiche Begründung in 20261029000004_city_import_berlin.sql.
 -- 'wiener-staatsoper' und 'volksoper-wien' brauchen keine Angleichung --
 -- exakt gleicher Slug dort bereits, "on conflict" unten greift direkt.
-update venues set slug = 'musikverein-wien-grosser-saal' where slug = 'wiener-musikverein';
-update venues set slug = 'wiener-konzerthaus-grosser-saal' where slug = 'wiener-konzerthaus';
-update venues set slug = 'musiktheater-an-der-wien' where slug = 'theater-an-der-wien';
-update venues set slug = 'orf-radiokulturhaus-grosser-sendesaal' where slug = 'orf-radiokulturhaus';
+update venues set slug = 'musikverein-wien-grosser-saal' where slug = 'wiener-musikverein' and not exists (select 1 from venues v2 where v2.slug = 'musikverein-wien-grosser-saal');
+update venues set slug = 'wiener-konzerthaus-grosser-saal' where slug = 'wiener-konzerthaus' and not exists (select 1 from venues v2 where v2.slug = 'wiener-konzerthaus-grosser-saal');
+update venues set slug = 'musiktheater-an-der-wien' where slug = 'theater-an-der-wien' and not exists (select 1 from venues v2 where v2.slug = 'musiktheater-an-der-wien');
+update venues set slug = 'orf-radiokulturhaus-grosser-sendesaal' where slug = 'orf-radiokulturhaus' and not exists (select 1 from venues v2 where v2.slug = 'orf-radiokulturhaus-grosser-sendesaal');
 
 -- ===== Venues (Wien) =====
 insert into venues (slug, name, description_de, address_street, address_zip, address_city, location, website_url, capacity, accessibility, parking_info_de, mvv_stops, is_verified, region_id, city_id, phone, email, history_de, district, venue_type, arrival_info_de, doors_info_de, catering_info_de, profile_checked_at) values ('musikverein-wien-grosser-saal', 'Musikverein Wien – Großer Saal', 'Musikverein Wien – Großer Saal ist eine Spielstätte in Wien. Goldener Saal der Gesellschaft der Musikfreunde und zentraler Orchesterort.', 'Musikvereinsplatz 1', '1010', 'Wien', ST_MakePoint(16.3727252, 48.2004865)::geography, null, 1744, '{}'::jsonb, 'Parkmöglichkeiten und aktuelle Zufahrtsregeln prüfen.', '[]'::jsonb, false, (select id from regions where slug = 'vienna'), (select id from regions where slug = 'vienna'), null, null, 'Musikverein Wien – Großer Saal ist eine Spielstätte in Wien. Goldener Saal der Gesellschaft der Musikfreunde und zentraler Orchesterort.', 'Innere Stadt', 'concert_hall', 'ÖPNV, barrierefreie Zugänge, Fahrrad- und Taxihinweise auf der offiziellen Hausseite prüfen.', 'Einlass-, Garderoben- und Sicherheitsinformationen vor Veröffentlichung ergänzen.', 'Gastronomieangebot und Öffnungszeiten prüfen.', '2026-08-25')
