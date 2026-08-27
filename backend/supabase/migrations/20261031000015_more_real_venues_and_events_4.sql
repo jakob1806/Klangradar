@@ -24,8 +24,12 @@ declare
   v_vienna uuid := (select id from regions where type = 'city' and slug = 'vienna');
   v_frankfurt uuid := (select id from regions where type = 'city' and slug = 'frankfurt');
 
-  v_philharmonie_berlin uuid := (select id from venues where slug = 'philharmonie-berlin-grosser-saal');
-  v_musikverein uuid := (select id from venues where slug = 'musikverein-wien-grosser-saal');
+  -- Fallback auf die alten Slugs: die Umbenennung auf den kanonischen
+  -- Slug läuft erst in den 20261101000011/014_city_import_*.sql-Dateien
+  -- (später in der Zeitstempel-Reihenfolge als diese Datei), auf einer
+  -- frischen DB existieren an dieser Stelle daher noch die alten Slugs.
+  v_philharmonie_berlin uuid := (select id from venues where slug in ('philharmonie-berlin-grosser-saal', 'philharmonie-berlin'));
+  v_musikverein uuid := (select id from venues where slug in ('musikverein-wien-grosser-saal', 'wiener-musikverein'));
 
   v_resonanzraum uuid;
   v_kunstkulturkirche uuid;

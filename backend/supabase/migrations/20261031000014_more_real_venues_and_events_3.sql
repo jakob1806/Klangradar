@@ -19,11 +19,15 @@ declare
   v_vienna uuid := (select id from regions where type = 'city' and slug = 'vienna');
   v_frankfurt uuid := (select id from regions where type = 'city' and slug = 'frankfurt');
 
-  v_elbphilharmonie uuid := (select id from venues where slug = 'elbphilharmonie-grosser-saal');
-  v_philharmonie_berlin uuid := (select id from venues where slug = 'philharmonie-berlin-grosser-saal');
-  v_konzerthaus_berlin uuid := (select id from venues where slug = 'konzerthaus-berlin-grosser-saal');
-  v_alte_oper uuid := (select id from venues where slug = 'alte-oper-frankfurt-grosser-saal');
-  v_wiener_konzerthaus uuid := (select id from venues where slug = 'wiener-konzerthaus-grosser-saal');
+  -- Fallback auf die alten Slugs: die Umbenennung auf den kanonischen
+  -- Slug läuft erst in den 20261101000011-014_city_import_*.sql-Dateien
+  -- (später in der Zeitstempel-Reihenfolge als diese Datei), auf einer
+  -- frischen DB existieren an dieser Stelle daher noch die alten Slugs.
+  v_elbphilharmonie uuid := (select id from venues where slug in ('elbphilharmonie-grosser-saal', 'elbphilharmonie-hamburg'));
+  v_philharmonie_berlin uuid := (select id from venues where slug in ('philharmonie-berlin-grosser-saal', 'philharmonie-berlin'));
+  v_konzerthaus_berlin uuid := (select id from venues where slug in ('konzerthaus-berlin-grosser-saal', 'konzerthaus-berlin'));
+  v_alte_oper uuid := (select id from venues where slug in ('alte-oper-frankfurt-grosser-saal', 'alte-oper-frankfurt'));
+  v_wiener_konzerthaus uuid := (select id from venues where slug in ('wiener-konzerthaus-grosser-saal', 'wiener-konzerthaus'));
 
   v_hr_sendesaal uuid;
   v_orf_radiokulturhaus uuid;

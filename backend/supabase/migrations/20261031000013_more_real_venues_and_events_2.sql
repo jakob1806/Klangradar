@@ -27,7 +27,11 @@ declare
   v_source_volksoper uuid;
   v_source_staatsoper_wien uuid;
 begin
-  select id into v_elbphilharmonie from venues where slug = 'elbphilharmonie-grosser-saal';
+  -- Fallback auf den alten Slug: die Umbenennung auf den kanonischen
+  -- Slug läuft erst in 20261101000012_city_import_hamburg.sql (später
+  -- in der Zeitstempel-Reihenfolge als diese Datei), auf einer frischen
+  -- DB existiert an dieser Stelle daher noch 'elbphilharmonie-hamburg'.
+  select id into v_elbphilharmonie from venues where slug in ('elbphilharmonie-grosser-saal', 'elbphilharmonie-hamburg');
   select id into v_source_hamburgische_staatsoper from sources where name = 'Hamburgische Staatsoper' and city_id = v_hamburg;
   select id into v_source_kampnagel from sources where name = 'Kampnagel' and city_id = v_hamburg;
   select id into v_source_boulez from sources where name = 'Pierre Boulez Saal' and city_id = v_berlin;
