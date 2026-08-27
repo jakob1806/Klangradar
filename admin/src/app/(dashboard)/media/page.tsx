@@ -80,7 +80,7 @@ function thumbnailSrc(
 
 export default async function MediaPage() {
   const supabase = await createClient();
-  const [{ data, error }, { count: missingPersons }, { count: missingEnsembles }] = await Promise.all([
+  const [{ data, error }, { count: missingPersons }, { count: missingEnsembles }, { count: missingVenues }] = await Promise.all([
     supabase
       .from("images")
       .select("id, source_url, origin_type, origin_id, photographer, copyright_notice, license_notes, imported_at, source_page_url, source_name, credits, license_name, license_url, license_status, confidence_score, match_reason, warnings, thumbnail_path, storage_path")
@@ -89,6 +89,7 @@ export default async function MediaPage() {
       .returns<ImageRow[]>(),
     supabase.from("persons").select("id", { count: "exact", head: true }).is("photo_url", null),
     supabase.from("ensembles").select("id", { count: "exact", head: true }).is("photo_url", null),
+    supabase.from("venues").select("id", { count: "exact", head: true }).is("photo_url", null),
   ]);
 
   // Namen pro (origin_type, origin_id) auflösen — eine Query pro betroffenem
@@ -136,7 +137,7 @@ export default async function MediaPage() {
       </div>
       </div>
 
-      <div className="mt-6 grid gap-4 md:grid-cols-2">
+      <div className="mt-6 grid gap-4 md:grid-cols-3">
         <div className="rounded-2xl border border-black/[0.06] bg-white p-5 shadow-sm">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -168,6 +169,23 @@ export default async function MediaPage() {
             className="mt-5 block rounded-xl bg-[#0071e3] px-4 py-2.5 text-center text-sm font-medium text-white transition-colors hover:bg-[#0077ed]"
           >
             Fehlende Ensemblebilder bearbeiten
+          </Link>
+        </div>
+
+        <div className="rounded-2xl border border-black/[0.06] bg-white p-5 shadow-sm">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.08em] text-neutral-400">Venues</p>
+              <p className="mt-2 text-3xl font-semibold tabular-nums text-neutral-900">{missingVenues ?? 0}</p>
+              <p className="mt-1 text-sm text-neutral-500">Profile ohne Bild</p>
+            </div>
+            <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">Offene Bildlücken</span>
+          </div>
+          <Link
+            href="/image-research?type=venue&missing=1"
+            className="mt-5 block rounded-xl bg-[#0071e3] px-4 py-2.5 text-center text-sm font-medium text-white transition-colors hover:bg-[#0077ed]"
+          >
+            Fehlende Venuebilder bearbeiten
           </Link>
         </div>
       </div>
