@@ -196,3 +196,30 @@ Browser-Rendering (z.B. Headless-Chrome-Fetch statt plain HTTP-GET) oder
 Mehrseiten-Crawling — beides eine größere, hier nicht umgesetzte
 Folgeänderung, kein reiner Config-Eintrag mehr wie bei den sechs
 bestehenden Quellen.
+
+## Reconciliation mit paralleler Codex-Session (`fix/migration-history-reconciliation`, `fix/sources-city-id`)
+
+Eine unabhängig laufende Session hat zeitgleich eine eigene
+Städte-Erweiterung gebaut und direkt gegen Produktion gepusht (nie in
+`main` gemerged) — mit einer eigenen `city_id`/`city_area_id`-Spalte
+(statt der hier verwendeten bestehenden `region_id`), eigenen
+city-gefilterten RPCs (`search_all`/`venues_with_latlng`/
+`recommended_events`/`popular_events`/`discovery_events`, alle mit
+`p_city_id`-Parameter statt `p_region_id`) und 4 handkuratierten
+Flaggschiff-Venues+Events (München-Land+neue Städte). `city_id` ist jetzt
+die produktiv vollständig befüllte, kanonische Stadt-Spalte (`region_id`
+blieb bei einigen älteren Venues leer) — die App (Karte/Suche/Home/
+Kalender) und alle 9 Event-Quellen aus diesem Dokument wurden entsprechend
+auf `city_id`/`p_city_id` umgestellt. Details zum Konflikt und zur Lösung:
+Commit-Messages von `82ea140` (PR #168) und `23dfc2b` (PR #169).
+
+Die 128 Personen/Ensembles/Venues aus diesem Dokument bleiben zusätzlich
+zu Codex' 4 Flaggschiff-Venues bestehen (upsert per `slug`, keine
+Kollision, da unterschiedliche Slug-Konvention) — echte Namens-Duplikate
+(z.B. "Philharmonie Berlin" als eigene Zeile UND als
+"Philharmonie Berlin – Großer Saal"/"– Kammermusiksaal" aus diesem Import)
+sind ein bekannter, nicht kritischer Nebeneffekt zweier unabhängiger
+Importe derselben realen Institutionen — werden von der bestehenden
+Venue-Dedup-Review-Queue (`detect_venue_duplicate_candidates`, wöchentlicher
+Cron) automatisch zur redaktionellen Prüfung vorgeschlagen, nicht
+automatisch gemergt.
