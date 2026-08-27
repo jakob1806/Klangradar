@@ -12,14 +12,17 @@
 -- NICHT auf false, falls eine Zeile bereits redaktionell freigegeben war.
 
 -- Reconciliation: dieser Import (und die drei folgenden Hamburg/Frankfurt/
--- Wien-Dateien) braucht venues.city_id, die chronologisch erst in
--- 20261031000002_city_id_venues_events_sources.sql angelegt wird -- auf
--- einer frischen DB-Neuaufsetzung existiert die Spalte an dieser Stelle
--- noch nicht. Defensiv selbst anlegen (idempotent, "if not exists");
--- 20261031000002 legt sie dort ebenfalls mit demselben Guard an, sodass
--- beide Reihenfolgen (frische DB vs. Produktion, wo die Spalte längst
--- existiert) funktionieren.
+-- Wien-Dateien, sowie die anschließenden Quellen-Migrationen
+-- 20261029000011ff, die inzwischen ebenfalls sources.city_id befüllen)
+-- braucht venues.city_id/sources.city_id, die chronologisch erst in
+-- 20261031000002_city_id_venues_events_sources.sql angelegt werden -- auf
+-- einer frischen DB-Neuaufsetzung existieren die Spalten an dieser
+-- Stelle noch nicht. Defensiv selbst anlegen (idempotent, "if not
+-- exists"); 20261031000002 legt sie dort ebenfalls mit demselben Guard
+-- an, sodass beide Reihenfolgen (frische DB vs. Produktion, wo die
+-- Spalten längst existieren) funktionieren.
 alter table venues add column if not exists city_id uuid references regions(id);
+alter table sources add column if not exists city_id uuid references regions(id);
 
 -- Reconciliation: die parallel gegen Produktion gepushte Codex-Session
 -- (20261031000010/012/013/015) hat drei dieser Gebäude bereits unter
