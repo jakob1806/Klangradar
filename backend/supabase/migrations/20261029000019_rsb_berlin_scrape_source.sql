@@ -15,12 +15,13 @@
 -- daher keine saubere venueSelector-Extraktion möglich -- venueName
 -- bleibt null.
 insert into sources (
-  name, type, url, venue_id, crawl_frequency_minutes, legal_basis, status, config
+  name, type, url, venue_id, city_id, crawl_frequency_minutes, legal_basis, status, config
 ) values (
   'Rundfunk-Sinfonieorchester Berlin – Konzerte (Scrape)',
   'scrape',
   'https://www.rsb-online.de/konzerte/',
   null,
+  (select id from regions where type = 'city' and slug = 'berlin'),
   1440,
   'Rechtlich ungeprüft (siehe docs/10-legal-status.md) — robots.txt geprüft, '
     || 'Konzertseite nicht disallowed, kein ClaudeBot-spezifischer Ausschluss.',

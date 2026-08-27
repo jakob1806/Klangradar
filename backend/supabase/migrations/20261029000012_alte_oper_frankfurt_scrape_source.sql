@@ -23,12 +23,13 @@
 -- Quellen. Genre-Filterung (Alte Oper zeigt auch Lesungen/Kabarett neben
 -- Konzerten) bewusst NICHT vorgenommen — Umfang für einen ersten Wurf.
 insert into sources (
-  name, type, url, venue_id, crawl_frequency_minutes, legal_basis, status, config
+  name, type, url, venue_id, city_id, crawl_frequency_minutes, legal_basis, status, config
 ) values (
   'Alte Oper Frankfurt – Programm (Scrape)',
   'scrape',
   'https://www.alteoper.de/de/programm',
   null,
+  (select id from regions where type = 'city' and slug = 'frankfurt'),
   1440,
   'Rechtlich ungeprüft (siehe docs/10-legal-status.md) — robots.txt geprüft, '
     || '/de/programm ist nicht disallowed, kein ClaudeBot-spezifischer Ausschluss.',

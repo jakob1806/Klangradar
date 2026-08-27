@@ -22,12 +22,13 @@
 -- Pagination-Element gefunden, vermutlich "mehr laden"-Button per JS) —
 -- täglicher Cron sammelt neu erscheinende Termine über Zeit auf.
 insert into sources (
-  name, type, url, venue_id, crawl_frequency_minutes, legal_basis, status, config
+  name, type, url, venue_id, city_id, crawl_frequency_minutes, legal_basis, status, config
 ) values (
   'Wiener Konzerthaus – Kalender (Scrape)',
   'scrape',
   'https://konzerthaus.at/kalender/',
   null,
+  (select id from regions where type = 'city' and slug = 'vienna'),
   1440,
   'Rechtlich ungeprüft (siehe docs/10-legal-status.md) — robots.txt geprüft, '
     || '/kalender/ ist nicht disallowed, kein ClaudeBot-spezifischer Ausschluss.',

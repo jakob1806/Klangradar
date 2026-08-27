@@ -11,12 +11,13 @@
 -- (Volksoper Hauptbühne, Balkon-Foyer, ...), venueName löst per
 -- Fuzzy-Match auf.
 insert into sources (
-  name, type, url, venue_id, crawl_frequency_minutes, legal_basis, status, config
+  name, type, url, venue_id, city_id, crawl_frequency_minutes, legal_basis, status, config
 ) values (
   'Volksoper Wien – Spielplan (Scrape)',
   'scrape',
   'https://www.volksoper.at/spielplan/',
   null,
+  (select id from regions where type = 'city' and slug = 'vienna'),
   1440,
   'Rechtlich ungeprüft (siehe docs/10-legal-status.md) — robots.txt geprüft, '
     || '"Disallow:" (leer, keine Einschränkung), kein ClaudeBot-spezifischer Ausschluss.',

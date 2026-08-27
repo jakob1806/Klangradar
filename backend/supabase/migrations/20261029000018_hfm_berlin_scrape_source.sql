@@ -28,12 +28,13 @@
 -- Preis, ohne eigene CSS-Klasse) -- venueName bleibt null, die Events
 -- landen dennoch korrekt zugeordnet zur Hochschule selbst als Fallback.
 insert into sources (
-  name, type, url, venue_id, crawl_frequency_minutes, legal_basis, status, config
+  name, type, url, venue_id, city_id, crawl_frequency_minutes, legal_basis, status, config
 ) values (
   'Hochschule für Musik Hanns Eisler Berlin – Veranstaltungen (Scrape)',
   'scrape',
   'https://www.hfm-berlin.de/veranstaltungen/',
   null,
+  (select id from regions where type = 'city' and slug = 'berlin'),
   1440,
   'Rechtlich ungeprüft (siehe docs/10-legal-status.md) — robots.txt geprüft, '
     || 'Kalenderseite nicht disallowed, kein ClaudeBot-spezifischer Ausschluss.',
