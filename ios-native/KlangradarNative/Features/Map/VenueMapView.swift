@@ -4,8 +4,10 @@ import SwiftUI
 struct VenueMapView: View {
     let repository: any ContentRepository
     let eventRepository: any EventRepository
+    @ObservedObject var cityStore: CityStore
 
     @State private var venues: [VenueLocation] = []
+    @State private var showsCitySwitcher = false
     @State private var selectedVenueID: UUID?
     @State private var selectedVenue: VenueLocation?
     // Nutzerfeedback: mehrere Säle desselben Gebäudes (z.B. Gasteig HP8:
@@ -65,9 +67,11 @@ struct VenueMapView: View {
             .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showsFilter) { filterSheet }
-        .task {
-            venues = (try? await repository.venueLocations()) ?? []
-            fitCameraToVenuesIfNeeded()
+        .sheet(isPresented: $showsCitySwitcher) { CitySwitcherView(cityStore: cityStore) }
+        .task { await loadVenues() }
+        .onChange(of: cityStore.selectedCity) { _, _ in
+            hasAutoFitCamera = false
+            Task { await loadVenues() }
         }
         .alert("Standort nicht verfügbar", isPresented: Binding(
             get: { locationError != nil },
@@ -122,6 +126,21 @@ struct VenueMapView: View {
                 }
                     .buttonStyle(.plain)
                     .foregroundStyle(.primary)
+                // Nutzeranfrage: Venues auf der Karte sollen nach Stadt
+                // filterbar sein, seit es mehr als München gibt (siehe
+                // CityStore/CitySwitcherView) -- Chip nur zeigen, wenn es
+                // überhaupt eine Auswahl zu treffen gibt.
+                if cityStore.activeCities.count > 1 {
+                    Button { showsCitySwitcher = true } label: {
+                        Label(cityStore.selectedCity?.name ?? "Alle Städte", systemImage: "building.2")
+                            .font(.subheadline.weight(.medium))
+                            .padding(.horizontal, 12)
+                            .frame(height: 36)
+                            .background(.regularMaterial, in: .capsule)
+                    }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.primary)
+                }
                     Spacer()
                 Button {
                     Task { await locateUser() }
@@ -145,6 +164,11 @@ struct VenueMapView: View {
             .onChange(of: selectedVenueID) { _, id in
                 selectedVenue = venues.first { $0.id == id }
             }
+    }
+
+    @MainActor private func loadVenues() async {
+        venues = (try? await repository.venueLocations(cityID: cityStore.selectedCity?.id)) ?? []
+        fitCameraToVenuesIfNeeded()
     }
 
     @MainActor private func locateUser() async {

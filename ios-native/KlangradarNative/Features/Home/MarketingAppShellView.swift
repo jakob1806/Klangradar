@@ -25,6 +25,7 @@ struct MarketingAppShellView: View {
     @StateObject private var favorites: FavoriteStore
     @StateObject private var follows: FollowStore
     @StateObject private var reportStore: ReportStore
+    @StateObject private var cityStore: CityStore
     @StateObject private var genreFilterRouter = GenreFilterRouter()
 
     init(
@@ -44,6 +45,7 @@ struct MarketingAppShellView: View {
         _favorites = StateObject(wrappedValue: FavoriteStore(auth: auth, repository: userRepository))
         _follows = StateObject(wrappedValue: FollowStore(auth: auth, repository: userRepository))
         _reportStore = StateObject(wrappedValue: ReportStore(auth: auth, repository: userRepository))
+        _cityStore = StateObject(wrappedValue: CityStore(auth: auth, repository: userRepository))
     }
 
     var body: some View {
@@ -57,7 +59,7 @@ struct MarketingAppShellView: View {
                     .tag(MarketingTab.search)
                     .tabItem { Label("Suche", systemImage: "magnifyingglass") }
 
-                VenueMapView(repository: contentRepository, eventRepository: eventRepository)
+                VenueMapView(repository: contentRepository, eventRepository: eventRepository, cityStore: cityStore)
                     .tag(MarketingTab.map)
                     .tabItem { Label("Karte", systemImage: "map") }
 
@@ -97,8 +99,10 @@ struct MarketingAppShellView: View {
         .environmentObject(follows)
         .environmentObject(reportStore)
         .environmentObject(genreFilterRouter)
+        .environmentObject(cityStore)
         .task { await favorites.load() }
         .task { await follows.load() }
+        .task { await cityStore.load() }
     }
 }
 

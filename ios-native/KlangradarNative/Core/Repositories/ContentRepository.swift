@@ -6,7 +6,10 @@ protocol ContentRepository: Sendable {
     func collections() async throws -> [EditorialCollection]
     func collection(slug: String) async throws -> EditorialCollection?
     func search(query: String, limit: Int) async throws -> [SearchHit]
-    func venueLocations() async throws -> [VenueLocation]
+    /// `cityID: nil` = alle Städte (siehe CityStore) -- muss explizit als
+    /// JSON-`null` an die RPC gesendet werden, sonst greift deren
+    /// `p_city_id`-Default (München), siehe venueLocations(cityID:)-Doku.
+    func venueLocations(cityID: UUID?) async throws -> [VenueLocation]
     func venueEvents(venueID: UUID, limit: Int) async throws -> [ConcertEvent]
 }
 
@@ -284,8 +287,16 @@ struct LiveContentRepository: ContentRepository {
         }
     }
 
-    func venueLocations() async throws -> [VenueLocation] {
-        async let locationRows: [JSONObject] = client.rpc("venues_with_latlng")
+    /// venues_with_latlng hat `p_city_id uuid default munich_city_id()`
+    /// (siehe 20261031000005_city_scoped_rpcs.sql) -- ein komplett
+    /// weggelassener Parameter würde also den Default (München) greifen
+    /// lassen statt "alle Städte". Für cityID == nil daher explizit
+    /// `.null` senden, nicht den Parameter einfach auslassen.
+    func venueLocations(cityID: UUID?) async throws -> [VenueLocation] {
+        let parameters: JSONObject = [
+            "p_city_id": cityID.map { .string($0.uuidString) } ?? .null
+        ]
+        async let locationRows: [JSONObject] = client.rpc("venues_with_latlng", parameters: parameters)
         async let venueDirectory = directory(kind: .venue)
         let rows = try await locationRows
         let imageByID = Dictionary(uniqueKeysWithValues: try await venueDirectory.map { ($0.id.lowercased(), $0.imageURL) })
@@ -614,7 +625,7 @@ struct PreviewContentRepository: ContentRepository {
             SearchHit(id: $0.id, kind: $0.kind, slug: $0.slug, title: $0.title, subtitle: $0.subtitle)
         }
     }
-    func venueLocations() async throws -> [VenueLocation] { SampleData.venues }
+    func venueLocations(cityID: UUID?) async throws -> [VenueLocation] { SampleData.venues }
     func venueEvents(venueID: UUID, limit: Int) async throws -> [ConcertEvent] {
         Array(SampleData.events.filter { $0.venues?.id == venueID }.prefix(limit))
     }
