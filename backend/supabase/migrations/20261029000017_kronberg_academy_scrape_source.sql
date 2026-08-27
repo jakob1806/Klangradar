@@ -9,12 +9,13 @@
 -- auswärts statt (siehe erstes Testevent: Rhein-Main-Philharmoniker
 -- Frankfurt am Main als Gast), venueName löst per Fuzzy-Match auf.
 insert into sources (
-  name, type, url, venue_id, crawl_frequency_minutes, legal_basis, status, config
+  name, type, url, venue_id, city_id, crawl_frequency_minutes, legal_basis, status, config
 ) values (
   'Kronberg Academy – Veranstaltungen (Scrape)',
   'scrape',
   'https://www.kronbergacademy.de/veranstaltungen',
   null,
+  (select id from regions where type = 'city' and slug = 'frankfurt'),
   1440,
   'Rechtlich ungeprüft (siehe docs/10-legal-status.md) — robots.txt geprüft, '
     || 'Kalenderseite nicht disallowed, kein ClaudeBot-spezifischer Ausschluss.',
