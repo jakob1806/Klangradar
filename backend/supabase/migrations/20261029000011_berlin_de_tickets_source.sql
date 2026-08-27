@@ -14,12 +14,13 @@
 -- Rechtlich UNGEPRÜFT wie die übrigen Scrape-/Schema.org-Quellen dieser
 -- Stadt-Erweiterung — siehe docs/10-legal-status.md.
 insert into sources (
-  name, type, url, venue_id, crawl_frequency_minutes, legal_basis, status, config
+  name, type, url, venue_id, city_id, crawl_frequency_minutes, legal_basis, status, config
 ) values (
   'Berlin.de – Klassische Konzerte (Schema.org)',
   'schema_org',
   'https://www.berlin.de/tickets/klassische-konzerte/',
   null,
+  (select id from regions where type = 'city' and slug = 'berlin'),
   1440,
   'Rechtlich ungeprüft (siehe docs/10-legal-status.md) — Schema.org-Event-Markup '
     || 'auf einer offiziellen Berlin.de-Seite, robots.txt wird vor jedem Fetch '
