@@ -99,7 +99,16 @@ function givenNamesMatch(shortGiven: string[], longGiven: string[]): boolean {
  * Vornamen zu denen in `longName`. Ein evtl. NACH dem Anker folgender
  * Rest in `longName` (z.B. "Bartholdy") muss in `shortName` nicht
  * vorkommen — genau der Fall, den die alte nur-letztes-Token-Logik nicht
- * abdeckte. */
+ * abdeckte.
+ *
+ * Zusätzlich muss der Anker das LETZTE Token von `shortName` sein (der
+ * mutmaßliche Nachname der Kurzform). Ohne diese Einschränkung wurde jedes
+ * gemeinsame Vor-/Zweitnamen-Token als Anker akzeptiert und erzeugte
+ * live beobachtete Fehltreffer zwischen zwei echten, verschiedenen
+ * Personen mit demselben Vornamen: "Giovanni Battista Pergolesi" vs.
+ * "Giovanni Battista Fontana" (Anker "Battista") und "Georg Friedrich
+ * Händel" vs. "Georg Friedrich Haas" (Anker "Friedrich") — in beiden
+ * Fällen ist keiner der Namen tatsächlich eine Kurzform des anderen. */
 function isAbbreviationOf(shortName: string, longName: string, anchor: string): boolean {
   const shortTokens = shortName.trim().split(/\s+/);
   const longTokens = longName.trim().split(/\s+/);
@@ -107,6 +116,7 @@ function isAbbreviationOf(shortName: string, longName: string, anchor: string): 
   const shortAnchorIdx = shortTokens.findIndex((t) => foldUmlauts(t.replace(/\./g, "")) === anchor);
   const longAnchorIdx = longTokens.findIndex((t) => foldUmlauts(t.replace(/\./g, "")) === anchor);
   if (shortAnchorIdx <= 0 || longAnchorIdx <= 0) return false; // Anker muss existieren und Vornamen davor haben
+  if (shortAnchorIdx !== shortTokens.length - 1) return false; // Anker muss Nachname der Kurzform sein, kein Zweitname
 
   return givenNamesMatch(shortTokens.slice(0, shortAnchorIdx), longTokens.slice(0, longAnchorIdx));
 }

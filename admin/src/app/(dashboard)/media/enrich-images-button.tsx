@@ -37,7 +37,7 @@ export function EnrichImagesButton() {
         onClick={run}
         className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700 disabled:opacity-50"
       >
-        {pending ? "Profilbilder werden gesucht…" : "Nächste Profilbilder automatisch suchen"}
+        {pending ? "Personen-/Ensemblebilder werden gesucht…" : "Nächste Personen-/Ensemblebilder automatisch suchen"}
       </button>
       {result?.status === "failed" && (
         <p className="max-w-xs text-right text-xs text-red-600">{result.error}</p>

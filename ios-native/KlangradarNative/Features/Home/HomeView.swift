@@ -2,7 +2,9 @@ import SwiftUI
 
 enum HomeRecommendationCategory: String, CaseIterable, Codable, Identifiable {
     case forYou, today, nextSevenDays, weekend, popular, discover
-    case favorites, taste, entitySpotlight, opera, orchestra, chamber, choir, free, upcoming, followed, editorialCollections
+    case opera, orchestra, chamber, choir, free, upcoming, editorialCollections
+    case favorites, taste, entitySpotlight, followed
+    case followedPersons, followedEnsembles, followedVenues
 
     var id: String { rawValue }
 
@@ -25,6 +27,9 @@ enum HomeRecommendationCategory: String, CaseIterable, Codable, Identifiable {
         case .entitySpotlight: "Von dir gefolgt"
         case .followed: "Gefolgt"
         case .editorialCollections: "Redaktionelle Sammlungen"
+        case .followedPersons: "Gefolgte Personen"
+        case .followedEnsembles: "Gefolgte Ensembles"
+        case .followedVenues: "Gefolgte Orte"
         }
     }
 
@@ -47,11 +52,20 @@ enum HomeRecommendationCategory: String, CaseIterable, Codable, Identifiable {
         case .entitySpotlight: "music.note.house"
         case .followed: "person.crop.circle.badge.checkmark"
         case .editorialCollections: "rectangle.stack"
+        case .followedPersons: "person.crop.circle.badge.checkmark"
+        case .followedEnsembles: "person.3.fill"
+        case .followedVenues: "mappin.circle.fill"
         }
     }
 
+    // Die granularen followedPersons/followedEnsembles/followedVenues-Reihen
+    // decken denselben Zweck wie `.followed`/`.entitySpotlight` ab, zeigen
+    // aber jede gefolgte Entität einzeln statt in einem gemischten/nur-besten
+    // Feed — deshalb Standardreihenfolge auf die granulare Variante, `.followed`
+    // und `.entitySpotlight` bleiben über "Homepage anordnen" weiter wählbar.
     static let defaultOrder: [HomeRecommendationCategory] = [
-        .today, .favorites, .followed, .entitySpotlight, .forYou, .taste, .discover,
+        .today, .favorites, .followedPersons, .followedEnsembles, .followedVenues,
+        .forYou, .taste, .discover,
         .nextSevenDays, .weekend, .popular, .editorialCollections,
         .opera, .orchestra, .chamber, .choir, .free, .upcoming
     ]
@@ -100,6 +114,7 @@ struct HomeView: View {
     private let usesPreviewData: Bool
     @State private var collections: [EditorialCollection] = []
     @State private var categoryOrder: [HomeRecommendationCategory] = HomeRecommendationCategory.defaultOrder
+    @State private var ensembleDirectory: [DirectoryItem] = []
 
     init(
         repository: any EventRepository,
@@ -129,9 +144,13 @@ struct HomeView: View {
             .navigationDestination(for: EditorialCollection.self) { collection in
                 CollectionDetailView(collection: collection, repository: contentRepository, eventRepository: model.repository)
             }
+            .navigationDestination(for: EntityRoute.self) { route in
+                EntityDetailView(route: route, repository: contentRepository)
+            }
             .task {
                 await model.load()
                 collections = (try? await contentRepository.collections()) ?? []
+                ensembleDirectory = (try? await contentRepository.directory(kind: .ensemble)) ?? []
             }
             .onAppear {
                 categoryOrder = HomeCategoryPreferences.order(for: model.currentUserID)
@@ -226,6 +245,30 @@ struct HomeView: View {
             EventRail(title: category.title, events: followedEvents(from: events))
         case .editorialCollections:
             if !collections.isEmpty { CollectionRail(collections: collections) }
+        case .followedPersons:
+            ForEach(followedSections(from: events, kind: .person)) { section in
+                EventRail(title: section.title, events: section.events)
+            }
+        case .followedEnsembles:
+            let sections = followedSections(from: events, kind: .ensemble)
+            ForEach(sections) { section in
+                EventRail(title: section.title, events: section.events)
+            }
+            // Gefolgte Ensembles ohne bereits geladenes bevorstehendes Event
+            // tauchten bislang gar nicht auf (rein event-basierte Reihen
+            // oben) — Nutzeranfrage "auch gefolgte ensembles anzeigen":
+            // zusätzlich alle übrigen gefolgten Ensembles als Karten zeigen.
+            EntityRail(
+                title: sections.isEmpty ? category.title : "Weitere gefolgte Ensembles",
+                items: followedEnsembleDirectoryItems.filter { item in
+                    guard let id = UUID(uuidString: item.id) else { return false }
+                    return !sections.contains { $0.id == id }
+                }
+            )
+        case .followedVenues:
+            ForEach(followedSections(from: events, kind: .venue)) { section in
+                EventRail(title: section.title, events: section.events)
+            }
         }
     }
 
@@ -239,8 +282,53 @@ struct HomeView: View {
         .padding(.horizontal, KlangradarTheme.pagePadding)
     }
 
+    private var followedEnsembleDirectoryItems: [DirectoryItem] {
+        ensembleDirectory
+            .filter { item in
+                guard let id = UUID(uuidString: item.id) else { return false }
+                return follows.isFollowing(kind: .ensemble, id: id)
+            }
+            .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+    }
+
+    /// Eine Reihe je gefolgter Entität der gegebenen Art mit deren kommenden
+    /// Events aus der bereits geladenen Liste — alphabetisch nach Name, nur
+    /// Entitäten mit mindestens einem Treffer (keine leeren Reihen).
+    private func followedSections(from events: [ConcertEvent], kind: EntityKind) -> [FollowedEntitySection] {
+        var byID: [UUID: (name: String, events: [ConcertEvent])] = [:]
+
+        func record(id: UUID?, name: String?, event: ConcertEvent) {
+            guard let id, let name, !name.isEmpty, follows.isFollowing(kind: kind, id: id) else { return }
+            byID[id, default: (name, [])].events.append(event)
+        }
+
+        for event in events {
+            switch kind {
+            case .venue:
+                record(id: event.venues?.id, name: event.venues?.name, event: event)
+            case .person:
+                for participant in event.eventParticipants ?? [] {
+                    record(id: participant.persons?.id, name: participant.persons?.name, event: event)
+                }
+            case .ensemble:
+                for participant in event.eventParticipants ?? [] {
+                    record(id: participant.ensembles?.id, name: participant.ensembles?.name, event: event)
+                }
+            case .work:
+                break
+            }
+        }
+
+        return byID
+            .map { FollowedEntitySection(id: $0.key, title: $0.value.name, events: $0.value.events) }
+            .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+    }
+
     /// Eine bewusst gemischte Rail: Person, Ensemble und Spielstätte sind
     /// Signale für dasselbe Konzert, nicht drei getrennte Inhalts-Silos.
+    /// Ergänzt die granularen `followedSections`-Reihen um eine kombinierte
+    /// Ansicht (Kategorie `.followed`), falls Nutzer diese statt/zusätzlich
+    /// zu den einzelnen Reihen in "Homepage anordnen" wählen.
     private func followedEvents(from events: [ConcertEvent]) -> [ConcertEvent] {
         Array(events.filter { event in
             if let venue = event.venues, follows.isFollowing(kind: .venue, id: venue.id) { return true }
@@ -301,6 +389,52 @@ struct HomeView: View {
         guard let saturday = calendar.date(byAdding: .day, value: daysUntilSaturday, to: today),
               let monday = calendar.date(byAdding: .day, value: 2, to: saturday) else { return false }
         return date >= saturday && date < monday
+    }
+}
+
+private struct FollowedEntitySection: Identifiable {
+    let id: UUID
+    let title: String
+    let events: [ConcertEvent]
+}
+
+private struct EntityRail: View {
+    let title: String
+    let items: [DirectoryItem]
+
+    var body: some View {
+        if !items.isEmpty {
+            VStack(alignment: .leading, spacing: 16) {
+                Text(title)
+                    .font(.title2.bold())
+                    .padding(.horizontal, KlangradarTheme.pagePadding)
+
+                ScrollView(.horizontal) {
+                    LazyHStack(alignment: .top, spacing: 16) {
+                        ForEach(items) { item in
+                            NavigationLink(value: EntityRoute(kind: item.kind, identifier: item.slug ?? item.id)) {
+                                VStack(spacing: 8) {
+                                    CroppedAsyncImage(url: item.imageURL, crop: item.avatarCrop) {
+                                        Color.secondary.opacity(0.12)
+                                            .overlay { Image(systemName: item.kind.systemImage) }
+                                    }
+                                    .frame(width: 92, height: 92)
+                                    .clipShape(Circle())
+                                    Text(item.title)
+                                        .font(.subheadline.weight(.medium))
+                                        .lineLimit(2)
+                                        .multilineTextAlignment(.center)
+                                        .frame(width: 100)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, KlangradarTheme.pagePadding)
+                }
+                .scrollIndicators(.hidden)
+            }
+        }
     }
 }
 

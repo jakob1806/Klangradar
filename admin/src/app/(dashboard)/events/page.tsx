@@ -10,6 +10,7 @@ import {
 import { ImageStatusBadge } from "@/components/image-status-badge";
 import { ListThumbnail } from "@/components/list-thumbnail";
 import { formatMunichDateTime } from "@/lib/munich-time";
+import { getActiveCityFilter } from "@/lib/city-filter";
 
 // Event-Daten ändern sich häufig (Preise, Restkarten) — nie statisch cachen.
 export const dynamic = "force-dynamic";
@@ -42,15 +43,10 @@ const STATUS_TABS = [
   { value: "all", label: "Alle" },
 ] as const;
 
-interface RegionOption {
-  id: string;
-  name: string;
-}
-
 export default async function EventsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; page?: string; q?: string; region?: string }>;
+  searchParams: Promise<{ status?: string; page?: string; q?: string }>;
 }) {
   const params = await searchParams;
   // Entwürfe zuerst als Default: das ist review-pflichtiger Content aus der
@@ -59,42 +55,31 @@ export default async function EventsPage({
   // komplett aus der sichtbaren Liste verdrängt hätte.
   const status = params.status ?? "draft";
   const q = (params.q ?? "").trim();
-  const region = (params.region ?? "").trim();
   const page = Math.max(1, parseInt(params.page ?? "1", 10) || 1);
   const from = (page - 1) * PAGE_SIZE;
   const to = from + PAGE_SIZE - 1;
 
   const supabase = await createClient();
-
-  const { data: regionOptions } = await supabase
-    .from("regions")
-    .select("id, name")
-    .eq("type", "city")
-    .order("name")
-    .returns<RegionOption[]>();
+  const cityFilter = await getActiveCityFilter();
 
   // Server-seitig statt Client-Filter: die Liste ist paginiert (50/Seite),
   // ein reiner Client-Filter würde nur innerhalb der gerade geladenen Seite
-  // suchen, nicht über alle Events hinweg. Städte-Filter (Nutzerfeedback:
-  // "generelle differenzierung zwischen städten oder alle städte anzeigen
-  // im admindashboard" fehlte komplett) joint per venues!inner gegen
-  // regions.id — leere Auswahl ("") bedeutet "alle Städte".
+  // suchen, nicht über alle Events hinweg. Städte-Filter kommt über den
+  // globalen Umschalter in der Topbar (siehe city-filter-switcher.tsx),
+  // gilt konsistent für alle Admin-Seiten.
   let query = supabase
     .from("events")
-    .select(
-      region
-        ? "id, slug, title, start_datetime, status, venues!inner(name, region_id), sources(name), image_urls"
-        : "id, slug, title, start_datetime, status, venues(name), sources(name), image_urls",
-      { count: "exact" },
-    );
+    .select("id, slug, title, start_datetime, status, venues(name), sources(name), image_urls", {
+      count: "exact",
+    });
   if (status !== "all") {
     query = query.eq("status", status);
   }
   if (q) {
     query = query.ilike("title", `%${q}%`);
   }
-  if (region) {
-    query = query.eq("venues.region_id", region);
+  if (cityFilter.cityId) {
+    query = query.eq("city_id", cityFilter.cityId);
   }
   const { data, error, count } = await query
     .order("start_datetime", { ascending: true })
@@ -129,7 +114,9 @@ export default async function EventsPage({
     }
   }
 
-  const { data: statusCounts } = await supabase.from("events").select("status");
+  let statusCountsQuery = supabase.from("events").select("status");
+  if (cityFilter.cityId) statusCountsQuery = statusCountsQuery.eq("city_id", cityFilter.cityId);
+  const { data: statusCounts } = await statusCountsQuery;
   const countByStatus = new Map<string, number>();
   for (const row of statusCounts ?? []) {
     countByStatus.set(row.status, (countByStatus.get(row.status) ?? 0) + 1);
@@ -137,11 +124,9 @@ export default async function EventsPage({
   const totalCount = statusCounts?.length ?? 0;
 
   const totalPages = count ? Math.ceil(count / PAGE_SIZE) : 1;
-  const qs = (overrides: { status?: string; region?: string }) => {
+  const qs = (overrides: { status?: string }) => {
     const p = new URLSearchParams();
     p.set("status", overrides.status ?? status);
-    const r = overrides.region ?? region;
-    if (r) p.set("region", r);
     if (q) p.set("q", q);
     return p.toString();
   };
@@ -191,18 +176,6 @@ export default async function EventsPage({
 
       <form method="get" action="/events" className="mb-4 flex items-center gap-2">
         <input type="hidden" name="status" value={status} />
-        <select
-          name="region"
-          defaultValue={region}
-          className="rounded-lg border border-black/10 px-3 py-2 text-sm outline-none focus:border-[#0071e3]"
-        >
-          <option value="">Alle Städte</option>
-          {(regionOptions ?? []).map((r) => (
-            <option key={r.id} value={r.id}>
-              {r.name}
-            </option>
-          ))}
-        </select>
         <input
           type="search"
           name="q"
@@ -216,7 +189,7 @@ export default async function EventsPage({
         >
           Suchen
         </button>
-        {(q || region) && (
+        {q && (
           <Link
             href={`/events?status=${status}`}
             className="text-sm font-medium text-neutral-500 hover:text-[#0071e3]"

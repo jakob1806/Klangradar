@@ -35,6 +35,8 @@ struct KlangradarUserProfile: Sendable {
 struct RegionOption: Identifiable, Hashable, Sendable {
     let id: UUID
     let name: String
+    var latitude: Double? = nil
+    var longitude: Double? = nil
 }
 
 struct UserRepository: Sendable {
@@ -112,19 +114,23 @@ struct UserRepository: Sendable {
         )
     }
 
-    /// Aktuell nur München aktiv (regions.is_active), siehe
-    /// 20260819000005_regions.sql — Grundlage für den manuellen
-    /// Standort-Fallback im Onboarding.
+    /// Seit der Stadt-Erweiterung (Berlin/Hamburg/Frankfurt/Wien neben
+    /// München, siehe docs/12-city-expansion-import.md) können hier mehrere
+    /// aktive Städte zurückkommen -- Grundlage für den manuellen
+    /// Standort-Fallback im Onboarding UND für CityStore/CitySwitcherView.
+    /// latitude/longitude (20261031000001_city_model_regions_extension.sql)
+    /// werden für die "Stadt anhand meines Standorts empfehlen"-Funktion
+    /// mitgeladen.
     func activeRegions() async throws -> [RegionOption] {
         let rows: [JSONObject] = try await client.get(table: "regions", queryItems: [
-            URLQueryItem(name: "select", value: "id,name"),
+            URLQueryItem(name: "select", value: "id,name,latitude,longitude"),
             URLQueryItem(name: "type", value: "eq.city"),
             URLQueryItem(name: "is_active", value: "eq.true"),
             URLQueryItem(name: "order", value: "name.asc")
         ])
         return rows.compactMap { row in
             guard let id = row.string("id").flatMap(UUID.init(uuidString:)), let name = row.string("name") else { return nil }
-            return RegionOption(id: id, name: name)
+            return RegionOption(id: id, name: name, latitude: row.number("latitude"), longitude: row.number("longitude"))
         }
     }
 
@@ -135,6 +141,22 @@ struct UserRepository: Sendable {
             filters: [URLQueryItem(name: "id", value: "eq.\(userID.uuidString)")],
             accessToken: token
         )
+    }
+
+    /// Für CityStore: die zuletzt gewählte/gespeicherte Stadt eines
+    /// angemeldeten Nutzers, um die Sitzungsauswahl beim nächsten Start
+    /// vorzubelegen (siehe setPreferredRegion).
+    func preferredRegionID(userID: UUID, token: String) async throws -> UUID? {
+        let rows: [JSONObject] = try await client.get(
+            table: "profiles",
+            queryItems: [
+                URLQueryItem(name: "select", value: "preferred_region_id"),
+                URLQueryItem(name: "id", value: "eq.\(userID.uuidString)"),
+                URLQueryItem(name: "limit", value: "1")
+            ],
+            accessToken: token
+        )
+        return rows.first?.string("preferred_region_id").flatMap(UUID.init(uuidString:))
     }
 
     func isOnboardingCompleted(userID: UUID, token: String) async throws -> Bool {

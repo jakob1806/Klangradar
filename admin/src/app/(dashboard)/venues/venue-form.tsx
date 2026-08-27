@@ -28,14 +28,28 @@ export interface VenueFormValues {
   capacity: number | null;
   website_url: string | null;
   photo_url: string | null;
+  city_id: string | null;
+}
+
+export interface CityOption {
+  id: string;
+  name_de: string;
+  short_name_de: string | null;
 }
 
 export function VenueForm({
   action,
   initial,
+  cities,
+  affectedEventCount,
 }: {
   action: (formData: FormData) => void;
   initial?: VenueFormValues;
+  cities: CityOption[];
+  /** Nur bei Bearbeiten gesetzt: Anzahl Events dieser Venue, die bei einem
+   * Stadtwechsel automatisch mitziehen würden (Trigger
+   * venues_cascade_city_to_events, siehe 20261031000002). */
+  affectedEventCount?: number;
 }) {
   const [slug, setSlug] = useState(initial?.slug ?? "");
   const [slugTouched, setSlugTouched] = useState(Boolean(initial));
@@ -78,8 +92,36 @@ export function VenueForm({
         </Field>
       </div>
 
-      <Field label="Stadt" required>
+      <Field label="Adresse (Ort, Freitext)" required>
         <TextInput name="address_city" required defaultValue={initial?.address_city ?? "München"} />
+      </Field>
+
+      <Field label="Konzertregion" required>
+        <select
+          name="city_id"
+          required
+          defaultValue={initial?.city_id ?? ""}
+          className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm"
+        >
+          <option value="" disabled>
+            Konzertregion wählen …
+          </option>
+          {cities.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.short_name_de ?? c.name_de}
+            </option>
+          ))}
+        </select>
+        <p className="mt-1 text-xs text-neutral-500">
+          Steuert, in welcher Stadt diese Venue in Suche/Karte/Feed erscheint — unabhängig vom Adressfeld oben
+          (z.B. Kronberg im Taunus bleibt als Adresse stehen, Konzertregion kann trotzdem Frankfurt sein).
+        </p>
+        {initial && affectedEventCount !== undefined && affectedEventCount > 0 && (
+          <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            Achtung: {affectedEventCount} Veranstaltung{affectedEventCount === 1 ? "" : "en"} dieser Venue{" "}
+            {affectedEventCount === 1 ? "zieht" : "ziehen"} bei einem Stadtwechsel automatisch mit um.
+          </p>
+        )}
       </Field>
 
       <div className="grid grid-cols-2 gap-4">

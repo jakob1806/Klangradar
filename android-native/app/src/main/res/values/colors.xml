@@ -1,0 +1,5 @@
+<resources>
+    <!-- #146194, same native brand accent as ios-native's KlangradarTheme
+         default (see ios-native/KlangradarNative/DesignSystem/KlangradarTheme.swift). -->
+    <color name="ic_launcher_background">#146194</color>
+</resources>

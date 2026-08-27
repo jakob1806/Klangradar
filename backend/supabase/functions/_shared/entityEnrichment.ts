@@ -22,6 +22,7 @@ import { fetchPageText } from "./pageText.ts";
 export interface EntityEnrichment {
   bioSnippet: string | null;
   websiteUrl: string | null;
+  resolvedEntityType: "person" | "ensemble";
 }
 
 const SUMMARIZE_ARTIST_FUNCTION: AiFunctionDeclaration = {
@@ -48,8 +49,19 @@ const SUMMARIZE_ARTIST_FUNCTION: AiFunctionDeclaration = {
           "true nur, wenn die Treffer klar zu einem/einer klassischen Musiker*in/Ensemble mit diesem Namen " +
           "passen. false bei Namensvettern, Unklarheit oder komplett fehlendem Bezug zu klassischer Musik.",
       },
+      resolvedEntityType: {
+        type: "string",
+        enum: ["person", "ensemble", "organization", "venue", "role_or_character", "generic_or_text", "unknown"],
+        description:
+          "Was der Name laut den Quellen tatsächlich bezeichnet. Institutionen, Opernhäuser, Rundfunkanstalten, " +
+          "Agenturen und Veranstalter sind organization – niemals ensemble.",
+      },
+      exactNameMatch: {
+        type: "boolean",
+        description: "true nur, wenn die Treffer exakt diese benannte Entität und nicht nur einen ähnlichen Namen behandeln.",
+      },
     },
-    required: ["confident"],
+    required: ["confident", "resolvedEntityType", "exactNameMatch"],
   },
 };
 
@@ -60,14 +72,14 @@ const SUMMARIZE_ARTIST_FUNCTION: AiFunctionDeclaration = {
 export async function enrichCandidateContext(
   entityType: "person" | "ensemble",
   name: string,
+  context?: string | null,
 ): Promise<EntityEnrichment | null> {
   const kind = entityType === "person" ? "Musiker" : "Ensemble";
-  // "München" im Suchbegriff — ohne das traf ein generischer Name wie
-  // "Markus-Chor" live einen gleichnamigen, aber komplett anderen Chor in
-  // Hannover (KI übernahm dessen Website/Leitung/Residenz unkritisch, weil
-  // die Suchtreffer selbst schon falsch waren, bevor die LLM-Einordnung
-  // überhaupt ansetzt).
-  const links = await searchDuckDuckGo(`${name} ${kind} München klassische Musik`, 3);
+  // Kein fest verdrahtetes „München“: Seit BHFW kommen Kandidaten aus mehreren
+  // Städten, zudem sind Gastkünstler oft nicht am Veranstaltungsort ansässig.
+  // Falls der Import einen Ort/Quellkontext kennt, wird er gezielt ergänzt.
+  const contextTerm = context?.trim() ? ` ${context.trim()}` : "";
+  const links = await searchDuckDuckGo(`"${name}" ${kind} klassische Musik${contextTerm}`, 3);
   if (!links || links.length === 0) return null;
 
   const pages = await Promise.all(links.map((l) => fetchPageText(l.url)));
@@ -77,21 +89,20 @@ export async function enrichCandidateContext(
     .join("\n\n");
   if (!searchText) return null;
   const response = await callAiFunction(
-    "Du ordnest Websuche-Treffer zu einem möglichen klassischen Musiker/Ensemble ein. " +
-      "Sei konservativ: bei Unklarheit oder Namensvettern lieber confident=false und leere Felder. " +
-      "WICHTIG: Der Name stammt aus einer Münchner Konzert-Datenbank — bei generischen Namen " +
-      "(z. B. Chor-/Ensemblenamen wie 'Markus-Chor', die es in mehreren Städten geben kann) NUR " +
-      "confident=true, wenn die Treffer erkennbar München/Bayern zuordnen. Verweisen Treffer klar " +
-      "auf eine andere Stadt (z. B. ein gleichnamiger Chor in Hannover), ist das ein anderer " +
-      "Namensvetter — confident=false.",
-    `Gesuchter Name: "${name}"\n\nTreffer:\n${searchText}`,
+    "Du klassifizierst Websuche-Treffer zu einem möglichen klassischen Musiker oder Ensemble. " +
+      "Sei streng: Ein Opernhaus, Theater, Rundfunksender, Verein, Stiftung, Veranstalter oder eine Agentur ist " +
+      "organization und niemals ensemble. Rollen, Figuren, Abteilungen, Gattungswörter und Satzfragmente dürfen " +
+      "nicht als Stammdatensatz bestätigt werden. Bei Namensvettern, fehlendem exakten Namensbezug oder Unklarheit " +
+      "confident=false setzen. confident=true nur bei exactNameMatch=true und eindeutig passendem Entitätstyp.",
+    `Erwarteter Typ: ${entityType}\nGesuchter Name: "${name}"${context ? `\nKontext: ${context}` : ""}\n\nTreffer:\n${searchText}`,
     SUMMARIZE_ARTIST_FUNCTION,
   );
   const args = response?.args;
-  if (!args || args.confident !== true) return null;
+  if (!args || args.confident !== true || args.exactNameMatch !== true || args.resolvedEntityType !== entityType) return null;
 
   return {
     bioSnippet: typeof args.bioSnippet === "string" && args.bioSnippet.trim() ? args.bioSnippet.trim() : null,
     websiteUrl: typeof args.websiteUrl === "string" && args.websiteUrl.trim() ? args.websiteUrl.trim() : null,
+    resolvedEntityType: entityType,
   };
 }

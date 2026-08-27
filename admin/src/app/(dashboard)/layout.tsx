@@ -2,7 +2,9 @@ import { Sidebar } from "@/components/sidebar";
 import { MobileNavigation } from "@/components/mobile-navigation";
 import { MobileTableAdapter } from "@/components/mobile-table-adapter";
 import { SignOutButton } from "@/components/sign-out-button";
+import { CityFilterSwitcher } from "@/components/city-filter-switcher";
 import { createClient } from "@/lib/supabase/server";
+import { getActiveCityFilter, getCityFilterOptions } from "@/lib/city-filter";
 
 export default async function DashboardLayout({
   children,
@@ -10,9 +12,13 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }>) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const [
+    {
+      data: { user },
+    },
+    cityOptions,
+    activeCity,
+  ] = await Promise.all([supabase.auth.getUser(), getCityFilterOptions(), getActiveCityFilter()]);
 
   return (
     <div className="dashboard-shell flex min-h-full">
@@ -32,7 +38,10 @@ export default async function DashboardLayout({
             <p className="text-[13px] font-semibold tracking-tight text-[#1d1d1f]">Klangradar Redaktion</p>
             <p className="text-[11px] text-[#86868b]">Inhalte zentral verwalten</p>
           </div>
-          <SignOutButton />
+          <div className="flex items-center gap-4">
+            <CityFilterSwitcher cities={cityOptions} activeSlug={activeCity.slug} />
+            <SignOutButton />
+          </div>
         </div>
         <div className="dashboard-content">{children}</div>
       </main>

@@ -10,6 +10,17 @@
 // damit trotzdem nur die ersten Bytes übertragen werden, nicht das ganze
 // Bild. AbortController mit Timeout, damit ein einzelner langsamer Host
 // nicht den gesamten Batch-Lauf blockiert.
+//
+// Beide Requests senden denselben USER_AGENT wie der eigentliche Download
+// in imagePipeline.ts. Live beobachteter Bug: ganz ohne User-Agent-Header
+// lehnten mehrere Institutions-Websites (z.B. adk.de) die Anfrage mit 403
+// ab, obwohl dieselbe URL im Browser (der immer einen User-Agent schickt)
+// und im späteren Download-Schritt (der schon einen setzte) klaglos
+// funktionierte — der Admin sah das Bild im Vorschau-<img>, "Übernehmen &
+// weiter" scheiterte trotzdem mit reason="unreachable", weil dieser Check
+// den echten Download-Versuch nie erreichen ließ.
+
+import { USER_AGENT } from "./robots.ts";
 
 const TIMEOUT_MS = 8_000;
 
@@ -76,7 +87,7 @@ export async function checkImageUrl(url: string): Promise<ImageCheckResult> {
   }
 
   try {
-    const headRes = await fetchWithTimeout(url, { method: "HEAD" });
+    const headRes = await fetchWithTimeout(url, { method: "HEAD", headers: { "User-Agent": USER_AGENT } });
     if (headRes.ok) {
       const contentType = headRes.headers.get("content-type");
       if (contentType?.toLowerCase().startsWith("image/")) {
@@ -98,7 +109,7 @@ export async function checkImageUrl(url: string): Promise<ImageCheckResult> {
   try {
     const getRes = await fetchWithTimeout(url, {
       method: "GET",
-      headers: { Range: "bytes=0-2048" },
+      headers: { Range: "bytes=0-2048", "User-Agent": USER_AGENT },
     });
     // 206 (Partial Content) oder 200 (Range ignoriert, ganze Datei) beide ok.
     if (!getRes.ok && getRes.status !== 206) {

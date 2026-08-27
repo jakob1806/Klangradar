@@ -20,6 +20,7 @@ struct SignUpStepView: View {
     @State private var showsPassword = false
     @State private var isWorking = false
     @State private var errorMessage: String?
+    @State private var showsImpressum = false
 
     private var requirements: [(title: String, isMet: Bool)] { AuthPasswordPolicy.requirements(for: password) }
 
@@ -99,8 +100,8 @@ struct SignUpStepView: View {
                 }
             } footer: {
                 HStack(spacing: 16) {
-                    Link("AGB", destination: URL(string: "https://klangradar.com/impressum")!)
-                    Link("Datenschutz", destination: URL(string: "https://klangradar.com/datenschutz")!)
+                    Button("Impressum (AGB)") { showsImpressum = true }
+                    Link("Datenschutz", destination: URL(string: "https://klangradar.app/datenschutz")!)
                 }
             }
 
@@ -121,6 +122,16 @@ struct SignUpStepView: View {
         }
         .overlay { if isWorking { ProgressView().controlSize(.large) } }
         .interactiveDismissDisabled(isWorking)
+        .sheet(isPresented: $showsImpressum) {
+            NavigationStack {
+                ImpressumView()
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Fertig") { showsImpressum = false }
+                        }
+                    }
+            }
+        }
     }
 
     private func signUp() async {

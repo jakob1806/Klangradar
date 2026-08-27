@@ -86,6 +86,18 @@ where type = 'city' and slug = 'muenchen';
 -- 20261031000009_seed_new_city_sources.sql) — is_active bleibt bewusst
 -- false, bis erste echte Daten vorhanden sind und die Redaktion die Stadt
 -- freischaltet (siehe Admin-Regionen-Seite).
+-- Reconciliation: auf einer frischen DB-Neuaufsetzung legt bereits
+-- 20261029000003_city_expansion_regions.sql (chronologisch davor) 'de',
+-- 'at' und alle acht state/city-Zeilen unten mit denselben Slugs an --
+-- ohne Existenzprüfung würden die folgenden Inserts dort mit "duplicate
+-- key value violates unique constraint regions_slug_key" scheitern. Auf
+-- Produktion (diese Migration lief zuerst, 20261029000003 ist dort
+-- inzwischen selbst idempotent dagegen) ändert sich am bisherigen
+-- Verhalten nichts. Fehlt eine Zeile bereits (existiert nicht), wird sie
+-- wie zuvor mit den vollen Auftrags-Werten neu angelegt; existiert sie
+-- schon (frische DB-Reihenfolge), bleibt sie unverändert -- eine exakte
+-- Rekonstruktion der reicheren Produktionsspalten (short_name_de,
+-- Koordinaten etc.) für den rein-frischen Fall ist hier kein Ziel.
 do $$
 declare
   v_de_id uuid;
@@ -106,48 +118,68 @@ begin
 
   -- Berlin (Stadtstaat: Bundesland = Stadt selbst, eigener Parent-Eintrag
   -- trotzdem für Konsistenz mit dem übrigen Modell)
-  insert into regions (type, parent_id, name, slug, is_active) values ('state', v_de_id, 'Berlin', 'berlin-land', true)
-    returning id into v_state_id;
-  insert into regions (
-    type, parent_id, name, slug, is_active, short_name_de, country_code,
-    latitude, longitude, default_zoom, search_radius_km, editorial_status, sort_order
-  ) values (
-    'city', v_state_id, 'Berlin', 'berlin', false, 'Berlin', 'DE',
-    52.5200, 13.4050, 10.8, 45, 'soft_launch', 1
-  );
+  select id into v_state_id from regions where slug = 'berlin-land';
+  if v_state_id is null then
+    insert into regions (type, parent_id, name, slug, is_active) values ('state', v_de_id, 'Berlin', 'berlin-land', true)
+      returning id into v_state_id;
+  end if;
+  if not exists (select 1 from regions where slug = 'berlin') then
+    insert into regions (
+      type, parent_id, name, slug, is_active, short_name_de, country_code,
+      latitude, longitude, default_zoom, search_radius_km, editorial_status, sort_order
+    ) values (
+      'city', v_state_id, 'Berlin', 'berlin', false, 'Berlin', 'DE',
+      52.5200, 13.4050, 10.8, 45, 'soft_launch', 1
+    );
+  end if;
 
   -- Hamburg (ebenfalls Stadtstaat)
-  insert into regions (type, parent_id, name, slug, is_active) values ('state', v_de_id, 'Hamburg', 'hamburg-land', true)
-    returning id into v_state_id;
-  insert into regions (
-    type, parent_id, name, slug, is_active, short_name_de, country_code,
-    latitude, longitude, default_zoom, search_radius_km, editorial_status, sort_order
-  ) values (
-    'city', v_state_id, 'Hamburg', 'hamburg', false, 'Hamburg', 'DE',
-    53.5511, 9.9937, 11.2, 40, 'soft_launch', 2
-  );
+  select id into v_state_id from regions where slug = 'hamburg-land';
+  if v_state_id is null then
+    insert into regions (type, parent_id, name, slug, is_active) values ('state', v_de_id, 'Hamburg', 'hamburg-land', true)
+      returning id into v_state_id;
+  end if;
+  if not exists (select 1 from regions where slug = 'hamburg') then
+    insert into regions (
+      type, parent_id, name, slug, is_active, short_name_de, country_code,
+      latitude, longitude, default_zoom, search_radius_km, editorial_status, sort_order
+    ) values (
+      'city', v_state_id, 'Hamburg', 'hamburg', false, 'Hamburg', 'DE',
+      53.5511, 9.9937, 11.2, 40, 'soft_launch', 2
+    );
+  end if;
 
   -- Wien
-  insert into regions (type, parent_id, name, slug, is_active) values ('state', v_at_id, 'Wien', 'wien-land', true)
-    returning id into v_state_id;
-  insert into regions (
-    type, parent_id, name, slug, is_active, short_name_de, country_code,
-    latitude, longitude, default_zoom, search_radius_km, editorial_status, sort_order
-  ) values (
-    'city', v_state_id, 'Wien', 'vienna', false, 'Wien', 'AT',
-    48.2082, 16.3738, 11.2, 40, 'soft_launch', 3
-  );
+  select id into v_state_id from regions where slug = 'wien-land';
+  if v_state_id is null then
+    insert into regions (type, parent_id, name, slug, is_active) values ('state', v_at_id, 'Wien', 'wien-land', true)
+      returning id into v_state_id;
+  end if;
+  if not exists (select 1 from regions where slug = 'vienna') then
+    insert into regions (
+      type, parent_id, name, slug, is_active, short_name_de, country_code,
+      latitude, longitude, default_zoom, search_radius_km, editorial_status, sort_order
+    ) values (
+      'city', v_state_id, 'Wien', 'vienna', false, 'Wien', 'AT',
+      48.2082, 16.3738, 11.2, 40, 'soft_launch', 3
+    );
+  end if;
 
   -- Frankfurt am Main (Bundesland Hessen)
-  insert into regions (type, parent_id, name, slug, is_active) values ('state', v_de_id, 'Hessen', 'hessen', true)
-    returning id into v_state_id;
-  insert into regions (
-    type, parent_id, name, slug, is_active, short_name_de, country_code,
-    latitude, longitude, default_zoom, search_radius_km, editorial_status, sort_order
-  ) values (
-    'city', v_state_id, 'Frankfurt am Main', 'frankfurt', false, 'Frankfurt', 'DE',
-    50.1109, 8.6821, 11.5, 35, 'soft_launch', 4
-  );
+  select id into v_state_id from regions where slug = 'hessen';
+  if v_state_id is null then
+    insert into regions (type, parent_id, name, slug, is_active) values ('state', v_de_id, 'Hessen', 'hessen', true)
+      returning id into v_state_id;
+  end if;
+  if not exists (select 1 from regions where slug = 'frankfurt') then
+    insert into regions (
+      type, parent_id, name, slug, is_active, short_name_de, country_code,
+      latitude, longitude, default_zoom, search_radius_km, editorial_status, sort_order
+    ) values (
+      'city', v_state_id, 'Frankfurt am Main', 'frankfurt', false, 'Frankfurt', 'DE',
+      50.1109, 8.6821, 11.5, 35, 'soft_launch', 4
+    );
+  end if;
 end $$;
 
 -- Bequemer Zugriff für Admin/RPCs: nur die city-Zeilen, mit aufgelöstem

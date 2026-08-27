@@ -110,16 +110,10 @@ export async function resolvePerson(supabase: SupabaseClient, participant: Event
   return null;
 }
 
-// Verhindert fehlerhafte Ensemble-Anlagen wie "**Chor**" oder ein
-// alleinstehendes "Orchester" (live im Bestand aufgefallen, Nutzer-Meldung
-// "solche Ensembles dürfen nicht vorkommen") — quellenunabhängig, da JEDE
-// hydrate-*-events-Funktion Ensemble-Namen aus Fremdtext übernimmt.
-const GENERIC_ENSEMBLE_NAMES = new Set(["chor", "chöre", "orchester", "ballett", "ensemble", "choreographie", "choreografie"]);
-
 export async function resolveEnsembles(supabase: SupabaseClient, rawName: string): Promise<string[]> {
   const assessment = assessEnsembleName(rawName);
   const name = assessment.cleaned;
-  if (!assessment.safe || GENERIC_ENSEMBLE_NAMES.has(name.toLocaleLowerCase("de"))) return [];
+  if (!assessment.safe) return [];
   const { data: resolved } = await supabase.rpc("resolve_ensemble_entities", { p_name: name });
   if (resolved?.some((row: { resolution: string }) => ["ignore", "ambiguous"].includes(row.resolution))) return [];
   const resolvedIds = (resolved ?? []).map((row: { id: string | null }) => row.id)

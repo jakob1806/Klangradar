@@ -60,6 +60,20 @@ Deno.test("real ensemble name with markdown artifacts only flags the markdown is
   }
 });
 
+Deno.test("official lowercase ensemble spellings are not flagged", () => {
+  for (const name of ["hr-Bigband", "via-nova-chor München"]) {
+    const ids = new Set(basicNameIssues("ensemble", name).map((issue) => issue.id));
+    if (ids.has("name-lowercase")) throw new Error(`Official spelling was flagged: ${name}`);
+  }
+});
+
+Deno.test("wrong ensemble entity types receive structural critical issues", () => {
+  for (const name of ["Elmar Hauser", "Bayerischer Rundfunk", "Chiara Braggion, Réka Kristóf", "was Sie dafür zahlen können oder möchten."]) {
+    const issue = basicNameIssues("ensemble", name).find((entry) => entry.id === "ensemble-wrong-entity-type");
+    if (!issue || issue.severity !== "critical") throw new Error(`Missing critical issue for ${name}`);
+  }
+});
+
 Deno.test("deduplicateIssues removes identical report entries", () => {
   const issue = {
     id: "a",

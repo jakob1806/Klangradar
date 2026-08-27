@@ -4,7 +4,7 @@ import { GalleryEditor } from "@/components/entity-gallery/gallery-editor";
 import { AiEnrichButton } from "@/components/ai-enrich-button";
 import { EntityAuditButton } from "@/components/entity-audit-button";
 import type { GalleryImage } from "@/lib/gallery-actions";
-import { updateVenue } from "../actions";
+import { updateVenue, getCityOptions } from "../actions";
 import { VenueDeleteControl } from "../venue-delete-control";
 import { VenueForm, type VenueFormValues } from "../venue-form";
 
@@ -15,7 +15,7 @@ export default async function EditVenuePage({
 }) {
   const { id } = await params;
   const supabase = await createClient();
-  const [{ data, error }, { data: images }] = await Promise.all([
+  const [{ data, error }, { data: images }, cities, { data: affectedEventCount }] = await Promise.all([
     supabase.rpc("venue_with_latlng", { p_id: id }).maybeSingle<VenueFormValues>(),
     // Nur freigegebene Bilder — siehe Kommentar in persons/[id]/page.tsx.
     supabase
@@ -26,6 +26,8 @@ export default async function EditVenuePage({
       .in("license_status", ["confirmed_free", "confirmed_licensed"])
       .order("sort_order", { ascending: true })
       .returns<GalleryImage[]>(),
+    getCityOptions(),
+    supabase.rpc("venue_event_count_for_city_change", { p_venue_id: id }),
   ]);
 
   if (error || !data) notFound();
@@ -41,7 +43,12 @@ export default async function EditVenuePage({
         <EntityAuditButton entityType="venue" entityId={id} />
       </div>
       <div className="mt-6">
-        <VenueForm action={updateVenue.bind(null, id)} initial={data} />
+        <VenueForm
+          action={updateVenue.bind(null, id)}
+          initial={data}
+          cities={cities}
+          affectedEventCount={affectedEventCount ?? 0}
+        />
       </div>
       <div className="mt-8 max-w-xl border-t border-neutral-200 pt-6">
         <GalleryEditor originType="venue" originId={id} path={`/venues/${id}`} images={images ?? []} />

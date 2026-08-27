@@ -11,7 +11,9 @@ struct ProfileView: View {
 
     @AppStorage("appearance") private var appearance = "system"
     @AppStorage(BiometricAuth.enabledStorageKey) private var biometricProtectionEnabled = false
+    @EnvironmentObject private var cityStore: CityStore
     @State private var showsLogin = false
+    @State private var showsCitySwitcher = false
     @State private var hasEditorialAccess = false
 #if DEBUG
     @State private var showsMarketingShell = false
@@ -63,6 +65,17 @@ struct ProfileView: View {
                     } label: {
                         Label("Homepage anordnen", systemImage: "arrow.up.arrow.down")
                     }
+                    Button {
+                        showsCitySwitcher = true
+                    } label: {
+                        HStack {
+                            Label("Stadt", systemImage: "building.2")
+                            Spacer()
+                            Text(cityStore.selectedCity?.name ?? "Alle Städte")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .foregroundStyle(.primary)
                 }
 
                 if hasEditorialAccess, let editorialRepository {
@@ -103,7 +116,11 @@ struct ProfileView: View {
 
                 Section("Über Klangradar") {
                     Link("Datenschutz", destination: URL(string: "https://klangradar.app/datenschutz")!)
-                    Link("Impressum", destination: URL(string: "https://klangradar.app/impressum")!)
+                    NavigationLink {
+                        ImpressumView()
+                    } label: {
+                        Text("Impressum")
+                    }
                 }
             }
             .navigationTitle("Profil")
@@ -119,6 +136,9 @@ struct ProfileView: View {
             }
             .sheet(isPresented: $showsLogin) {
                 PasswordLoginView(auth: auth, repository: userRepository)
+            }
+            .sheet(isPresented: $showsCitySwitcher) {
+                CitySwitcherView(cityStore: cityStore)
             }
 #if DEBUG
             .fullScreenCover(isPresented: $showsMarketingShell) {
