@@ -24,6 +24,7 @@ import { fetchGaertnerplatzSchedule } from "./parsers/gaertnerplatz.ts";
 import { fetchStaatsoperSchedule, parseStaatsoper } from "./parsers/staatsoper.ts";
 import { isAllowedByRobots, USER_AGENT } from "../_shared/robots.ts";
 import { fetchWithRetry } from "../_shared/http/fetchWithRetry.ts";
+import { fetchRendered } from "../_shared/http/fetchRendered.ts";
 import { parseIcal } from "./parsers/ical.ts";
 import { parseRss } from "./parsers/rss.ts";
 import { extractNextPageUrl, parseScrape } from "./parsers/scrape.ts";
@@ -176,6 +177,14 @@ export async function runIngestion(
       responseBody = await fetchStaatsoperSchedule(source.url, config.monthsAhead);
     } else if (source.type === "gaertnerplatz") {
       responseBody = await fetchGaertnerplatzSchedule(source.url, config.maxPages);
+    } else if (config.renderJs === true) {
+      // JS-lastige Kalender (React/Vue-SPA), die ein normaler fetch() nur
+      // als leere Hülle liefert -- siehe _shared/http/fetchRendered.ts.
+      // Kein ETag/Last-Modified von Browserless, der bodyHash-Fallback
+      // weiter unten greift trotzdem unverändert.
+      responseBody = await fetchRendered(source.url, {
+        waitForTimeoutMs: typeof config.renderJsWaitMs === "number" ? config.renderJsWaitMs : undefined,
+      });
     } else {
       // Einzige zentrale Netzwerkstelle im Ingestion-Pfad ohne Timeout/
       // Retry (siehe _shared/http/fetchWithRetry.ts) — ein hängender
