@@ -43,6 +43,7 @@ begin
     'konzerthaus-berlin', 'Konzerthaus Berlin', 'Gendarmenmarkt 2', '10117', 'Berlin',
     ST_MakePoint(13.39222, 52.51361)::geography, 'https://www.konzerthaus.de', v_berlin
   )
+  on conflict (slug) do update set updated_at = now()
   returning id into v_konzerthaus_berlin;
   update sources set venue_id = v_konzerthaus_berlin where id = v_source_konzerthaus_berlin;
 
@@ -52,6 +53,13 @@ begin
     'deutsche-oper-berlin', 'Deutsche Oper Berlin', 'Bismarckstraße 35', '10627', 'Berlin',
     ST_MakePoint(13.31056, 52.51194)::geography, 'https://www.deutscheoperberlin.de', v_berlin
   )
+  -- Reconciliation: exakt derselbe Slug existiert auf einer frischen
+  -- DB-Neuaufsetzung bereits aus dem dort chronologisch vorher
+  -- gelaufenen Stammdaten-Import (20261029000004) -- ON CONFLICT statt
+  -- blindem Insert, damit RETURNING in beiden Fällen greift (frisch vs.
+  -- Produktion, wo diese Migration zuerst lief und den Slug selbst
+  -- angelegt hat).
+  on conflict (slug) do update set updated_at = now()
   returning id into v_deutsche_oper;
   update sources set venue_id = v_deutsche_oper where id = v_source_deutsche_oper;
 
@@ -61,6 +69,7 @@ begin
     'staatsoper-unter-den-linden', 'Staatsoper Unter den Linden', 'Unter den Linden 7', '10117', 'Berlin',
     ST_MakePoint(13.39472, 52.51667)::geography, 'https://www.staatsoper-berlin.de', v_berlin
   )
+  on conflict (slug) do update set updated_at = now()
   returning id into v_staatsoper_linden;
   update sources set venue_id = v_staatsoper_linden where id = v_source_staatsoper_linden;
 
@@ -70,6 +79,7 @@ begin
     'wiener-konzerthaus', 'Wiener Konzerthaus', 'Lothringerstraße 20', '1030', 'Wien',
     ST_MakePoint(16.37717, 48.20082)::geography, 'https://www.konzerthaus.at', v_vienna
   )
+  on conflict (slug) do update set updated_at = now()
   returning id into v_wiener_konzerthaus;
   update sources set venue_id = v_wiener_konzerthaus where id = v_source_wiener_konzerthaus;
 
@@ -79,6 +89,7 @@ begin
     'theater-an-der-wien', 'Theater an der Wien', 'Linke Wienzeile 6', '1060', 'Wien',
     ST_MakePoint(16.36389, 48.19958)::geography, 'https://www.theater-wien.at', v_vienna
   )
+  on conflict (slug) do update set updated_at = now()
   returning id into v_theater_wien;
   update sources set venue_id = v_theater_wien where id = v_source_theater_wien;
 

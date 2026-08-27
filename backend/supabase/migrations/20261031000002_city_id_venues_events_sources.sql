@@ -8,7 +8,13 @@
 -- bestehenden region_id übernommen. city_id ist ab sofort die "operative"
 -- Spalte für alle neuen stadtbezogenen Abfragen/RPCs/Admin-Filter;
 -- region_id bleibt unverändert für den bestehenden Code bestehen.
-alter table venues add column city_id uuid references regions(id);
+-- "if not exists": auf einer frischen DB-Neuaufsetzung legt bereits
+-- 20261029000004_city_import_berlin.sql die Spalte vorab an (ihr Import
+-- braucht city_id schon, läuft aber chronologisch vor dieser Migration
+-- hier) -- ohne den Guard würde diese Migration dort mit "column already
+-- exists" scheitern. Auf Produktion (Spalte existiert längst) ändert der
+-- Guard nichts am bereits gelaufenen Verhalten.
+alter table venues add column if not exists city_id uuid references regions(id);
 update venues set city_id = region_id where city_id is null and region_id is not null;
 -- Für die (laut Prüfung vor 20260819000005_regions.sql) 37 Alt-Venues ohne
 -- region_id: ebenfalls München, mit derselben Begründung wie im
@@ -17,7 +23,7 @@ update venues set city_id = (select id from regions where type = 'city' and slug
 where city_id is null;
 alter table venues alter column city_id set not null;
 
-alter table events add column city_id uuid references regions(id);
+alter table events add column if not exists city_id uuid references regions(id);
 -- events.city_id wird primär aus der Venue übernommen (siehe Trigger
 -- unten); zusätzlich eine explizite redaktionelle Override-Möglichkeit,
 -- die der Trigger respektiert (siehe events_city_override).
@@ -32,7 +38,7 @@ where e.venue_id = v.id and e.city_id is null;
 -- München gezwungen: eine falsche Stadtzuordnung wäre schlechter als eine
 -- sichtbare Lücke.
 
-alter table sources add column city_id uuid references regions(id);
+alter table sources add column if not exists city_id uuid references regions(id);
 -- Bestehende Quellen sind aktuell ausschließlich Münchner Quellen (siehe
 -- Prüfung analog zur ursprünglichen Venue-Migration); neue Quellen für
 -- Berlin/Hamburg/Wien/Frankfurt werden ab dieser Migration mit city_id
@@ -40,7 +46,7 @@ alter table sources add column city_id uuid references regions(id);
 update sources set city_id = (select id from regions where type = 'city' and slug = 'munich')
 where city_id is null;
 
-alter table editorial_collections add column city_id uuid references regions(id);
+alter table editorial_collections add column if not exists city_id uuid references regions(id);
 -- Redaktionelle Sammlungen sind optional stadtspezifisch (z.B. "Diese
 -- Woche in Berlin"); bestehende Sammlungen bleiben city_id=null =
 -- stadtübergreifend/München-Kontext, keine erzwungene Zuordnung.

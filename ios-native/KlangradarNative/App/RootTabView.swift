@@ -13,6 +13,7 @@ struct RootTabView: View {
     @StateObject private var favorites: FavoriteStore
     @StateObject private var follows: FollowStore
     @StateObject private var reportStore: ReportStore
+    @StateObject private var cityStore: CityStore
     @StateObject private var genreFilterRouter = GenreFilterRouter()
     @AppStorage("didCompleteOnboarding") private var didCompleteOnboarding = false
     @State private var showsOnboarding = false
@@ -27,6 +28,7 @@ struct RootTabView: View {
         _favorites = StateObject(wrappedValue: FavoriteStore(auth: environment.auth, repository: environment.restClient.map(UserRepository.init(client:))))
         _follows = StateObject(wrappedValue: FollowStore(auth: environment.auth, repository: environment.restClient.map(UserRepository.init(client:))))
         _reportStore = StateObject(wrappedValue: ReportStore(auth: environment.auth, repository: environment.restClient.map(UserRepository.init(client:))))
+        _cityStore = StateObject(wrappedValue: CityStore(auth: environment.auth, repository: environment.restClient.map(UserRepository.init(client:))))
     }
 
     var body: some View {
@@ -55,7 +57,7 @@ struct RootTabView: View {
                     Label("Suche", systemImage: "magnifyingglass")
                 }
 
-            VenueMapView(repository: environment.content, eventRepository: environment.events)
+            VenueMapView(repository: environment.content, eventRepository: environment.events, cityStore: cityStore)
                 .tag(AppTab.map)
                 .tabItem {
                     Label("Karte", systemImage: "map")
@@ -89,6 +91,7 @@ struct RootTabView: View {
         .environmentObject(follows)
         .environmentObject(reportStore)
         .environmentObject(genreFilterRouter)
+        .environmentObject(cityStore)
         .onChange(of: genreFilterRouter.pending) { _, pending in
             if pending != nil { selection = .search }
         }
@@ -106,6 +109,7 @@ struct RootTabView: View {
         }
         .task { await favorites.load() }
         .task { await follows.load() }
+        .task { await cityStore.load() }
         .fullScreenCover(isPresented: $showsOnboarding) {
             OnboardingView(
                 auth: auth,

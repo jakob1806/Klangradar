@@ -164,6 +164,128 @@ and a hands-on walkthrough before any row below can move to ✅.
   automated-test passes per the parity checklist below — none of that
   was possible without a toolchain.
 
+## Home: Favoriten & gefolgte Personen/Ensembles/Orte als eigene Kategorien (2026-08-20, 🟡 unverified)
+
+Nutzerwunsch: "Favoriten" sowie "Gefolgte Personen", "Gefolgte Ensembles" und
+"Gefolgte Orte" sollen jeweils eine eigene Homepage-Kategorie sein (statt
+einer einzigen kombinierten "Gefolgte Künstler & Orte"-Reihe), sowohl auf dem
+Home-Screen als auch in "Homepage anordnen". Built in the cloud sandbox
+session — no Xcode/Swift toolchain available there, only manual
+cross-reference checks against the existing enum/switch pattern.
+
+- 🟡 `HomeRecommendationCategory` (`Features/Home/HomeView.swift`) replaces
+  the combined `.followed` case with four new cases: `.favorites`,
+  `.followedPersons`, `.followedEnsembles`, `.followedVenues` — each with its
+  own title/SF-Symbol, so they show up in the existing "Homepage anordnen"
+  reorder screen (`HomeCategoryOrderView` in `ProfileView.swift`) automatically
+  via `HomeCategoryPreferences.order(for:)`'s existing "append any new/missing
+  case" merge logic — no changes needed there.
+- 🟡 `.favorites` renders as an `EventRail` filtered against the already-
+  injected `FavoriteStore.ids` (now also `@EnvironmentObject` on `HomeView`,
+  previously only used by `EventCard`/`EventDetailView`).
+- 🟡 `.followedPersons`/`.followedEnsembles`/`.followedVenues` reuse a
+  generalized `followedSections(from:kind:)` (previously hardcoded to mix all
+  three kinds into one rail) — one `EventRail` per followed entity of that
+  kind with upcoming matching events, via the existing `FollowStore`.
+- 🟡 Follow-up fix ("auch gefolgte ensembles anzeigen"): the event-based
+  `followedSections` approach only ever surfaced a followed ensemble if it
+  already had an upcoming event in the top-100 loaded feed — a followed
+  ensemble with no current event was invisible. `.followedEnsembles` now
+  additionally fetches the full ensemble directory once
+  (`contentRepository.directory(kind: .ensemble)`) and renders a new
+  self-hiding `EntityRail` card row (circular photo + name, links via the
+  existing `EntityRoute`/`EntityDetailView`) for every followed ensemble not
+  already covered by an event-based rail, so no followed ensemble is ever
+  invisible on Home regardless of whether it has a scheduled event.
+- ⬜ Not yet done: Xcode build/tests, visual verification (light/dark, iPad,
+  Dynamic Type), and Flutter-side parity (`app/lib/features/home/`) — the
+  user asked for native first.
+
+## In-app Impressum (2026-08-20, 🟡 unverified)
+
+Nutzeranfrage: "füge das urheberrecht noch in die app ein", mit dem
+aktuellen, vollständigen Impressum-Text im Prompt (Anbieterkennzeichnung §5
+DDG, Kontakt, Verantwortlich für den Inhalt, Haftung für Inhalte, Haftung
+für externe Links, Urheberrecht). Bisher verlinkte die App nur extern auf
+`https://klangradar.app/impressum` — der Urheberrecht-Abschnitt (und der
+Rest des Texts) existierte nirgends *in* der App selbst.
+
+- 🟡 Neue `Features/Profile/ImpressumView.swift` — Liste mit einem
+  `Section` je Abschnitt, exakter Text wie vom Nutzer vorgegeben.
+- 🟡 `ProfileView.swift` → "Über Klangradar": "Impressum" ist jetzt ein
+  `NavigationLink` auf `ImpressumView` statt eines externen `Link`
+  (Datenschutz bleibt bewusst extern verlinkt, dafür lag kein Text vor).
+- 🟡 `SignUpStepView.swift` (Onboarding-AGB-Zustimmung): "Impressum (AGB)"
+  öffnet dieselbe `ImpressumView` jetzt als Sheet statt extern zu
+  verlinken, damit der Text auch dort ohne Browser-Wechsel einsehbar ist.
+- 🟡 `ruby Scripts/generate_project.rb` wurde in dieser Sandbox-Session
+  ausgeführt (xcodeproj-Gem nachinstalliert) — die neue Datei ist im
+  Xcode-Projekt referenziert; die große pbxproj/xcscheme-Diff-Größe ist
+  reines UUID-Rebuild-Rauschen des Generators (baut die Projektdatei bei
+  jedem Lauf komplett neu auf), keine inhaltliche Änderung.
+- ⬜ Kein Xcode/Swift-Toolchain hier verfügbar — Build, Light/Dark,
+  Dynamic Type und die visuelle Prüfung stehen noch aus.
+
+## Sitzungspersistenz-Fix & Login-Screen-Redesign (2026-08-24, 🟡 unverified)
+
+Nutzerbericht: "man muss sich in der app immmer neu anmelden, wenn man die
+app einmal ganz geschlossen hat" sowie ein Screenshot des Anmelden-Sheets
+mit "das sieht noch alles sehr uneinheitlich aus. auch ist das 'g' bei mit
+google anmelden nicht richtig das echte google 'g'".
+
+- 🟡 **Root Cause gefunden und behoben** (`Core/Authentication/
+  AuthService.swift`): `restoreOrCreateSession()` hat bei *jedem* Fehler
+  aus `deduplicatedRefresh(session.refreshToken)` — nicht nur bei einer
+  echten 400/401-Ablehnung durch Supabase, sondern auch bei reinen
+  Netzwerkfehlern (z.B. `URLError` direkt beim Kaltstart, bevor die
+  Netzwerkverbindung des Geräts wieder steht) — die Keychain-Session
+  bedingungslos gelöscht und eine neue anonyme Session angelegt. Genau das
+  hat jeden vollständigen App-Neustart effektiv ausgeloggt: ein einziger
+  verpasster Refresh-Versuch beim Start hat die echte Session zerstört.
+  Neue private Methode `isAuthRejection(_:)` prüft jetzt gezielt auf
+  `APIError.httpStatus(400/401, _)`; nur dann wird die Keychain-Session
+  verworfen und anonymisiert, jeder andere Fehler wird stattdessen
+  weitergereicht. `AuthStore.bootstrap()` fängt den weitergereichten
+  Fehler bereits ab und setzt `state = .failed(...)`;
+  `ProfileView.swift`s bestehender `.failed`-Zweig zeigt dafür schon einen
+  "Erneut versuchen"-Button — die echte Session bleibt also erhalten und
+  kann beim nächsten Versuch (Retry oder nächster App-Start mit Netz)
+  wiederhergestellt werden, statt stillschweigend verloren zu gehen.
+- 🟡 Ursprünglich wurde hier eine eigene `GoogleLogoView.swift` (Path-
+  Vektorgrafik) sowie ein neu gestaltetes `PasswordLoginView.swift`
+  gebaut. Beim Zusammenführen mit zwischenzeitlich auf `main` gelandeter
+  Arbeit ("Add dynamic recommendations, attributes, and onboarding
+  updates") stellte sich heraus, dass dort bereits ein umfangreicheres
+  Passwort-Login (Face-/Touch-ID-Angebot nach Anmeldung, Inline-
+  Kontoerstellung, "Passwort vergessen" über einen sicheren Link) sowie
+  ein echtes Google-"G"-Bildasset (`Resources/Assets.xcassets/GoogleG`,
+  über `GoogleSignInLabel`) verfügbar waren — beides eine strikte
+  Verbesserung gegenüber der eigenen Path-Nachbildung. Die eigene
+  `GoogleLogoView.swift` wurde daher wieder entfernt und
+  `PasswordLoginView.swift` übernimmt jetzt vollständig die `main`-Version.
+  Das eigentliche Ziel des Nutzerberichts (echtes Google-"G" statt
+  Platzhalter, einheitliches Erscheinungsbild) ist damit über die bereits
+  vorhandene Implementierung erreicht.
+- 🟡 `ruby Scripts/generate_project.rb` in dieser Sandbox-Session erneut
+  ausgeführt, damit der Merge (u.a. Entfernen von `GoogleLogoView.swift`)
+  im Xcode-Projekt korrekt reflektiert ist.
+- 🟡 Beim Zusammenführen mit `main` gab es außerdem einen echten
+  Inhaltskonflikt in `HomeView.swift`: diese Sitzung hatte
+  `HomeRecommendationCategory` um granulare `.followedPersons`/
+  `.followedEnsembles`/`.followedVenues`-Reihen erweitert, während `main`
+  unabhängig davon eine kombinierte `.followed`-Reihe sowie neue
+  `.taste`/`.entitySpotlight`-Empfehlungstypen eingeführt hatte. Auf
+  Nutzerwunsch wurden beide Schemata zusammengeführt (alle Fälle bleiben
+  im Enum und sind über "Homepage anordnen" wählbar); die Standard-
+  Reihenfolge zeigt die granulare Variante (`.followedPersons/
+  Ensembles/Venues`) statt der kombinierten `.followed`/`.entitySpotlight`,
+  da sie mehr Information zeigt.
+- ⬜ Kein Xcode/Swift-Toolchain hier verfügbar — weder der Build, noch das
+  eigentliche Login-Verhalten nach echtem App-Kill, noch die visuelle
+  Prüfung (Light/Dark, iPad, Dynamic Type) konnten in dieser Sandbox
+  getestet werden. Muss auf einem echten Gerät/Simulator verifiziert
+  werden.
+
 ## Definition of feature parity
 
 A row can be marked complete only when it:

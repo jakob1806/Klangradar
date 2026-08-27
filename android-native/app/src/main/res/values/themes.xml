@@ -1,0 +1,5 @@
+<resources>
+    <!-- Only used for the window background before Compose takes over —
+         all real theming (colors, typography) lives in ui/theme/Theme.kt. -->
+    <style name="Theme.Klangradar" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

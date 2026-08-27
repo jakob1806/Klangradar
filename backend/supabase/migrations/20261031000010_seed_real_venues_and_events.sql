@@ -46,6 +46,7 @@ begin
     'philharmonie-berlin', 'Philharmonie Berlin', 'Herbert-von-Karajan-Straße 1', '10785', 'Berlin',
     ST_MakePoint(13.3690, 52.5093)::geography, 'https://www.berliner-philharmoniker.de', v_berlin
   )
+  on conflict (slug) do update set updated_at = now()
   returning id into v_philharmonie_berlin;
   update sources set venue_id = v_philharmonie_berlin where id = v_source_berlin;
 
@@ -55,6 +56,7 @@ begin
     'elbphilharmonie-hamburg', 'Elbphilharmonie Hamburg', 'Platz der Deutschen Einheit 4', '20457', 'Hamburg',
     ST_MakePoint(9.984355, 53.541328)::geography, 'https://www.elbphilharmonie.de', v_hamburg
   )
+  on conflict (slug) do update set updated_at = now()
   returning id into v_elbphilharmonie;
   update sources set venue_id = v_elbphilharmonie where id = v_source_hamburg;
 
@@ -64,6 +66,7 @@ begin
     'wiener-musikverein', 'Wiener Musikverein', 'Bösendorferstraße 12', '1010', 'Wien',
     ST_MakePoint(16.37222, 48.20056)::geography, 'https://www.musikverein.at', v_vienna
   )
+  on conflict (slug) do update set updated_at = now()
   returning id into v_musikverein;
   update sources set venue_id = v_musikverein where id = v_source_vienna;
 
@@ -73,6 +76,7 @@ begin
     'alte-oper-frankfurt', 'Alte Oper Frankfurt', 'Opernplatz 1', '60313', 'Frankfurt am Main',
     ST_MakePoint(8.67194, 50.11583)::geography, 'https://www.alteoper.de', v_frankfurt
   )
+  on conflict (slug) do update set updated_at = now()
   returning id into v_alte_oper;
   update sources set venue_id = v_alte_oper where id = v_source_frankfurt;
 

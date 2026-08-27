@@ -4,6 +4,22 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
+export interface CityOption {
+  id: string;
+  name_de: string;
+  short_name_de: string | null;
+}
+
+export async function getCityOptions(): Promise<CityOption[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("city_regions")
+    .select("id, name_de, short_name_de")
+    .order("sort_order")
+    .returns<CityOption[]>();
+  return data ?? [];
+}
+
 function readVenueFields(formData: FormData) {
   return {
     slug: String(formData.get("slug") ?? "").trim(),
@@ -17,6 +33,7 @@ function readVenueFields(formData: FormData) {
     capacity: formData.get("capacity") ? Number(formData.get("capacity")) : null,
     website_url: String(formData.get("website_url") ?? "").trim() || null,
     photo_url: String(formData.get("photo_url") ?? "").trim() || null,
+    city_id: String(formData.get("city_id") ?? "").trim() || null,
   };
 }
 
@@ -38,6 +55,7 @@ export async function createVenue(formData: FormData) {
     p_capacity: f.capacity,
     p_website_url: f.website_url,
     p_photo_url: f.photo_url,
+    p_city_id: f.city_id,
   });
 
   if (error) throw new Error(error.message);
@@ -63,6 +81,7 @@ export async function updateVenue(venueId: string, formData: FormData) {
     p_capacity: f.capacity,
     p_website_url: f.website_url,
     p_photo_url: f.photo_url,
+    p_city_id: f.city_id,
   });
 
   if (error) throw new Error(error.message);
