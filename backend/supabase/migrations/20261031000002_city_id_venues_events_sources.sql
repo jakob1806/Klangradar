@@ -32,7 +32,12 @@ where e.venue_id = v.id and e.city_id is null;
 -- München gezwungen: eine falsche Stadtzuordnung wäre schlechter als eine
 -- sichtbare Lücke.
 
-alter table sources add column city_id uuid references regions(id);
+-- "if not exists": die neuen Stadt-Quellen-Migrationen (ab
+-- 20261029000011_berlin_de_tickets_source.sql) legen die Spalte bei einem
+-- frischen Migrationslauf bereits vorgezogen an, da sie chronologisch vor
+-- dieser Migration laufen und city_id direkt beim Insert korrekt setzen
+-- müssen (siehe deren Kommentar).
+alter table sources add column if not exists city_id uuid references regions(id);
 -- Bestehende Quellen sind aktuell ausschließlich Münchner Quellen (siehe
 -- Prüfung analog zur ursprünglichen Venue-Migration); neue Quellen für
 -- Berlin/Hamburg/Wien/Frankfurt werden ab dieser Migration mit city_id

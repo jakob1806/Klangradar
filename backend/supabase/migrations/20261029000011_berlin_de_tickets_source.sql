@@ -13,6 +13,16 @@
 -- Venue-spezifischen Quellen stammen, siehe docs/12-city-expansion-import.md).
 -- Rechtlich UNGEPRÜFT wie die übrigen Scrape-/Schema.org-Quellen dieser
 -- Stadt-Erweiterung — siehe docs/10-legal-status.md.
+--
+-- sources.city_id wird sonst erst in 20261031000002_city_id_venues_events_
+-- sources.sql angelegt (Migrations-Kollision durch parallele Arbeit an der
+-- Stadt-Erweiterung) — bei einem frischen Migrationslauf (CI/lokale
+-- Instanz) bräche dieser Insert sonst mit "column city_id does not exist"
+-- ab, weil diese Quellen-Migrationen chronologisch vor 20261031000002
+-- laufen. Idempotent vorgezogen, damit die Spalte hier schon existiert;
+-- 20261031000002 legt sie entsprechend nur noch "if not exists" an.
+alter table sources add column if not exists city_id uuid references regions(id);
+
 insert into sources (
   name, type, url, venue_id, city_id, crawl_frequency_minutes, legal_basis, status, config
 ) values (
