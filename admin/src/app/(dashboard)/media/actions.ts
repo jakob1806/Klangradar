@@ -298,11 +298,20 @@ export async function enrichEntityImages(): Promise<EnrichImagesResult> {
   }
 
   async function runEvents(): Promise<EventEnrichmentResult> {
+    // Kleineres Limit und deutlich längeres Timeout als person/ensemble:
+    // der Event-Zweig macht zusätzlich zur eigentlichen Titelbildsuche noch
+    // eine sequenzielle Websuche nach fehlenden Ticket-/Website-URLs
+    // (discoverMissingEventUrls, bis zu 5 Events, je bis zu zwei externe
+    // Such-API-Aufrufe nacheinander) UND lädt pro Event bis zu zwei echte
+    // Fremdseiten (Website-/Ticket-URL) — beides zusammen sprengte live das
+    // bisherige 90s-Timeout ("The operation was aborted due to timeout"),
+    // das für person/ensemble dank raceImageSources() (parallele Quellen)
+    // ausreicht, hier aber nicht.
     const res = await fetch(functionUrl, {
       method: "POST",
       headers,
-      body: JSON.stringify({ type: "event", limit: 8 }),
-      signal: AbortSignal.timeout(90_000),
+      body: JSON.stringify({ type: "event", limit: 4 }),
+      signal: AbortSignal.timeout(150_000),
     });
     const body = await res.json() as Record<string, unknown>;
     if (!res.ok || body.error) {
