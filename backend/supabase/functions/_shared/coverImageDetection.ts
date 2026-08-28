@@ -21,6 +21,7 @@ import { extractFirstEventImageFromJsonLd } from "../ingest-source/parsers/schem
 import { isLikelyGenericImage } from "./imageValidation.ts";
 import { extractStaatsoperProductionImage } from "./staatsoperDetail.ts";
 import { extractHeroImageFromMarkdown, extractMarkdownImageCredit, fetchViaReaderProxy } from "./readerProxyImage.ts";
+import { fetchWithTimeout } from "./fetchWithTimeout.ts";
 
 export interface DetectedCoverImage {
   url: string;
@@ -39,7 +40,7 @@ export async function detectEventCoverImage(pageUrl: string): Promise<DetectedCo
 
   let html: string;
   try {
-    const res = await fetch(pageUrl, { headers: { "User-Agent": USER_AGENT } });
+    const res = await fetchWithTimeout(pageUrl, { headers: { "User-Agent": USER_AGENT } });
     if (!res.ok) {
       // Generischer Rückfall für JEDE Domain, die den normalen Fetch
       // blockiert (Bot-Schutz, 403/503, ...) — vorher nur für staatsoper.de,

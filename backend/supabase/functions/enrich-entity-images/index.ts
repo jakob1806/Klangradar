@@ -1809,13 +1809,86 @@ async function discoverMissingEventUrls(
   return { attempted: rows.length, found };
 }
 
-/** Titelbild für bevorstehende Events ohne eigenes Bild — NUR das Bild der
- * Event-Quellseite selbst (og:image/twitter:image über website_url,
- * ersatzweise ticket_url), nie ein Venue-Foto (auf expliziten
- * Nutzerwunsch). Jetzt zusätzlich mit Erreichbarkeits- und
+/** Websuche-Fallback, wenn die Event-Quellseite(n) selbst kein brauchbares
+ * Bild liefern (oder erst gar keine URL hinterlegt ist) — Nutzerwunsch:
+ * "es werden zu wenige bilder gefunden". Bewusst weiterhin NIE ein reines
+ * Venue-Stockfoto (das bleibt der explizit abgelehnte Ansatz, siehe
+ * Kommentar bei enrichEventCovers) — hier wird stattdessen aktiv nach
+ * einem zur KONKRETEN Veranstaltung passenden Foto auf Presse-/
+ * Ankündigungsseiten Dritter gesucht, dieselbe Erkennungs-Kaskade
+ * (og:image/Hero/Container, siehe detectEventCoverImage) wird nur auf den
+ * Suchtreffern statt der eigenen Event-Seite angewendet. Immer
+ * needsReview=true (anders als die eigene, vertrauenswürdigere
+ * Event-Seite): eine fremde Seite hat die Bildwahl nicht vom Veranstalter
+ * selbst bestätigt bekommen — dasselbe Vorsichtsprinzip wie
+ * tryMultiSourceWebImageFallback() für Personen/Ensembles/Venues. */
+async function tryEventWebSearchImageFallback(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  event: { id: string; title: string },
+  venueName: string | null,
+  cityName: string | undefined,
+): Promise<boolean> {
+  const context = [venueName, cityName].filter(Boolean).join(" ");
+  const queries = [
+    `"${event.title}" ${context} Foto`.trim(),
+    `"${event.title}" ${context} Pressefoto`.trim(),
+  ];
+  const pages: Array<{ url: string }> = [];
+  for (const query of queries) {
+    for (const result of await searchDuckDuckGo(query, 5) ?? []) {
+      if (!pages.some((p) => p.url === result.url)) pages.push({ url: result.url });
+    }
+    if (pages.length >= 8) break;
+  }
+  pages.sort((a, b) => imagePageScore(b.url, "event") - imagePageScore(a.url, "event"));
+
+  for (const page of pages.filter((p) => imagePageScore(p.url, "event") > -100).slice(0, 5)) {
+    try {
+      const detected = await detectEventCoverImage(page.url);
+      if (!detected?.url || isLikelyGenericImage(detected.url)) continue;
+      const { reachable } = await checkImageUrl(detected.url);
+      if (!reachable || await isUrlUsedElsewhere(supabase, detected.url, "events", event.id)) continue;
+      const stored = await persistCandidate(supabase, { table: "events", originType: "event" }, event.id, {
+        imageUrl: detected.url,
+        sourcePageUrl: page.url,
+        sourceName: new URL(page.url).hostname,
+        photographer: detected.credits,
+        licenseStatus: "permission_required",
+        confidenceScore: 0.68,
+        matchReason: `Websuche nach „${event.title}“${context ? ` (${context})` : ""} — Treffer auf ${new URL(page.url).hostname}.`,
+        warnings: ["Motiv, Bildcredit und Nutzungserlaubnis vor Veröffentlichung prüfen."],
+        needsReview: true,
+      });
+      if (!stored) continue;
+      const now = new Date().toISOString();
+      const { error: updateError } = await supabase
+        .from("events")
+        .update({
+          image_urls: [stored.publicUrl],
+          primary_image_id: stored.imageId,
+          images_checked_at: now,
+          updated_at: now,
+          last_image_search_note: null,
+        })
+        .eq("id", event.id);
+      if (updateError) return false;
+      return true;
+    } catch {
+      // Einzelner blockierter/kaputter Treffer — nächste Quelle versuchen.
+    }
+  }
+  return false;
+}
+
+/** Titelbild für bevorstehende Events ohne eigenes Bild — zuerst die Event-
+ * Quellseite selbst (og:image/twitter:image über website_url, ersatzweise
+ * ticket_url), bei Fehlschlag zusätzlich tryEventWebSearchImageFallback()
+ * (Nutzerwunsch: "zu wenige Bilder gefunden") — nie ein reines
+ * Venue-Stockfoto (auf expliziten Nutzerwunsch). Mit Erreichbarkeits- und
  * Duplikat-Prüfung vor dem Schreiben, plus einer Begründung nach
- * last_image_search_note, wenn nichts gefunden wird. Findet sich keins,
- * bleibt image_urls leer und die App zeigt den genre-spezifischen
+ * last_image_search_note, wenn am Ende nichts gefunden wird. Findet sich
+ * keins, bleibt image_urls leer und die App zeigt den genre-spezifischen
  * GenreArtwork-Platzhalter. */
 async function enrichEventCovers(
   // deno-lint-ignore no-explicit-any
@@ -1830,7 +1903,7 @@ async function enrichEventCovers(
   // näher das Event, desto eher lohnt sich ein (erneuter) Versuch.
   const { data: events, error } = await supabase
     .from("events")
-    .select("id, image_urls, website_url, ticket_url")
+    .select("id, title, image_urls, website_url, ticket_url, venues(name, city_id)")
     .in("status", ["scheduled", "sold_out", "postponed"])
     .gte("start_datetime", new Date().toISOString())
     .order("last_image_search_note", { ascending: true, nullsFirst: true })
@@ -1858,16 +1931,6 @@ async function enrichEventCovers(
     while (nextIndex < batch.length) {
       const event = batch[nextIndex++];
       try {
-        if (!event.website_url && !event.ticket_url) {
-          await supabase
-            .from("events")
-            .update({
-              last_image_search_note: "Keine Website-/Ticket-URL hinterlegt.",
-            })
-            .eq("id", event.id);
-          continue;
-        }
-
         let coverImage: string | null = null;
         let coverSourcePage: string | null = null;
         let coverCredits: string | null = null;
@@ -1909,6 +1972,18 @@ async function enrichEventCovers(
           break;
         }
         if (!coverImage) {
+          const venueName = event.venues?.name ?? null;
+          const cityName = await resolveCityName(supabase, event.venues?.city_id);
+          const viaSearch = await tryEventWebSearchImageFallback(
+            supabase,
+            { id: event.id, title: event.title },
+            venueName,
+            cityName,
+          );
+          if (viaSearch) {
+            updated++;
+            continue;
+          }
           await supabase
             .from("events")
             .update({

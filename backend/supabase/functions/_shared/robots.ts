@@ -3,6 +3,8 @@
 // nur in ingest-source/index.ts, hierher gezogen als extract-event-from-url
 // dieselbe Logik für beliebige Admin-eingegebene URLs brauchte.
 
+import { fetchWithTimeout } from "./fetchWithTimeout.ts";
+
 export const USER_AGENT = "KlassikMuenchenBot/1.0 (+event discovery app; contact via source venue)";
 
 /** Bestes-Bemühen robots.txt-Check: nur "Disallow"-Präfixe unter
@@ -23,7 +25,7 @@ export async function isAllowedByRobots(targetUrl: string): Promise<boolean> {
 
   let text: string;
   try {
-    const res = await fetch(robotsUrl, { headers: { "User-Agent": USER_AGENT } });
+    const res = await fetchWithTimeout(robotsUrl, { headers: { "User-Agent": USER_AGENT } });
     if (!res.ok) return true;
     text = await res.text();
   } catch {
