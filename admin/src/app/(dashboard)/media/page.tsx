@@ -93,6 +93,7 @@ export default async function MediaPage() {
     { count: ensemblesSearchedNoHit },
     { count: venuesNeverSearched },
     { count: venuesSearchedNoHit },
+    { data: upcomingEventImageRows },
   ] = await Promise.all([
     supabase
       .from("images")
@@ -106,10 +107,30 @@ export default async function MediaPage() {
     supabase.from("ensembles").select("id", { count: "exact", head: true }).is("photo_url", null).not("image_search_checked_at", "is", null),
     supabase.from("venues").select("id", { count: "exact", head: true }).is("photo_url", null).is("image_search_checked_at", null),
     supabase.from("venues").select("id", { count: "exact", head: true }).is("photo_url", null).not("image_search_checked_at", "is", null),
+    // Events tracken ihre Bildlücke über image_urls (Array) statt photo_url
+    // und last_image_search_note statt image_search_checked_at — ein
+    // count(head:true)-Query kann Array-Leere nicht direkt filtern, daher
+    // wie media/gaps/page.tsx client-seitig auswerten. Nur anstehende
+    // Events zählen, exakt die Menge, die enrichEventCovers() auch
+    // tatsächlich abarbeitet (vergangene Events bekommen ohnehin nie mehr
+    // ein Bild recherchiert).
+    supabase
+      .from("events")
+      .select("id, image_urls, last_image_search_note")
+      .in("status", ["scheduled", "sold_out", "postponed"])
+      .gte("start_datetime", new Date().toISOString())
+      .returns<Array<{ id: string; image_urls: string[] | null; last_image_search_note: string | null }>>(),
   ]);
   const missingPersons = (personsNeverSearched ?? 0) + (personsSearchedNoHit ?? 0);
   const missingEnsembles = (ensemblesNeverSearched ?? 0) + (ensemblesSearchedNoHit ?? 0);
   const missingVenues = (venuesNeverSearched ?? 0) + (venuesSearchedNoHit ?? 0);
+
+  const missingEventRows = (upcomingEventImageRows ?? []).filter(
+    (e) => !e.image_urls || e.image_urls.length === 0,
+  );
+  const eventsNeverSearched = missingEventRows.filter((e) => !e.last_image_search_note).length;
+  const eventsSearchedNoHit = missingEventRows.filter((e) => e.last_image_search_note).length;
+  const missingEvents = missingEventRows.length;
 
   // Namen pro (origin_type, origin_id) auflösen — eine Query pro betroffenem
   // Typ statt pro Bild, damit die Seite bei vielen Kandidaten nicht dutzende
@@ -156,7 +177,7 @@ export default async function MediaPage() {
       </div>
       </div>
 
-      <div className="mt-6 grid gap-4 md:grid-cols-3">
+      <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-2xl border border-black/[0.06] bg-white p-5 shadow-sm">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -211,6 +232,25 @@ export default async function MediaPage() {
             className="mt-5 block rounded-xl bg-[#0071e3] px-4 py-2.5 text-center text-sm font-medium text-white transition-colors hover:bg-[#0077ed]"
           >
             Fehlende Venuebilder bearbeiten
+          </Link>
+        </div>
+
+        <div className="rounded-2xl border border-black/[0.06] bg-white p-5 shadow-sm">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.08em] text-neutral-400">Events</p>
+              <p className="mt-2 text-3xl font-semibold tabular-nums text-neutral-900">{missingEvents}</p>
+              <p className="mt-1 text-sm text-neutral-500">
+                Anstehende Events ohne Bild · {eventsNeverSearched} nie gesucht · {eventsSearchedNoHit} ohne Treffer
+              </p>
+            </div>
+            <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">Offene Bildlücken</span>
+          </div>
+          <Link
+            href="/image-research?type=event&missing=1"
+            className="mt-5 block rounded-xl bg-[#0071e3] px-4 py-2.5 text-center text-sm font-medium text-white transition-colors hover:bg-[#0077ed]"
+          >
+            Fehlende Eventbilder bearbeiten
           </Link>
         </div>
       </div>
