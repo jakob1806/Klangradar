@@ -49,6 +49,17 @@ const MAX_QUEUE_SIZE = MAX_PAGES * 4;
 const SUBPAGE_KEYWORD_PATTERN =
   /presse|press|media|medien|about|über-?uns|ueber-?uns|kontakt|contact|team|geschichte|history|profil|portrait|ensemble|orchester|biografie|biography/i;
 
+// Nutzerfeedback: ein Pressefoto wurde zwar auf der Presseseite einer
+// Institution gefunden, aber nicht zuverlässig übernommen, weil die
+// Presseseite von der Startseite aus nicht (oder erst spät, nach dem
+// MAX_PAGES-Budget) verlinkt war. Diese Pfade werden deshalb zusätzlich
+// zur Startseite direkt als Seeds in die Warteschlange aufgenommen, statt
+// sich allein auf discoverSubpageLinks() (Linktext-Erkennung) zu
+// verlassen — ein falsch geratener Pfad liefert einfach 404 und wird wie
+// jede andere nicht erreichbare Seite übersprungen (siehe
+// searchOfficialSiteForImagesInner()), kein zusätzliches Risiko.
+const PRESS_SEED_PATHS = ["/presse", "/press", "/media", "/medien", "/pressemitteilungen", "/press-media"];
+
 const A_TAG_PATTERN = /<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a\s*>/gi;
 const IMG_TAG_PATTERN = /<img\b[^>]*>/gi;
 const IMAGE_EXT_PATTERN = /\.(jpe?g|png|webp|avif)(?:[?#]|$)/i;
@@ -569,6 +580,22 @@ async function searchOfficialSiteForImagesInner(
   const rawCandidates = new Map<string, RawCandidate>();
   const queue: Array<{ url: string; depth: number }> = [{ url: websiteUrl, depth: 0 }];
   const seenPages = new Set<string>([websiteUrl]);
+
+  // Presse-Seeds direkt nach der Startseite einreihen (depth: 0), damit sie
+  // von der FIFO-Warteschlange vor den erst noch von der Startseite zu
+  // entdeckenden Unterseiten besucht werden und nicht durch MAX_PAGES
+  // verdrängt werden, wenn die Website viele andere Unterseiten hat.
+  for (const path of PRESS_SEED_PATHS) {
+    let seedUrl: string;
+    try {
+      seedUrl = new URL(path, websiteUrl).toString();
+    } catch {
+      continue;
+    }
+    if (seenPages.has(seedUrl)) continue;
+    seenPages.add(seedUrl);
+    queue.push({ url: seedUrl, depth: 0 });
+  }
 
   while (queue.length && pagesVisited.length < maxPages) {
     const next = queue.shift();
