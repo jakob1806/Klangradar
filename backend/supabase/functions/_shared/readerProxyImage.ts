@@ -13,10 +13,21 @@
 
 import { USER_AGENT } from "./robots.ts";
 import { isLikelyGenericImage } from "./imageValidation.ts";
+import { fetchWithTimeout } from "./fetchWithTimeout.ts";
+
+// Etwas großzügiger als der Standard-12s-Timeout: r.jina.ai rendert die
+// Zielseite serverseitig (inkl. JS), das dauert grundsätzlich länger als
+// ein einfacher Fetch — aber immer noch begrenzt, siehe fetchWithTimeout.ts
+// zur Begründung, warum hier überhaupt ein Timeout stehen muss.
+const READER_PROXY_TIMEOUT_MS = 20_000;
 
 export async function fetchViaReaderProxy(pageUrl: string): Promise<string | null> {
   try {
-    const reader = await fetch(`https://r.jina.ai/${pageUrl}`, { headers: { "User-Agent": USER_AGENT } });
+    const reader = await fetchWithTimeout(
+      `https://r.jina.ai/${pageUrl}`,
+      { headers: { "User-Agent": USER_AGENT } },
+      READER_PROXY_TIMEOUT_MS,
+    );
     if (!reader.ok) return null;
     return await reader.text();
   } catch {

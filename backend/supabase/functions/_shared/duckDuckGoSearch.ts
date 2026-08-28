@@ -9,6 +9,8 @@
 // 15-Minuten-Lauf, siehe EVENT_URL_DISCOVERY_LIMIT in enrich-entity-
 // images/index.ts) unproblematisch.
 
+import { fetchWithTimeout } from "./fetchWithTimeout.ts";
+
 export interface DuckDuckGoResult {
   url: string;
 }
@@ -44,7 +46,7 @@ export async function searchDuckDuckGo(query: string, maxResults = 3): Promise<D
   const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
   let html: string;
   try {
-    const res = await fetch(url, {
+    const res = await fetchWithTimeout(url, {
       headers: {
         // Ein sich selbst identifizierender Bot-User-Agent (die erste
         // Fassung nannte hier "KlassikMuenchenBot") wird von DuckDuckGos
