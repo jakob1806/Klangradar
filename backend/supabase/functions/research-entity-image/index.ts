@@ -458,15 +458,50 @@ async function venuePhotoFallback(
 /** Venue-Name für eine bessere Websuche-Anfrage bei Events — null bei
  * jedem Fehler/fehlendem Venue, dann läuft die Suche nur mit dem
  * Event-Titel. */
+// Klein (aktuell 5 Städte) und ändert sich pro Isolate-Lebensdauer praktisch
+// nie — gleicher Cache-Ansatz wie in enrich-entity-images/index.ts, spart
+// eine wiederholte regions-Abfrage über mehrere Suchen hinweg.
+const cityNameCache = new Map<string, string | null>();
+
+async function resolveCityName(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  cityId: string | null | undefined,
+): Promise<string | undefined> {
+  if (!cityId) return undefined;
+  if (cityNameCache.has(cityId)) return cityNameCache.get(cityId) ?? undefined;
+  const { data } = await supabase.from("regions").select("name").eq("id", cityId).maybeSingle();
+  const name = (data?.name as string | undefined) ?? null;
+  cityNameCache.set(cityId, name);
+  return name ?? undefined;
+}
+
+/** Bug-Fund: die Venue/Ensemble/Event-Bildsuche nutzte bisher überall fest
+ * "München" als Suchkontext, unabhängig von der tatsächlichen Stadt der
+ * Venue — seit der Multi-City-Erweiterung dadurch für Berlin/Hamburg/Wien/
+ * Frankfurt falsch statt nur ungenau. Löst die echte Stadt über venues.city_id
+ * auf. */
+async function resolveVenueCityName(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  venueId: string,
+): Promise<string | undefined> {
+  const { data: venue } = await supabase.from("venues").select("city_id").eq("id", venueId).maybeSingle();
+  return resolveCityName(supabase, venue?.city_id as string | null | undefined);
+}
+
 async function loadEventVenueName(
   // deno-lint-ignore no-explicit-any
   supabase: any,
   eventId: string,
-): Promise<string | null> {
+): Promise<{ name: string | null; cityName: string | undefined }> {
   const { data: event } = await supabase.from("events").select("venue_id").eq("id", eventId).maybeSingle();
-  if (!event?.venue_id) return null;
-  const { data: venue } = await supabase.from("venues").select("name").eq("id", event.venue_id).maybeSingle();
-  return (venue?.name as string | undefined) ?? null;
+  if (!event?.venue_id) return { name: null, cityName: undefined };
+  const { data: venue } = await supabase.from("venues").select("name, city_id").eq("id", event.venue_id).maybeSingle();
+  return {
+    name: (venue?.name as string | undefined) ?? null,
+    cityName: await resolveCityName(supabase, venue?.city_id as string | null | undefined),
+  };
 }
 
 /** Komponisten-Name für eine bessere Websuche-Anfrage bei Werken — reiner
@@ -737,14 +772,18 @@ async function searchWithoutPreview(
     }
     case "venue":
     case "ensemble": {
-      // Gleiche Konvention wie enrich-entity-images (ENTITY_KINDS.queryContext):
-      // Venues bekommen "München" als Zusatzkontext gegen Namensgleichheiten
-      // mit anderen Städten — live bestätigt, dass ohne Kontext die
-      // Commons-Volltextsuche nach "Residenztheater" das Residenztheater
-      // GERA statt München traf. Ensembles bewusst OHNE Kontext (wie im
-      // Cron-Pendant) — ein auswärtiges Gastensemble soll nicht künstlich
-      // auf München verengt werden.
-      const queryContext = entityType === "venue" ? "München" : undefined;
+      // Venues bekommen die tatsächliche Stadt als Zusatzkontext gegen
+      // Namensgleichheiten mit anderen Städten — live bestätigt, dass ohne
+      // Kontext die Commons-Volltextsuche nach "Residenztheater" das
+      // Residenztheater GERA statt München traf. Ensembles bewusst OHNE
+      // Kontext (wie im Cron-Pendant, enrich-entity-images.ts): ein
+      // auswärtiges Gastensemble soll nicht künstlich auf eine Stadt
+      // verengt werden.
+      // Bug-Fund: hier stand bisher fest "München", unabhängig von der
+      // tatsächlichen Stadt der Venue — seit der Multi-City-Erweiterung
+      // (Berlin/Hamburg/Wien/Frankfurt) dadurch für jede Venue außerhalb
+      // Münchens falsch statt nur ungenau.
+      const queryContext = entityType === "venue" ? await resolveVenueCityName(supabase, entityId) : undefined;
       const commonsQuery = queryContext ? `${entity.name} ${queryContext}` : entity.name;
 
       const sources: ImageSourceAttempt<SearchResult>[] = [];
@@ -806,7 +845,7 @@ async function searchWithoutPreview(
         tier: 2,
         run: async () => {
           const grounded = await searchImageViaGroundedWeb(
-            `${entity.name} München Foto`,
+            `${entity.name}${queryContext ? ` ${queryContext}` : ""} Foto`,
             entityType === "venue" ? "Veranstaltungsort-Presse" : "Ensemble-Presse",
           );
           return grounded ? { candidate: grounded, score: SOURCE_SCORE.groundedWeb } : null;
@@ -853,9 +892,9 @@ async function searchWithoutPreview(
         source: "Websuche (DuckDuckGo/Gemini)",
         tier: 1,
         run: async () => {
-          const venueName = await loadEventVenueName(supabase, entityId);
+          const venue = await loadEventVenueName(supabase, entityId);
           const grounded = await searchImageViaGroundedWeb(
-            `${entity.name}${venueName ? ` ${venueName}` : ""} München Konzert`,
+            `${entity.name}${venue.name ? ` ${venue.name}` : ""}${venue.cityName ? ` ${venue.cityName}` : ""} Konzert`,
             "Presse/Ankündigung",
           );
           return grounded ? { candidate: grounded, score: SOURCE_SCORE.groundedWeb } : null;
