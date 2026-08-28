@@ -1,15 +1,11 @@
 import { ConfirmButton } from "@/components/confirm-button";
 import { createClient } from "@/lib/supabase/server";
-import { createEventGroup, mergeEventGroupsBatch } from "./actions";
+import { mergeEventGroupsBatch } from "./actions";
 import { suggestEventGroups, suggestGroupMerges } from "./suggestions";
-import { formatMunichDateTime } from "@/lib/munich-time";
 import { ExistingGroupsList } from "./existing-groups-list";
+import { SuggestionCard } from "./suggestion-card";
 
 export const dynamic = "force-dynamic";
-
-function formatDate(iso: string) {
-  return formatMunichDateTime(iso);
-}
 
 interface GroupRow {
   id: string;
@@ -55,27 +51,7 @@ export default async function EventGroupsPage() {
         ) : (
           <div className="mt-3 flex flex-col gap-3">
             {suggestions.map((s) => (
-              <div key={s.key} className="rounded-xl border border-black/[0.06] bg-white p-4 shadow-sm">
-                <div className="flex items-center justify-between gap-4">
-                  <p className="font-medium text-neutral-900">{s.title}</p>
-                  <form action={createEventGroup.bind(null, s.title, s.events.map((e) => e.id))}>
-                    <button
-                      type="submit"
-                      className="rounded-lg bg-[#0071e3] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[#0077ed]"
-                    >
-                      Gruppe anlegen ({s.events.length})
-                    </button>
-                  </form>
-                </div>
-                <ul className="mt-2 flex flex-col gap-1 text-sm text-neutral-600">
-                  {s.events.map((e) => (
-                    <li key={e.id}>
-                      {formatDate(e.start_datetime)}
-                      {e.venueName && <span className="text-neutral-400"> · {e.venueName}</span>}
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              <SuggestionCard key={s.key} suggestion={s} />
             ))}
           </div>
         )}
