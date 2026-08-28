@@ -2,12 +2,13 @@ import { ConfirmButton } from "@/components/confirm-button";
 import { createClient } from "@/lib/supabase/server";
 import { mergeEventGroupsBatch } from "./actions";
 import { suggestEventGroups, suggestGroupMerges } from "./suggestions";
-import { ExistingGroupsList } from "./existing-groups-list";
+import { ExistingGroupsList, type GroupRow } from "./existing-groups-list";
 import { SuggestionCard } from "./suggestion-card";
+import { loadWorksByEventId } from "@/lib/event-works";
 
 export const dynamic = "force-dynamic";
 
-interface GroupRow {
+interface RawGroupRow {
   id: string;
   title: string;
   created_at: string;
@@ -16,15 +17,29 @@ interface GroupRow {
 
 export default async function EventGroupsPage() {
   const supabase = await createClient();
-  const [{ data: groups }, suggestions, mergeSuggestions] = await Promise.all([
+  const [{ data: rawGroups }, suggestions, mergeSuggestions] = await Promise.all([
     supabase
       .from("programs")
       .select("id, title, created_at, events(id, title, start_datetime, venues(name))")
       .order("created_at", { ascending: false })
-      .returns<GroupRow[]>(),
+      .returns<RawGroupRow[]>(),
     suggestEventGroups(),
     suggestGroupMerges(),
   ]);
+
+  // Nutzerwunsch: "bei eventgruppen muss der standort angezeigt werden
+  // (pro veranstaltung nicht pro gruppe), auch wenn eine gruppe schon
+  // besteht. dann auch bei jeder veranstaltung das programm." — city-Schutz
+  // gilt zwar pro Gruppe (assertSameCity), der konkrete Venue-Name kann
+  // innerhalb einer Gruppe trotzdem variieren, deshalb pro Termin statt nur
+  // einmal pro Gruppe anzeigen. Werke aus event_works, siehe suggestions.ts
+  // für denselben Ansatz bei den noch ungruppierten Vorschlägen.
+  const allEventIds = (rawGroups ?? []).flatMap((g) => g.events.map((e) => e.id));
+  const worksByEventId = await loadWorksByEventId(supabase, allEventIds);
+  const groups: GroupRow[] = (rawGroups ?? []).map((g) => ({
+    ...g,
+    events: g.events.map((e) => ({ ...e, works: worksByEventId.get(e.id) ?? [] })),
+  }));
 
   return (
     <div className="p-8">
@@ -104,10 +119,10 @@ export default async function EventGroupsPage() {
 
       <section className="mt-10">
         <h2 className="text-sm font-semibold text-neutral-900">
-          Bestehende Gruppen {groups && groups.length > 0 && `(${groups.length})`}
+          Bestehende Gruppen {groups.length > 0 && `(${groups.length})`}
         </h2>
 
-        <ExistingGroupsList groups={groups ?? []} />
+        <ExistingGroupsList groups={groups} />
       </section>
     </div>
   );
