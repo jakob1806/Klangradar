@@ -36,6 +36,19 @@ const MIN_HEIGHT = 480;
 const MIN_ASPECT_RATIO = 0.4;
 const MAX_ASPECT_RATIO = 3.0;
 
+// Nutzerfeedback: "oft sind die Bilder komplett falsch, unscharf oder..." —
+// die pHash-Auflösung (32x32) ist für eine Schärfemessung zu klein (fast
+// jedes Bild wirkt bei 32x32 "unscharf", da schon das Downscaling selbst
+// hochfrequente Details entfernt). 256px auf der langen Kante behält genug
+// Struktur für eine sinnvolle Laplacian-Varianz, ohne den zusätzlichen
+// Decode-Aufwand relevant zu erhöhen.
+const SHARPNESS_IMAGE_SIZE = 256;
+// Startwert bewusst konservativ (lieber ein paar echte Grenzfälle
+// durchlassen als scharfe Bilder fälschlich ablehnen) — sollte anhand
+// echter freigegebener vs. abgelehnter Bilder aus der Produktion
+// nachkalibriert werden, sobald quality_status='blurry' erste Daten liefert.
+const MIN_SHARPNESS_VARIANCE = 60;
+
 /** Reine Prüf-Funktion, siehe imagePipeline.test.ts — getrennt von
  * ensureCoverImage(), damit sie ohne Supabase-Client/Storage/ImageMagick
  * testbar ist. Abschnitt 3 der Gesamtüberarbeitung: "Mindestauflösung/
@@ -88,6 +101,7 @@ export type CoverImageFailureReason =
   | "decode_failed"
   | "too_small"
   | "bad_aspect_ratio"
+  | "too_blurry"
   | "storage_error"
   | "unknown";
 
@@ -333,7 +347,7 @@ async function ensureCoverImageInner(
 
   const decoded = decodeImage(bytes);
   if (!decoded) return { id: null, reason: "decode_failed" };
-  const { width, height, webpBytes, thumbnailBytes, phash } = decoded;
+  const { width, height, webpBytes, thumbnailBytes, phash, sharpness } = decoded;
   if (width < 400 || height < 300) return { id: null, reason: "too_small" };
 
   // Nutzerfeedback: "die Bilder, die in der Detailansicht von einzelnen
@@ -360,6 +374,19 @@ async function ensureCoverImageInner(
       }) — reason ${reason}`,
     );
     return { id: null, reason };
+  }
+
+  // Nutzerfeedback: "oft sind die Bilder komplett falsch, unscharf oder..."
+  // — Laplacian-Varianz als Schärfe-Maß, zusätzlich zur reinen
+  // Auflösungsprüfung oben (die fängt nur zu KLEINE Bilder ab, nicht
+  // großformatige, aber verwaschene/verpixelte Treffer).
+  if (sharpness < MIN_SHARPNESS_VARIANCE) {
+    console.error(
+      `ensureCoverImage: rejected ${sourceUrl} as too blurry (sharpness variance ${
+        sharpness.toFixed(1)
+      }, threshold ${MIN_SHARPNESS_VARIANCE})`,
+    );
+    return { id: null, reason: "too_blurry" };
   }
 
   // 2. pHash-Dedupe: dieselbe Bilddatei schon für irgendein Origin
@@ -549,9 +576,10 @@ interface DecodedImage {
   webpBytes: Uint8Array;
   thumbnailBytes: Uint8Array;
   phash: string;
+  sharpness: number;
 }
 
-/** Drei unabhängige ImageMagick.read()-Aufrufe statt einmal lesen + klonen:
+/** Vier unabhängige ImageMagick.read()-Aufrufe statt einmal lesen + klonen:
  * etwas mehr Decode-Aufwand, aber ohne Annahmen über Clone/Dispose-Details
  * der magick-wasm-API, die sich ansonsten schwer verifizieren lassen — jeder
  * read()-Aufruf verwaltet seine Ressourcen vollständig selbst, exakt wie im
@@ -598,12 +626,29 @@ export function decodeImage(bytes: Uint8Array): DecodedImage | null {
       return computeDctHash(gray, PHASH_IMAGE_SIZE);
     });
 
+    // Eigener Read bei höherer Auflösung als der pHash (siehe
+    // SHARPNESS_IMAGE_SIZE-Kommentar) — resize() skaliert wie bei den
+    // anderen Reads oben in eine Bounding-Box unter Beibehaltung des
+    // Seitenverhältnisses, deshalb img.width/img.height NACH dem Resize
+    // statt der Konstante selbst für die Pixel-Extraktion verwenden.
+    const sharpness = ImageMagick.read(bytes, (img) => {
+      img.resize(SHARPNESS_IMAGE_SIZE, SHARPNESS_IMAGE_SIZE);
+      const w = img.width;
+      const h = img.height;
+      const rgb = img.getPixels((pixels) =>
+        pixels.toByteArray(0, 0, w, h, "RGB")
+      ) as unknown as Uint8Array;
+      const gray = toGrayscale(rgb, w * h);
+      return computeSharpnessVariance(gray, w, h);
+    });
+
     return {
       width: full.width,
       height: full.height,
       webpBytes: full.webpBytes,
       thumbnailBytes,
       phash,
+      sharpness,
     };
   } catch (err) {
     console.error(
@@ -622,6 +667,42 @@ function toGrayscale(rgb: Uint8Array, pixelCount: number): Uint8Array {
     gray[i] = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
   }
   return gray;
+}
+
+/** Laplacian-Varianz als Schärfe-Maß — Standard-Heuristik zur Unschärfe-
+ * Erkennung (z.B. "variance of Laplacian", verbreitet u.a. über OpenCV-
+ * Tutorials). Der diskrete Laplace-Kernel (0,1,0 / 1,-4,1 / 0,1,0) reagiert
+ * stark auf Kanten/Details und schwach auf gleichmäßige Flächen — ein
+ * unscharfes/verpixeltes Bild hat wenig hochfrequente Struktur und damit
+ * eine niedrige Varianz der Kernel-Antworten über das ganze Bild. Randpixel
+ * werden ausgelassen (kein Padding/Wraparound nötig für eine reine
+ * Schätzung, nicht für eine exakte Faltung). Reine Funktion ohne
+ * ImageMagick-Bezug — exportiert für imagePipeline.test.ts. */
+export function computeSharpnessVariance(
+  gray: Uint8Array,
+  width: number,
+  height: number,
+): number {
+  if (width < 3 || height < 3) return 0;
+  let sum = 0;
+  let sumSquares = 0;
+  let count = 0;
+  for (let y = 1; y < height - 1; y++) {
+    for (let x = 1; x < width - 1; x++) {
+      const idx = y * width + x;
+      const laplacian = -4 * gray[idx] +
+        gray[idx - 1] +
+        gray[idx + 1] +
+        gray[idx - width] +
+        gray[idx + width];
+      sum += laplacian;
+      sumSquares += laplacian * laplacian;
+      count++;
+    }
+  }
+  if (count === 0) return 0;
+  const mean = sum / count;
+  return sumSquares / count - mean * mean;
 }
 
 /** Klassischer pHash-Algorithmus (DCT-basiert) statt eines einfacheren

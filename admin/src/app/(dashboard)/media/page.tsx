@@ -80,17 +80,36 @@ function thumbnailSrc(
 
 export default async function MediaPage() {
   const supabase = await createClient();
-  const [{ data, error }, { count: missingPersons }, { count: missingEnsembles }, { count: missingVenues }] = await Promise.all([
+  // Nutzerwunsch: "'kein Bild gefunden' als eigenen Zustand führen, getrennt
+  // von 'noch nie gesucht' ... auch fürs Debuggen der Trefferquote wichtig."
+  // Jede der drei Statistiken wird in "nie gesucht" (image_search_checked_at
+  // IS NULL) und "gesucht, nichts gefunden" (NOT NULL) aufgeteilt, statt nur
+  // eine kombinierte "ohne Bild"-Zahl zu zeigen.
+  const [
+    { data, error },
+    { count: personsNeverSearched },
+    { count: personsSearchedNoHit },
+    { count: ensemblesNeverSearched },
+    { count: ensemblesSearchedNoHit },
+    { count: venuesNeverSearched },
+    { count: venuesSearchedNoHit },
+  ] = await Promise.all([
     supabase
       .from("images")
       .select("id, source_url, origin_type, origin_id, photographer, copyright_notice, license_notes, imported_at, source_page_url, source_name, credits, license_name, license_url, license_status, confidence_score, match_reason, warnings, thumbnail_path, storage_path")
       .eq("needs_review", true)
       .order("imported_at", { ascending: false })
       .returns<ImageRow[]>(),
-    supabase.from("persons").select("id", { count: "exact", head: true }).is("photo_url", null),
-    supabase.from("ensembles").select("id", { count: "exact", head: true }).is("photo_url", null),
-    supabase.from("venues").select("id", { count: "exact", head: true }).is("photo_url", null),
+    supabase.from("persons").select("id", { count: "exact", head: true }).is("photo_url", null).is("image_search_checked_at", null),
+    supabase.from("persons").select("id", { count: "exact", head: true }).is("photo_url", null).not("image_search_checked_at", "is", null),
+    supabase.from("ensembles").select("id", { count: "exact", head: true }).is("photo_url", null).is("image_search_checked_at", null),
+    supabase.from("ensembles").select("id", { count: "exact", head: true }).is("photo_url", null).not("image_search_checked_at", "is", null),
+    supabase.from("venues").select("id", { count: "exact", head: true }).is("photo_url", null).is("image_search_checked_at", null),
+    supabase.from("venues").select("id", { count: "exact", head: true }).is("photo_url", null).not("image_search_checked_at", "is", null),
   ]);
+  const missingPersons = (personsNeverSearched ?? 0) + (personsSearchedNoHit ?? 0);
+  const missingEnsembles = (ensemblesNeverSearched ?? 0) + (ensemblesSearchedNoHit ?? 0);
+  const missingVenues = (venuesNeverSearched ?? 0) + (venuesSearchedNoHit ?? 0);
 
   // Namen pro (origin_type, origin_id) auflösen — eine Query pro betroffenem
   // Typ statt pro Bild, damit die Seite bei vielen Kandidaten nicht dutzende
@@ -142,8 +161,10 @@ export default async function MediaPage() {
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.08em] text-neutral-400">Personen</p>
-              <p className="mt-2 text-3xl font-semibold tabular-nums text-neutral-900">{missingPersons ?? 0}</p>
-              <p className="mt-1 text-sm text-neutral-500">Profile ohne Bild</p>
+              <p className="mt-2 text-3xl font-semibold tabular-nums text-neutral-900">{missingPersons}</p>
+              <p className="mt-1 text-sm text-neutral-500">
+                Profile ohne Bild · {personsNeverSearched ?? 0} nie gesucht · {personsSearchedNoHit ?? 0} ohne Treffer
+              </p>
             </div>
             <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">Offene Bildlücken</span>
           </div>
@@ -159,8 +180,10 @@ export default async function MediaPage() {
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.08em] text-neutral-400">Ensembles</p>
-              <p className="mt-2 text-3xl font-semibold tabular-nums text-neutral-900">{missingEnsembles ?? 0}</p>
-              <p className="mt-1 text-sm text-neutral-500">Profile ohne Bild</p>
+              <p className="mt-2 text-3xl font-semibold tabular-nums text-neutral-900">{missingEnsembles}</p>
+              <p className="mt-1 text-sm text-neutral-500">
+                Profile ohne Bild · {ensemblesNeverSearched ?? 0} nie gesucht · {ensemblesSearchedNoHit ?? 0} ohne Treffer
+              </p>
             </div>
             <span className="rounded-full bg-purple-50 px-3 py-1 text-xs font-medium text-purple-700">Offene Bildlücken</span>
           </div>
@@ -176,8 +199,10 @@ export default async function MediaPage() {
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.08em] text-neutral-400">Venues</p>
-              <p className="mt-2 text-3xl font-semibold tabular-nums text-neutral-900">{missingVenues ?? 0}</p>
-              <p className="mt-1 text-sm text-neutral-500">Profile ohne Bild</p>
+              <p className="mt-2 text-3xl font-semibold tabular-nums text-neutral-900">{missingVenues}</p>
+              <p className="mt-1 text-sm text-neutral-500">
+                Profile ohne Bild · {venuesNeverSearched ?? 0} nie gesucht · {venuesSearchedNoHit ?? 0} ohne Treffer
+              </p>
             </div>
             <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">Offene Bildlücken</span>
           </div>

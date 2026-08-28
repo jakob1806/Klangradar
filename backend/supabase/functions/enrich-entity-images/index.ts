@@ -79,7 +79,7 @@ import { logSystemAction } from "../_shared/systemLog.ts";
 import { nameSearchVariants } from "../_shared/nameVariants.ts";
 import { findLikelySubpages } from "../_shared/subpageDiscovery.ts";
 import { searchOfficialSiteForImages } from "../_shared/officialSiteImageSearch.ts";
-import { ensureCoverImage, type ImageOriginType } from "../_shared/imagePipeline.ts";
+import { ensureCoverImage, ensureCoverImageWithReason, type ImageOriginType } from "../_shared/imagePipeline.ts";
 
 const DEFAULT_LIMIT = 8;
 const HEALTH_CHECK_LIMIT = 15;
@@ -154,7 +154,13 @@ async function persistCandidate(
     return { imageId: data.id, publicUrl: candidate.imageUrl };
   }
 
-  const imageId = await ensureCoverImage(supabase, {
+  // ensureCoverImageWithReason() statt ensureCoverImage(): der konkrete
+  // Ablehnungsgrund (u.a. das neue "too_blurry") landet so im Log statt
+  // still im generischen null zu verschwinden — persistCandidate() selbst
+  // bleibt aber weiterhin nur null/Erfolg an ihre Aufrufer zurückgeben,
+  // die ohnehin schon bei jedem Fehlschlag den nächsten Kandidaten/die
+  // nächste Quelle versuchen.
+  const { id: imageId, reason } = await ensureCoverImageWithReason(supabase, {
     sourceUrl: candidate.imageUrl,
     originType: kind.originType,
     originId: id,
@@ -170,7 +176,12 @@ async function persistCandidate(
     warnings: candidate.warnings,
     needsReview: candidate.needsReview,
   });
-  if (!imageId) return null;
+  if (!imageId) {
+    if (reason) {
+      console.error(`persistCandidate: ${kind.originType} ${id} rejected (${candidate.imageUrl}): ${reason}`);
+    }
+    return null;
+  }
   const { data: image } = await supabase.from("images").select("storage_path")
     .eq("id", imageId).maybeSingle();
   if (!image?.storage_path) return null;

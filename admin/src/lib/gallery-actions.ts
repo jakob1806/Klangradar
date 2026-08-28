@@ -31,7 +31,8 @@ export type QualityStatus =
   | "unreachable"
   | "invalid_format"
   | "duplicate"
-  | "copyright_unclear";
+  | "copyright_unclear"
+  | "blurry";
 
 export interface GalleryImage {
   id: string;

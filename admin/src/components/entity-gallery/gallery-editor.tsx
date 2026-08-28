@@ -30,6 +30,7 @@ const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 // voran die drei bekannten zu kleinen Bestandsbilder).
 const QUALITY_BADGES: Partial<Record<string, { label: string; className: string }>> = {
   low_resolution: { label: "Zu klein", className: "bg-red-100 text-red-700" },
+  blurry: { label: "Unscharf", className: "bg-red-100 text-red-700" },
   unreachable: { label: "Nicht erreichbar", className: "bg-red-100 text-red-700" },
   invalid_format: { label: "Ungültiges Format", className: "bg-red-100 text-red-700" },
   duplicate: { label: "Duplikat", className: "bg-amber-100 text-amber-800" },

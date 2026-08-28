@@ -45,6 +45,7 @@ import { searchWikidataImage } from "../_shared/wikidataImage.ts";
 import { searchViaGeminiGrounding } from "../_shared/geminiGroundedSearch.ts";
 import { searchDuckDuckGo } from "../_shared/duckDuckGoSearch.ts";
 import { searchOfficialSiteForImages } from "../_shared/officialSiteImageSearch.ts";
+import { type ImageSourceAttempt, type RaceImageSourcesResult, raceImageSources } from "../_shared/raceImageSources.ts";
 import {
   ensureCoverImageWithReason,
   ensureMagickReady,
@@ -68,6 +69,8 @@ function commitFailureMessage(reason: CoverImageFailureReason | undefined): stri
       return "Bild zu klein — mindestens 640×480px nötig, sonst wirkt es in der App später hochskaliert unscharf.";
     case "bad_aspect_ratio":
       return "Ungewöhnliches Seitenverhältnis (nicht zwischen 2:5 und 3:1) — vermutlich kein normales Foto, sondern z. B. ein Banner oder eine Sidebar-Grafik.";
+    case "too_blurry":
+      return "Das Bild ist zu unscharf/verpixelt für eine gute Darstellung — bitte ein schärferes Bild suchen.";
     case "unreachable":
       return "Die Bild-URL war nicht erreichbar.";
     case "download_failed":
@@ -258,38 +261,37 @@ async function findExistingConfirmedImage(
  * Admin-Bestätigungsschritt vor dem Commit hat (siehe Datei-Kommentar oben),
  * eine niedrige Konfidenz also nur die Formulierung des matchReason
  * beeinflusst, nicht ob überhaupt vorgeschlagen wird. */
+/** Liefert zusätzlich zum SearchResult den 0–10-Score des Top-Kandidaten
+ * (aus officialSiteImageSearch.ts's eigenem Scoring) — für den Tier-Score-
+ * Vergleich innerhalb einer Vertrauens-Tier in raceImageSources(). Loggt
+ * NICHT mehr selbst (anders als früher): searchWithoutPreview() protokolliert
+ * jetzt einheitlich über die attempts-Liste des Rennens, damit paralleles
+ * und sequenzielles Logging nicht durcheinandergeraten. crawl.errors (es
+ * kann mehrere pro Crawl geben, nicht nur einen) werden trotzdem sofort
+ * geloggt, weil raceImageSources() dafür keinen eigenen Slot hat. */
 async function searchOfficialSite(
   entityName: string,
   websiteUrl: string,
   sourceLabel: string,
   log: (entry: RunLogEntry) => void,
-): Promise<SearchResult | null> {
+): Promise<{ result: SearchResult; score: number } | null> {
   const crawl = await searchOfficialSiteForImages(entityName, websiteUrl);
   for (const err of crawl.errors) {
     log({ source: `${sourceLabel} (offizielle Website)`, outcome: "error", detail: err });
   }
   const top = crawl.candidates[0];
-  if (!top) {
-    log({
-      source: `${sourceLabel} (offizielle Website)`,
-      outcome: "not_found",
-      detail: `${crawl.pagesVisited.length} Seite(n) geprüft, kein brauchbarer Kandidat.`,
-    });
-    return null;
-  }
+  if (!top) return null;
   const confidenceLabel = top.confidence === "high" ? "hohe" : top.confidence === "medium" ? "mittlere" : "geringe";
-  log({
-    source: `${sourceLabel} (offizielle Website)`,
-    outcome: "found",
-    detail: `${top.url} · ${crawl.candidates.length} Kandidat(en) auf ${crawl.pagesVisited.length} Seite(n), Konfidenz ${top.confidence}.`,
-  });
   return {
-    found: true,
-    imageUrl: top.url,
-    sourcePageUrl: top.pageUrl,
-    sourceName: new URL(top.pageUrl).hostname,
-    matchReason: `${sourceLabel} — offizielle Website (${confidenceLabel} Treffersicherheit)${top.reasons[0] ? `: ${top.reasons[0]}` : ""}`,
-    suggestedLicenseStatus: "confirmed_licensed",
+    score: top.score,
+    result: {
+      found: true,
+      imageUrl: top.url,
+      sourcePageUrl: top.pageUrl,
+      sourceName: new URL(top.pageUrl).hostname,
+      matchReason: `${sourceLabel} — offizielle Website (${confidenceLabel} Treffersicherheit)${top.reasons[0] ? `: ${top.reasons[0]}` : ""}`,
+      suggestedLicenseStatus: "confirmed_licensed",
+    },
   };
 }
 
@@ -318,6 +320,36 @@ async function isRejectedImageUrl(
     .limit(1)
     .maybeSingle();
   return !!data;
+}
+
+// Nutzerwunsch: "'Kein Bild gefunden' als eigenen Zustand führen, getrennt
+// von 'noch nie gesucht'" — enrich-entity-images (Batch-Cron) schreibt das
+// schon bei jedem Fehlschlag, dieser interaktive Einzelsuch-Pfad bisher
+// nicht. Nur für die drei Typen, die media/page.tsx tatsächlich als
+// eigene Statistik-Karte zeigt UND die beide Spalten überhaupt besitzen
+// (20260906000001_image_search_reason_tracking.sql +
+// 20261015000001_fast_person_biographies_and_image_queue.sql) — events
+// haben nur last_image_search_note, works/editorial_collections keins
+// von beiden.
+const HAS_IMAGE_SEARCH_TRACKING: Partial<Record<EntityType, boolean>> = {
+  person: true,
+  venue: true,
+  ensemble: true,
+};
+
+async function markSearchedWithoutResult(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  entityType: EntityType,
+  entityId: string,
+  note: string,
+): Promise<void> {
+  if (!HAS_IMAGE_SEARCH_TRACKING[entityType]) return;
+  await supabase
+    .from(TABLE_FOR_TYPE[entityType])
+    .update({ image_search_checked_at: new Date().toISOString(), last_image_search_note: note })
+    .eq("id", entityId)
+    .catch(() => {});
 }
 
 async function searchForEntity(
@@ -366,7 +398,10 @@ async function searchForEntity(
     "admin_image_research",
   ).catch(() => {});
 
-  if (!result.found || !result.imageUrl) return result;
+  if (!result.found || !result.imageUrl) {
+    await markSearchedWithoutResult(supabase, entityType, entityId, result.error ?? "Kein Bild gefunden.");
+    return result;
+  }
 
   // Server-seitig heruntergeladene Vorschau-Kopie ergänzen (siehe
   // downloadForPreview()) — best effort, ein Fehlschlag hier lässt den Fund
@@ -388,10 +423,9 @@ async function searchForEntity(
     // zeigen.
     const MIN_PLAUSIBLE_PHOTO_BYTES = 20_000;
     if (preview.bytes.byteLength < MIN_PLAUSIBLE_PHOTO_BYTES) {
-      return {
-        found: false,
-        error: `Gefundenes Bild ist zu klein (nur ${Math.round(preview.bytes.byteLength / 1024)} KB) — vermutlich ein Thumbnail unter der Mindestauflösung.`,
-      };
+      const error = `Gefundenes Bild ist zu klein (nur ${Math.round(preview.bytes.byteLength / 1024)} KB) — vermutlich ein Thumbnail unter der Mindestauflösung.`;
+      await markSearchedWithoutResult(supabase, entityType, entityId, error);
+      return { found: false, error };
     }
     result.imagePreviewBase64 = bytesToBase64(preview.bytes);
     result.imagePreviewMimeType = preview.mimeType;
@@ -535,6 +569,40 @@ async function searchImageViaGroundedWeb(
   return firstImageFromCandidates(groundedResults, `KI-Websuche (${sourceLabel})`);
 }
 
+// Tier-0 (offizielle Website) trägt schon ihren eigenen 0–10-Score aus
+// officialSiteImageSearch.ts. Die übrigen kuratierten Quellen (Wikipedia/
+// Wikidata/Commons) liefern keinen eigenen Bild-Score — feste Werte, die
+// dieselbe implizite Rangfolge abbilden, in der sie bisher sequenziell
+// versucht wurden (z.B. Wikipedia vor Wikidata bei Personen), damit ein
+// gleichzeitiger Treffer beider Quellen weiterhin dieselbe Quelle gewinnt
+// wie vorher — der eigentliche Gewinn ist Parallelität (Geschwindigkeit),
+// nicht eine neue Rangfolge unter den kuratierten Quellen.
+const SOURCE_SCORE = {
+  wikipedia: 8,
+  wikidataOrCommonsFirst: 8,
+  wikidataSecond: 7,
+  groundedWeb: 5,
+} as const;
+
+/** Vereinheitlichtes Logging für ein ganzes Quellen-Rennen: jeder Versuch
+ * (gefunden/nicht gefunden/Fehler) wird protokolliert, unabhängig vom
+ * Gewinner — ersetzt die frühere Kette einzelner log()-Aufrufe direkt nach
+ * jedem sequenziellen await. */
+function logRaceAttempts(
+  attempts: RaceImageSourcesResult<SearchResult>["attempts"],
+  log: (entry: RunLogEntry) => void,
+) {
+  for (const a of attempts) {
+    if (a.outcome === "found") {
+      log({ source: a.source, outcome: "found", detail: `Score ${a.score.toFixed(1)}` });
+    } else if (a.outcome === "error") {
+      log({ source: a.source, outcome: "error", detail: a.detail });
+    } else {
+      log({ source: a.source, outcome: "not_found" });
+    }
+  }
+}
+
 async function searchWithoutPreview(
   // deno-lint-ignore no-explicit-any
   supabase: any,
@@ -583,60 +651,88 @@ async function searchWithoutPreview(
 
   switch (entityType) {
     case "person": {
-      // Eine bereits redaktionell hinterlegte offizielle Website ist die
-      // präziseste Identitätsquelle. Sie muss vor gleichnamigen Wikipedia-
-      // oder Wikidata-Treffern kommen, sonst wird ein formal vorhandenes,
-      // aber falsches Personenbild voreilig zurückgegeben.
+      // Alle Quellen laufen parallel (Nutzerwunsch: "alle Quellen parallel
+      // ... bestes Ergebnis nach Score wählen, statt beim ersten Treffer zu
+      // stoppen"). Die offizielle Website bleibt aber Tier 0 und schlägt
+      // JEDEN Tier-1/2-Treffer, unabhängig vom Score — siehe Kommentar bei
+      // searchOfficialSite(): sie ist identitätssicherer, nicht nur
+      // bildqualitativ besser, ein namensgleicher falscher Wikipedia-Treffer
+      // darf sie nie verdrängen.
+      const sources: ImageSourceAttempt<SearchResult>[] = [];
       if (entity.websiteUrl) {
-        const official = await searchOfficialSite(entity.name, entity.websiteUrl, "Künstlerseite", log);
-        if (official) return official;
+        const websiteUrl = entity.websiteUrl;
+        sources.push({
+          source: "Künstlerseite (offizielle Website)",
+          tier: 0,
+          run: async () => {
+            const official = await searchOfficialSite(entity.name, websiteUrl, "Künstlerseite", log);
+            return official ? { candidate: official.result, score: official.score } : null;
+          },
+        });
       } else {
         log({ source: "Offizielle Website", outcome: "skipped", detail: "keine website_url hinterlegt" });
       }
 
-      // Schritt 2: Wikipedia/Wikidata — die zuverlässigste Quelle für
+      // Tier 1: Wikipedia/Wikidata — die zuverlässigsten Quellen für
       // Personen mit eigenem Artikel, kein Kontingent/Konto nötig.
-      const portrait = await fetchWikipediaPortrait(entity.name);
-      if (portrait) {
-        log({ source: "Wikipedia", outcome: "found" });
-        return {
-          found: true,
-          imageUrl: portrait.imageUrl,
-          sourcePageUrl: portrait.pageUrl,
-          sourceName: "Wikipedia",
-          matchReason: portrait.description ?? "Wikipedia-Infobox-Bild",
-          suggestedLicenseStatus: "confirmed_licensed",
-        };
-      }
-      log({ source: "Wikipedia", outcome: "not_found" });
+      sources.push({
+        source: "Wikipedia",
+        tier: 1,
+        run: async () => {
+          const portrait = await fetchWikipediaPortrait(entity.name);
+          if (!portrait) return null;
+          return {
+            score: SOURCE_SCORE.wikipedia,
+            candidate: {
+              found: true,
+              imageUrl: portrait.imageUrl,
+              sourcePageUrl: portrait.pageUrl,
+              sourceName: "Wikipedia",
+              matchReason: portrait.description ?? "Wikipedia-Infobox-Bild",
+              suggestedLicenseStatus: "confirmed_licensed",
+            },
+          };
+        },
+      });
+      sources.push({
+        source: "Wikidata/Wikimedia Commons",
+        tier: 1,
+        run: async () => {
+          const wikidata = await searchWikidataImage(entity.name);
+          if (!wikidata) return null;
+          return {
+            score: SOURCE_SCORE.wikidataSecond,
+            candidate: {
+              found: true,
+              imageUrl: wikidata.url,
+              sourcePageUrl: wikidata.pageUrl,
+              sourceName: "Wikidata/Wikimedia Commons",
+              matchReason: `Strukturiertes Wikidata-Bild · Lizenz: ${wikidata.license}${wikidata.artist ? ` · ${wikidata.artist}` : ""}`,
+              suggestedLicenseStatus: "confirmed_free",
+            },
+          };
+        },
+      });
 
-      const wikidata = await searchWikidataImage(entity.name);
-      if (wikidata) {
-        log({ source: "Wikidata/Wikimedia Commons", outcome: "found" });
-        return {
-          found: true,
-          imageUrl: wikidata.url,
-          sourcePageUrl: wikidata.pageUrl,
-          sourceName: "Wikidata/Wikimedia Commons",
-          matchReason: `Strukturiertes Wikidata-Bild · Lizenz: ${wikidata.license}${wikidata.artist ? ` · ${wikidata.artist}` : ""}`,
-          suggestedLicenseStatus: "confirmed_free",
-        };
-      }
-      log({ source: "Wikidata/Wikimedia Commons", outcome: "not_found" });
+      // Tier 2: breite KI-/Websuche als letzter Versuch (Nutzerfeedback:
+      // "wikipedia commons ist so ungenau und hat oft keine bilder" — deckt
+      // Musiker:innen ohne eigenen Wikipedia-Artikel und ohne (bekannte)
+      // eigene Website ab).
+      sources.push({
+        source: "Websuche (DuckDuckGo/Gemini)",
+        tier: 2,
+        run: async () => {
+          const grounded = await searchImageViaGroundedWeb(
+            `${entity.name} Foto Porträt Musiker Klassik`,
+            "Presse/Künstlerseite",
+          );
+          return grounded ? { candidate: grounded, score: SOURCE_SCORE.groundedWeb } : null;
+        },
+      });
 
-      // Schritt 4: breite KI-/Websuche als letzter automatischer Versuch
-      // (Nutzerfeedback: "wikipedia commons ist so ungenau und hat oft
-      // keine bilder" — deckt Musiker:innen ohne eigenen Wikipedia-Artikel
-      // und ohne (bekannte) eigene Website ab).
-      const grounded = await searchImageViaGroundedWeb(
-        `${entity.name} Foto Porträt Musiker Klassik`,
-        "Presse/Künstlerseite",
-      );
-      if (grounded) {
-        log({ source: "Websuche (DuckDuckGo/Gemini)", outcome: "found" });
-        return grounded;
-      }
-      log({ source: "Websuche (DuckDuckGo/Gemini)", outcome: "not_found" });
+      const race = await raceImageSources(sources);
+      logRaceAttempts(race.attempts, log);
+      if (race.winner) return race.winner.candidate;
       return { found: false, error: "Weder Wikipedia, Wikidata, die offizielle Website noch die Websuche liefern ein Bild." };
     }
     case "venue":
@@ -651,55 +747,75 @@ async function searchWithoutPreview(
       const queryContext = entityType === "venue" ? "München" : undefined;
       const commonsQuery = queryContext ? `${entity.name} ${queryContext}` : entity.name;
 
+      const sources: ImageSourceAttempt<SearchResult>[] = [];
       if (entity.websiteUrl) {
-        const official = await searchOfficialSite(
-          entity.name,
-          entity.websiteUrl,
-          entityType === "venue" ? "Veranstaltungsort" : "Ensemble",
-          log,
-        );
-        if (official) return official;
+        const websiteUrl = entity.websiteUrl;
+        const sourceLabel = entityType === "venue" ? "Veranstaltungsort" : "Ensemble";
+        sources.push({
+          source: `${sourceLabel} (offizielle Website)`,
+          tier: 0,
+          run: async () => {
+            const official = await searchOfficialSite(entity.name, websiteUrl, sourceLabel, log);
+            return official ? { candidate: official.result, score: official.score } : null;
+          },
+        });
       } else {
         log({ source: "Offizielle Website", outcome: "skipped", detail: "keine website_url hinterlegt" });
       }
 
-      const candidate = await searchCommonsImage(commonsQuery);
-      if (candidate) {
-        log({ source: "Wikimedia Commons", outcome: "found" });
-        return {
-          found: true,
-          imageUrl: candidate.url,
-          sourcePageUrl: candidate.pageUrl,
-          sourceName: "Wikimedia Commons",
-          matchReason: `Lizenz: ${candidate.license}${candidate.artist ? ` · ${candidate.artist}` : ""}`,
-          suggestedLicenseStatus: "confirmed_free",
-        };
-      }
-      log({ source: "Wikimedia Commons", outcome: "not_found" });
+      sources.push({
+        source: "Wikimedia Commons",
+        tier: 1,
+        run: async () => {
+          const candidate = await searchCommonsImage(commonsQuery);
+          if (!candidate) return null;
+          return {
+            score: SOURCE_SCORE.wikidataOrCommonsFirst,
+            candidate: {
+              found: true,
+              imageUrl: candidate.url,
+              sourcePageUrl: candidate.pageUrl,
+              sourceName: "Wikimedia Commons",
+              matchReason: `Lizenz: ${candidate.license}${candidate.artist ? ` · ${candidate.artist}` : ""}`,
+              suggestedLicenseStatus: "confirmed_free",
+            },
+          };
+        },
+      });
+      sources.push({
+        source: "Wikidata/Wikimedia Commons",
+        tier: 1,
+        run: async () => {
+          const wikidata = await searchWikidataImage(entity.name, queryContext);
+          if (!wikidata) return null;
+          return {
+            score: SOURCE_SCORE.wikidataSecond,
+            candidate: {
+              found: true,
+              imageUrl: wikidata.url,
+              sourcePageUrl: wikidata.pageUrl,
+              sourceName: "Wikidata/Wikimedia Commons",
+              matchReason: `Strukturiertes Wikidata-Bild · Lizenz: ${wikidata.license}${wikidata.artist ? ` · ${wikidata.artist}` : ""}`,
+              suggestedLicenseStatus: "confirmed_free",
+            },
+          };
+        },
+      });
+      sources.push({
+        source: "Websuche (DuckDuckGo/Gemini)",
+        tier: 2,
+        run: async () => {
+          const grounded = await searchImageViaGroundedWeb(
+            `${entity.name} München Foto`,
+            entityType === "venue" ? "Veranstaltungsort-Presse" : "Ensemble-Presse",
+          );
+          return grounded ? { candidate: grounded, score: SOURCE_SCORE.groundedWeb } : null;
+        },
+      });
 
-      const wikidata = await searchWikidataImage(entity.name, queryContext);
-      if (wikidata) {
-        log({ source: "Wikidata/Wikimedia Commons", outcome: "found" });
-        return {
-          found: true,
-          imageUrl: wikidata.url,
-          sourcePageUrl: wikidata.pageUrl,
-          sourceName: "Wikidata/Wikimedia Commons",
-          matchReason: `Strukturiertes Wikidata-Bild · Lizenz: ${wikidata.license}${wikidata.artist ? ` · ${wikidata.artist}` : ""}`,
-          suggestedLicenseStatus: "confirmed_free",
-        };
-      }
-      log({ source: "Wikidata/Wikimedia Commons", outcome: "not_found" });
-
-      const grounded = await searchImageViaGroundedWeb(
-        `${entity.name} München Foto`,
-        entityType === "venue" ? "Veranstaltungsort-Presse" : "Ensemble-Presse",
-      );
-      if (grounded) {
-        log({ source: "Websuche (DuckDuckGo/Gemini)", outcome: "found" });
-        return grounded;
-      }
-      log({ source: "Websuche (DuckDuckGo/Gemini)", outcome: "not_found" });
+      const race = await raceImageSources(sources);
+      logRaceAttempts(race.attempts, log);
+      if (race.winner) return race.winner.candidate;
       return { found: false, error: "Weder Wikimedia Commons/Wikidata, die offizielle Website noch die Websuche liefern ein Bild." };
     }
     case "event": {
@@ -710,40 +826,58 @@ async function searchWithoutPreview(
       // Bild, siehe coverImageDetection.ts für dieselbe Grundidee bei der
       // automatisierten Ingestion).
       const pageUrl = entity.websiteUrl ?? entity.ticketUrl;
-      const ownImage = pageUrl ? await extractOgImage(pageUrl) : null;
-      if (ownImage) {
-        log({ source: "Veranstaltungsseite", outcome: "found" });
-        return {
-          found: true,
-          imageUrl: ownImage,
-          sourcePageUrl: pageUrl!,
-          sourceName: new URL(pageUrl!).hostname,
-          matchReason: "og:image der Veranstaltungsseite",
-        };
+      const sources: ImageSourceAttempt<SearchResult>[] = [];
+      if (pageUrl) {
+        sources.push({
+          source: "Veranstaltungsseite",
+          tier: 0,
+          run: async () => {
+            const ownImage = await extractOgImage(pageUrl);
+            if (!ownImage) return null;
+            return {
+              score: 10,
+              candidate: {
+                found: true,
+                imageUrl: ownImage,
+                sourcePageUrl: pageUrl,
+                sourceName: new URL(pageUrl).hostname,
+                matchReason: "og:image der Veranstaltungsseite",
+              },
+            };
+          },
+        });
+      } else {
+        log({ source: "Veranstaltungsseite", outcome: "skipped" });
       }
-      log({ source: "Veranstaltungsseite", outcome: pageUrl ? "not_found" : "skipped" });
+      sources.push({
+        source: "Websuche (DuckDuckGo/Gemini)",
+        tier: 1,
+        run: async () => {
+          const venueName = await loadEventVenueName(supabase, entityId);
+          const grounded = await searchImageViaGroundedWeb(
+            `${entity.name}${venueName ? ` ${venueName}` : ""} München Konzert`,
+            "Presse/Ankündigung",
+          );
+          return grounded ? { candidate: grounded, score: SOURCE_SCORE.groundedWeb } : null;
+        },
+      });
+      // Rückfall auf das Venue-Foto (Nutzerfeedback: mehr als nur eine
+      // Quelle probieren) — bewusst die niedrigste Tier: das ist ein Foto
+      // des VERANSTALTUNGSORTS, nicht der eigentlichen Veranstaltung, und
+      // soll deshalb nie einen echten Treffer der beiden Quellen oben
+      // verdrängen, egal wie hoch dessen Score wäre.
+      sources.push({
+        source: "Venue-Foto (Rückfall)",
+        tier: 2,
+        run: async () => {
+          const venueFallback = await venuePhotoFallback(supabase, entityId);
+          return venueFallback ? { candidate: venueFallback, score: 1 } : null;
+        },
+      });
 
-      const venueName = await loadEventVenueName(supabase, entityId);
-      const grounded = await searchImageViaGroundedWeb(
-        `${entity.name}${venueName ? ` ${venueName}` : ""} München Konzert`,
-        "Presse/Ankündigung",
-      );
-      if (grounded) {
-        log({ source: "Websuche (DuckDuckGo/Gemini)", outcome: "found" });
-        return grounded;
-      }
-      log({ source: "Websuche (DuckDuckGo/Gemini)", outcome: "not_found" });
-
-      // Fallback auf das Venue-Foto (Nutzerfeedback: mehr als nur eine
-      // Quelle probieren) — nur wenn das Venue selbst schon ein
-      // freigegebenes Bild hat; klar als Venue-, nicht Event-Foto
-      // gekennzeichnet, damit die Redaktion bewusst entscheidet.
-      const venueFallback = await venuePhotoFallback(supabase, entityId);
-      if (venueFallback) {
-        log({ source: "Venue-Foto (Rückfall)", outcome: "found" });
-        return venueFallback;
-      }
-      log({ source: "Venue-Foto (Rückfall)", outcome: "not_found" });
+      const race = await raceImageSources(sources);
+      logRaceAttempts(race.attempts, log);
+      if (race.winner) return race.winner.candidate;
       return {
         found: false,
         error: "Weder Veranstaltungsseite, Websuche noch der Veranstaltungsort liefern ein Bild.",
@@ -757,58 +891,81 @@ async function searchWithoutPreview(
       // Fallback (Aufführungsfotos, Partitur-/Notenblatt-Scans, Plakate).
       // Keine offizielle-Website-Stufe — Werke haben keine eigene
       // website_url-Spalte (siehe HAS_WEBSITE_URL).
-      const portrait = await fetchWikipediaPortrait(entity.name);
-      if (portrait) {
-        log({ source: "Wikipedia", outcome: "found" });
-        return {
-          found: true,
-          imageUrl: portrait.imageUrl,
-          sourcePageUrl: portrait.pageUrl,
-          sourceName: "Wikipedia",
-          matchReason: portrait.description ?? "Wikipedia-Infobox-Bild",
-          suggestedLicenseStatus: "confirmed_licensed",
-        };
-      }
-      log({ source: "Wikipedia", outcome: "not_found" });
+      const sources: ImageSourceAttempt<SearchResult>[] = [
+        {
+          source: "Wikipedia",
+          tier: 0,
+          run: async () => {
+            const portrait = await fetchWikipediaPortrait(entity.name);
+            if (!portrait) return null;
+            return {
+              score: SOURCE_SCORE.wikipedia,
+              candidate: {
+                found: true,
+                imageUrl: portrait.imageUrl,
+                sourcePageUrl: portrait.pageUrl,
+                sourceName: "Wikipedia",
+                matchReason: portrait.description ?? "Wikipedia-Infobox-Bild",
+                suggestedLicenseStatus: "confirmed_licensed",
+              },
+            };
+          },
+        },
+        {
+          source: "Wikimedia Commons",
+          tier: 1,
+          run: async () => {
+            const candidate = await searchCommonsImage(entity.name);
+            if (!candidate) return null;
+            return {
+              score: SOURCE_SCORE.wikidataOrCommonsFirst,
+              candidate: {
+                found: true,
+                imageUrl: candidate.url,
+                sourcePageUrl: candidate.pageUrl,
+                sourceName: "Wikimedia Commons",
+                matchReason: `Lizenz: ${candidate.license}${candidate.artist ? ` · ${candidate.artist}` : ""}`,
+                suggestedLicenseStatus: "confirmed_free",
+              },
+            };
+          },
+        },
+        {
+          source: "Wikidata/Wikimedia Commons",
+          tier: 1,
+          run: async () => {
+            const wikidata = await searchWikidataImage(entity.name);
+            if (!wikidata) return null;
+            return {
+              score: SOURCE_SCORE.wikidataSecond,
+              candidate: {
+                found: true,
+                imageUrl: wikidata.url,
+                sourcePageUrl: wikidata.pageUrl,
+                sourceName: "Wikidata/Wikimedia Commons",
+                matchReason: `Strukturiertes Wikidata-Bild · Lizenz: ${wikidata.license}${wikidata.artist ? ` · ${wikidata.artist}` : ""}`,
+                suggestedLicenseStatus: "confirmed_free",
+              },
+            };
+          },
+        },
+        {
+          source: "Websuche (DuckDuckGo/Gemini)",
+          tier: 2,
+          run: async () => {
+            const composerName = await loadWorkComposerName(supabase, entityId);
+            const grounded = await searchImageViaGroundedWeb(
+              `${entity.name}${composerName ? ` ${composerName}` : ""} Aufführung Foto`,
+              "Aufführung/Programmheft",
+            );
+            return grounded ? { candidate: grounded, score: SOURCE_SCORE.groundedWeb } : null;
+          },
+        },
+      ];
 
-      const candidate = await searchCommonsImage(entity.name);
-      if (candidate) {
-        log({ source: "Wikimedia Commons", outcome: "found" });
-        return {
-          found: true,
-          imageUrl: candidate.url,
-          sourcePageUrl: candidate.pageUrl,
-          sourceName: "Wikimedia Commons",
-          matchReason: `Lizenz: ${candidate.license}${candidate.artist ? ` · ${candidate.artist}` : ""}`,
-          suggestedLicenseStatus: "confirmed_free",
-        };
-      }
-      log({ source: "Wikimedia Commons", outcome: "not_found" });
-
-      const wikidata = await searchWikidataImage(entity.name);
-      if (wikidata) {
-        log({ source: "Wikidata/Wikimedia Commons", outcome: "found" });
-        return {
-          found: true,
-          imageUrl: wikidata.url,
-          sourcePageUrl: wikidata.pageUrl,
-          sourceName: "Wikidata/Wikimedia Commons",
-          matchReason: `Strukturiertes Wikidata-Bild · Lizenz: ${wikidata.license}${wikidata.artist ? ` · ${wikidata.artist}` : ""}`,
-          suggestedLicenseStatus: "confirmed_free",
-        };
-      }
-      log({ source: "Wikidata/Wikimedia Commons", outcome: "not_found" });
-
-      const composerName = await loadWorkComposerName(supabase, entityId);
-      const grounded = await searchImageViaGroundedWeb(
-        `${entity.name}${composerName ? ` ${composerName}` : ""} Aufführung Foto`,
-        "Aufführung/Programmheft",
-      );
-      if (grounded) {
-        log({ source: "Websuche (DuckDuckGo/Gemini)", outcome: "found" });
-        return grounded;
-      }
-      log({ source: "Websuche (DuckDuckGo/Gemini)", outcome: "not_found" });
+      const race = await raceImageSources(sources);
+      logRaceAttempts(race.attempts, log);
+      if (race.winner) return race.winner.candidate;
       return { found: false, error: "Weder Wikipedia, Wikimedia Commons, Wikidata noch die Websuche liefern ein Bild." };
     }
     case "editorial_collection": {
