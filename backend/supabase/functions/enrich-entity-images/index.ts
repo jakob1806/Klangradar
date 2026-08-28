@@ -195,10 +195,18 @@ interface EntityKind {
   table: string;
   originType: "venue" | "person" | "ensemble" | "festival";
   nameColumn: string;
-  /** Zusätzlicher Suchkontext für die Wikimedia-Fallback-Suche (Venues/
-   * Ensembles/Festivals), um Namensgleichheiten mit anderen Städten zu
-   * vermeiden. */
-  queryContext?: string;
+  /** Nutzeranfrage/Bug-Fund: der Zusatzkontext für die Wikimedia-Fallback-
+   * Suche (gegen Namensgleichheiten mit anderen Städten, z.B. Commons-Suche
+   * "Residenztheater" trifft sonst das Residenztheater GERA) war früher ein
+   * FEST für die ganze Entitäts-Art hinterlegtes "München" — seit der
+   * Multi-City-Erweiterung (Berlin/Hamburg/Wien/Frankfurt) dadurch für JEDE
+   * Venue außerhalb Münchens falsch, nicht nur ungenau: eine Berliner Venue
+   * bekam bei jeder Fallback-Suche München als Suchbegriff mitgegeben.
+   * `usesCityContext: true` löst den Kontext stattdessen live pro Zeile über
+   * die tatsächliche city_id auf (siehe resolveCityName()) — nur `venues`
+   * hat diese Spalte; `festivals` (weiter unten) hat keine und bleibt
+   * bewusst context-frei statt weiterhin fälschlich auf München zu zeigen. */
+  usesCityContext?: boolean;
   /** Spalte in event_participants, die auf diese Entität verweist — nur
    * für Personen/Ensembles gesetzt (Priorität 2b, siehe Datei-Kommentar). */
   participantColumn?: "person_id" | "ensemble_id";
@@ -212,7 +220,7 @@ const ENTITY_KINDS: EntityKind[] = [
     table: "venues",
     originType: "venue",
     nameColumn: "name",
-    queryContext: "München",
+    usesCityContext: true,
   },
   {
     table: "persons",
@@ -231,9 +239,27 @@ const ENTITY_KINDS: EntityKind[] = [
     table: "festivals",
     originType: "festival",
     nameColumn: "name",
-    queryContext: "München",
   },
 ];
+
+// Klein (aktuell 5 Städte) und ändert sich pro Isolate-Lebensdauer praktisch
+// nie — ein einfacher modulweiter Cache spart die N+1-Abfrage über den
+// gesamten Batch-Lauf hinweg, ohne jede Aufrufer-Funktion zum Vorab-Laden
+// aller city_ids umzubauen.
+const cityNameCache = new Map<string, string | null>();
+
+async function resolveCityName(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  cityId: string | null | undefined,
+): Promise<string | undefined> {
+  if (!cityId) return undefined;
+  if (cityNameCache.has(cityId)) return cityNameCache.get(cityId) ?? undefined;
+  const { data } = await supabase.from("regions").select("name").eq("id", cityId).maybeSingle();
+  const name = (data?.name as string | undefined) ?? null;
+  cityNameCache.set(cityId, name);
+  return name ?? undefined;
+}
 
 /** Nächste bevorstehende Veranstaltung, bei der diese Person/dieses
  * Ensemble laut event_participants mitwirkt — für Priorität 2b. Liefert
@@ -940,10 +966,11 @@ async function tryWikidataFallback(
   id: string,
   name: string,
   errors: string[],
+  queryContext: string | undefined,
 ): Promise<"queued" | "error" | "not_found"> {
   let candidate: Awaited<ReturnType<typeof searchWikidataImage>> = null;
   for (const variant of nameSearchVariants(name)) {
-    candidate = await searchWikidataImage(variant, kind.queryContext);
+    candidate = await searchWikidataImage(variant, queryContext);
     if (candidate) break;
   }
   if (!candidate) return "not_found";
@@ -1008,8 +1035,9 @@ async function tryMultiSourceWebImageFallback(
   id: string,
   name: string,
   errors: string[],
+  queryContext: string | undefined,
 ): Promise<boolean> {
-  const context = kind.queryContext ? ` ${kind.queryContext}` : "";
+  const context = queryContext ? ` ${queryContext}` : "";
   const typeTerm = kind.originType === "person"
     ? "Musiker Künstler Porträt"
     : kind.originType === "ensemble"
@@ -1138,7 +1166,7 @@ async function enrichEntityKind(
   // Entitäten kommen nun zuverlässig zuerst.
   let rowQuery = supabase
     .from(kind.table)
-    .select(`id, ${kind.nameColumn}, website_url`)
+    .select(`id, ${kind.nameColumn}, website_url${kind.usesCityContext ? ", city_id" : ""}`)
     .is("photo_url", null)
     .order("image_search_checked_at", { ascending: true, nullsFirst: true })
     // Innerhalb desselben Queue-Alters zuerst Datensätze mit offizieller
@@ -1176,6 +1204,13 @@ async function enrichEntityKind(
     const name = row[kind.nameColumn] as string;
     const websiteUrl = row.website_url as string | null;
     if (!name?.trim()) continue;
+    // Bug-Fund (siehe EntityKind.usesCityContext-Kommentar): pro Zeile die
+    // tatsächliche Stadt auflösen statt eines für die ganze Entitäts-Art
+    // fest hinterlegten Namens — sonst bekam z.B. eine Berliner Venue bei
+    // jeder Fallback-Suche "München" als Suchkontext mitgegeben.
+    const queryContext = kind.usesCityContext
+      ? await resolveCityName(supabase, row.city_id as string | null | undefined)
+      : undefined;
 
     try {
       // Ein gezielter manueller Nachlauf ist idempotent: Existiert bereits
@@ -1493,9 +1528,7 @@ async function enrichEntityKind(
       if (!kind.useWikipediaFallback) {
         let candidate: Awaited<ReturnType<typeof searchCommonsImage>> = null;
         for (const variant of nameSearchVariants(name)) {
-          const query = kind.queryContext
-            ? `${variant} ${kind.queryContext}`
-            : variant;
+          const query = queryContext ? `${variant} ${queryContext}` : variant;
           candidate = await searchCommonsImage(query);
           if (candidate) break;
         }
@@ -1555,10 +1588,11 @@ async function enrichEntityKind(
         id,
         name,
         errors,
+        queryContext,
       );
       if (wikidataOutcome === "queued") queuedForReview++;
       if (wikidataOutcome !== "not_found") continue;
-      const webQueued = await tryMultiSourceWebImageFallback(supabase, kind, id, name, errors);
+      const webQueued = await tryMultiSourceWebImageFallback(supabase, kind, id, name, errors, queryContext);
       if (webQueued) {
         queuedForReview++;
         continue;
@@ -1604,7 +1638,7 @@ async function discoverMissingEntityWebsites(
 
   let discoveryQuery = supabase
     .from(kind.table)
-    .select(`id, ${kind.nameColumn}`)
+    .select(`id, ${kind.nameColumn}${kind.usesCityContext ? ", city_id" : ""}`)
     .is("website_url", null)
     .is("photo_url", null);
   if (entityIds.length > 0) discoveryQuery = discoveryQuery.in("id", entityIds);
@@ -1619,9 +1653,12 @@ async function discoverMissingEntityWebsites(
     const id = row.id as string;
     const name = row[kind.nameColumn] as string;
     if (!name?.trim()) continue;
+    const queryContext = kind.usesCityContext
+      ? await resolveCityName(supabase, row.city_id as string | null | undefined)
+      : undefined;
 
-    const query = kind.queryContext
-      ? `${name} ${kind.queryContext} offizielle Website`
+    const query = queryContext
+      ? `${name} ${queryContext} offizielle Website`
       : `${name} offizielle Website`;
 
     let topResultUrl: string | null = null;
@@ -1656,9 +1693,10 @@ const EVENT_CONCURRENCY = 4;
 
 /** Events ganz ohne website_url/ticket_url: Geminis Google-Search-
  * Grounding (_shared/geminiGroundedSearch.ts) versucht, eine passende
- * Seite zu finden (Titel + Venue-Name + "München Tickets") — auf
- * Nutzerwunsch ("Fehlende Website-/Ticket-URLs müssen automatisch
- * nachrecherchiert werden"). Gefundene URL wird als website_url
+ * Seite zu finden (Titel + Venue-Name + tatsächliche Venue-Stadt +
+ * "Tickets" — vor dem Bug-Fund unten fest "München", unabhängig von der
+ * Veranstaltungsstadt) — auf Nutzerwunsch ("Fehlende Website-/Ticket-URLs
+ * müssen automatisch nachrecherchiert werden"). Gefundene URL wird als website_url
  * gespeichert (auch wenn sich daraus kein Bild extrahieren lässt — die URL
  * selbst ist der primäre Gewinn, ein Bild ist ein Bonus obendrauf).
  *
@@ -1692,7 +1730,7 @@ async function discoverMissingEventUrls(
 
   const { data: events } = await supabase
     .from("events")
-    .select("id, title, venues(name)")
+    .select("id, title, venues(name, city_id)")
     .is("website_url", null)
     .is("ticket_url", null)
     .in("status", ["scheduled", "sold_out", "postponed"])
@@ -1701,13 +1739,17 @@ async function discoverMissingEventUrls(
     .limit(EVENT_URL_DISCOVERY_LIMIT);
 
   const rows = (events ?? []) as Array<
-    { id: string; title: string; venues: { name: string } | null }
+    { id: string; title: string; venues: { name: string; city_id: string | null } | null }
   >;
   let found = 0;
 
   for (const event of rows) {
     const venueName = event.venues?.name ?? "";
-    const query = `${event.title} ${venueName} München Tickets`;
+    // Bug-Fund (siehe EntityKind.usesCityContext-Kommentar): "München" war
+    // hier fest im Suchtext verdrahtet, unabhängig von der tatsächlichen
+    // Stadt des Venues — betraf jede Veranstaltung außerhalb Münchens.
+    const cityName = await resolveCityName(supabase, event.venues?.city_id);
+    const query = `${event.title} ${venueName}${cityName ? ` ${cityName}` : ""} Tickets`;
 
     let topResultUrl: string | null = null;
     let searchFailed = false;
