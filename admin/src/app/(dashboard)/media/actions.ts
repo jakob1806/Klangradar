@@ -323,27 +323,43 @@ export async function enrichEntityImages(): Promise<EnrichImagesResult> {
     return body.events;
   }
 
-  let entries: Array<readonly [string, EnrichmentKindResult]>;
-  let events: EventEnrichmentResult;
-  try {
-    [entries, events] = await Promise.all([
-      Promise.all([
-        runKind("person", "persons"),
-        runKind("ensemble", "ensembles"),
-      ]),
-      runEvents(),
-    ]);
-  } catch (err) {
+  // allSettled statt allSettled+catch über alles: die Event-Suche macht
+  // reale externe Seitenaufrufe und ist dadurch anfälliger für einen
+  // Timeout als person/ensemble (raceImageSources, parallele Quellen,
+  // siehe runKind) — ein Timeout dort soll nicht auch die längst fertigen
+  // person/ensemble-Ergebnisse verwerfen ("Bildsuche fehlgeschlagen" für
+  // alles, obwohl nur ein Teil betroffen war).
+  const [personEnsembleResult, eventsResult] = await Promise.allSettled([
+    Promise.all([
+      runKind("person", "persons"),
+      runKind("ensemble", "ensembles"),
+    ]),
+    runEvents(),
+  ]);
+
+  if (personEnsembleResult.status === "rejected") {
     return {
       status: "failed",
-      error: `Bildsuche fehlgeschlagen: ${err instanceof Error ? err.message : String(err)}`,
+      error: `Bildsuche fehlgeschlagen: ${
+        personEnsembleResult.reason instanceof Error ? personEnsembleResult.reason.message : String(personEnsembleResult.reason)
+      }`,
     };
   }
 
   revalidatePath("/media");
   return {
     status: "ok",
-    perKind: Object.fromEntries(entries),
-    events,
+    perKind: Object.fromEntries(personEnsembleResult.value),
+    events: eventsResult.status === "fulfilled"
+      ? eventsResult.value
+      : {
+        found: 0,
+        updated: 0,
+        errors: [
+          `Event-Bildsuche fehlgeschlagen: ${
+            eventsResult.reason instanceof Error ? eventsResult.reason.message : String(eventsResult.reason)
+          }`,
+        ],
+      },
   };
 }

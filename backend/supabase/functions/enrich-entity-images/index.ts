@@ -414,14 +414,21 @@ Deno.serve(async (req) => {
   }
   // Nutzerwunsch: Events sollen über denselben "automatisch suchen"-Button
   // wie Personen/Ensembles laufen, nicht nur über den täglichen "all"-Cron
-  // — deshalb reagieren alle drei Event-Schritte jetzt zusätzlich auf
-  // type: "event", nicht mehr ausschließlich auf "all".
-  const runsEvents = requestedType === "all" || requestedType === "event";
-  const eventHealthCheck = runsEvents
+  // — deshalb reagiert enrichEventCovers() jetzt zusätzlich auf
+  // type: "event". Health-Check (bis zu 15 Events, sequenzielle
+  // Erreichbarkeitsprüfung externer Bild-URLs) und URL-Discovery (bis zu 5
+  // Events, je bis zu zwei sequenzielle externe Such-API-Aufrufe) bleiben
+  // bewusst NUR im "all"-Cron: live beobachtet, dass genau diese beiden
+  // zusätzlichen sequenziellen Schritte den interaktiven Button-Klick über
+  // das Client-Timeout trieben ("aborted due to timeout") — ohne
+  // wartenden Nutzer im Cron ist die zusätzliche Laufzeit unkritisch.
+  const runsEventMaintenance = requestedType === "all";
+  const runsEventCovers = requestedType === "all" || requestedType === "event";
+  const eventHealthCheck = runsEventMaintenance
     ? await healthCheckEventImages(supabase)
     : { checked: 0, brokenCleared: 0 };
 
-  const eventUrlDiscovery = runsEvents
+  const eventUrlDiscovery = runsEventMaintenance
     ? await discoverMissingEventUrls(supabase)
     : { attempted: 0, found: 0 };
 
@@ -466,7 +473,7 @@ Deno.serve(async (req) => {
       body.fastFallback === true,
     );
   }
-  const eventResult = runsEvents
+  const eventResult = runsEventCovers
     ? await enrichEventCovers(supabase, limit)
     : { found: 0, updated: 0, errors: [] };
 
