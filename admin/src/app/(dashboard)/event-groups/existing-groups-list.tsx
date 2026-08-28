@@ -7,11 +7,17 @@ import { formatMunichDateTime } from "@/lib/munich-time";
 import { deleteEventGroup } from "./actions";
 import { MergeGroupControl } from "./merge-group-control";
 
-interface GroupRow {
+export interface GroupRow {
   id: string;
   title: string;
   created_at: string;
-  events: { id: string; title: string; start_datetime: string; venues: { name: string } | null }[];
+  events: {
+    id: string;
+    title: string;
+    start_datetime: string;
+    venues: { name: string } | null;
+    works: string[];
+  }[];
 }
 
 // Client-Komponente statt Server-seitiger Filterung, weil die Gruppenliste
@@ -94,6 +100,13 @@ export function ExistingGroupsList({ groups }: { groups: GroupRow[] }) {
                 {g.events.map((e) => (
                   <li key={e.id}>
                     {e.title} · {formatDate(e.start_datetime)}
+                    {e.venues?.name && <span className="text-neutral-400"> · {e.venues.name}</span>}
+                    {e.works.length > 0 && (
+                      <details className="ml-1 inline-block align-middle">
+                        <summary className="inline cursor-pointer text-xs font-medium text-[#0071e3]">Programm</summary>
+                        <span className="ml-1 text-xs text-neutral-500">{e.works.join(" · ")}</span>
+                      </details>
+                    )}
                   </li>
                 ))}
               </ul>
