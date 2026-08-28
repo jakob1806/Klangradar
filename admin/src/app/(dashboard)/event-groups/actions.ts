@@ -13,9 +13,29 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { cleanupEventGroupIfEmpty } from "@/lib/event-group-cleanup";
 
+/** Nutzeranfrage: "es dürfen keine gruppen entstehen, wenn die aufführungen
+ * in unterschiedlichen städten sind" — harte Schranke direkt vor jeder
+ * schreibenden Gruppen-Aktion, unabhängig davon, ob die Auswahl über einen
+ * (bereits city-sicheren) Vorschlag oder eine andere Stelle zustande kam.
+ * Events ohne city_id (sollte laut Trigger nicht vorkommen, siehe
+ * 20261031000002) werden ignoriert statt blockierend zu wirken. */
+async function assertSameCity(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  eventIds: string[],
+) {
+  if (eventIds.length < 2) return;
+  const { data, error } = await supabase.from("events").select("city_id").in("id", eventIds);
+  if (error) throw new Error(error.message);
+  const cityIds = new Set((data ?? []).map((e) => e.city_id).filter((c): c is string => !!c));
+  if (cityIds.size > 1) {
+    throw new Error("Diese Termine liegen in unterschiedlichen Städten und können nicht gruppiert werden.");
+  }
+}
+
 export async function createEventGroup(name: string, eventIds: string[]) {
   if (!name.trim() || eventIds.length === 0) return;
   const supabase = await createClient();
+  await assertSameCity(supabase, eventIds);
 
   const { data: program, error } = await supabase
     .from("programs")
@@ -33,9 +53,34 @@ export async function createEventGroup(name: string, eventIds: string[]) {
   revalidatePath("/event-groups");
 }
 
+/** Nutzeranfrage: "mehrere auswählen können und diese direkt entweder
+ * ablehnen oder als gruppe anlegen lassen" — markiert die abgelehnten
+ * Events, damit suggestEventGroups() sie beim nächsten Laden nicht erneut
+ * vorschlägt (siehe Migration 20261103000001). Kein Löschen/Verstecken der
+ * Events selbst, nur der Serien-Vorschlag wird unterdrückt. */
+export async function dismissEventGroupSuggestion(eventIds: string[]) {
+  if (eventIds.length === 0) return;
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("events")
+    .update({ group_suggestion_dismissed_at: new Date().toISOString() })
+    .in("id", eventIds);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/event-groups");
+}
+
 export async function addEventToGroup(groupId: string, eventId: string) {
   if (!eventId) return;
   const supabase = await createClient();
+
+  const { data: existingMembers, error: membersError } = await supabase
+    .from("events")
+    .select("id")
+    .eq("program_id", groupId);
+  if (membersError) throw new Error(membersError.message);
+  await assertSameCity(supabase, [...(existingMembers ?? []).map((e) => e.id), eventId]);
+
   const { error } = await supabase.from("events").update({ program_id: groupId }).eq("id", eventId);
   if (error) throw new Error(error.message);
 
@@ -73,6 +118,13 @@ async function mergeOneGroup(
   sourceGroupId: string,
   targetGroupId: string,
 ) {
+  const { data: members, error: membersError } = await supabase
+    .from("events")
+    .select("id, program_id")
+    .in("program_id", [sourceGroupId, targetGroupId]);
+  if (membersError) throw new Error(membersError.message);
+  await assertSameCity(supabase, (members ?? []).map((e) => e.id));
+
   const { error: moveError } = await supabase
     .from("events")
     .update({ program_id: targetGroupId })
