@@ -373,7 +373,10 @@ Deno.serve(async (req) => {
   const selectedKinds = requestedType === "all"
     ? ENTITY_KINDS
     : ENTITY_KINDS.filter((kind) => kind.originType === requestedType);
-  if (requestedType !== "all" && selectedKinds.length === 0) {
+  // "event" ist bewusst kein ENTITY_KINDS-Eintrag (eigene Tabellenform,
+  // image_urls statt photo_url) — selectedKinds bleibt dafür leer, das ist
+  // kein Fehler: der Event-Zweig weiter unten läuft unabhängig davon.
+  if (requestedType !== "all" && requestedType !== "event" && selectedKinds.length === 0) {
     return jsonResponse({ error: `Ungültiger Typ: ${requestedType}` }, 400);
   }
 
@@ -409,11 +412,16 @@ Deno.serve(async (req) => {
       ? { checked: 0, brokenCleared: 0 }
       : await healthCheckEntityKind(supabase, kind);
   }
-  const eventHealthCheck = requestedType === "all"
+  // Nutzerwunsch: Events sollen über denselben "automatisch suchen"-Button
+  // wie Personen/Ensembles laufen, nicht nur über den täglichen "all"-Cron
+  // — deshalb reagieren alle drei Event-Schritte jetzt zusätzlich auf
+  // type: "event", nicht mehr ausschließlich auf "all".
+  const runsEvents = requestedType === "all" || requestedType === "event";
+  const eventHealthCheck = runsEvents
     ? await healthCheckEventImages(supabase)
     : { checked: 0, brokenCleared: 0 };
 
-  const eventUrlDiscovery = requestedType === "all"
+  const eventUrlDiscovery = runsEvents
     ? await discoverMissingEventUrls(supabase)
     : { attempted: 0, found: 0 };
 
@@ -458,7 +466,7 @@ Deno.serve(async (req) => {
       body.fastFallback === true,
     );
   }
-  const eventResult = requestedType === "all"
+  const eventResult = runsEvents
     ? await enrichEventCovers(supabase, limit)
     : { found: 0, updated: 0, errors: [] };
 

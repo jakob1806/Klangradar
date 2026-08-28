@@ -1,13 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/proxy";
 
-const PUBLIC_PATHS = ["/login", "/auth/callback", "/no-access"];
+const PUBLIC_PATHS = ["/login", "/auth/callback", "/no-access", "/impressum", "/datenschutz"];
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const { response, user, supabase } = await updateSession(request);
 
-  if (PUBLIC_PATHS.some((path) => pathname.startsWith(path))) {
+  // "/" braucht einen exakten Vergleich statt startsWith — sonst wäre
+  // JEDER Pfad ("/events" etc.) über "/".startsWith("/") mit-öffentlich.
+  if (pathname === "/" || PUBLIC_PATHS.some((path) => pathname.startsWith(path))) {
     return response;
   }
 

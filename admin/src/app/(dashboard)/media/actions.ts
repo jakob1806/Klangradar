@@ -204,10 +204,16 @@ export interface EnrichImagesResult {
     queuedForReview: number;
     errors: string[];
   }>;
+  events?: {
+    found: number;
+    updated: number;
+    errors: string[];
+  };
   error?: string;
 }
 
 type EnrichmentKindResult = NonNullable<EnrichImagesResult["perKind"]>[string];
+type EventEnrichmentResult = NonNullable<EnrichImagesResult["events"]>;
 
 function isEnrichmentKindResult(value: unknown): value is EnrichmentKindResult {
   if (!value || typeof value !== "object") return false;
@@ -218,36 +224,65 @@ function isEnrichmentKindResult(value: unknown): value is EnrichmentKindResult {
     && Array.isArray(row.errors);
 }
 
-// Der manuelle Lauf auf der Medienseite arbeitet bewusst nur die beiden
-// großen Profilbild-Lücken ab. Die übrigen Bildarten behalten ihre eigenen
-// Recherchewege; so verbraucht ein Klick nicht wieder fast sein gesamtes
-// Zeitbudget für Venues/Festivals, während Personen und Ensembles liegen
-// bleiben. Beide Edge-Aufrufe laufen innerhalb dieser einen Server Action
-// parallel (Next dispatcht mehrere Client-Actions dagegen sequenziell).
+function isEventEnrichmentResult(value: unknown): value is EventEnrichmentResult {
+  if (!value || typeof value !== "object") return false;
+  const row = value as Record<string, unknown>;
+  return typeof row.found === "number"
+    && typeof row.updated === "number"
+    && Array.isArray(row.errors);
+}
+
+// Reicht den echten Zugriffstoken der eingeloggten Person durch, NICHT den
+// Anon-Key (der frühere Fehler hier: requireInternalAuth() erkennt im
+// Anon-Key keine echte Nutzersession und lehnt mit 403 "Nicht berechtigt"
+// ab, siehe backend/supabase/functions/_shared/internalAuth.ts). Gleiches
+// Muster wie image-research/actions.ts's authHeaders() — funktioniert
+// unabhängig davon, ob das für Cron/Server-zu-Server-Aufrufe gedachte
+// INTERNAL_FUNCTION_SECRET in Vercel und Supabase synchron gesetzt ist.
+async function authHeaders() {
+  const supabase = await createClient();
+  const [{ data: userData, error: userError }, { data: sessionData, error: sessionError }] = await Promise.all([
+    supabase.auth.getUser(),
+    supabase.auth.getSession(),
+  ]);
+  const accessToken = sessionData.session?.access_token;
+  if (userError || sessionError || !userData.user || userData.user.is_anonymous || !accessToken) {
+    throw new Error("Nicht angemeldet.");
+  }
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+  return {
+    "Content-Type": "application/json",
+    apikey: anonKey,
+    Authorization: `Bearer ${accessToken}`,
+  };
+}
+
+// Der manuelle Lauf auf der Medienseite arbeitet bewusst nur die großen
+// Profilbild-Lücken ab (Personen, Ensembles) sowie Titelbilder für
+// anstehende Events. Die übrigen Bildarten (Venues, Festivals) behalten
+// ihre eigenen Recherchewege; so verbraucht ein Klick nicht wieder fast
+// sein gesamtes Zeitbudget dafür, während Personen/Ensembles/Events liegen
+// bleiben. Alle drei Edge-Aufrufe laufen innerhalb dieser einen Server
+// Action parallel (Next dispatcht mehrere Client-Actions dagegen
+// sequenziell).
 export async function enrichEntityImages(): Promise<EnrichImagesResult> {
   const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!baseUrl || !anonKey) {
+  if (!baseUrl) {
     return { status: "failed", error: "Supabase-Konfiguration fehlt." };
   }
-  // Eigene Konstanten halten die erfolgte Null-Prüfung auch innerhalb der
-  // verschachtelten runKind()-Funktion für TypeScript eindeutig fest.
   const functionUrl = `${baseUrl}/functions/v1/enrich-entity-images`;
-  const publicAnonKey = anonKey;
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { status: "failed", error: "Nicht angemeldet." };
+  let headers: Record<string, string>;
+  try {
+    headers = await authHeaders();
+  } catch (err) {
+    return { status: "failed", error: err instanceof Error ? err.message : String(err) };
+  }
 
   async function runKind(type: "person" | "ensemble", table: "persons" | "ensembles") {
     const res = await fetch(functionUrl, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: publicAnonKey,
-        Authorization: `Bearer ${publicAnonKey}`,
-        "x-internal-secret": process.env.INTERNAL_FUNCTION_SECRET ?? "",
-      },
+      headers,
       body: JSON.stringify({ type, limit: 8 }),
       signal: AbortSignal.timeout(90_000),
     });
@@ -262,11 +297,32 @@ export async function enrichEntityImages(): Promise<EnrichImagesResult> {
     return [table, result] as const;
   }
 
+  async function runEvents(): Promise<EventEnrichmentResult> {
+    const res = await fetch(functionUrl, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ type: "event", limit: 8 }),
+      signal: AbortSignal.timeout(90_000),
+    });
+    const body = await res.json() as Record<string, unknown>;
+    if (!res.ok || body.error) {
+      throw new Error((body.error as string) ?? `event: HTTP ${res.status}`);
+    }
+    if (!isEventEnrichmentResult(body.events)) {
+      throw new Error("event: Unerwartete Antwort der Bildsuche.");
+    }
+    return body.events;
+  }
+
   let entries: Array<readonly [string, EnrichmentKindResult]>;
+  let events: EventEnrichmentResult;
   try {
-    entries = await Promise.all([
-      runKind("person", "persons"),
-      runKind("ensemble", "ensembles"),
+    [entries, events] = await Promise.all([
+      Promise.all([
+        runKind("person", "persons"),
+        runKind("ensemble", "ensembles"),
+      ]),
+      runEvents(),
     ]);
   } catch (err) {
     return {
@@ -279,5 +335,6 @@ export async function enrichEntityImages(): Promise<EnrichImagesResult> {
   return {
     status: "ok",
     perKind: Object.fromEntries(entries),
+    events,
   };
 }
