@@ -114,14 +114,31 @@ export default async function EventsPage({
     }
   }
 
-  let statusCountsQuery = supabase.from("events").select("status");
-  if (cityFilter.cityId) statusCountsQuery = statusCountsQuery.eq("city_id", cityFilter.cityId);
-  const { data: statusCounts } = await statusCountsQuery;
-  const countByStatus = new Map<string, number>();
-  for (const row of statusCounts ?? []) {
-    countByStatus.set(row.status, (countByStatus.get(row.status) ?? 0) + 1);
+  // Bugfix: vorher select("status") ohne head:true — PostgREST deckelt
+  // zurückgegebene Zeilen serverseitig auf 1000 (Supabase-Default
+  // db.max_rows), unabhängig von der tatsächlichen Trefferzahl. Bei mehr
+  // als 1000 Events zeigte "Alle" dadurch immer genau 1000, und welche
+  // 1000 Zeilen zurückkamen war ohne ORDER BY nicht garantiert — "Entwürfe"
+  // konnte 0 zeigen, obwohl Entwürfe existierten, wenn keiner davon unter
+  // den ersten (arbiträren) 1000 Zeilen war. count:"exact" mit head:true
+  // liefert die echte COUNT(*) über den Content-Range-Header, ganz ohne
+  // Zeilen zu übertragen — dadurch immun gegen das 1000er-Limit.
+  async function countEvents(status?: string) {
+    let q = supabase.from("events").select("id", { count: "exact", head: true });
+    if (status) q = q.eq("status", status);
+    if (cityFilter.cityId) q = q.eq("city_id", cityFilter.cityId);
+    const { count } = await q;
+    return count ?? 0;
   }
-  const totalCount = statusCounts?.length ?? 0;
+  const [countByStatusEntries, totalCount] = await Promise.all([
+    Promise.all(
+      STATUS_TABS.filter((t) => t.value !== "all").map(
+        async (tab) => [tab.value, await countEvents(tab.value)] as const,
+      ),
+    ),
+    countEvents(),
+  ]);
+  const countByStatus = new Map(countByStatusEntries);
 
   const totalPages = count ? Math.ceil(count / PAGE_SIZE) : 1;
   const qs = (overrides: { status?: string }) => {
