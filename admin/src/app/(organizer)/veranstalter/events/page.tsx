@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
 import { formatMunichDateTime } from "@/lib/munich-time";
+import { getEventOrganizerOptions } from "../event-organizer-context";
 
 export const dynamic = "force-dynamic";
 
@@ -29,9 +30,8 @@ interface EventRow {
 export default async function VeranstalterEventsPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  const { data: allClaims } = await supabase.from("entity_claims").select("entity_id, entity_type").eq("user_id", user!.id).eq("status", "approved");
-  const organizerIds = (allClaims ?? []).filter((claim) => claim.entity_type === "organizer").map((claim) => claim.entity_id as string);
-  const profileClaims = (allClaims ?? []).filter((claim) => claim.entity_type !== "organizer");
+  const organizers = await getEventOrganizerOptions();
+  const organizerIds = organizers.map((organizer) => organizer.id);
   const { data } = organizerIds.length ? await supabase
     .from("events")
     .select("id, title, start_datetime, status, venues(name), image_urls")
@@ -49,11 +49,10 @@ export default async function VeranstalterEventsPage() {
         {organizerIds.length > 0 && <Link href="/veranstalter/events/new" className="rounded-full bg-[#0071e3] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#0077ed]">Neu anlegen</Link>}
       </div>
 
-      <p className="-mt-3 mb-6 text-sm text-[#86868b]">Nur kommende Events deiner beanspruchten Institutionen, chronologisch ab heute.</p>
+      <p className="-mt-3 mb-6 text-sm text-[#86868b]">Nur kommende Events deiner beanspruchten Profile, chronologisch ab heute.</p>
       {events.length === 0 ? (
-        organizerIds.length === 0 && profileClaims.length > 0 ? (
-          <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-950"><p className="font-medium">Dein Claim ist genehmigt.</p><p className="mt-1">Du verwaltest bereits ein Profil (z. B. Ensemble, Person oder Venue). Eigene Events können nur einer beanspruchten Institution zugeordnet werden.</p><Link href="/veranstalter" className="mt-3 inline-block font-medium text-[#0071e3] hover:underline">Zu meinen genehmigten Profilen →</Link></div>
-        ) : <p className="text-sm text-[#86868b]">Noch keine Events. Für das Anlegen eigener Events brauchst du zusätzlich eine genehmigte Institution unter <Link href="/veranstalter/claim" className="font-medium text-[#0071e3] hover:underline">Beanspruchen</Link>.</p>
+        organizerIds.length === 0 ? <p className="text-sm text-[#86868b]">Noch keine Events. Beanspruche zuerst ein Profil unter <Link href="/veranstalter/claim" className="font-medium text-[#0071e3] hover:underline">Beanspruchen</Link>.</p>
+        : <p className="text-sm text-[#86868b]">Noch keine kommenden Events. Lege dein erstes Event an.</p>
       ) : (
         <div className="overflow-hidden rounded-xl border border-black/[0.06] bg-white">
           <table className="w-full text-sm">

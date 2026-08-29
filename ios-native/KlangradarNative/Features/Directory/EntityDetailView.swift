@@ -241,7 +241,8 @@ struct EntityDetailView: View {
 
     @ViewBuilder private func metadata(_ detail: EntityDetail) -> some View {
         let rows = metadataRows(detail)
-        if !rows.isEmpty || detail.fields.string("website_url") != nil {
+        let socialLinks = detail.fields.object("social_links") ?? [:]
+        if !rows.isEmpty || detail.fields.string("website_url") != nil || !socialLinks.isEmpty {
             section("Informationen") {
                 LiquidGlassSurface(cornerRadius: 20) {
                     VStack(spacing: 12) {
@@ -251,9 +252,39 @@ struct EntityDetailView: View {
                         if let raw = detail.fields.string("website_url"), let url = URL(string: raw) {
                             Link("Offizielle Website", destination: url).frame(maxWidth: .infinity, alignment: .leading)
                         }
+                        ForEach(socialLinks.keys.sorted(), id: \.self) { platform in
+                            if let raw = socialLinks.string(platform), let url = URL(string: raw) {
+                                Link(destination: url) {
+                                    Label(socialLabel(platform), systemImage: socialSymbol(platform))
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        }
                     }.padding(18)
                 }
             }
+        }
+    }
+
+    private func socialLabel(_ platform: String) -> String {
+        switch platform.lowercased() {
+        case "instagram": return "Instagram"
+        case "facebook": return "Facebook"
+        case "youtube": return "YouTube"
+        case "spotify": return "Spotify"
+        case "tiktok": return "TikTok"
+        case "linkedin": return "LinkedIn"
+        default: return platform.prefix(1).uppercased() + platform.dropFirst()
+        }
+    }
+
+    private func socialSymbol(_ platform: String) -> String {
+        switch platform.lowercased() {
+        case "instagram": return "camera"
+        case "facebook", "linkedin": return "person.2"
+        case "youtube": return "play.rectangle"
+        case "spotify", "tiktok": return "music.note"
+        default: return "link"
         }
     }
 

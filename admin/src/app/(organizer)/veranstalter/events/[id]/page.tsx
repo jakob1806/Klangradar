@@ -1,9 +1,9 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { resolveEntityNames } from "@/lib/entity-tables";
 import { OrganizerEventForm, type OrganizerEventFormValues } from "../../organizer-event-form";
 import { updateOrganizerEvent } from "../actions";
 import { EventImageUpload } from "../../event-image-upload";
+import { getEventOrganizerOptions } from "../../event-organizer-context";
 
 export const dynamic = "force-dynamic";
 
@@ -51,23 +51,11 @@ export default async function EditOrganizerEventPage({ params }: { params: Promi
 
   if (!event) notFound();
 
-  const [{ data: claims }, { data: genres }, { data: eventGenres }] = await Promise.all([
-    supabase
-      .from("entity_claims")
-      .select("entity_id")
-      .eq("entity_type", "organizer")
-      .eq("user_id", user!.id)
-      .eq("status", "approved"),
+  const [organizers, { data: genres }, { data: eventGenres }] = await Promise.all([
+    getEventOrganizerOptions(),
     supabase.from("genres").select("id, label_de").order("sort_order"),
     supabase.from("event_genres").select("genre_id").eq("event_id", id),
   ]);
-
-  const organizerIds = [...new Set([...(claims ?? []).map((c) => c.entity_id as string)])];
-  const names = await resolveEntityNames(
-    supabase,
-    organizerIds.map((oid) => ({ entityType: "organizer" as const, entityId: oid })),
-  );
-  const organizers = organizerIds.map((oid) => ({ id: oid, name: names.get(`organizer:${oid}`) ?? "(unbekannt)" }));
 
   const initial: OrganizerEventFormValues = {
     slug: event.slug,

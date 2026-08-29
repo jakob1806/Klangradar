@@ -22,7 +22,7 @@ export default async function EditEnsemblePage({
     supabase
       .from("ensembles")
       .select(
-        "slug, name, type, description_de, founded_year, member_count, home_venue_id, parent_ensemble_id, family_role, is_family_root, is_resolution_placeholder, website_url, photo_url, avatar_crop_x, avatar_crop_y, avatar_crop_width, avatar_crop_height, is_verified",
+        "slug, name, type, description_de, founded_year, member_count, home_venue_id, parent_ensemble_id, family_role, is_family_root, is_resolution_placeholder, website_url, social_links, photo_url, avatar_crop_x, avatar_crop_y, avatar_crop_width, avatar_crop_height, is_verified",
       )
       .eq("id", id)
       .maybeSingle<EnsembleFormValues>(),

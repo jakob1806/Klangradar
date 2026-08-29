@@ -11,6 +11,8 @@ const _socialIcons = {
   'x': Icons.alternate_email_rounded,
   'youtube': Icons.play_circle_outline_rounded,
   'spotify': Icons.music_note_rounded,
+  'tiktok': Icons.music_note_rounded,
+  'linkedin': Icons.business_center_outlined,
 };
 
 /// Website/Wikipedia/Social-Links als Icon-Reihe — website_url,

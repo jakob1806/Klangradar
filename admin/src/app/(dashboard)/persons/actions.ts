@@ -14,6 +14,8 @@ function readPersonFields(formData: FormData) {
   const first_name = String(formData.get("first_name") ?? "").trim();
   const middle_name = String(formData.get("middle_name") ?? "").trim() || null;
   const last_name = String(formData.get("last_name") ?? "").trim();
+  let social_links: Record<string, string> = {};
+  try { social_links = JSON.parse(String(formData.get("social_links") ?? "{}")); } catch { /* invalid data is safely ignored */ }
   return {
     slug: String(formData.get("slug") ?? "").trim(),
     first_name,
@@ -30,6 +32,7 @@ function readPersonFields(formData: FormData) {
     is_deceased: formData.get("is_deceased") === "on",
     biography_de: String(formData.get("biography_de") ?? "").trim() || null,
     website_url: String(formData.get("website_url") ?? "").trim() || null,
+    social_links,
     photo_url: String(formData.get("photo_url") ?? "").trim() || null,
     member_of_ensemble_id: String(formData.get("member_of_ensemble_id") ?? "") || null,
     is_verified: formData.get("is_verified") === "on",

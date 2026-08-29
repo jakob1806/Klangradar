@@ -8,11 +8,20 @@ import { munichLocalToISOString } from "@/lib/munich-time";
 async function getApprovedOrganizerIds(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
   const { data } = await supabase
     .from("entity_claims")
-    .select("entity_id")
-    .eq("entity_type", "organizer")
+    .select("entity_id, entity_type")
     .eq("user_id", userId)
     .eq("status", "approved");
-  return (data ?? []).map((c) => c.entity_id as string);
+  const directIds = (data ?? []).filter((claim) => claim.entity_type === "organizer").map((claim) => claim.entity_id as string);
+  const profileClaims = (data ?? []).filter((claim) => ["person", "ensemble", "venue"].includes(claim.entity_type));
+  const profileIds = await Promise.all(profileClaims.map(async (claim) => {
+    const { data: contextId, error } = await supabase.rpc("ensure_profile_event_organizer_context", {
+      p_entity_type: claim.entity_type,
+      p_entity_id: claim.entity_id,
+    });
+    if (error) throw new Error(error.message);
+    return contextId as string;
+  }));
+  return [...new Set([...directIds, ...profileIds])];
 }
 
 function readEventFields(formData: FormData) {

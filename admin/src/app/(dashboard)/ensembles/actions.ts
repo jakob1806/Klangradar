@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
 function readEnsembleFields(formData: FormData) {
+  let social_links: Record<string, string> = {};
+  try { social_links = JSON.parse(String(formData.get("social_links") ?? "{}")); } catch { /* invalid data is safely ignored */ }
   return {
     slug: String(formData.get("slug") ?? "").trim(),
     name: String(formData.get("name") ?? "").trim(),
@@ -17,6 +19,7 @@ function readEnsembleFields(formData: FormData) {
     family_role: String(formData.get("family_role") ?? "") || null,
     is_family_root: formData.get("is_family_root") === "on",
     website_url: String(formData.get("website_url") ?? "").trim() || null,
+    social_links,
     photo_url: String(formData.get("photo_url") ?? "").trim() || null,
     is_verified: formData.get("is_verified") === "on",
   };

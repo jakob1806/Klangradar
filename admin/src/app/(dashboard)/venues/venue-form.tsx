@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Field, TextArea, TextInput } from "@/components/form-fields";
 import { ImageUploadField } from "@/components/image-upload-field";
 import { SubmitButton } from "@/components/submit-button";
+import { SocialLinksFields } from "@/components/social-links-fields";
 
 function slugify(value: string) {
   return value
@@ -27,6 +28,7 @@ export interface VenueFormValues {
   lng: number | null;
   capacity: number | null;
   website_url: string | null;
+  social_links: Record<string, string> | null;
   photo_url: string | null;
   city_id: string | null;
 }
@@ -157,6 +159,8 @@ export function VenueForm({
       </div>
 
       <ImageUploadField name="photo_url" initialUrl={initial?.photo_url} entityType="venues" shape="rounded" label="Foto" />
+
+      <SocialLinksFields initial={initial?.social_links} />
 
       <div className="mt-2">
         <SubmitButton>{initial ? "Speichern" : "Venue anlegen"}</SubmitButton>
