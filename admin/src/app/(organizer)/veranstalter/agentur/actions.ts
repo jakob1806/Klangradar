@@ -3,7 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 
-export async function addRosterEntry(_state: { error?: string; success?: true }, formData: FormData) {
+export type RosterActionState = { error?: string; success?: true };
+
+export async function addRosterEntry(_state: RosterActionState, formData: FormData): Promise<RosterActionState> {
   const organizerId = String(formData.get("organizer_id") ?? "");
   const entityType = String(formData.get("entity_type") ?? "");
   const entityId = String(formData.get("entity_id") ?? "");
@@ -14,7 +16,7 @@ export async function addRosterEntry(_state: { error?: string; success?: true },
   const { error } = await supabase.from("organizer_agency_roster").insert({ organizer_id: organizerId, entity_type: entityType, entity_id: entityId, added_by: user.id });
   if (error) return { error: error.code === "23505" ? "Dieses Profil ist bereits im Roster." : error.message };
   revalidatePath("/veranstalter/agentur");
-  return { success: true };
+  return { success: true } as const;
 }
 
 export async function removeRosterEntry(id: string) {
