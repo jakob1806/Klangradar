@@ -37,12 +37,20 @@ export default async function PublicLayout({ children }: { children: React.React
           </span>
           <span className="text-[0.95rem] font-semibold tracking-tight text-[#1d1d1f]">Klangradar</span>
         </Link>
-        <Link
-          href={cta.href}
-          className="rounded-full bg-[#0071e3] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#0077ed] active:scale-[0.985]"
-        >
-          {cta.label}
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/veranstalter"
+            className="rounded-full border border-black/10 px-4 py-2 text-sm font-semibold text-[#48484a] transition hover:bg-black/[0.04] active:scale-[0.985]"
+          >
+            Veranstalterportal
+          </Link>
+          <Link
+            href={cta.href}
+            className="rounded-full bg-[#0071e3] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#0077ed] active:scale-[0.985]"
+          >
+            {cta.label}
+          </Link>
+        </div>
       </header>
 
       <main className="flex-1">{children}</main>

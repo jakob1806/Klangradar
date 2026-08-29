@@ -18,6 +18,7 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirectTo") ?? "/events";
+  const isOrganizerLogin = redirectTo.startsWith("/veranstalter");
 
   const [step, setStep] = useState<"email" | "code">("email");
   const [email, setEmail] = useState("");
@@ -71,7 +72,7 @@ function LoginForm() {
             <Image src="/app-logo.svg" alt="" width={40} height={40} priority />
           </span>
           <p className="text-lg font-semibold tracking-tight">Klangradar</p>
-          <p className="mt-0.5 text-xs text-neutral-500">Redaktions-Dashboard</p>
+          <p className="mt-0.5 text-xs text-neutral-500">{isOrganizerLogin ? "Veranstalterportal" : "Redaktions-Dashboard"}</p>
         </div>
 
         {step === "email" ? (
