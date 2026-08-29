@@ -3,6 +3,9 @@ import { createClient } from "@/lib/supabase/server";
 import { Field, TextArea, TextInput } from "@/components/form-fields";
 import { SubmitButton } from "@/components/submit-button";
 import { ImageUploadField } from "@/components/image-upload-field";
+import { GalleryEditor } from "@/components/entity-gallery/gallery-editor";
+import type { GalleryImage } from "@/lib/gallery-actions";
+import { AvatarCropButton } from "@/components/entity-gallery/avatar-crop-button";
 import {
   EDITABLE_FIELDS_FOR_ENTITY_TYPE,
   NAME_COLUMN_FOR_ENTITY_TYPE,
@@ -71,32 +74,23 @@ export default async function EditEntityProfilePage({
   if (!entity) notFound();
   const entityRecord = entity as unknown as Record<string, unknown>;
   const socialLinks = (entityRecord.social_links ?? {}) as Record<string, string>;
-
-  const { data: pendingSuggestion } = await supabase
-    .from("entity_edit_suggestions")
-    .select("id")
-    .eq("entity_type", entityType)
-    .eq("entity_id", entityId)
-    .eq("user_id", user!.id)
-    .eq("status", "pending")
-    .maybeSingle();
+  const galleryOrigin = entityType === "person" || entityType === "ensemble" || entityType === "venue" ? entityType : null;
+  const { data: galleryImages } = galleryOrigin ? await supabase
+    .from("images")
+    .select("id, source_url, sort_order, crop_x, crop_y, crop_width, crop_height, review_status, quality_status, confidence_score, source_name, license_status, last_checked_at, warnings")
+    .eq("origin_type", galleryOrigin).eq("origin_id", entityId).order("sort_order")
+    .returns<GalleryImage[]>() : { data: [] as GalleryImage[] };
 
   return (
     <div className="mx-auto max-w-2xl px-6 py-10">
       <h1 className="type-heading mb-2 text-2xl text-[#1d1d1f]">Profil bearbeiten</h1>
       <p className="mb-6 text-sm text-[#86868b]">{(entityRecord[nameColumn] as string) ?? ""}</p>
 
-      {pendingSuggestion ? (
-        <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          Eine Änderung ist bereits in Prüfung — bitte warte auf die Redaktionsentscheidung, bevor du eine
-          neue vorschlägst.
-        </p>
-      ) : (
         <form action={submitEditSuggestion.bind(null, entityType, entityId)} className="flex flex-col gap-4">
           {fieldNames.map((field) => field === "social_links" ? (
             <div key={field} className="rounded-xl border border-black/[0.06] bg-white p-4"><p className="text-sm font-semibold text-[#1d1d1f]">Social Media</p><p className="mt-1 text-xs text-[#86868b]">Bitte vollständige Profil-Links mit https:// eintragen. In den Apps erscheinen später Icon und Plattformname, nie die rohe URL.</p><div className="mt-4 grid gap-3 sm:grid-cols-2">{SOCIAL_PLATFORMS.map((platform) => <Field key={platform} label={platform[0].toUpperCase() + platform.slice(1)}><TextInput name={`social_${platform}`} type="url" defaultValue={socialLinks[platform] ?? ""} placeholder={`https://www.${platform}.com/deinprofil`} /></Field>)}</div></div>
           ) : field === "gallery_urls" ? (
-            <Field key={field} label="Galeriebilder"><TextArea name={field} rows={5} defaultValue={Array.isArray(entityRecord.gallery_urls) ? (entityRecord.gallery_urls as string[]).join("\n") : ""} placeholder={"Eine Bild-URL pro Zeile, z. B.\nhttps://…/konzertfoto-1.jpg\nhttps://…/konzertfoto-2.jpg"} /><p className="mt-1 text-xs text-[#86868b]">Diese Bilder erscheinen nach Freigabe in der öffentlichen Galerie.</p></Field>
+            <div key={field}>{galleryOrigin ? <GalleryEditor originType={galleryOrigin} originId={entityId} path={`/veranstalter/profile/${entityType}/${entityId}`} images={galleryImages ?? []} storagePrefix={`claimed-gallery/${entityType}/${user!.id}`} /> : <Field label="Galeriebilder"><TextArea name={field} rows={5} defaultValue="" /></Field>}</div>
           ) : field === "photo_url" ? (
             <div key={field}><ImageUploadField name={field} initialUrl={(entityRecord[field] as string) ?? null} entityType={`claimed/${entityType}/${user!.id}`} shape={entityType === "person" ? "circle" : "rounded"} label={entityType === "person" ? "Profilbild (rund)" : "Hauptbild"} /></div>
           ) : (
@@ -108,13 +102,17 @@ export default async function EditEntityProfilePage({
               )}
             </Field>
           ))}
-          <p className="text-xs text-neutral-400">
-            Deine Änderung wird von der Redaktion geprüft, bevor sie öffentlich sichtbar wird.
-          </p>
+          <p className="text-xs text-neutral-400">Dein Claim ist bestätigt. Änderungen werden sofort veröffentlicht.</p>
           <div>
-            <SubmitButton>Änderung vorschlagen</SubmitButton>
+            <SubmitButton>Änderungen veröffentlichen</SubmitButton>
           </div>
         </form>
+      {galleryOrigin && typeof entityRecord.photo_url === "string" && entityRecord.photo_url && (
+        <div className="mt-8 border-t border-black/[0.06] pt-6">
+          <p className="mb-3 text-sm font-semibold text-[#1d1d1f]">Runder Ausschnitt für App-Miniaturen</p>
+          <p className="mb-4 text-sm text-[#86868b]">Lege fest, welcher Bereich deines Hauptbilds in runden Profilbildern erscheint.</p>
+          <AvatarCropButton entityType={`${galleryOrigin}s` as "persons" | "ensembles" | "venues"} entityId={entityId} photoUrl={entityRecord.photo_url as string} initialCrop={entityRecord.avatar_crop_x != null && entityRecord.avatar_crop_y != null && entityRecord.avatar_crop_width != null && entityRecord.avatar_crop_height != null ? { x: Number(entityRecord.avatar_crop_x), y: Number(entityRecord.avatar_crop_y), width: Number(entityRecord.avatar_crop_width), height: Number(entityRecord.avatar_crop_height) } : null} path={`/veranstalter/profile/${entityType}/${entityId}`} />
+        </div>
       )}
     </div>
   );

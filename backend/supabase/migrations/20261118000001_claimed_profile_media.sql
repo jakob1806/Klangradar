@@ -7,3 +7,10 @@ create policy "Claimed users upload profile media" on storage.objects
     and name like 'claimed/%'
     and split_part(name, '/', 3) = auth.uid()::text
   );
+
+create policy "Claimed users upload gallery media" on storage.objects
+  for insert with check (
+    bucket_id = 'entity-photos'
+    and name like 'claimed-gallery/%'
+    and split_part(name, '/', 3) = auth.uid()::text
+  );

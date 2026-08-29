@@ -51,7 +51,7 @@ export async function requestEntityClaim(entityType: ClaimableEntityType, entity
     }
     throw new Error(error.message);
   }
-  await getResend().emails.send({ from: "Klangradar <noreply@klangradar.com>", to: "redaktion@klangradar.com", subject: "Neue Veranstalter-Claim-Anfrage", html: `<p>Eine neue Claim-Anfrage für <strong>${entityType}</strong> wartet auf Prüfung.</p><p>Antragsteller: ${verificationEmail}</p><p><a href="https://klangradar.com/entity-claims">Im Redaktions-Dashboard öffnen</a></p>` });
+  await getResend().emails.send({ from: "Klangradar <noreply@klangradar.com>", to: "redaktion@klangradar.com", subject: "Neue Veranstalter-Claim-Anfrage", html: `<p>Eine neue Claim-Anfrage für <strong>${entityType}</strong> wartet auf Prüfung.</p><p>Antragsteller: ${verificationEmail}</p><p><a href="https://klangradar.com/login?redirectTo=%2Fentity-claims">Im Redaktions-Dashboard öffnen</a></p>` });
 
   revalidatePath("/veranstalter");
   redirect("/veranstalter");

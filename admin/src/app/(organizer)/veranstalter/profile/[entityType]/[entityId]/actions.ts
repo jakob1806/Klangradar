@@ -3,15 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { EDITABLE_FIELDS_FOR_ENTITY_TYPE, type ClaimableEntityType } from "@/lib/entity-tables";
+import { EDITABLE_FIELDS_FOR_ENTITY_TYPE, TABLE_FOR_ENTITY_TYPE, type ClaimableEntityType } from "@/lib/entity-tables";
 
-// Legt IMMER nur einen Vorschlag an, schreibt nie direkt in
-// organizers/venues/persons/ensembles — eine geclaimte Stammdaten-Zeile
-// bleibt redaktionell kuratiert (siehe entity_edit_suggestions-Migration).
-// RLS ("Veranstalter schlägt Profiländerung für eigene Entität vor")
-// verifiziert has_approved_claim serverseitig ohnehin nochmal — die Prüfung
-// hier ist nur für eine verständliche Fehlermeldung statt einer rohen
-// RLS-Ablehnung.
+// Ein bestätigter Claim ist eine echte Verwaltungsberechtigung. Die RLS-
+// Policies der Live-Edit-Migration prüfen den Anspruch zusätzlich direkt in
+// der Datenbank, damit der Server Action nicht vertraut werden muss.
 export async function submitEditSuggestion(entityType: ClaimableEntityType, entityId: string, formData: FormData) {
   const supabase = await createClient();
   const {
@@ -26,7 +22,10 @@ export async function submitEditSuggestion(entityType: ClaimableEntityType, enti
       const social = Object.fromEntries(["instagram", "facebook", "youtube", "spotify", "tiktok", "linkedin"].map((platform) => [platform, String(formData.get(`social_${platform}`) ?? "").trim()]).filter(([, url]) => url));
       proposedChanges[field] = social;
     } else if (field === "gallery_urls") {
-      proposedChanges[field] = String(formData.get(field) ?? "").split(/\r?\n/).map((url) => url.trim()).filter(Boolean);
+      // Die echte Galerie liegt in images und wird über GalleryEditor direkt
+      // gespeichert (Upload, Reihenfolge, Zuschnitt). Keine alte URL-Liste
+      // in die Stammdaten zurückschreiben.
+      continue;
     } else if (field === "founded_year" || field === "member_count") {
       const value = String(formData.get(field) ?? "").trim();
       proposedChanges[field] = value ? Number(value) : null;
@@ -35,20 +34,15 @@ export async function submitEditSuggestion(entityType: ClaimableEntityType, enti
     }
   }
 
-  const { error } = await supabase.from("entity_edit_suggestions").insert({
-    entity_type: entityType,
-    entity_id: entityId,
-    user_id: user.id,
-    proposed_changes: proposedChanges,
-  });
+  const { error } = await supabase
+    .from(TABLE_FOR_ENTITY_TYPE[entityType])
+    .update(proposedChanges)
+    .eq("id", entityId);
   if (error) {
-    // Partial-Unique-Index (entity_type, entity_id, user_id) where status='pending'
-    if (error.code === "23505") {
-      throw new Error("Du hast für dieses Profil bereits eine Änderung in Prüfung.");
-    }
     throw new Error(error.message);
   }
 
-  revalidatePath("/veranstalter");
+  revalidatePath(`/veranstalter/profile/${entityType}/${entityId}`);
+  revalidatePath("/veranstalter/bibliothek");
   redirect("/veranstalter");
 }
