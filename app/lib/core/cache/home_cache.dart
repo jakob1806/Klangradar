@@ -1,7 +1,3 @@
-import 'dart:convert';
-
-import 'package:shared_preferences/shared_preferences.dart';
-
 import '../../features/home/application/home_providers.dart';
 
 /// Stale-while-revalidate-Cache für den Home-Feed (Nutzeranfrage Punkt 12,
@@ -11,9 +7,6 @@ import '../../features/home/application/home_providers.dart';
 /// abzuwarten (Perf-Audit) bzw. bei fehlendem Netz komplett leer zu bleiben.
 class HomeCache {
   const HomeCache._();
-
-  static const _dataKey = 'home_cache.data';
-  static const _savedAtKey = 'home_cache.saved_at';
 
   /// Nach dieser Zeit gilt ein Cache-Treffer als zu alt, um überhaupt noch
   /// angezeigt zu werden (z. B. nach tagelanger Abwesenheit) — verhindert,
