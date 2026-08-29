@@ -30,7 +30,11 @@ export function PromotionRequestForm({ events }: { events: EventOption[] }) {
         setError(null);
         startTransition(async () => {
           try {
-            await requestPromotion(formData);
+            const result = await requestPromotion(formData);
+            if (result.error) {
+              setError(result.error);
+              return;
+            }
             setMessage("Deine Anfrage wurde an die Redaktion gesendet.");
             (document.getElementById("promotion-request-form") as HTMLFormElement | null)?.reset();
           } catch (cause) {

@@ -4,6 +4,17 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { generateUniqueSlug } from "@/lib/slug";
+import { getResend } from "@/lib/resend";
+
+function claimEvidence(formData: FormData) {
+  const verificationEmail = String(formData.get("verification_email") ?? "").trim().toLowerCase();
+  const evidenceUrl = String(formData.get("evidence_url") ?? "").trim();
+  const justification = String(formData.get("justification") ?? "").trim();
+  if (!verificationEmail || !/^\S+@\S+\.\S+$/.test(verificationEmail)) throw new Error("Bitte eine gültige geschäftliche E-Mail angeben.");
+  try { new URL(evidenceUrl); } catch { throw new Error("Bitte einen gültigen Link zum Nachweis angeben."); }
+  if (justification.length < 12) throw new Error("Bitte erläutere kurz deine Berechtigung.");
+  return { verificationEmail, evidenceUrl, justification };
+}
 
 // Eigenständig statt requestEntityClaim("organizer", ...) wiederzuverwenden:
 // Next.js' "use server"-Mechanismus serialisiert exportierte Funktionen
@@ -17,7 +28,7 @@ export async function requestOrganizerClaim(organizerId: string, formData: FormD
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Nicht angemeldet");
 
-  const justification = String(formData.get("justification") ?? "").trim() || null;
+  const { verificationEmail, evidenceUrl, justification } = claimEvidence(formData);
 
   const { error } = await supabase.from("entity_claims").insert({
     entity_type: "organizer",
@@ -25,6 +36,8 @@ export async function requestOrganizerClaim(organizerId: string, formData: FormD
     user_id: user.id,
     status: "pending",
     justification,
+    verification_email: verificationEmail,
+    evidence_url: evidenceUrl,
   });
   if (error) {
     if (error.code === "23505") {
@@ -33,14 +46,14 @@ export async function requestOrganizerClaim(organizerId: string, formData: FormD
     throw new Error(error.message);
   }
 
+  await getResend().emails.send({ from: "Klangradar <noreply@klangradar.com>", to: "redaktion@klangradar.com", subject: "Neue Institution-Claim-Anfrage", html: `<p>Eine Institution-Claim-Anfrage wartet auf Prüfung.</p><p>Antragsteller: ${verificationEmail}</p><p><a href="https://klangradar.com/entity-claims">Im Redaktions-Dashboard öffnen</a></p>` });
+
   revalidatePath("/veranstalter");
   redirect("/veranstalter");
 }
 
-// Selbstbedienungs-Neuanlage: legt die organizers-Zeile UND direkt einen
-// sofort genehmigten Claim darauf an (RLS-Policy "Ersteller-Claim auf eigene
-// neue Institution ist sofort genehmigt" verlangt organizers.created_by =
-// auth.uid() — deshalb erst die Zeile mit created_by anlegen, dann den Claim).
+// Selbstbedienungs-Neuanlage: legt die Institution an, aber der Claim bleibt
+// bis zur Prüfung durch die Redaktion bewusst offen.
 export async function createOwnOrganizer(formData: FormData) {
   const supabase = await createClient();
   const {
@@ -50,7 +63,8 @@ export async function createOwnOrganizer(formData: FormData) {
 
   const name = String(formData.get("name") ?? "").trim();
   if (!name) throw new Error("Name ist erforderlich");
-  const contactEmail = String(formData.get("contact_email") ?? "").trim() || null;
+  const { verificationEmail, evidenceUrl, justification } = claimEvidence(formData);
+  const contactEmail = String(formData.get("contact_email") ?? "").trim() || verificationEmail;
   const websiteUrl = String(formData.get("website_url") ?? "").trim() || null;
 
   const slug = await generateUniqueSlug(supabase, "organizers", name);
@@ -65,10 +79,14 @@ export async function createOwnOrganizer(formData: FormData) {
     entity_type: "organizer",
     entity_id: organizer.id,
     user_id: user.id,
-    status: "approved",
-    role: "owner",
+    status: "pending",
+    justification,
+    verification_email: verificationEmail,
+    evidence_url: evidenceUrl,
   });
   if (claimError) throw new Error(claimError.message);
+
+  await getResend().emails.send({ from: "Klangradar <noreply@klangradar.com>", to: "redaktion@klangradar.com", subject: "Neue Institution zur Prüfung", html: `<p>Eine neue Institution und ein Claim warten auf Prüfung.</p><p>Antragsteller: ${verificationEmail}</p><p><a href="https://klangradar.com/entity-claims">Im Redaktions-Dashboard öffnen</a></p>` });
 
   revalidatePath("/veranstalter");
   redirect("/veranstalter");

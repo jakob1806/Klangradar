@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { TextInput } from "@/components/form-fields";
+import { Field, TextArea, TextInput } from "@/components/form-fields";
 import { SubmitButton } from "@/components/submit-button";
 import { requestEntityClaim } from "./entity-claim-actions";
 
@@ -72,10 +72,13 @@ export async function EntityClaimSearch({
         (results.length > 0 ? (
           <ul className="divide-y divide-neutral-200 overflow-hidden rounded-xl border border-black/[0.06] bg-white">
             {results.map((r) => (
-              <li key={r.id} className="flex items-center justify-between px-4 py-3">
+              <li key={r.id} className="px-4 py-4">
                 <span className="font-medium text-[#1d1d1f]">{r.name}</span>
-                <form action={requestEntityClaim.bind(null, entityType, r.id)}>
-                  <SubmitButton pendingLabel="Sende…">Beanspruchen</SubmitButton>
+                <form action={requestEntityClaim.bind(null, entityType, r.id)} className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <Field label="Geschäftliche E-Mail" required><TextInput name="verification_email" type="email" required placeholder="name@institution.de" /></Field>
+                  <Field label="Nachweis-Link" required><TextInput name="evidence_url" type="url" required placeholder="Website, Impressum oder Dokument-Link" /></Field>
+                  <div className="sm:col-span-2"><Field label="Warum bist du berechtigt?" required><TextArea name="justification" rows={2} required placeholder="Funktion bei der Institution und Bezug zum Nachweis" /></Field></div>
+                  <div className="sm:col-span-2"><SubmitButton pendingLabel="Sende…">Mit Nachweis beantragen</SubmitButton></div>
                 </form>
               </li>
             ))}

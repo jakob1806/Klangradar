@@ -35,11 +35,11 @@ export async function reviewPromotion(id: string, status: "approved" | "rejected
   const { error } = await supabase
     .from("event_promotions")
     .update({
-      status,
+      status: status === "approved" ? "payment_pending" : "rejected",
       reviewer_note: reviewerNote.trim() || null,
       reviewed_by: user.id,
       reviewed_at: reviewedAt,
-      ...(status === "approved" ? { starts_at: reviewedAt, ends_at: event!.start_datetime } : {}),
+      ...(status === "approved" ? {} : {}),
     })
     .eq("id", id)
     .eq("status", "pending");
