@@ -20,6 +20,38 @@ export const NAME_COLUMN_FOR_ENTITY_TYPE = {
   venue: "name",
 } as const satisfies Record<ClaimableEntityType, string>;
 
+// Für Phase 2 (Profil-Bearbeitung geclaimter Entitäten): bewusst eine kleine,
+// konservative Auswahl unkritischer Beschreibungsfelder statt aller
+// Spalten — strukturelle/verifizierende Felder (slug, is_verified, Adresse/
+// Standort einer Venue, Rollen/Geburtsdatum einer Person, etc.) bleiben
+// exklusiv Redaktionssache, auch nach Genehmigung eines Vorschlags. Die
+// Spaltennamen unterscheiden sich je Typ (z.B. persons.biography_de statt
+// description_de) — deshalb Record<Feldname, Label> statt eines einzigen
+// gemeinsamen Feldnamens.
+export const EDITABLE_FIELDS_FOR_ENTITY_TYPE = {
+  organizer: {
+    description_de: "Beschreibung",
+    logo_url: "Logo-URL",
+    website_url: "Website",
+    contact_email: "Kontakt-E-Mail",
+  },
+  venue: {
+    description_de: "Beschreibung",
+    photo_url: "Foto-URL",
+    website_url: "Website",
+  },
+  person: {
+    biography_de: "Biografie",
+    photo_url: "Foto-URL",
+    website_url: "Website",
+  },
+  ensemble: {
+    description_de: "Beschreibung",
+    photo_url: "Foto-URL",
+    website_url: "Website",
+  },
+} as const satisfies Record<ClaimableEntityType, Record<string, string>>;
+
 /** Löst Anzeigenamen für eine Liste polymorpher entity_type/entity_id-Paare
  * auf (entity_claims hat KEINEN FK je Typ, deshalb ist ein eingebetteter
  * Join wie bei entity_candidates hier nicht möglich). Gruppiert nach Typ und

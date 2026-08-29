@@ -102,7 +102,7 @@ export default async function VeranstalterDashboardPage() {
           </Link>
         </div>
         {approved.length > 0 ? (
-          <ClaimList claims={approved} names={names} />
+          <ClaimList claims={approved} names={names} showProfileLink />
         ) : (
           <p className="text-sm text-[#86868b]">Noch keine genehmigten Berechtigungen.</p>
         )}
@@ -157,9 +157,11 @@ export default async function VeranstalterDashboardPage() {
 function ClaimList({
   claims,
   names,
+  showProfileLink,
 }: {
   claims: { id: string; entity_type: ClaimableEntityType; entity_id: string; status: string }[];
   names: Map<string, string>;
+  showProfileLink?: boolean;
 }) {
   return (
     <div className="overflow-hidden rounded-xl border border-black/[0.06] bg-white">
@@ -171,7 +173,17 @@ function ClaimList({
                 {names.get(`${claim.entity_type}:${claim.entity_id}`) ?? "(unbekannt)"}
               </td>
               <td className="px-4 py-3 text-[#86868b]">{ENTITY_TYPE_LABEL[claim.entity_type]}</td>
-              <td className="px-4 py-3 text-right text-[#86868b]">{STATUS_LABEL[claim.status] ?? claim.status}</td>
+              <td className="px-4 py-3 text-[#86868b]">{STATUS_LABEL[claim.status] ?? claim.status}</td>
+              <td className="px-4 py-3 text-right">
+                {showProfileLink && (
+                  <Link
+                    href={`/veranstalter/profile/${claim.entity_type}/${claim.entity_id}`}
+                    className="font-medium text-[#0071e3] hover:underline"
+                  >
+                    Profil bearbeiten
+                  </Link>
+                )}
+              </td>
             </tr>
           ))}
         </tbody>

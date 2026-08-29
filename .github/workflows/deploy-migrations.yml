@@ -76,9 +76,21 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
 
+      # --include-all: frühere Läufe wurden wiederholt durch neuere Merges
+      # abgebrochen (concurrency-Gruppe oben, cancel-in-progress), bevor die
+      # Freigabe erteilt war — dadurch blieben einzelne, chronologisch
+      # ÄLTERE Migrationen dauerhaft ungepusht liegen, während spätere schon
+      # in der entfernten Historie stehen (live beobachtet: run #49 lehnte
+      # 20261031000022_quality_ensemble_structural_repairs.sql und
+      # 20261101000004_todos.sql exakt deshalb ab — "Found local migration
+      # files to be inserted before the last migration on remote database").
+      # Ohne dieses Flag bleibt db push dauerhaft blockiert, weil JEDER neue
+      # Merge dieselbe Ordnungsprüfung erneut auslöst. supabase db push prüft
+      # den SQL-Inhalt weiterhin unverändert, das Flag hebt nur die reine
+      # Reihenfolge-Sperre auf.
       - name: Migrationen gegen Produktion anwenden
         working-directory: backend
-        run: supabase db push
+        run: supabase db push --include-all
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
