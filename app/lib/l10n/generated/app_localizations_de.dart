@@ -1301,7 +1301,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get myListsCoverCropTitle => 'Titelbild zuschneiden';
 
   @override
-  String get myListsCoverError => 'Titelbild konnte nicht gespeichert werden.';
+  String myListsCoverError(String error) {
+    return 'Titelbild konnte nicht gespeichert werden: $error';
+  }
 
   @override
   String get myListsCreateTitle => 'Neue Liste';

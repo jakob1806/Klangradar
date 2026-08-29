@@ -2399,8 +2399,8 @@ abstract class AppLocalizations {
   /// No description provided for @myListsCoverError.
   ///
   /// In de, this message translates to:
-  /// **'Titelbild konnte nicht gespeichert werden.'**
-  String get myListsCoverError;
+  /// **'Titelbild konnte nicht gespeichert werden: {error}'**
+  String myListsCoverError(String error);
 
   /// No description provided for @myListsCreateTitle.
   ///

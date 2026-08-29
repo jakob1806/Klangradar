@@ -1292,7 +1292,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get myListsCoverCropTitle => 'Crop cover image';
 
   @override
-  String get myListsCoverError => 'Could not save cover image.';
+  String myListsCoverError(String error) {
+    return 'Could not save cover image: $error';
+  }
 
   @override
   String get myListsCreateTitle => 'New list';
