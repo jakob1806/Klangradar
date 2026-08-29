@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { resolveEntityNames, type ClaimableEntityType } from "@/lib/entity-tables";
+import { resolveEntityNames, resolveTrustLevels, type ClaimableEntityType, type TrustLevel } from "@/lib/entity-tables";
 import { formatMunichDateTime } from "@/lib/munich-time";
 
 export const dynamic = "force-dynamic";
@@ -16,6 +16,13 @@ const STATUS_LABEL: Record<string, string> = {
   pending: "In Prüfung",
   approved: "Genehmigt",
   rejected: "Abgelehnt",
+};
+
+const TRUST_LABEL: Record<TrustLevel, string> = {
+  unverified: "Unbestätigt",
+  claimed: "Beansprucht",
+  verified: "Verifiziert",
+  official: "Offiziell",
 };
 
 interface EventRow {
@@ -42,10 +49,11 @@ export default async function VeranstalterDashboardPage() {
     >();
 
   const allClaims = claims ?? [];
-  const names = await resolveEntityNames(
-    supabase,
-    allClaims.map((c) => ({ entityType: c.entity_type, entityId: c.entity_id })),
-  );
+  const refs = allClaims.map((c) => ({ entityType: c.entity_type, entityId: c.entity_id }));
+  const [names, trustLevels] = await Promise.all([
+    resolveEntityNames(supabase, refs),
+    resolveTrustLevels(supabase, refs),
+  ]);
 
   const pending = allClaims.filter((c) => c.status === "pending");
   const approved = allClaims.filter((c) => c.status === "approved");
@@ -102,7 +110,7 @@ export default async function VeranstalterDashboardPage() {
           </Link>
         </div>
         {approved.length > 0 ? (
-          <ClaimList claims={approved} names={names} showProfileLink />
+          <ClaimList claims={approved} names={names} trustLevels={trustLevels} showProfileLink />
         ) : (
           <p className="text-sm text-[#86868b]">Noch keine genehmigten Berechtigungen.</p>
         )}
@@ -157,20 +165,34 @@ export default async function VeranstalterDashboardPage() {
 function ClaimList({
   claims,
   names,
+  trustLevels,
   showProfileLink,
 }: {
   claims: { id: string; entity_type: ClaimableEntityType; entity_id: string; status: string }[];
   names: Map<string, string>;
+  trustLevels?: Map<string, TrustLevel>;
   showProfileLink?: boolean;
 }) {
   return (
     <div className="overflow-hidden rounded-xl border border-black/[0.06] bg-white">
       <table className="w-full text-sm">
         <tbody className="divide-y divide-neutral-200">
-          {claims.map((claim) => (
+          {claims.map((claim) => {
+            const trust = trustLevels?.get(`${claim.entity_type}:${claim.entity_id}`);
+            return (
             <tr key={claim.id}>
               <td className="px-4 py-3 font-medium text-[#1d1d1f]">
-                {names.get(`${claim.entity_type}:${claim.entity_id}`) ?? "(unbekannt)"}
+                <span className="inline-flex items-center gap-2">
+                  {names.get(`${claim.entity_type}:${claim.entity_id}`) ?? "(unbekannt)"}
+                  {trust && (trust === "verified" || trust === "official") && (
+                    <span
+                      className="type-label rounded-full border border-black/10 bg-black/[0.03] px-2 py-0.5 !text-[#0071e3]"
+                      title={TRUST_LABEL[trust]}
+                    >
+                      {TRUST_LABEL[trust]}
+                    </span>
+                  )}
+                </span>
               </td>
               <td className="px-4 py-3 text-[#86868b]">{ENTITY_TYPE_LABEL[claim.entity_type]}</td>
               <td className="px-4 py-3 text-[#86868b]">{STATUS_LABEL[claim.status] ?? claim.status}</td>
@@ -193,7 +215,8 @@ function ClaimList({
                 )}
               </td>
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
     </div>
