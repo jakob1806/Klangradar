@@ -13,7 +13,6 @@ _notifyTableAndColumn = {
   InterestCategory.person: ('user_favorite_persons', 'person_id'),
   InterestCategory.ensemble: ('user_favorite_ensembles', 'ensemble_id'),
   InterestCategory.venue: ('user_favorite_venues', 'venue_id'),
-  InterestCategory.work: ('user_favorite_works', 'work_id'),
 };
 
 typedef _NotifyKey = ({InterestCategory category, String entityId});
@@ -56,7 +55,6 @@ class NotifyButton extends ConsumerWidget {
       InterestCategory.person => interests?.personIds,
       InterestCategory.ensemble => interests?.ensembleIds,
       InterestCategory.venue => interests?.venueIds,
-      InterestCategory.work => interests?.workIds,
       InterestCategory.genre => null,
     };
     final isFollowing = idsForCategory?.contains(entityId) ?? false;
