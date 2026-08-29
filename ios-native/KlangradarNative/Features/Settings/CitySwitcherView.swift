@@ -62,7 +62,7 @@ struct CitySwitcherView: View {
                         ForEach(cityStore.activeCities) { city in
                             Divider().padding(.leading, 20)
                             cityRow(
-                                name: city.name,
+                                name: cityDisplayName(for: city),
                                 subtitle: countryLabel(for: city),
                                 isSelected: cityStore.selectedCity?.id == city.id
                             ) {
@@ -120,6 +120,10 @@ struct CitySwitcherView: View {
     /// zu duplizieren, für die aktuell fünf Städte ausreichend.
     private func countryLabel(for city: RegionOption) -> String? {
         city.name == "Wien" ? "Österreich" : "Deutschland"
+    }
+
+    private func cityDisplayName(for city: RegionOption) -> String {
+        city.name == "München" ? city.name : "\(city.name) · Beta"
     }
 
     @MainActor
