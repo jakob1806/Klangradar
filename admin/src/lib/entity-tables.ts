@@ -38,17 +38,27 @@ export const EDITABLE_FIELDS_FOR_ENTITY_TYPE = {
   venue: {
     description_de: "Beschreibung",
     photo_url: "Foto-URL",
+    gallery_urls: "Galeriebilder",
     website_url: "Website",
+    social_links: "Social Media",
   },
   person: {
     biography_de: "Biografie",
     photo_url: "Foto-URL",
+    gallery_urls: "Galeriebilder",
     website_url: "Website",
+    social_links: "Social Media",
+    instrument: "Instrument",
+    nationality: "Nationalität",
   },
   ensemble: {
     description_de: "Beschreibung",
     photo_url: "Foto-URL",
+    gallery_urls: "Galeriebilder",
     website_url: "Website",
+    social_links: "Social Media",
+    founded_year: "Gründungsjahr",
+    member_count: "Mitgliederzahl",
   },
 } as const satisfies Record<ClaimableEntityType, Record<string, string>>;
 

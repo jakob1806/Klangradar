@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Field, TextArea, TextInput } from "@/components/form-fields";
 import { SubmitButton } from "@/components/submit-button";
+import { ImageUploadField } from "@/components/image-upload-field";
 import {
   EDITABLE_FIELDS_FOR_ENTITY_TYPE,
   NAME_COLUMN_FOR_ENTITY_TYPE,
@@ -23,6 +24,8 @@ function inputType(field: string) {
   if (field === "contact_email") return "email";
   return "text";
 }
+
+const SOCIAL_PLATFORMS = ["instagram", "facebook", "youtube", "spotify", "tiktok", "linkedin"] as const;
 
 export default async function EditEntityProfilePage({
   params,
@@ -67,6 +70,7 @@ export default async function EditEntityProfilePage({
 
   if (!entity) notFound();
   const entityRecord = entity as unknown as Record<string, unknown>;
+  const socialLinks = (entityRecord.social_links ?? {}) as Record<string, string>;
 
   const { data: pendingSuggestion } = await supabase
     .from("entity_edit_suggestions")
@@ -89,7 +93,13 @@ export default async function EditEntityProfilePage({
         </p>
       ) : (
         <form action={submitEditSuggestion.bind(null, entityType, entityId)} className="flex flex-col gap-4">
-          {fieldNames.map((field) => (
+          {fieldNames.map((field) => field === "social_links" ? (
+            <div key={field} className="rounded-xl border border-black/[0.06] bg-white p-4"><p className="text-sm font-semibold text-[#1d1d1f]">Social Media</p><p className="mt-1 text-xs text-[#86868b]">Bitte vollständige Profil-Links mit https:// eintragen. In den Apps erscheinen später Icon und Plattformname, nie die rohe URL.</p><div className="mt-4 grid gap-3 sm:grid-cols-2">{SOCIAL_PLATFORMS.map((platform) => <Field key={platform} label={platform[0].toUpperCase() + platform.slice(1)}><TextInput name={`social_${platform}`} type="url" defaultValue={socialLinks[platform] ?? ""} placeholder={`https://www.${platform}.com/deinprofil`} /></Field>)}</div></div>
+          ) : field === "gallery_urls" ? (
+            <Field key={field} label="Galeriebilder"><TextArea name={field} rows={5} defaultValue={Array.isArray(entityRecord.gallery_urls) ? (entityRecord.gallery_urls as string[]).join("\n") : ""} placeholder={"Eine Bild-URL pro Zeile, z. B.\nhttps://…/konzertfoto-1.jpg\nhttps://…/konzertfoto-2.jpg"} /><p className="mt-1 text-xs text-[#86868b]">Diese Bilder erscheinen nach Freigabe in der öffentlichen Galerie.</p></Field>
+          ) : field === "photo_url" ? (
+            <div key={field}><ImageUploadField name={field} initialUrl={(entityRecord[field] as string) ?? null} entityType={`claimed/${entityType}/${user!.id}`} shape={entityType === "person" ? "circle" : "rounded"} label={entityType === "person" ? "Profilbild (rund)" : "Hauptbild"} /></div>
+          ) : (
             <Field key={field} label={fields[field]}>
               {isTextArea(field) ? (
                 <TextArea name={field} rows={4} defaultValue={(entityRecord[field] as string) ?? ""} />
