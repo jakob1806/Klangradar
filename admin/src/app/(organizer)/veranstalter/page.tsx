@@ -176,12 +176,20 @@ function ClaimList({
               <td className="px-4 py-3 text-[#86868b]">{STATUS_LABEL[claim.status] ?? claim.status}</td>
               <td className="px-4 py-3 text-right">
                 {showProfileLink && (
-                  <Link
-                    href={`/veranstalter/profile/${claim.entity_type}/${claim.entity_id}`}
-                    className="font-medium text-[#0071e3] hover:underline"
-                  >
-                    Profil bearbeiten
-                  </Link>
+                  <span className="inline-flex items-center gap-3">
+                    <Link
+                      href={`/veranstalter/profile/${claim.entity_type}/${claim.entity_id}`}
+                      className="font-medium text-[#0071e3] hover:underline"
+                    >
+                      Profil bearbeiten
+                    </Link>
+                    <Link
+                      href={`/veranstalter/team/${claim.entity_type}/${claim.entity_id}`}
+                      className="font-medium text-[#0071e3] hover:underline"
+                    >
+                      Team
+                    </Link>
+                  </span>
                 )}
               </td>
             </tr>
