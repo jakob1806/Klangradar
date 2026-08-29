@@ -2281,6 +2281,162 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Verbindung fehlgeschlagen. Bitte später erneut versuchen.'**
   String get adminPortalError;
+
+  /// No description provided for @homeSectionMyLists.
+  ///
+  /// In de, this message translates to:
+  /// **'Meine Listen'**
+  String get homeSectionMyLists;
+
+  /// No description provided for @myListsEventCount.
+  ///
+  /// In de, this message translates to:
+  /// **'{count} Veranstaltungen'**
+  String myListsEventCount(int count);
+
+  /// No description provided for @notifyLabelActive.
+  ///
+  /// In de, this message translates to:
+  /// **'Benachrichtigungen an'**
+  String get notifyLabelActive;
+
+  /// No description provided for @notifyLabelInactive.
+  ///
+  /// In de, this message translates to:
+  /// **'Benachrichtigungen aus'**
+  String get notifyLabelInactive;
+
+  /// No description provided for @myListsPickerTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Veranstaltungen auswählen'**
+  String get myListsPickerTitle;
+
+  /// No description provided for @myListsSave.
+  ///
+  /// In de, this message translates to:
+  /// **'Speichern'**
+  String get myListsSave;
+
+  /// No description provided for @myListsPickerSearchHint.
+  ///
+  /// In de, this message translates to:
+  /// **'Veranstaltungen suchen'**
+  String get myListsPickerSearchHint;
+
+  /// No description provided for @myListsRenameTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Liste umbenennen'**
+  String get myListsRenameTitle;
+
+  /// No description provided for @myListsCancel.
+  ///
+  /// In de, this message translates to:
+  /// **'Abbrechen'**
+  String get myListsCancel;
+
+  /// No description provided for @myListsDeleteConfirmTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Liste löschen?'**
+  String get myListsDeleteConfirmTitle;
+
+  /// No description provided for @myListsDelete.
+  ///
+  /// In de, this message translates to:
+  /// **'Löschen'**
+  String get myListsDelete;
+
+  /// No description provided for @myListsNotFound.
+  ///
+  /// In de, this message translates to:
+  /// **'Liste nicht gefunden'**
+  String get myListsNotFound;
+
+  /// No description provided for @myListsAddEvents.
+  ///
+  /// In de, this message translates to:
+  /// **'Veranstaltungen hinzufügen'**
+  String get myListsAddEvents;
+
+  /// No description provided for @myListsRename.
+  ///
+  /// In de, this message translates to:
+  /// **'Umbenennen'**
+  String get myListsRename;
+
+  /// No description provided for @myListsListEmptyState.
+  ///
+  /// In de, this message translates to:
+  /// **'Noch keine Veranstaltungen in dieser Liste.'**
+  String get myListsListEmptyState;
+
+  /// No description provided for @myListsAddCoverImage.
+  ///
+  /// In de, this message translates to:
+  /// **'Titelbild hinzufügen'**
+  String get myListsAddCoverImage;
+
+  /// No description provided for @myListsCoverFromLibrary.
+  ///
+  /// In de, this message translates to:
+  /// **'Aus Mediathek wählen'**
+  String get myListsCoverFromLibrary;
+
+  /// No description provided for @myListsCoverRemove.
+  ///
+  /// In de, this message translates to:
+  /// **'Titelbild entfernen'**
+  String get myListsCoverRemove;
+
+  /// No description provided for @myListsCoverCropTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Titelbild zuschneiden'**
+  String get myListsCoverCropTitle;
+
+  /// No description provided for @myListsCoverError.
+  ///
+  /// In de, this message translates to:
+  /// **'Titelbild konnte nicht gespeichert werden: {error}'**
+  String myListsCoverError(String error);
+
+  /// No description provided for @myListsCreateTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Neue Liste'**
+  String get myListsCreateTitle;
+
+  /// No description provided for @myListsNameHint.
+  ///
+  /// In de, this message translates to:
+  /// **'Name der Liste'**
+  String get myListsNameHint;
+
+  /// No description provided for @myListsCreate.
+  ///
+  /// In de, this message translates to:
+  /// **'Erstellen'**
+  String get myListsCreate;
+
+  /// No description provided for @myListsAppBarTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Meine Listen'**
+  String get myListsAppBarTitle;
+
+  /// No description provided for @myListsSignInPrompt.
+  ///
+  /// In de, this message translates to:
+  /// **'Melde dich an, um Listen zu speichern.'**
+  String get myListsSignInPrompt;
+
+  /// No description provided for @myListsEmptyState.
+  ///
+  /// In de, this message translates to:
+  /// **'Noch keine Listen angelegt.'**
+  String get myListsEmptyState;
 }
 
 class _AppLocalizationsDelegate

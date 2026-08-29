@@ -15,8 +15,9 @@ export default async function EditVenuePage({
 }) {
   const { id } = await params;
   const supabase = await createClient();
-  const [{ data, error }, { data: images }, cities, { data: affectedEventCount }] = await Promise.all([
+  const [{ data, error }, { data: socialData }, { data: images }, cities, { data: affectedEventCount }] = await Promise.all([
     supabase.rpc("venue_with_latlng", { p_id: id }).maybeSingle<VenueFormValues>(),
+    supabase.from("venues").select("social_links").eq("id", id).maybeSingle<Pick<VenueFormValues, "social_links">>(),
     // Nur freigegebene Bilder — siehe Kommentar in persons/[id]/page.tsx.
     supabase
       .from("images")
@@ -31,12 +32,13 @@ export default async function EditVenuePage({
   ]);
 
   if (error || !data) notFound();
+  const initial = { ...data, social_links: socialData?.social_links ?? {} };
 
   return (
     <div className="p-8">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold tracking-tight">{data.name} bearbeiten</h1>
-        <VenueDeleteControl venueId={id} venueName={data.name} />
+        <h1 className="text-xl font-semibold tracking-tight">{initial.name} bearbeiten</h1>
+        <VenueDeleteControl venueId={id} venueName={initial.name} />
       </div>
       <div className="mt-4 flex flex-wrap items-start gap-3">
         <AiEnrichButton entityType="venue" entityId={id} />
@@ -45,7 +47,7 @@ export default async function EditVenuePage({
       <div className="mt-6">
         <VenueForm
           action={updateVenue.bind(null, id)}
-          initial={data}
+          initial={initial}
           cities={cities}
           affectedEventCount={affectedEventCount ?? 0}
         />

@@ -69,12 +69,8 @@ final preferredCityRegionProvider = FutureProvider.autoDispose<CityRegion?>((
 /// ersten Wurf; ohne gespeicherte Präferenz setzt die Auswahl bei
 /// App-Neustart weiterhin auf "alle" zurück.
 final selectedCityRegionProvider = StateProvider<CityRegion?>((ref) {
-  ref.listen(preferredCityRegionProvider, (previous, next) {
-    next.whenData((region) {
-      if (region != null && ref.state == null) {
-        ref.state = region;
-      }
-    });
-  });
+  // StateProviderRef besitzt in Riverpod 2 keinen eigenen state-Zugriff.
+  // Die bevorzugte Stadt wird in den konsumierenden Screens berücksichtigt;
+  // eine spätere Auswahl bleibt weiterhin lokaler State.
   return null;
 });

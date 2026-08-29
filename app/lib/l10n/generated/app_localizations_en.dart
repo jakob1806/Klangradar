@@ -1,6 +1,5 @@
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
-
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -1232,4 +1231,86 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get adminPortalError => 'Connection failed. Please try again later.';
+
+  @override
+  String get homeSectionMyLists => 'My lists';
+
+  @override
+  String myListsEventCount(int count) {
+    return '$count events';
+  }
+
+  @override
+  String get notifyLabelActive => 'Notifications on';
+
+  @override
+  String get notifyLabelInactive => 'Notifications off';
+
+  @override
+  String get myListsPickerTitle => 'Select events';
+
+  @override
+  String get myListsSave => 'Save';
+
+  @override
+  String get myListsPickerSearchHint => 'Search events';
+
+  @override
+  String get myListsRenameTitle => 'Rename list';
+
+  @override
+  String get myListsCancel => 'Cancel';
+
+  @override
+  String get myListsDeleteConfirmTitle => 'Delete list?';
+
+  @override
+  String get myListsDelete => 'Delete';
+
+  @override
+  String get myListsNotFound => 'List not found';
+
+  @override
+  String get myListsAddEvents => 'Add events';
+
+  @override
+  String get myListsRename => 'Rename';
+
+  @override
+  String get myListsListEmptyState => 'No events in this list yet.';
+
+  @override
+  String get myListsAddCoverImage => 'Add cover image';
+
+  @override
+  String get myListsCoverFromLibrary => 'Choose from library';
+
+  @override
+  String get myListsCoverRemove => 'Remove cover image';
+
+  @override
+  String get myListsCoverCropTitle => 'Crop cover image';
+
+  @override
+  String myListsCoverError(String error) {
+    return 'Could not save cover image: $error';
+  }
+
+  @override
+  String get myListsCreateTitle => 'New list';
+
+  @override
+  String get myListsNameHint => 'List name';
+
+  @override
+  String get myListsCreate => 'Create';
+
+  @override
+  String get myListsAppBarTitle => 'My lists';
+
+  @override
+  String get myListsSignInPrompt => 'Sign in to save lists.';
+
+  @override
+  String get myListsEmptyState => 'No lists created yet.';
 }

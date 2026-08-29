@@ -6,6 +6,7 @@ import { ImageUploadField } from "@/components/image-upload-field";
 import { AvatarCropButton } from "@/components/entity-gallery/avatar-crop-button";
 import type { CropRect } from "@/components/entity-gallery/crop-math";
 import { SubmitButton } from "@/components/submit-button";
+import { SocialLinksFields } from "@/components/social-links-fields";
 
 function slugify(value: string) {
   return value
@@ -53,6 +54,7 @@ export interface EnsembleFormValues {
   is_family_root: boolean;
   is_resolution_placeholder: boolean;
   website_url: string | null;
+  social_links: Record<string, string> | null;
   photo_url: string | null;
   avatar_crop_x: number | null;
   avatar_crop_y: number | null;
@@ -191,6 +193,8 @@ export function EnsembleForm({
       <Field label="Website">
         <TextInput name="website_url" type="url" defaultValue={initial?.website_url ?? ""} />
       </Field>
+
+      <SocialLinksFields initial={initial?.social_links} />
 
       <label className="flex items-center gap-2 text-sm text-neutral-700">
         <input type="checkbox" name="is_verified" defaultChecked={initial?.is_verified} />

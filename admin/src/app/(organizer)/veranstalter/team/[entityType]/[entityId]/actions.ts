@@ -39,7 +39,7 @@ export async function rejectTeamClaim(claimId: string) {
   revalidatePath("/veranstalter/team", "layout");
 }
 
-export async function setTeamMemberRole(claimId: string, role: "owner" | "editor") {
+export async function setTeamMemberRole(claimId: string, role: "owner" | "editor" | "marketing" | "finance") {
   const supabase = await createClient();
   const { error } = await supabase.from("entity_claims").update({ role }).eq("id", claimId);
   if (error) throw new Error(error.message);

@@ -10,6 +10,7 @@ struct EventDetailView: View {
     @State private var isLoading = true
     @State private var loadError: String?
     @State private var fullScreenImage: FullScreenImageReference?
+    @State private var showsAllOtherDates = false
     @EnvironmentObject private var favorites: FavoriteStore
     @EnvironmentObject private var genreFilter: GenreFilterRouter
     @Environment(\.dismiss) private var dismiss
@@ -76,9 +77,6 @@ struct EventDetailView: View {
         .toolbar(.hidden, for: .navigationBar)
         .toolbar(.hidden, for: .tabBar)
         .fullScreenCover(item: $fullScreenImage) { FullScreenImageViewer(image: $0) }
-        .navigationDestination(for: EntityRoute.self) {
-            EntityDetailView(route: $0, repository: contentRepository)
-        }
         .task {
             do { detail = try await repository.eventDetail(slug: event.slug) }
             catch { loadError = error.localizedDescription }
@@ -264,7 +262,8 @@ struct EventDetailView: View {
             section("Weitere Termine") {
                 LiquidGlassSurface(cornerRadius: 22) {
                     VStack(spacing: 0) {
-                        ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
+                        let visibleRows = showsAllOtherDates ? rows : Array(rows.prefix(5))
+                        ForEach(Array(visibleRows.enumerated()), id: \.offset) { index, row in
                             if let otherEvent = event(from: row), let date = otherEvent.startDate {
                                 NavigationLink(value: otherEvent) {
                                     HStack(spacing: 14) {
@@ -286,8 +285,18 @@ struct EventDetailView: View {
                                     .contentShape(.rect)
                                 }
                                 .buttonStyle(.plain)
-                                if index < rows.count - 1 { Divider().padding(.leading, 58) }
+                                if index < visibleRows.count - 1 { Divider().padding(.leading, 58) }
                             }
+                        }
+                        if rows.count > 5 {
+                            Divider().padding(.leading, 58)
+                            Button(showsAllOtherDates ? "Weniger Termine anzeigen" : "Alle \(rows.count) Termine anzeigen") {
+                                withAnimation { showsAllOtherDates.toggle() }
+                            }
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(KlangradarTheme.accent)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(16)
                         }
                     }
                 }
@@ -364,7 +373,9 @@ struct EventDetailView: View {
                 }
                 if let composer = work.object("composer"), let name = composer.string("full_name") {
                     if let route = entityRoute(from: composer, kind: .person) {
-                        NavigationLink(value: route) {
+                        NavigationLink {
+                            EntityDetailView(route: route, repository: contentRepository)
+                        } label: {
                             HStack(spacing: 5) {
                                 Text(name)
                                 Image(systemName: "chevron.right").font(.caption2.bold())
@@ -426,7 +437,9 @@ struct EventDetailView: View {
                     VStack(spacing: 0) {
                         ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
                             if let participant = participantEntity(row), let route = entityRoute(from: participant.value, kind: participant.kind) {
-                                NavigationLink(value: route) {
+                                NavigationLink {
+                                    EntityDetailView(route: route, repository: contentRepository)
+                                } label: {
                                     participantLabel(row, participant: participant)
                                 }
                                 .buttonStyle(.plain)
@@ -513,7 +526,9 @@ struct EventDetailView: View {
         if let venue = value.object("venues") {
             section("Veranstaltungsort") {
                 if let route = entityRoute(from: venue, kind: .venue) {
-                    NavigationLink(value: route) {
+                    NavigationLink {
+                        EntityDetailView(route: route, repository: contentRepository)
+                    } label: {
                         venueLabel(venue)
                     }
                     .buttonStyle(.plain)

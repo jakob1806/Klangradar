@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { formatMunichDateTime } from "@/lib/munich-time";
 import { PromotionRequestForm } from "./promotion-request-form";
 import { PromotionCheckoutButton } from "./promotion-checkout-button";
+import { getEventOrganizerOptions } from "../event-organizer-context";
 
 export const dynamic = "force-dynamic";
 
@@ -14,12 +15,11 @@ interface PromotionRow { id: string; placement: string; status: string; requeste
 export default async function PromotePage() {
   const supabase = await createClient();
   const now = new Date().toISOString();
-  const [{ data: { user } }, { data: claims }, { data: promotionData }] = await Promise.all([
-    supabase.auth.getUser(),
-    supabase.from("entity_claims").select("entity_id, user_id").eq("entity_type", "organizer").eq("status", "approved"),
+  const [organizers, { data: promotionData }] = await Promise.all([
+    getEventOrganizerOptions(),
     supabase.from("event_promotions").select("id, placement, status, requester_note, reviewer_note, requested_at, events(title, start_datetime)").order("requested_at", { ascending: false }).returns<PromotionRow[]>(),
   ]);
-  const organizerIds = (claims ?? []).filter((claim) => user && claim.user_id === user.id).map((claim) => claim.entity_id as string);
+  const organizerIds = organizers.map((organizer) => organizer.id);
   const { data: eventData } = organizerIds.length ? await supabase.from("events").select("id, title, start_datetime").eq("status", "scheduled").gt("start_datetime", now).in("organizer_id", organizerIds).order("start_datetime", { ascending: true }).returns<EventRow[]>() : { data: [] as EventRow[] };
   const events = eventData ?? [];
   const promotions = promotionData ?? [];

@@ -21,6 +21,8 @@ export async function getCityOptions(): Promise<CityOption[]> {
 }
 
 function readVenueFields(formData: FormData) {
+  let social_links: Record<string, string> = {};
+  try { social_links = JSON.parse(String(formData.get("social_links") ?? "{}")); } catch { /* invalid data is safely ignored */ }
   return {
     slug: String(formData.get("slug") ?? "").trim(),
     name: String(formData.get("name") ?? "").trim(),
@@ -32,6 +34,7 @@ function readVenueFields(formData: FormData) {
     lng: Number(formData.get("lng")),
     capacity: formData.get("capacity") ? Number(formData.get("capacity")) : null,
     website_url: String(formData.get("website_url") ?? "").trim() || null,
+    social_links,
     photo_url: String(formData.get("photo_url") ?? "").trim() || null,
     city_id: String(formData.get("city_id") ?? "").trim() || null,
   };
@@ -60,6 +63,9 @@ export async function createVenue(formData: FormData) {
 
   if (error) throw new Error(error.message);
 
+  const { error: socialError } = await supabase.from("venues").update({ social_links: f.social_links }).eq("slug", f.slug);
+  if (socialError) throw new Error(socialError.message);
+
   revalidatePath("/venues");
   redirect("/venues");
 }
@@ -85,6 +91,9 @@ export async function updateVenue(venueId: string, formData: FormData) {
   });
 
   if (error) throw new Error(error.message);
+
+  const { error: socialError } = await supabase.from("venues").update({ social_links: f.social_links }).eq("id", venueId);
+  if (socialError) throw new Error(socialError.message);
 
   revalidatePath("/venues");
   redirect("/venues");

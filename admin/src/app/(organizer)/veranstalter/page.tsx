@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { resolveEntityNames, resolveTrustLevels, type ClaimableEntityType, type TrustLevel } from "@/lib/entity-tables";
 import { formatMunichDateTime } from "@/lib/munich-time";
+import { getEventOrganizerOptions } from "./event-organizer-context";
 
 export const dynamic = "force-dynamic";
 
@@ -59,7 +60,8 @@ export default async function VeranstalterDashboardPage() {
   const approved = allClaims.filter((c) => c.status === "approved");
   const rejected = allClaims.filter((c) => c.status === "rejected");
 
-  const approvedOrganizerIds = approved.filter((c) => c.entity_type === "organizer").map((c) => c.entity_id);
+  const eventOrganizers = await getEventOrganizerOptions();
+  const approvedOrganizerIds = eventOrganizers.map((organizer) => organizer.id);
 
   let upcomingEvents: EventRow[] = [];
   if (approvedOrganizerIds.length > 0) {

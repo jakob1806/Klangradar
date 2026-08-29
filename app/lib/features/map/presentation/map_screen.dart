@@ -399,25 +399,34 @@ void _showCityPicker(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          RadioListTile<String?>(
-            title: const Text('Alle Städte'),
-            value: null,
+          RadioGroup<String?>(
             groupValue: selected?.id,
-            onChanged: (_) {
-              ref.read(selectedCityRegionProvider.notifier).state = null;
+            onChanged: (value) {
+              CityRegion? next;
+              for (final city in cities) {
+                if (city.id == value) {
+                  next = city;
+                  break;
+                }
+              }
+              ref.read(selectedCityRegionProvider.notifier).state = next;
               Navigator.of(sheetContext).pop();
             },
-          ),
-          for (final city in cities)
-            RadioListTile<String?>(
-              title: Text(city.name),
-              value: city.id,
-              groupValue: selected?.id,
-              onChanged: (_) {
-                ref.read(selectedCityRegionProvider.notifier).state = city;
-                Navigator.of(sheetContext).pop();
-              },
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const RadioListTile<String?>(
+                  title: Text('Alle Städte'),
+                  value: null,
+                ),
+                for (final city in cities)
+                  RadioListTile<String?>(
+                    title: Text(city.name),
+                    value: city.id,
+                  ),
+              ],
             ),
+          ),
         ],
       ),
     ),

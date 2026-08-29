@@ -7,6 +7,7 @@ import { AvatarCropButton } from "@/components/entity-gallery/avatar-crop-button
 import type { CropRect } from "@/components/entity-gallery/crop-math";
 import { SubmitButton } from "@/components/submit-button";
 import { TagInput } from "@/components/tag-input";
+import { SocialLinksFields } from "@/components/social-links-fields";
 
 function slugify(value: string) {
   return value
@@ -47,6 +48,7 @@ export interface PersonFormValues {
   is_deceased: boolean;
   biography_de: string | null;
   website_url: string | null;
+  social_links: Record<string, string> | null;
   photo_url: string | null;
   avatar_crop_x: number | null;
   avatar_crop_y: number | null;
@@ -206,6 +208,8 @@ export function PersonForm({
       <Field label="Website">
         <TextInput name="website_url" type="url" defaultValue={initial?.website_url ?? ""} />
       </Field>
+
+      <SocialLinksFields initial={initial?.social_links} />
 
       <label className="flex items-center gap-2 text-sm text-neutral-700">
         <input type="checkbox" name="is_verified" defaultChecked={initial?.is_verified} />

@@ -1,6 +1,5 @@
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
-
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -1240,4 +1239,87 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get adminPortalError =>
       'Verbindung fehlgeschlagen. Bitte später erneut versuchen.';
+
+  @override
+  String get homeSectionMyLists => 'Meine Listen';
+
+  @override
+  String myListsEventCount(int count) {
+    return '$count Veranstaltungen';
+  }
+
+  @override
+  String get notifyLabelActive => 'Benachrichtigungen an';
+
+  @override
+  String get notifyLabelInactive => 'Benachrichtigungen aus';
+
+  @override
+  String get myListsPickerTitle => 'Veranstaltungen auswählen';
+
+  @override
+  String get myListsSave => 'Speichern';
+
+  @override
+  String get myListsPickerSearchHint => 'Veranstaltungen suchen';
+
+  @override
+  String get myListsRenameTitle => 'Liste umbenennen';
+
+  @override
+  String get myListsCancel => 'Abbrechen';
+
+  @override
+  String get myListsDeleteConfirmTitle => 'Liste löschen?';
+
+  @override
+  String get myListsDelete => 'Löschen';
+
+  @override
+  String get myListsNotFound => 'Liste nicht gefunden';
+
+  @override
+  String get myListsAddEvents => 'Veranstaltungen hinzufügen';
+
+  @override
+  String get myListsRename => 'Umbenennen';
+
+  @override
+  String get myListsListEmptyState =>
+      'Noch keine Veranstaltungen in dieser Liste.';
+
+  @override
+  String get myListsAddCoverImage => 'Titelbild hinzufügen';
+
+  @override
+  String get myListsCoverFromLibrary => 'Aus Mediathek wählen';
+
+  @override
+  String get myListsCoverRemove => 'Titelbild entfernen';
+
+  @override
+  String get myListsCoverCropTitle => 'Titelbild zuschneiden';
+
+  @override
+  String myListsCoverError(String error) {
+    return 'Titelbild konnte nicht gespeichert werden: $error';
+  }
+
+  @override
+  String get myListsCreateTitle => 'Neue Liste';
+
+  @override
+  String get myListsNameHint => 'Name der Liste';
+
+  @override
+  String get myListsCreate => 'Erstellen';
+
+  @override
+  String get myListsAppBarTitle => 'Meine Listen';
+
+  @override
+  String get myListsSignInPrompt => 'Melde dich an, um Listen zu speichern.';
+
+  @override
+  String get myListsEmptyState => 'Noch keine Listen angelegt.';
 }

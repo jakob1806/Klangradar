@@ -226,6 +226,8 @@ class VenueDetailScreen extends ConsumerWidget {
                     const SizedBox(height: AppSpacing.md),
                     ExternalLinksRow(
                       websiteUrl: venue['website_url'] as String?,
+                      socialLinks:
+                          venue['social_links'] as Map<String, dynamic>?,
                     ),
                     if (venue['phone'] != null || venue['email'] != null) ...[
                       const SizedBox(height: 4),
