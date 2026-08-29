@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
+import { getStripe } from "@/lib/stripe";
 
 const PLACEMENTS = new Set(["standard", "featured", "local_spotlight", "homepage_feature", "push"]);
 
@@ -48,3 +50,6 @@ export async function requestPromotion(formData: FormData) {
 
   revalidatePath("/veranstalter/promote");
 }
+
+const PRICE_BY_PLACEMENT: Record<string, string> = { standard: "price_1U9otxCkrdnLOI0hTRLkOdoW", featured: "price_1U9ouVCkrdnLOI0hCbzW8jWj", local_spotlight: "price_1U9oukCkrdnLOI0hBkihCzyF", push: "price_1U9ov5CkrdnLOI0hFUwOpA6i", homepage_feature: "price_1U9ovMCkrdnLOI0hqkPMYDag" };
+export async function createPromotionCheckout(promotionId: string) { const supabase = await createClient(); const { data: { user } } = await supabase.auth.getUser(); if (!user) throw new Error("Nicht angemeldet."); const { data: promotion } = await supabase.from("event_promotions").select("id, placement, status, requested_by").eq("id", promotionId).maybeSingle(); if (!promotion || promotion.requested_by !== user.id || promotion.status !== "payment_pending") throw new Error("Diese Promotion kann nicht bezahlt werden."); const price = PRICE_BY_PLACEMENT[promotion.placement as string]; if (!price) throw new Error("Kein Preis hinterlegt."); const origin = process.env.NEXT_PUBLIC_APP_URL ?? "https://klangradar.com"; const session = await getStripe().checkout.sessions.create({ mode: "payment", line_items: [{ price, quantity: 1 }], metadata: { promotion_id: promotionId }, success_url: `${origin}/veranstalter/promote?payment=success`, cancel_url: `${origin}/veranstalter/promote?payment=cancelled` }); if (!session.url) throw new Error("Checkout konnte nicht erstellt werden."); redirect(session.url); }

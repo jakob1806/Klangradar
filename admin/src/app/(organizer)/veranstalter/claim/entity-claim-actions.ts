@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { ClaimableEntityType } from "@/lib/entity-tables";
+import { getResend } from "@/lib/resend";
 
 // Gemeinsame Claim-Anfrage für Venue/Person/Ensemble (und intern auch für
 // Organizer, siehe claim/actions.ts) — landet über die RLS-Policy
@@ -38,6 +39,7 @@ export async function requestEntityClaim(entityType: ClaimableEntityType, entity
     }
     throw new Error(error.message);
   }
+  await getResend().emails.send({ from: "Klangradar <noreply@klangradar.com>", to: "redaktion@klangradar.com", subject: "Neue Veranstalter-Claim-Anfrage", html: `<p>Eine neue Claim-Anfrage für <strong>${entityType}</strong> wartet auf Prüfung.</p><p><a href="https://klangradar.com/entity-claims">Im Redaktions-Dashboard öffnen</a></p>` });
 
   revalidatePath("/veranstalter");
   redirect("/veranstalter");
