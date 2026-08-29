@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { href: "/veranstalter/events", label: "Meine Events" },
   { href: "/veranstalter/bibliothek", label: "Bibliothek" },
   { href: "/veranstalter/promote", label: "Push & Promote" },
+  { href: "/veranstalter/analytics", label: "Analytics" },
   { href: "/veranstalter/claim", label: "Beanspruchen" },
 ] as const;
 
