@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { href: "/veranstalter/serien", label: "Serien" },
   { href: "/veranstalter/bibliothek", label: "Bibliothek" },
   { href: "/veranstalter/promote", label: "Push & Promote" },
+  { href: "/veranstalter/marketing", label: "Marketing" },
   { href: "/veranstalter/analytics", label: "Analytics" },
   { href: "/veranstalter/finanzen", label: "Finanzen" },
   { href: "/veranstalter/claim", label: "Beanspruchen" },
