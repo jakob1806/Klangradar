@@ -22,7 +22,7 @@ export function AvatarCropButton({
   initialCrop,
   path,
 }: {
-  entityType: "persons" | "ensembles";
+  entityType: "persons" | "ensembles" | "venues";
   entityId: string;
   photoUrl: string | null;
   initialCrop: CropRect | null;

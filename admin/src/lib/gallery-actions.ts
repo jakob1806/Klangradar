@@ -232,7 +232,7 @@ export async function saveGalleryImageCrop(
  * gehört zum einzelnen photo_url-Feld, nicht zu einem bestimmten
  * Galeriebild. */
 export async function saveAvatarCrop(
-  entityType: "persons" | "ensembles",
+  entityType: "persons" | "ensembles" | "venues",
   entityId: string,
   crop: GalleryCrop | null,
   path: string,

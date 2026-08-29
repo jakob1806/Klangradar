@@ -46,7 +46,7 @@ export async function requestOrganizerClaim(organizerId: string, formData: FormD
     throw new Error(error.message);
   }
 
-  await getResend().emails.send({ from: "Klangradar <noreply@klangradar.com>", to: "redaktion@klangradar.com", subject: "Neue Institution-Claim-Anfrage", html: `<p>Eine Institution-Claim-Anfrage wartet auf Prüfung.</p><p>Antragsteller: ${verificationEmail}</p><p><a href="https://klangradar.com/entity-claims">Im Redaktions-Dashboard öffnen</a></p>` });
+  await getResend().emails.send({ from: "Klangradar <noreply@klangradar.com>", to: "redaktion@klangradar.com", subject: "Neue Institution-Claim-Anfrage", html: `<p>Eine Institution-Claim-Anfrage wartet auf Prüfung.</p><p>Antragsteller: ${verificationEmail}</p><p><a href="https://klangradar.com/login?redirectTo=%2Fentity-claims">Im Redaktions-Dashboard öffnen</a></p>` });
 
   revalidatePath("/veranstalter");
   redirect("/veranstalter");
@@ -86,7 +86,7 @@ export async function createOwnOrganizer(formData: FormData) {
   });
   if (claimError) throw new Error(claimError.message);
 
-  await getResend().emails.send({ from: "Klangradar <noreply@klangradar.com>", to: "redaktion@klangradar.com", subject: "Neue Institution zur Prüfung", html: `<p>Eine neue Institution und ein Claim warten auf Prüfung.</p><p>Antragsteller: ${verificationEmail}</p><p><a href="https://klangradar.com/entity-claims">Im Redaktions-Dashboard öffnen</a></p>` });
+  await getResend().emails.send({ from: "Klangradar <noreply@klangradar.com>", to: "redaktion@klangradar.com", subject: "Neue Institution zur Prüfung", html: `<p>Eine neue Institution und ein Claim warten auf Prüfung.</p><p>Antragsteller: ${verificationEmail}</p><p><a href="https://klangradar.com/login?redirectTo=%2Fentity-claims">Im Redaktions-Dashboard öffnen</a></p>` });
 
   revalidatePath("/veranstalter");
   redirect("/veranstalter");

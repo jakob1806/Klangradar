@@ -56,6 +56,7 @@ export function GalleryEditor({
   venueId = null,
   venues,
   showEventFallbackToggle = false,
+  storagePrefix,
 }: {
   originType: GalleryOriginType;
   originId: string;
@@ -76,6 +77,8 @@ export function GalleryEditor({
    * "Als Veranstaltungs-Standardbild verwenden" (siehe
    * setEventFallbackImage()). */
   showEventFallbackToggle?: boolean;
+  /** Claim-Portal: eigener Nutzerpfad statt der redaktionellen Standardordner. */
+  storagePrefix?: string;
 }) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -108,7 +111,7 @@ export function GalleryEditor({
         }
 
         const ext = file.name.split(".").pop() ?? "jpg";
-        const path_ = `${originType}s/${crypto.randomUUID()}.${ext}`;
+        const path_ = `${storagePrefix ?? `${originType}s`}/${crypto.randomUUID()}.${ext}`;
 
         const { error: uploadError } = await supabase.storage.from(BUCKET).upload(path_, file, {
           cacheControl: "3600",
