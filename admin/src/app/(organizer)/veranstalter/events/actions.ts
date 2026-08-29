@@ -198,3 +198,19 @@ export async function updateOrganizerEvent(eventId: string, formData: FormData) 
   revalidatePath("/veranstalter/events");
   redirect("/veranstalter/events");
 }
+
+export async function addOrganizerEventImage(eventId: string, imageUrl: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Nicht angemeldet.");
+  const expectedPrefix = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/entity-photos/organizer-event-images/${user.id}/`;
+  if (!imageUrl.startsWith(expectedPrefix)) throw new Error("Ungültige Bildquelle.");
+  const approvedOrganizerIds = await getApprovedOrganizerIds(supabase, user.id);
+  const { data: event } = await supabase.from("events").select("organizer_id, image_urls").eq("id", eventId).maybeSingle();
+  if (!event?.organizer_id || !approvedOrganizerIds.includes(event.organizer_id as string)) throw new Error("Du bist für dieses Event nicht berechtigt.");
+  const images = [...new Set([...(event.image_urls as string[] | null ?? []), imageUrl])];
+  const { error } = await supabase.from("events").update({ image_urls: images, updated_at: new Date().toISOString() }).eq("id", eventId);
+  if (error) throw new Error(error.message);
+  revalidatePath(`/veranstalter/events/${eventId}`);
+  revalidatePath("/veranstalter/events");
+}

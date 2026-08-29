@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { resolveEntityNames } from "@/lib/entity-tables";
 import { OrganizerEventForm, type OrganizerEventFormValues } from "../../organizer-event-form";
 import { updateOrganizerEvent } from "../actions";
+import { EventImageUpload } from "../../event-image-upload";
 
 export const dynamic = "force-dynamic";
 
@@ -101,6 +102,7 @@ export default async function EditOrganizerEventPage({ params }: { params: Promi
         organizers={organizers}
         genres={genres ?? []}
       />
+      <div className="mt-8"><EventImageUpload eventId={event.id} userId={user!.id} /></div>
     </div>
   );
 }
