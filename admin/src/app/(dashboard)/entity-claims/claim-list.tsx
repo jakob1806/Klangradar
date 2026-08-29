@@ -18,6 +18,8 @@ export interface UiClaim {
   entityName: string;
   requesterLabel: string;
   justification: string | null;
+  verificationEmail: string | null;
+  evidenceUrl: string | null;
   createdAt: string;
 }
 
@@ -42,6 +44,7 @@ export function ClaimList({ claims }: { claims: UiClaim[] }) {
             <th className="type-label px-4 py-3">Typ</th>
             <th className="type-label px-4 py-3">Antragsteller</th>
             <th className="type-label px-4 py-3">Begründung</th>
+            <th className="type-label px-4 py-3">Nachweis</th>
             <th className="type-label px-4 py-3">Angefragt</th>
             <th className="px-4 py-3" />
           </tr>
@@ -56,6 +59,10 @@ export function ClaimList({ claims }: { claims: UiClaim[] }) {
                 <td className="px-4 py-3 text-neutral-600">{claim.requesterLabel}</td>
                 <td className="max-w-xs truncate px-4 py-3 text-neutral-500" title={claim.justification ?? undefined}>
                   {claim.justification ?? "—"}
+                </td>
+                <td className="px-4 py-3 text-neutral-600">
+                  {claim.verificationEmail && <p>{claim.verificationEmail}</p>}
+                  {claim.evidenceUrl && <a href={claim.evidenceUrl} target="_blank" rel="noreferrer" className="text-[#0071e3] hover:underline">Nachweis öffnen ↗</a>}
                 </td>
                 <td className="px-4 py-3 tabular-nums text-neutral-500">{formatDate(claim.createdAt)}</td>
                 <td className="px-4 py-3">

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { Field, TextInput } from "@/components/form-fields";
+import { Field, TextArea, TextInput } from "@/components/form-fields";
 import { SubmitButton } from "@/components/submit-button";
 import { requestOrganizerClaim, createOwnOrganizer } from "./actions";
 
@@ -31,7 +31,7 @@ export default async function ClaimOrganizerPage({ searchParams }: { searchParam
       <h1 className="type-heading mb-2 text-2xl text-[#1d1d1f]">Institution beanspruchen</h1>
       <p className="mb-4 text-sm text-[#86868b]">
         Suche nach deiner Institution/deinem Veranstalter. Findest du sie nicht, kannst du sie unten neu
-        anlegen — das schaltet sich sofort frei, ohne Redaktionsprüfung.
+        anlegen. Jede Anfrage wird mit Nachweis von der Redaktion geprüft, bevor Verwaltungsrechte entstehen.
       </p>
 
       <div className="mb-6 flex gap-3 text-sm">
@@ -61,10 +61,13 @@ export default async function ClaimOrganizerPage({ searchParams }: { searchParam
           {results.length > 0 ? (
             <ul className="divide-y divide-neutral-200 overflow-hidden rounded-xl border border-black/[0.06] bg-white">
               {results.map((r) => (
-                <li key={r.id} className="flex items-center justify-between px-4 py-3">
+                <li key={r.id} className="px-4 py-4">
                   <span className="font-medium text-[#1d1d1f]">{r.name}</span>
-                  <form action={requestOrganizerClaim.bind(null, r.id)}>
-                    <SubmitButton pendingLabel="Sende…">Beanspruchen</SubmitButton>
+                  <form action={requestOrganizerClaim.bind(null, r.id)} className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <Field label="Geschäftliche E-Mail" required><TextInput name="verification_email" type="email" required placeholder="name@institution.de" /></Field>
+                    <Field label="Nachweis-Link" required><TextInput name="evidence_url" type="url" required placeholder="Website, Impressum oder Dokument-Link" /></Field>
+                    <div className="sm:col-span-2"><Field label="Warum bist du berechtigt?" required><TextArea name="justification" rows={2} required placeholder="Funktion bei der Institution und Bezug zum Nachweis" /></Field></div>
+                    <div className="sm:col-span-2"><SubmitButton pendingLabel="Sende…">Mit Nachweis beantragen</SubmitButton></div>
                   </form>
                 </li>
               ))}
@@ -76,7 +79,8 @@ export default async function ClaimOrganizerPage({ searchParams }: { searchParam
       )}
 
       <div className="rounded-xl border border-black/[0.06] bg-white p-6">
-        <h2 className="mb-4 text-sm font-semibold text-[#86868b]">Nicht gefunden? Neue Institution anlegen</h2>
+        <h2 className="mb-2 text-sm font-semibold text-[#86868b]">Nicht gefunden? Neue Institution anlegen</h2>
+        <p className="mb-4 text-sm text-[#48484a]">Auch neue Institutionen werden erst nach Prüfung des Nachweises freigeschaltet.</p>
         <form action={createOwnOrganizer} className="flex flex-col gap-4">
           <Field label="Name" required>
             <TextInput type="text" name="name" required defaultValue={query} />
@@ -86,6 +90,15 @@ export default async function ClaimOrganizerPage({ searchParams }: { searchParam
           </Field>
           <Field label="Website">
             <TextInput type="url" name="website_url" placeholder="https://…" />
+          </Field>
+          <Field label="Geschäftliche E-Mail" required>
+            <TextInput type="email" name="verification_email" required placeholder="name@institution.de" />
+          </Field>
+          <Field label="Nachweis-Link" required>
+            <TextInput type="url" name="evidence_url" required placeholder="Website, Impressum oder Dokument-Link" />
+          </Field>
+          <Field label="Warum bist du berechtigt?" required>
+            <TextArea name="justification" rows={3} required placeholder="Funktion bei der Institution und Bezug zum Nachweis" />
           </Field>
           <div>
             <SubmitButton>Institution anlegen</SubmitButton>

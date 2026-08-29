@@ -10,6 +10,8 @@ interface ClaimRow {
   entity_id: string;
   user_id: string;
   justification: string | null;
+  verification_email: string | null;
+  evidence_url: string | null;
   created_at: string;
 }
 
@@ -18,7 +20,7 @@ export default async function EntityClaimsPage() {
 
   const { data, error } = await supabase
     .from("entity_claims")
-    .select("id, entity_type, entity_id, user_id, justification, created_at")
+    .select("id, entity_type, entity_id, user_id, justification, verification_email, evidence_url, created_at")
     .eq("status", "pending")
     .order("created_at", { ascending: true })
     .returns<ClaimRow[]>();
@@ -44,6 +46,8 @@ export default async function EntityClaimsPage() {
     entityName: entityNames.get(`${c.entity_type}:${c.entity_id}`) ?? "(unbekannt)",
     requesterLabel: requesterProfiles.get(c.user_id) ?? c.user_id,
     justification: c.justification,
+    verificationEmail: c.verification_email,
+    evidenceUrl: c.evidence_url,
     createdAt: c.created_at,
   }));
 
