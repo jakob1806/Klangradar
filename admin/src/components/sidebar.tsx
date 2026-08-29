@@ -126,6 +126,11 @@ export function Sidebar({ userEmail }: { userEmail?: string }) {
           </div>
         ))}
       </nav>
+      <div className="mt-4 border-t border-black/[0.06] pt-4">
+        <Link href="/veranstalter" className="dashboard-nav-item">
+          Zum Veranstalterportal
+        </Link>
+      </div>
       {userEmail && (
         <div className="dashboard-account" title={userEmail}>
           <span className="dashboard-account-avatar" aria-hidden="true">{userEmail.slice(0, 1).toUpperCase()}</span>

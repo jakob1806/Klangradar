@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Sidebar } from "@/components/sidebar";
 import { MobileNavigation } from "@/components/mobile-navigation";
 import { MobileTableAdapter } from "@/components/mobile-table-adapter";
@@ -39,6 +40,12 @@ export default async function DashboardLayout({
             <p className="text-[11px] text-[#86868b]">Inhalte zentral verwalten</p>
           </div>
           <div className="flex items-center gap-4">
+            <Link
+              href="/veranstalter"
+              className="rounded-full border border-black/10 px-3 py-1.5 text-xs font-semibold text-[#48484a] transition hover:bg-black/[0.04] hover:text-[#1d1d1f]"
+            >
+              Veranstalterportal
+            </Link>
             <CityFilterSwitcher cities={cityOptions} activeSlug={activeCity.slug} />
             <SignOutButton />
           </div>
