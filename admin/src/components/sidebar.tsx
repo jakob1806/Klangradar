@@ -39,6 +39,7 @@ const NAV_GROUPS = [
       { href: "/data-quality", label: "Recherche & Anreicherung" },
       { href: "/duplicates", label: "Duplikate" },
       { href: "/entity-candidates", label: "Entity-Kandidaten" },
+      { href: "/entity-claims", label: "Veranstalter-Claims" },
       { href: "/qualitaetspruefung", label: "Qualitätsprüfung" },
       { href: "/work-image-reuse", label: "Werk-Bild-Verknüpfungen" },
       { href: "/aliases", label: "Schreibweisen & Aliasse" },

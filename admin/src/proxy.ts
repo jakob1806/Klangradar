@@ -2,6 +2,13 @@ import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/proxy";
 
 const PUBLIC_PATHS = ["/login", "/auth/callback", "/no-access", "/impressum", "/datenschutz"];
+// Erfordert Login, aber NICHT admin/editor-Rolle — Veranstalter-Portal,
+// Berechtigung läuft pro Zeile über entity_claims (RLS), nicht über die
+// globale user_roles-Gate. Bewusst ein eigenes Array statt in PUBLIC_PATHS
+// gemischt: PUBLIC_PATHS bedeutet "kein Login nötig", eine stärkere
+// Garantie als "Login nötig, Rolle egal" — Vermischen wäre eine leichte
+// Falle für eine spätere versehentliche vollständige Öffnung.
+const AUTH_ONLY_PATHS = ["/veranstalter"];
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -17,6 +24,13 @@ export async function proxy(request: NextRequest) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("redirectTo", pathname);
     return NextResponse.redirect(loginUrl);
+  }
+
+  // Veranstalter-Portal: jeder eingeloggte Nutzer darf rein, VOR dem
+  // user_roles-Check — sonst würde jeder Nicht-Redaktions-Nutzer sofort
+  // nach /no-access umgeleitet, bevor er das Portal je zu sehen bekäme.
+  if (AUTH_ONLY_PATHS.some((path) => pathname.startsWith(path))) {
+    return response;
   }
 
   const { data: roles } = await supabase
