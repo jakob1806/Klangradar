@@ -66,6 +66,7 @@ export async function createOwnOrganizer(formData: FormData) {
     entity_id: organizer.id,
     user_id: user.id,
     status: "approved",
+    role: "owner",
   });
   if (claimError) throw new Error(claimError.message);
 
