@@ -16,6 +16,9 @@ const NAV_ITEMS = [
   { href: "/veranstalter/marketing", label: "Marketing Center" },
   { href: "/veranstalter/series", label: "Veranstaltungsserien" },
   { href: "/veranstalter/agency", label: "Agenturen" },
+  { href: "/veranstalter/ai-assistant", label: "KI-Assistent" },
+  { href: "/veranstalter/import", label: "Import & Sync" },
+  { href: "/veranstalter/finance", label: "Finanzen" },
   { href: "/veranstalter/claim", label: "Beanspruchen" },
 ] as const;
 
