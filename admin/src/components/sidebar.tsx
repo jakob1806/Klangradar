@@ -52,6 +52,7 @@ const NAV_GROUPS = [
     label: "Stammdaten & System",
     items: [
       { href: "/venues", label: "Venues" },
+      { href: "/organizers", label: "Veranstalter" },
       { href: "/persons", label: "Personen" },
       { href: "/ensembles", label: "Ensembles" },
       { href: "/ensemble-families", label: "Ensemblefamilien" },
