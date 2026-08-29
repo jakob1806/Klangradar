@@ -13,11 +13,18 @@ const STATUS_LABEL: Record<string, string> = {
   rejected: "Abgelehnt/Entfernt",
 };
 
+const ROLE_LABEL: Record<string, string> = {
+  owner: "Admin / Owner",
+  editor: "Redaktion",
+  marketing: "Marketing",
+  finance: "Finanzen",
+};
+
 interface ClaimRow {
   id: string;
   user_id: string;
   status: "pending" | "approved" | "rejected";
-  role: "owner" | "editor";
+  role: "owner" | "editor" | "marketing" | "finance";
   justification: string | null;
   created_at: string;
 }
@@ -78,8 +85,8 @@ export default async function TeamPage({
       <h1 className="type-heading mb-1 text-2xl text-[#1d1d1f]">Team — {entityName}</h1>
       <p className="mb-8 text-sm text-[#86868b]">
         {isOwner
-          ? "Als Owner kannst du offene Anfragen direkt selbst genehmigen und Rollen anpassen."
-          : "Du bist Editor — nur Owner können Team-Mitglieder verwalten."}
+          ? "Als Owner kannst du offene Anfragen direkt selbst genehmigen und Rollen passend zu Redaktion, Marketing oder Finanzen vergeben."
+          : `Deine Rolle: ${ROLE_LABEL[myClaim.role] ?? myClaim.role}. Nur Owner können Team-Mitglieder verwalten.`}
       </p>
 
       {pending.length > 0 && (
@@ -120,7 +127,7 @@ function TeamTable({
           {claims.map((claim) => (
             <tr key={claim.id}>
               <td className="px-4 py-3 font-medium text-[#1d1d1f]">{nameByUserId.get(claim.user_id) ?? claim.user_id}</td>
-              <td className="px-4 py-3 text-[#86868b]">{claim.role === "owner" ? "Owner" : "Editor"}</td>
+              <td className="px-4 py-3 text-[#86868b]">{ROLE_LABEL[claim.role] ?? claim.role}</td>
               <td className="px-4 py-3 text-[#86868b]">{STATUS_LABEL[claim.status]}</td>
               <td className="px-4 py-3 text-right">{isOwner && <TeamMemberActions claimId={claim.id} status={claim.status} role={claim.role} />}</td>
             </tr>
