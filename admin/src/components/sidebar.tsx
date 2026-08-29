@@ -41,6 +41,7 @@ const NAV_GROUPS = [
       { href: "/entity-candidates", label: "Entity-Kandidaten" },
       { href: "/entity-claims", label: "Veranstalter-Claims" },
       { href: "/entity-edit-suggestions", label: "Profiländerungsvorschläge" },
+      { href: "/entity-trust", label: "Verifizierung" },
       { href: "/qualitaetspruefung", label: "Qualitätsprüfung" },
       { href: "/work-image-reuse", label: "Werk-Bild-Verknüpfungen" },
       { href: "/aliases", label: "Schreibweisen & Aliasse" },

@@ -52,6 +52,55 @@ export const EDITABLE_FIELDS_FOR_ENTITY_TYPE = {
   },
 } as const satisfies Record<ClaimableEntityType, Record<string, string>>;
 
+export type TrustLevel = "unverified" | "claimed" | "verified" | "official";
+
+/** Leitet die Vertrauensstufe für eine Liste polymorpher entity_type/
+ * entity_id-Paare ab (Phase 4: Verifizierung/Trust-System). "unverified"/
+ * "claimed" brauchen keine eigene Speicherung — sie ergeben sich rein
+ * daraus, ob mindestens ein genehmigter entity_claims-Eintrag existiert;
+ * "verified"/"official" kommen aus der redaktionellen
+ * entity_trust_overrides-Tabelle und haben Vorrang. Rückgabe-Key:
+ * "entityType:entityId", genau wie resolveEntityNames. */
+export async function resolveTrustLevels(
+  supabase: SupabaseClient,
+  refs: { entityType: ClaimableEntityType; entityId: string }[],
+): Promise<Map<string, TrustLevel>> {
+  const levels = new Map<string, TrustLevel>();
+  const idsByType = new Map<ClaimableEntityType, Set<string>>();
+  for (const ref of refs) {
+    if (!idsByType.has(ref.entityType)) idsByType.set(ref.entityType, new Set());
+    idsByType.get(ref.entityType)!.add(ref.entityId);
+    levels.set(`${ref.entityType}:${ref.entityId}`, "unverified");
+  }
+
+  await Promise.all(
+    Array.from(idsByType.entries()).map(async ([entityType, idSet]) => {
+      const ids = Array.from(idSet);
+
+      const { data: approvedClaims } = await supabase
+        .from("entity_claims")
+        .select("entity_id")
+        .eq("entity_type", entityType)
+        .eq("status", "approved")
+        .in("entity_id", ids);
+      for (const row of approvedClaims ?? []) {
+        levels.set(`${entityType}:${row.entity_id as string}`, "claimed");
+      }
+
+      const { data: overrides } = await supabase
+        .from("entity_trust_overrides")
+        .select("entity_id, level")
+        .eq("entity_type", entityType)
+        .in("entity_id", ids);
+      for (const row of overrides ?? []) {
+        levels.set(`${entityType}:${row.entity_id as string}`, row.level as TrustLevel);
+      }
+    }),
+  );
+
+  return levels;
+}
+
 /** Löst Anzeigenamen für eine Liste polymorpher entity_type/entity_id-Paare
  * auf (entity_claims hat KEINEN FK je Typ, deshalb ist ein eingebetteter
  * Join wie bei entity_candidates hier nicht möglich). Gruppiert nach Typ und
