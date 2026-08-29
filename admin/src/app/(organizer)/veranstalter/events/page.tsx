@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
 import { formatMunichDateTime } from "@/lib/munich-time";
 
@@ -18,6 +19,7 @@ interface EventRow {
   start_datetime: string;
   status: string;
   venues: { name: string } | null;
+  image_urls: string[] | null;
 }
 
 // Lädt eigene Events implizit über RLS ("Veranstalter sieht eigene Events",
@@ -26,11 +28,16 @@ interface EventRow {
 // (die RLS-Policies werden pro Command-Typ ODER-verknüpft).
 export default async function VeranstalterEventsPage() {
   const supabase = await createClient();
-  const { data } = await supabase
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data: claims } = await supabase.from("entity_claims").select("entity_id").eq("user_id", user!.id).eq("entity_type", "organizer").eq("status", "approved");
+  const organizerIds = (claims ?? []).map((claim) => claim.entity_id as string);
+  const { data } = organizerIds.length ? await supabase
     .from("events")
-    .select("id, title, start_datetime, status, venues(name)")
-    .order("start_datetime", { ascending: false })
-    .returns<EventRow[]>();
+    .select("id, title, start_datetime, status, venues(name), image_urls")
+    .in("organizer_id", organizerIds)
+    .gte("start_datetime", new Date().toISOString())
+    .order("start_datetime", { ascending: true })
+    .returns<EventRow[]>() : { data: [] as EventRow[] };
 
   const events = data ?? [];
 
@@ -46,6 +53,7 @@ export default async function VeranstalterEventsPage() {
         </Link>
       </div>
 
+      <p className="-mt-3 mb-6 text-sm text-[#86868b]">Nur kommende Events deiner beanspruchten Institutionen, chronologisch ab heute.</p>
       {events.length === 0 ? (
         <p className="text-sm text-[#86868b]">
           Noch keine Events. Voraussetzung ist eine genehmigte Institution unter{" "}
@@ -59,6 +67,7 @@ export default async function VeranstalterEventsPage() {
           <table className="w-full text-sm">
             <thead className="border-b border-black/[0.06] text-left">
               <tr>
+                <th className="px-4 py-3 text-xs font-semibold text-[#86868b]">Bild</th>
                 <th className="px-4 py-3 text-xs font-semibold text-[#86868b]">Titel</th>
                 <th className="px-4 py-3 text-xs font-semibold text-[#86868b]">Ort</th>
                 <th className="px-4 py-3 text-xs font-semibold text-[#86868b]">Termin</th>
@@ -69,6 +78,7 @@ export default async function VeranstalterEventsPage() {
             <tbody className="divide-y divide-neutral-200">
               {events.map((event) => (
                 <tr key={event.id}>
+                  <td className="px-4 py-3"><div className="relative h-12 w-16 overflow-hidden rounded-md bg-[#f5f5f7]">{event.image_urls?.[0] && <Image src={event.image_urls[0]} alt="" fill className="object-cover" sizes="64px" unoptimized />}</div></td>
                   <td className="px-4 py-3 font-medium text-[#1d1d1f]">{event.title}</td>
                   <td className="px-4 py-3 text-[#48484a]">{event.venues?.name ?? "—"}</td>
                   <td className="px-4 py-3 tabular-nums text-[#48484a]">{formatMunichDateTime(event.start_datetime)}</td>

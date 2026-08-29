@@ -12,6 +12,7 @@ import { SignOutButton } from "@/components/sign-out-button";
 const NAV_ITEMS = [
   { href: "/veranstalter", label: "Dashboard" },
   { href: "/veranstalter/events", label: "Meine Events" },
+  { href: "/veranstalter/events/discover", label: "Alle Events" },
   { href: "/veranstalter/promote", label: "Push & Promote" },
   { href: "/veranstalter/claim", label: "Beanspruchen" },
 ] as const;
