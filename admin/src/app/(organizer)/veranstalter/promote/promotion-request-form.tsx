@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { requestPromotion } from "./actions";
+import { PromotionEventPicker } from "./promotion-event-picker";
 
 type EventOption = { id: string; title: string; startLabel: string };
 
@@ -44,13 +45,7 @@ export function PromotionRequestForm({ events }: { events: EventOption[] }) {
       }}
       id="promotion-request-form"
     >
-      <label className="block text-sm font-medium text-[#1d1d1f]">
-        Event
-        <select name="event_id" required className="mt-1.5 w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-sm">
-          <option value="">Bitte wählen</option>
-          {events.map((event) => <option key={event.id} value={event.id}>{event.title} · {event.startLabel}</option>)}
-        </select>
-      </label>
+      <PromotionEventPicker events={events} />
       <fieldset>
         <legend className="text-sm font-medium text-[#1d1d1f]">Gewünschte Platzierung</legend>
         <div className="mt-2 grid gap-2 sm:grid-cols-2">
