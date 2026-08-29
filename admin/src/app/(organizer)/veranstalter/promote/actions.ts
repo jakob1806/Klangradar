@@ -7,48 +7,54 @@ import { getStripe } from "@/lib/stripe";
 
 const PLACEMENTS = new Set(["standard", "featured", "local_spotlight", "homepage_feature", "push"]);
 
-export async function requestPromotion(formData: FormData) {
-  const eventId = String(formData.get("event_id") ?? "").trim();
-  const placement = String(formData.get("placement") ?? "").trim();
-  const note = String(formData.get("requester_note") ?? "").trim();
+export async function requestPromotion(formData: FormData): Promise<{ error?: string; success?: true }> {
+  try {
+    const eventId = String(formData.get("event_id") ?? "").trim();
+    const placement = String(formData.get("placement") ?? "").trim();
+    const note = String(formData.get("requester_note") ?? "").trim();
 
-  if (!eventId || !PLACEMENTS.has(placement)) throw new Error("Bitte wähle ein Event und eine Platzierung.");
-  if (note.length > 1000) throw new Error("Die Nachricht darf höchstens 1.000 Zeichen lang sein.");
+    if (!eventId || !PLACEMENTS.has(placement)) return { error: "Bitte wähle ein Event und eine Platzierung." };
+    if (note.length > 1000) return { error: "Die Nachricht darf höchstens 1.000 Zeichen lang sein." };
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("Nicht angemeldet.");
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "Bitte melde dich erneut an." };
 
   // RLS ist die verbindliche zweite Schranke. Diese Prüfung liefert der UI
   // aber eine klare Antwort, statt eine rohe Policy-Fehlermeldung zu zeigen.
-  const { data: event } = await supabase
-    .from("events")
-    .select("id, organizer_id, status, start_datetime")
-    .eq("id", eventId)
-    .maybeSingle();
-  if (!event || event.status !== "scheduled" || new Date(event.start_datetime as string).getTime() <= Date.now()) {
-    throw new Error("Promotionen sind nur für kommende, veröffentlichte Events möglich.");
+    const { data: event } = await supabase
+      .from("events")
+      .select("id, organizer_id, status, start_datetime")
+      .eq("id", eventId)
+      .maybeSingle();
+    if (!event || event.status !== "scheduled" || new Date(event.start_datetime as string).getTime() <= Date.now()) {
+      return { error: "Promotionen sind nur für kommende, veröffentlichte Events möglich." };
+    }
+
+    const { data: claim } = await supabase
+      .from("entity_claims")
+      .select("id")
+      .eq("entity_type", "organizer")
+      .eq("entity_id", event.organizer_id as string)
+      .eq("user_id", user.id)
+      .eq("status", "approved")
+      .maybeSingle();
+    if (!claim) return { error: "Dieses Event gehört nicht zu einer von dir verwalteten Institution." };
+
+    const { error } = await supabase.from("event_promotions").insert({
+      event_id: eventId,
+      requested_by: user.id,
+      placement,
+      requester_note: note || null,
+    });
+    if (error) return { error: `Die Anfrage konnte nicht gespeichert werden: ${error.message}` };
+
+    revalidatePath("/veranstalter/promote");
+    return { success: true };
+  } catch (cause) {
+    console.error("Promotion request failed", cause);
+    return { error: "Die Anfrage konnte derzeit nicht verarbeitet werden. Bitte versuche es gleich noch einmal." };
   }
-
-  const { data: claim } = await supabase
-    .from("entity_claims")
-    .select("id")
-    .eq("entity_type", "organizer")
-    .eq("entity_id", event.organizer_id as string)
-    .eq("user_id", user.id)
-    .eq("status", "approved")
-    .maybeSingle();
-  if (!claim) throw new Error("Du bist für dieses Event nicht berechtigt.");
-
-  const { error } = await supabase.from("event_promotions").insert({
-    event_id: eventId,
-    requested_by: user.id,
-    placement,
-    requester_note: note || null,
-  });
-  if (error) throw new Error(error.message);
-
-  revalidatePath("/veranstalter/promote");
 }
 
 const PRICE_BY_PLACEMENT: Record<string, string> = { standard: "price_1U9otxCkrdnLOI0hTRLkOdoW", featured: "price_1U9ouVCkrdnLOI0hCbzW8jWj", local_spotlight: "price_1U9oukCkrdnLOI0hBkihCzyF", push: "price_1U9ov5CkrdnLOI0hFUwOpA6i", homepage_feature: "price_1U9ovMCkrdnLOI0hqkPMYDag" };
