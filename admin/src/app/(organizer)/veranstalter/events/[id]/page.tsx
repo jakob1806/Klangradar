@@ -28,6 +28,7 @@ interface EventDetailRow {
   age_restriction: string | null;
   discount_info: string | null;
   presale_fee_info: string | null;
+  image_urls: string[] | null;
   venues: { name: string } | null;
 }
 
@@ -43,7 +44,7 @@ export default async function EditOrganizerEventPage({ params }: { params: Promi
   const { data: event } = await supabase
     .from("events")
     .select(
-      "id, slug, title, subtitle, description_de, start_datetime, duration_minutes, has_intermission, venue_id, venue_detail, organizer_id, ticket_url, price_min, price_max, is_free, remaining_tickets_status, doors_info, age_restriction, discount_info, presale_fee_info, venues(name)",
+      "id, slug, title, subtitle, description_de, start_datetime, duration_minutes, has_intermission, venue_id, venue_detail, organizer_id, ticket_url, price_min, price_max, is_free, remaining_tickets_status, doors_info, age_restriction, discount_info, presale_fee_info, image_urls, venues(name)",
     )
     .eq("id", id)
     .maybeSingle()
@@ -82,15 +83,16 @@ export default async function EditOrganizerEventPage({ params }: { params: Promi
   };
 
   return (
-    <div className="mx-auto max-w-2xl px-6 py-10">
+    <div className="mx-auto max-w-4xl px-6 py-10">
       <h1 className="type-heading mb-6 text-2xl text-[#1d1d1f]">Event bearbeiten</h1>
       <OrganizerEventForm
         action={updateOrganizerEvent.bind(null, event.id)}
         initial={initial}
         organizers={organizers}
         genres={genres ?? []}
+        initialImageUrl={event.image_urls?.[0] ?? null}
       />
-      <div className="mt-8"><EventImageUpload eventId={event.id} userId={user!.id} /></div>
+      <div className="mt-8 max-w-2xl"><EventImageUpload eventId={event.id} userId={user!.id} /></div>
     </div>
   );
 }
