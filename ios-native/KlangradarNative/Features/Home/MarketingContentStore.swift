@@ -13,7 +13,7 @@ struct MarketingHeroData: Codable, Equatable {
     var venue: String
 }
 
-struct MarketingEventData: Codable, Equatable, Identifiable {
+struct MarketingEventData: Codable, Equatable, Hashable, Identifiable {
     var id: UUID = UUID()
     var imagePath: String?
     var title: String
@@ -26,9 +26,40 @@ struct MarketingModuleData: Codable, Equatable, Identifiable {
     var events: [MarketingEventData]
 }
 
+struct MarketingSearchContent: Codable, Equatable {
+    var headline: String
+    var events: [MarketingEventData]
+}
+
 struct MarketingContent: Codable, Equatable {
     var hero: MarketingHeroData
     var modules: [MarketingModuleData]
+    var search: MarketingSearchContent
+
+    private enum CodingKeys: String, CodingKey { case hero, modules, search }
+
+    init(hero: MarketingHeroData, modules: [MarketingModuleData], search: MarketingSearchContent) {
+        self.hero = hero
+        self.modules = modules
+        self.search = search
+    }
+
+    // Bereits gespeicherte Marketing-Inhalte aus der ersten Version hatten
+    // noch keinen eigenen Suche-Tab. Sie bleiben beim Update verwendbar und
+    // bekommen ohne sichtbaren Bruch die Standard-Suche ergänzt.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        hero = try container.decode(MarketingHeroData.self, forKey: .hero)
+        modules = try container.decode([MarketingModuleData].self, forKey: .modules)
+        search = try container.decodeIfPresent(MarketingSearchContent.self, forKey: .search)
+            ?? MarketingSearchContent(
+                headline: "Konzerte entdecken",
+                events: [
+                    MarketingEventData(title: "Symphonieorchester des Bayerischen Rundfunks", subtitle: "Do., 1. Okt. 20:00 · Isarphilharmonie"),
+                    MarketingEventData(title: "Sir Simon Rattle | Beethoven 9", subtitle: "Do., 24. Sept. 19:00 · Herkulessaal")
+                ]
+            )
+    }
 }
 
 @MainActor
@@ -85,6 +116,22 @@ final class MarketingContentStore: ObservableObject {
         return try? JSONDecoder().decode(MarketingContent.self, from: data)
     }
 
+    static let defaultSearch = MarketingSearchContent(
+        headline: "Konzerte entdecken",
+        events: [
+            MarketingEventData(
+                imagePath: "https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=1200&q=80",
+                title: "Symphonieorchester des Bayerischen Rundfunks",
+                subtitle: "Do., 1. Okt. 20:00 · Isarphilharmonie"
+            ),
+            MarketingEventData(
+                imagePath: "https://images.unsplash.com/photo-1514320291840-2e0a9bf2a9ae?w=1200&q=80",
+                title: "Sir Simon Rattle | Beethoven 9",
+                subtitle: "Do., 24. Sept. 19:00 · Herkulessaal"
+            )
+        ]
+    )
+
     static let defaultContent = MarketingContent(
         hero: MarketingHeroData(
             imagePath: "https://images.unsplash.com/photo-1520523839897-bd0b52f945a0?w=1600&q=80",
@@ -117,6 +164,7 @@ final class MarketingContentStore: ObservableObject {
                     subtitle: "Sa., 3. Okt. 19:30 · Isarphilharmonie"
                 )
             ])
-        ]
+        ],
+        search: defaultSearch
     )
 }

@@ -19,6 +19,8 @@ struct MarketingAppShellView: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var selection: MarketingTab = .home
+    @State private var isPresentationMode = false
+    @StateObject private var marketingContent = MarketingContentStore()
     // Von SearchView/EventCard/EntityDetailView usw. per @EnvironmentObject
     // erwartet — dieselben Stores wie in RootTabView, sonst crasht das
     // Öffnen der Live-Tabs mangels ObservableObject im Environment.
@@ -51,11 +53,11 @@ struct MarketingAppShellView: View {
     var body: some View {
         ZStack(alignment: .topTrailing) {
             TabView(selection: $selection) {
-                MarketingHomeScreenView()
+                MarketingHomeScreenView(isPresentationMode: $isPresentationMode)
                     .tag(MarketingTab.home)
                     .tabItem { Label("Home", systemImage: "house") }
 
-                SearchView(eventRepository: eventRepository, contentRepository: contentRepository)
+                MarketingSearchScreenView(isPresentationMode: $isPresentationMode)
                     .tag(MarketingTab.search)
                     .tabItem { Label("Suche", systemImage: "magnifyingglass") }
 
@@ -84,22 +86,44 @@ struct MarketingAppShellView: View {
                     .tabItem { Label("Profil", systemImage: "person") }
             }
 
-            Button {
-                dismiss()
-            } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.title2)
-                    .symbolRenderingMode(.palette)
-                    .foregroundStyle(.secondary, Color(.systemBackground).opacity(0.85))
+            if !isPresentationMode {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.title2)
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(.secondary, Color(.systemBackground).opacity(0.85))
+                }
+                .padding(12)
+                .accessibilityLabel("Marketing-Vorschau schließen")
             }
-            .padding(12)
-            .accessibilityLabel("Marketing-Vorschau schließen")
+
+            // Im fertigen Aufnahmezustand bleibt die gesamte Oberfläche frei
+            // von Werkzeugen. Ein bewusster Doppeltipp auf Home ist der
+            // einzige Ausstieg und wird nicht versehentlich in einer Aufnahme
+            // ausgelöst.
+            if isPresentationMode {
+                VStack {
+                    Spacer()
+                    HStack {
+                        Color.clear
+                            .frame(width: 88, height: 54)
+                            .contentShape(.rect)
+                            .onTapGesture(count: 2) { dismiss() }
+                        Spacer()
+                    }
+                }
+                .ignoresSafeArea(edges: .bottom)
+                .accessibilityLabel("Marketing-Vorschau per Doppeltipp auf Home schließen")
+            }
         }
         .environmentObject(favorites)
         .environmentObject(follows)
         .environmentObject(reportStore)
         .environmentObject(genreFilterRouter)
         .environmentObject(cityStore)
+        .environmentObject(marketingContent)
         .task { await favorites.load() }
         .task { await follows.load() }
         .task { await cityStore.load() }
