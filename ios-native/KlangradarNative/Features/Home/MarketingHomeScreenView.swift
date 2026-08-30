@@ -10,6 +10,7 @@ import SwiftUI
 struct MarketingHomeScreenView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @EnvironmentObject private var store: MarketingContentStore
+    @EnvironmentObject private var cityStore: CityStore
     @Binding var isPresentationMode: Bool
     let availableEvents: [ConcertEvent]
     let eventRepository: any EventRepository
@@ -40,6 +41,11 @@ struct MarketingHomeScreenView: View {
                 .frame(maxWidth: KlangradarTheme.contentMaxWidth)
             }
             .navigationTitle("Klangradar")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    CityCompactMenu(cityStore: cityStore)
+                }
+            }
             .toolbar {
                 if !isPresentationMode {
                     ToolbarItem(placement: .primaryAction) {
@@ -254,6 +260,7 @@ private struct MarketingEventRail: View {
 /// bewusst den vom Marketing festgelegten Inhalt.
 struct MarketingSearchScreenView: View {
     @EnvironmentObject private var store: MarketingContentStore
+    @EnvironmentObject private var cityStore: CityStore
     @Binding var isPresentationMode: Bool
     let availableEvents: [ConcertEvent]
     let eventRepository: any EventRepository
@@ -301,6 +308,11 @@ struct MarketingSearchScreenView: View {
             }
             .navigationTitle("Suche")
             .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    CityCompactMenu(cityStore: cityStore)
+                }
+            }
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Konzerte, Personen, Ensembles, Orte, Werke")
             .toolbar {
                 if !isPresentationMode {
