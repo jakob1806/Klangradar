@@ -1,12 +1,13 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useState, type FormEvent } from "react";
 import { Field, Select, TextArea, TextInput } from "@/components/form-fields";
 import { SubmitButton } from "@/components/submit-button";
 import { toMunichDatetimeLocal } from "@/lib/munich-time";
 import { GenrePicker } from "@/app/(dashboard)/events/genre-picker";
 import { VenuePicker } from "./venue-picker";
 import { OrganizerPicker } from "./organizer-picker";
+import { EventPreviewCard, type EventPreviewData } from "./event-preview-card";
 
 function slugify(value: string) {
   return value
@@ -65,11 +66,13 @@ export function OrganizerEventForm({
   initial,
   organizers,
   genres,
+  initialImageUrl,
 }: {
   action: (formData: FormData) => Promise<{ error?: string }>;
   initial?: OrganizerEventFormValues;
   organizers: { id: string; name: string }[];
   genres: { id: string; label_de: string }[];
+  initialImageUrl?: string | null;
 }) {
   const [slug, setSlug] = useState(initial?.slug ?? "");
   const [slugTouched, setSlugTouched] = useState(Boolean(initial));
@@ -77,9 +80,43 @@ export function OrganizerEventForm({
     async (_previous: { error?: string }, formData: FormData) => action(formData),
     {},
   );
+  const [venueName, setVenueName] = useState(initial?.venue_name ?? "");
+  const [preview, setPreview] = useState<EventPreviewData>({
+    title: initial?.title ?? "",
+    subtitle: initial?.subtitle ?? "",
+    startDatetime: toMunichDatetimeLocal(initial?.start_datetime ?? null),
+    venueName: initial?.venue_name ?? "",
+    doorsInfo: initial?.doors_info ?? "",
+    isFree: initial?.is_free ?? false,
+    priceMin: initial?.price_min != null ? String(initial.price_min) : "",
+    priceMax: initial?.price_max != null ? String(initial.price_max) : "",
+    imageUrl: initialImageUrl ?? null,
+  });
+
+  // Ein einziger onChange-Handler auf dem <form> statt jedes Feld
+  // kontrolliert zu machen — nutzt React-Event-Bubbling, damit die
+  // bestehenden unkontrollierten Inputs (defaultValue + useActionState)
+  // unangetastet bleiben. venue_name kommt separat aus VenuePickers
+  // onSelect, weil das sichtbare Venue-Suchfeld kein name-Attribut hat und
+  // deshalb nicht in FormData landet.
+  function handleFormChange(event: FormEvent<HTMLFormElement>) {
+    const data = new FormData(event.currentTarget);
+    setPreview({
+      title: String(data.get("title") ?? ""),
+      subtitle: String(data.get("subtitle") ?? ""),
+      startDatetime: String(data.get("start_datetime") ?? ""),
+      venueName,
+      doorsInfo: String(data.get("doors_info") ?? ""),
+      isFree: data.get("is_free") != null,
+      priceMin: String(data.get("price_min") ?? ""),
+      priceMax: String(data.get("price_max") ?? ""),
+      imageUrl: initialImageUrl ?? null,
+    });
+  }
 
   return (
-    <form action={formAction} className="flex max-w-2xl flex-col gap-4">
+    <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_320px]">
+    <form action={formAction} onChange={handleFormChange} className="flex max-w-2xl flex-col gap-4">
       <Field label="Titel" required>
         <TextInput
           name="title"
@@ -138,7 +175,14 @@ export function OrganizerEventForm({
 
       <div className="grid grid-cols-2 gap-4">
         <Field label="Venue" required>
-          <VenuePicker initial={initial ? { id: initial.venue_id, name: initial.venue_name } : undefined} />
+          <VenuePicker
+            initial={initial ? { id: initial.venue_id, name: initial.venue_name } : undefined}
+            onSelect={(venue) => {
+              const name = venue?.name ?? "";
+              setVenueName(name);
+              setPreview((current) => ({ ...current, venueName: name }));
+            }}
+          />
         </Field>
         <Field label="Saal / Bühne">
           <TextInput name="venue_detail" placeholder="z. B. Probebühne" defaultValue={initial?.venue_detail ?? ""} />
@@ -224,5 +268,11 @@ export function OrganizerEventForm({
         <SubmitButton>{initial ? "Speichern" : "Event anlegen"}</SubmitButton>
       </div>
     </form>
+
+    <div className="lg:sticky lg:top-6 lg:self-start">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#86868b]">Vorschau</p>
+      <EventPreviewCard preview={preview} />
+    </div>
+    </div>
   );
 }

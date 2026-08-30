@@ -30,7 +30,7 @@ export default async function NewOrganizerEventPage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-6 py-10">
+    <div className="mx-auto max-w-4xl px-6 py-10">
       <h1 className="type-heading mb-6 text-2xl text-[#1d1d1f]">Neues Event</h1>
       <OrganizerEventForm action={createOrganizerEvent} organizers={organizers} genres={genres ?? []} />
     </div>

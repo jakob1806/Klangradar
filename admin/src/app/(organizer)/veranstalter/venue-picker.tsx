@@ -14,7 +14,13 @@ interface VenueMatch {
 // finden, nicht durch hunderte fremde Venues scrollen. Ruft find_matching_venue
 // direkt vom Client aus auf (venues sind öffentlich lesbar per RLS, die RPC
 // braucht keine erhöhten Rechte) statt über eine Server Action pro Tastendruck.
-export function VenuePicker({ initial }: { initial?: VenueMatch }) {
+export function VenuePicker({
+  initial,
+  onSelect,
+}: {
+  initial?: VenueMatch;
+  onSelect?: (venue: VenueMatch | null) => void;
+}) {
   const [query, setQuery] = useState(initial?.name ?? "");
   const [selected, setSelected] = useState<VenueMatch | null>(initial ?? null);
   const [results, setResults] = useState<VenueMatch[]>([]);
@@ -57,6 +63,7 @@ export function VenuePicker({ initial }: { initial?: VenueMatch }) {
         onChange={(e) => {
           setQuery(e.target.value);
           setSelected(null);
+          onSelect?.(null);
         }}
         onFocus={() => results.length > 0 && setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
@@ -73,6 +80,7 @@ export function VenuePicker({ initial }: { initial?: VenueMatch }) {
                   setSelected(venue);
                   setQuery(venue.name);
                   setOpen(false);
+                  onSelect?.(venue);
                 }}
                 className="block w-full px-3 py-2 text-left text-sm hover:bg-black/[0.04]"
               >
