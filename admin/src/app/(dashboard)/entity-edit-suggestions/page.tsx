@@ -14,8 +14,21 @@ interface SuggestionRow {
   entity_type: ClaimableEntityType;
   entity_id: string;
   user_id: string;
-  proposed_changes: Record<string, string | null>;
+  proposed_changes: unknown;
   created_at: string;
+}
+
+type ValidSuggestionRow = Omit<SuggestionRow, "entity_type" | "proposed_changes"> & {
+  entity_type: ClaimableEntityType;
+  proposed_changes: Record<string, string | null>;
+};
+
+function isClaimableEntityType(value: string): value is ClaimableEntityType {
+  return value === "organizer" || value === "venue" || value === "person" || value === "ensemble";
+}
+
+function isChangeRecord(value: unknown): value is Record<string, string | null> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 export default async function EntityEditSuggestionsPage() {
@@ -28,7 +41,15 @@ export default async function EntityEditSuggestionsPage() {
     .order("created_at", { ascending: true })
     .returns<SuggestionRow[]>();
 
-  const suggestions = data ?? [];
+  // Ältere bzw. manuell angelegte JSON-Datensätze können außerhalb des
+  // erwarteten Formats liegen. Ein einzelner solcher Vorschlag darf die
+  // komplette Redaktionsseite nicht in eine Fehlerseite schicken.
+  const rawSuggestions = data ?? [];
+  const suggestions = rawSuggestions.filter(
+    (suggestion): suggestion is ValidSuggestionRow =>
+      isClaimableEntityType(suggestion.entity_type) && isChangeRecord(suggestion.proposed_changes),
+  );
+  const skippedSuggestionCount = rawSuggestions.length - suggestions.length;
 
   // Aktuelle Werte je betroffener Entität gebündelt nachladen (für den Diff
   // "alt → neu"), gruppiert nach Typ wie bei resolveEntityNames — kein
@@ -95,6 +116,11 @@ export default async function EntityEditSuggestionsPage() {
       </div>
 
       {error && <p className="mt-6 text-sm text-amber-700">Konnte Vorschläge nicht laden: {error.message}</p>}
+      {skippedSuggestionCount > 0 && (
+        <p className="mt-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          {skippedSuggestionCount} unvollständiger Vorschlag konnte nicht angezeigt werden. Die übrigen Vorschläge stehen weiterhin zur Prüfung bereit.
+        </p>
+      )}
 
       {!error && (
         <div className="mt-6">
