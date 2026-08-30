@@ -243,7 +243,7 @@ struct EntityDetailView: View {
         let rows = metadataRows(detail)
         let socialLinks = detail.fields.object("social_links") ?? [:]
         if !rows.isEmpty || detail.fields.string("website_url") != nil || !socialLinks.isEmpty {
-            section("Informationen") {
+            section("Kontakt & Social Media") {
                 LiquidGlassSurface(cornerRadius: 20) {
                     VStack(spacing: 12) {
                         ForEach(rows, id: \.0) { label, value in
@@ -255,8 +255,18 @@ struct EntityDetailView: View {
                         ForEach(socialLinks.keys.sorted(), id: \.self) { platform in
                             if let raw = socialLinks.string(platform), let url = URL(string: raw) {
                                 Link(destination: url) {
-                                    Label(socialLabel(platform), systemImage: socialSymbol(platform))
+                                    HStack(spacing: 12) {
+                                        SocialPlatformIcon(platform: platform)
+                                        Text(socialLabel(platform))
+                                            .font(.body.weight(.semibold))
+                                        Spacer()
+                                        Image(systemName: "arrow.up.right")
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(.tertiary)
+                                    }
+                                    .contentShape(.rect)
                                 }
+                                .buttonStyle(.plain)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             }
                         }
@@ -278,7 +288,51 @@ struct EntityDetailView: View {
         }
     }
 
-    private func socialSymbol(_ platform: String) -> String {
+}
+
+/// Eigenständige, farbige Plattform-Badges statt generischer Link-Symbole.
+/// Die Elemente bleiben bewusst ohne externe Bild-Downloads zuverlässig
+/// offline sichtbar und geben jeder Plattform sofort ihre übliche Identität.
+private struct SocialPlatformIcon: View {
+    let platform: String
+
+    var body: some View {
+        Group {
+            switch platform.lowercased() {
+            case "instagram":
+                Image(systemName: "camera.fill")
+                    .foregroundStyle(.white)
+                    .background(
+                        LinearGradient(colors: [.purple, .pink, .orange], startPoint: .topLeading, endPoint: .bottomTrailing)
+                            .padding(-7)
+                    )
+            case "facebook":
+                Text("f").font(.system(size: 19, weight: .bold, design: .rounded)).foregroundStyle(.white)
+                    .background(Color(red: 0.05, green: 0.40, blue: 1).padding(-8))
+            case "youtube":
+                Image(systemName: "play.fill").font(.caption.weight(.bold)).foregroundStyle(.white)
+                    .background(Color.red.padding(.horizontal, -8).padding(.vertical, -6))
+            case "spotify":
+                Image(systemName: "wave.3.right.circle.fill").font(.title3).foregroundStyle(.black)
+                    .background(Color(red: 0.12, green: 0.84, blue: 0.38).padding(-5))
+            case "tiktok":
+                Image(systemName: "music.note").font(.body.weight(.bold)).foregroundStyle(.white)
+                    .background(Color.black.padding(-7))
+            case "linkedin":
+                Text("in").font(.system(size: 14, weight: .heavy, design: .rounded)).foregroundStyle(.white)
+                    .background(Color(red: 0.04, green: 0.39, blue: 0.68).padding(-7))
+            default:
+                Image(systemName: "link").foregroundStyle(.white).background(Color.secondary.padding(-7))
+            }
+        }
+        .frame(width: 28, height: 28)
+        .clipShape(.rect(cornerRadius: 8))
+        .accessibilityHidden(true)
+    }
+}
+
+private extension EntityDetailView {
+    func socialSymbol(_ platform: String) -> String {
         switch platform.lowercased() {
         case "instagram": return "camera"
         case "facebook", "linkedin": return "person.2"
