@@ -22,6 +22,7 @@ final class HomeViewModel: ObservableObject {
     @Published private(set) var recommendedEvents: [ConcertEvent] = []
     @Published private(set) var discoveryEvents: [ConcertEvent] = []
     @Published private(set) var popularEvents: [ConcertEvent] = []
+    @Published private(set) var favoriteEvents: [ConcertEvent] = []
 
     let repository: any EventRepository
     var currentUserID: UUID? { auth?.userID }
@@ -100,6 +101,7 @@ final class HomeViewModel: ObservableObject {
             async let enrichedTask: [ConcertEvent]? = try? repository.enrichingImages(in: events)
             async let personalizedTask = loadPersonalizedEntityIDs()
             async let modulesTask = loadHomeModules()
+            async let favoritesTask = fetchFavoriteEvents()
             let enriched = await enrichedTask
             let personalization = await personalizedTask
             let modules = await modulesTask
@@ -111,6 +113,7 @@ final class HomeViewModel: ObservableObject {
             recommendedEvents = recommended
             discoveryEvents = discovery
             popularEvents = popular
+            favoriteEvents = await favoritesTask
             let finalEvents = enriched ?? events
             state = .loaded(finalEvents)
             HomeCache.save(HomeSnapshot(
@@ -163,6 +166,24 @@ final class HomeViewModel: ObservableObject {
             discovery = []
         }
         return ((await recommended) ?? [], discovery, (await popular) ?? [])
+    }
+
+    /// Favoriten sind keine Teilmenge der normalen Home-Abfrage: diese lädt
+    /// bewusst nur die nächsten 100 Termine. Die eigene Favoritenabfrage
+    /// verhindert, dass ein gespeichertes Konzert deshalb aus der Rail
+    /// verschwindet, und liefert die vollständigen Karten-Daten inklusive
+    /// Bild, Venue und Mitwirkenden.
+    func loadFavoriteEvents() async {
+        favoriteEvents = await fetchFavoriteEvents()
+    }
+
+    private func fetchFavoriteEvents() async -> [ConcertEvent] {
+        guard let userRepository, let userID = auth?.userID, let token = auth?.accessToken else { return [] }
+        let loaded = (try? await userRepository.favoriteEvents(userID: userID, token: token)) ?? []
+        let enriched = (try? await repository.enrichingImages(in: loaded)) ?? loaded
+        return enriched
+            .filter { ($0.startDate ?? .distantPast) >= Date() }
+            .sorted { ($0.startDate ?? .distantFuture) < ($1.startDate ?? .distantFuture) }
     }
 
     private func enrich(_ events: [ConcertEvent]) async -> [ConcertEvent] {

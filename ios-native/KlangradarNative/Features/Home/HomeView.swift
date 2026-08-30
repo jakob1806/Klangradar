@@ -158,6 +158,13 @@ struct HomeView: View {
             .onReceive(NotificationCenter.default.publisher(for: HomeCategoryPreferences.didChange)) { _ in
                 categoryOrder = HomeCategoryPreferences.order(for: model.currentUserID)
             }
+            // Eine Änderung im Herz-Button wirkt sofort auch auf die
+            // Startseite. Die Rail verwendet dabei die vollständige
+            // Favoritenabfrage statt nur die zufällig gerade geladenen
+            // kommenden 100 Veranstaltungen.
+            .onChange(of: favorites.ids) { _, _ in
+                Task { await model.loadFavoriteEvents() }
+            }
         }
     }
 
@@ -215,7 +222,7 @@ struct HomeView: View {
             // und zuletzt kommende Events als sinnvoller Fallback.
             EventRail(title: category.title, events: forYouEvents(from: events))
         case .favorites:
-            EventRail(title: category.title, events: Array(events.filter { favorites.ids.contains($0.id) }.prefix(14)))
+            EventRail(title: category.title, events: Array(model.favoriteEvents.prefix(14)))
         case .taste:
             let spotlight = tasteSpotlight(from: events)
             EventRail(title: spotlight.title, events: spotlight.events)
