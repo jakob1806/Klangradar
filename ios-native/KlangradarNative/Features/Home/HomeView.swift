@@ -208,7 +208,12 @@ struct HomeView: View {
     private func recommendationSection(_ category: HomeRecommendationCategory, events: [ConcertEvent]) -> some View {
         switch category {
         case .forYou:
-            EventRail(title: category.title, events: Array(model.recommendedEvents.filter { $0.id != events.first?.id }.prefix(14)))
+            // Die RPC-Empfehlungen können leer sein (z. B. bei einer neuen
+            // Session oder während die Interessen noch geladen werden). Die
+            // Kategorie „Für dich“ bleibt trotzdem sichtbar: persönliche
+            // Treffer haben Vorrang, danach folgen die Server-Empfehlungen
+            // und zuletzt kommende Events als sinnvoller Fallback.
+            EventRail(title: category.title, events: forYouEvents(from: events))
         case .favorites:
             EventRail(title: category.title, events: Array(events.filter { favorites.ids.contains($0.id) }.prefix(14)))
         case .taste:
@@ -338,6 +343,22 @@ struct HomeView: View {
                 return false
             } ?? false
         }.prefix(14))
+    }
+
+    private func forYouEvents(from events: [ConcertEvent]) -> [ConcertEvent] {
+        let withoutHero = events.filter { $0.id != events.first?.id }
+        let personalized = withoutHero.filter { $0.matchesPersonalization(model.personalizedEntityIDs) }
+        let serverRecommended = model.recommendedEvents.filter { $0.id != events.first?.id }
+
+        // IDs statt Titel vergleichen: gleichnamige Aufführungen an
+        // unterschiedlichen Tagen bleiben eigenständige Empfehlungen.
+        var seen = Set<UUID>()
+        var result: [ConcertEvent] = []
+        for event in personalized + serverRecommended + withoutHero where seen.insert(event.id).inserted {
+            result.append(event)
+            if result.count == 14 { break }
+        }
+        return result
     }
 
     private func tasteSpotlight(from events: [ConcertEvent]) -> (title: String, events: [ConcertEvent]) {
