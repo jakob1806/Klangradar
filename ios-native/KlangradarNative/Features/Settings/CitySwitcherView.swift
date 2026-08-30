@@ -1,11 +1,12 @@
 import SwiftUI
 
 /// "Stadt wechseln" — Nutzeranfrage: Städteauswahl analog zum Flutter-
-/// Pendant (CityPicker in map_screen.dart), aber als eigener,
-/// dedizierter Screen statt eines Bottom-Sheets, erreichbar von Profil/
-/// Karte aus. `nil` in der Liste steht für "Alle Städte" (kein Filter).
+/// Native iOS-Städteauswahl für die Profileinstellung. "Alle Städte" ist
+/// bewusst ausschließlich eine Kartenoption; Home, Suche und Kalender haben
+/// immer eine konkrete Heimatstadt.
 struct CitySwitcherView: View {
     @ObservedObject var cityStore: CityStore
+    var allowsAllCities = false
     @Environment(\.dismiss) private var dismiss
 
     @State private var isLocating = false
@@ -13,68 +14,39 @@ struct CitySwitcherView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    Image(systemName: "building.2.fill")
-                        .font(.system(size: 40))
-                        .foregroundStyle(KlangradarTheme.accent)
-                        .padding(.top, 4)
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Stadt wechseln")
-                            .font(.largeTitle.bold())
-                        Text("Du kannst deine Stadt jederzeit schnell ändern. Personen, Ensembles und Werke bleiben stadtübergreifend verfügbar.")
-                            .font(.body)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Button {
-                        Task { await recommendByLocation() }
-                    } label: {
-                        HStack {
-                            if isLocating {
-                                ProgressView().controlSize(.small)
-                            } else {
-                                Image(systemName: "location.fill")
-                            }
-                            Text("Stadt anhand meines Standorts empfehlen")
-                                .font(.subheadline.weight(.semibold))
-                            Spacer()
-                        }
-                        .padding(.horizontal, 18)
-                        .frame(height: 52)
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(KlangradarTheme.accent)
-                    .background(KlangradarTheme.accent.opacity(0.14), in: .capsule)
-                    .disabled(isLocating)
-
-                    if let locationError {
-                        Text(locationError)
-                            .font(.footnote)
-                            .foregroundStyle(.red)
-                    }
-
-                    VStack(spacing: 0) {
+            List {
+                if allowsAllCities {
+                    Section {
                         cityRow(name: "Alle Städte", subtitle: nil, isSelected: cityStore.selectedCity == nil) {
                             cityStore.select(nil)
                         }
-                        ForEach(cityStore.activeCities) { city in
-                            Divider().padding(.leading, 20)
-                            cityRow(
-                                name: cityDisplayName(for: city),
-                                subtitle: countryLabel(for: city),
-                                isSelected: cityStore.selectedCity?.id == city.id
-                            ) {
-                                cityStore.select(city)
-                            }
-                        }
                     }
-                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
-                .padding(20)
+
+                Section("Städte") {
+                    ForEach(cityStore.activeCities) { city in
+                        cityRow(
+                            name: cityDisplayName(for: city),
+                            subtitle: countryLabel(for: city),
+                            isSelected: cityStore.selectedCity?.id == city.id
+                        ) { cityStore.select(city) }
+                    }
+                }
+
+                Section {
+                    Button {
+                        Task { await recommendByLocation() }
+                    } label: {
+                        Label(
+                            isLocating ? "Standort wird bestimmt …" : "Stadt anhand meines Standorts empfehlen",
+                            systemImage: "location.fill"
+                        )
+                    }
+                    .disabled(isLocating)
+                    if let locationError { Text(locationError).foregroundStyle(.red) }
+                }
             }
-            .background(KlangradarBackground().ignoresSafeArea())
+            .navigationTitle("Stadt wechseln")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Fertig") { dismiss() }.fontWeight(.semibold)
@@ -86,7 +58,10 @@ struct CitySwitcherView: View {
     }
 
     private func cityRow(name: String, subtitle: String?, isSelected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+        Button {
+            action()
+            dismiss()
+        } label: {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(name).font(.headline).foregroundStyle(.primary)
@@ -106,11 +81,8 @@ struct CitySwitcherView: View {
                     }
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 14)
             .contentShape(.rect)
         }
-        .buttonStyle(.plain)
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 
@@ -141,5 +113,41 @@ struct CitySwitcherView: View {
         } catch {
             locationError = error.localizedDescription
         }
+    }
+}
+
+/// Kompaktes, systemeigenes Menü für die Tab-Leisten. Anders als der
+/// Profil-Dialog verdeckt es nicht den Inhalt und entspricht dem bisherigen
+/// kleinen Karten-Dropdown.
+struct CityCompactMenu: View {
+    @ObservedObject var cityStore: CityStore
+    var allowsAllCities = false
+
+    var body: some View {
+        Menu {
+            if allowsAllCities {
+                Button {
+                    cityStore.select(nil)
+                } label: {
+                    menuLabel("Alle Städte", selected: cityStore.selectedCity == nil)
+                }
+            }
+            ForEach(cityStore.activeCities) { city in
+                Button {
+                    cityStore.select(city)
+                } label: {
+                    menuLabel(city.name, selected: cityStore.selectedCity?.id == city.id)
+                }
+            }
+        } label: {
+            Label(cityStore.selectedCity?.name ?? (allowsAllCities ? "Alle Städte" : "Stadt"), systemImage: "building.2")
+                .font(.subheadline.weight(.medium))
+        }
+        .accessibilityLabel("Stadt auswählen")
+    }
+
+    @ViewBuilder
+    private func menuLabel(_ title: String, selected: Bool) -> some View {
+        if selected { Label(title, systemImage: "checkmark") } else { Text(title) }
     }
 }

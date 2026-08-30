@@ -23,6 +23,7 @@ struct SearchView: View {
     let eventRepository: any EventRepository
     let contentRepository: any ContentRepository
     @EnvironmentObject private var genreFilter: GenreFilterRouter
+    @EnvironmentObject private var cityStore: CityStore
     @State private var query = ""
     @State private var events: [ConcertEvent] = []
     @State private var hits: [SearchHit] = []
@@ -61,6 +62,11 @@ struct SearchView: View {
             }
             .navigationTitle("Suche")
             .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    CityCompactMenu(cityStore: cityStore)
+                }
+            }
             .searchable(
                 text: $query,
                 placement: .navigationBarDrawer(displayMode: .always),

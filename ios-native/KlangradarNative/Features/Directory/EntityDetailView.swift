@@ -104,9 +104,7 @@ struct EntityDetailView: View {
             HStack(alignment: .top, spacing: 18) {
                 if let imageURL = detail.primaryImageURL ?? detail.gallery.first?.url {
                     Button { showImage(imageURL, title: detail.title) } label: {
-                        AsyncImage(url: imageURL) { image in
-                            image.resizable().scaledToFill()
-                        } placeholder: {
+                        CroppedAsyncImage(url: imageURL, crop: detail.avatarCrop) {
                             Circle().fill(.quaternary)
                                 .overlay { Image(systemName: detail.kind.systemImage).font(.largeTitle) }
                         }

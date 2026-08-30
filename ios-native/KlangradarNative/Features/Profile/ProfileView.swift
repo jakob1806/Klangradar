@@ -73,6 +73,9 @@ struct ProfileView: View {
                             Spacer()
                             Text(cityStore.selectedCity?.name ?? "Alle Städte")
                                 .foregroundStyle(.secondary)
+                            Image(systemName: "chevron.right")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(.tertiary)
                         }
                     }
                     // Eine Button-Zeile übernimmt sonst die Accent-Farbe des

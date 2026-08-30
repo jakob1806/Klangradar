@@ -145,6 +145,9 @@ struct EntityDetail: Identifiable, Sendable {
     let gallery: [GalleryImage]
     let events: [LinkedEvent]
     let similar: [DirectoryItem]
+    /// Derselbe runde Ausschnitt wie in Suche und Home. Damit Personen nicht
+    /// auf der Kachel anders fokussiert wirken als in ihrer Detailansicht.
+    var avatarCrop: CropRect? = nil
     // Nur für kind == .venue befüllt (siehe ContentRepository.detail) — die
     // Adresse allein zeigt nicht, wo genau das Gebäude liegt, deshalb eine
     // kleine, bewegliche Kartenvorschau zwischen Folgen-Button und
