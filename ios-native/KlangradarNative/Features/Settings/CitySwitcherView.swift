@@ -1,9 +1,9 @@
 import SwiftUI
 
 /// "Stadt wechseln" — Nutzeranfrage: Städteauswahl analog zum Flutter-
-/// Native iOS-Städteauswahl für die Profileinstellung. "Alle Städte" ist
-/// bewusst ausschließlich eine Kartenoption; Home, Suche und Kalender haben
-/// immer eine konkrete Heimatstadt.
+/// Die gestaltete SwiftUI-Auswahl für Home, Suche, Kalender und Profil.
+/// Sie ist bewusst kein technisches List-Menü: die Stadt ist eine zentrale
+/// Einstellung und soll sich wie ein eigener Klangradar-Bereich anfühlen.
 struct CitySwitcherView: View {
     @ObservedObject var cityStore: CityStore
     var allowsAllCities = false
@@ -14,55 +14,73 @@ struct CitySwitcherView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                if allowsAllCities {
-                    Section {
-                        cityRow(name: "Alle Städte", subtitle: nil, isSelected: cityStore.selectedCity == nil) {
-                            cityStore.select(nil)
-                        }
-                    }
-                }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    cityHeader
 
-                Section("Städte") {
                     ForEach(cityStore.activeCities) { city in
                         cityRow(
-                            name: cityDisplayName(for: city),
+                            name: city.name,
                             subtitle: countryLabel(for: city),
                             isSelected: cityStore.selectedCity?.id == city.id
                         ) { cityStore.select(city) }
                     }
                 }
-
-                Section {
-                    Button {
-                        Task { await recommendByLocation() }
-                    } label: {
-                        Label(
-                            isLocating ? "Standort wird bestimmt …" : "Stadt anhand meines Standorts empfehlen",
-                            systemImage: "location.fill"
-                        )
-                    }
-                    .disabled(isLocating)
-                    if let locationError { Text(locationError).foregroundStyle(.red) }
-                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 36)
             }
-            .navigationTitle("Stadt wechseln")
+            .background(KlangradarBackground().ignoresSafeArea())
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Fertig") { dismiss() }.fontWeight(.semibold)
                 }
             }
-            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.hidden, for: .navigationBar)
         }
         .task { if cityStore.activeCities.isEmpty { await cityStore.load() } }
     }
 
+    private var cityHeader: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Image(systemName: "house.and.flag.fill")
+                .font(.system(size: 40, weight: .semibold))
+                .foregroundStyle(KlangradarTheme.accent)
+
+            Text("Stadt wechseln")
+                .font(.largeTitle.bold())
+            Text("Du kannst deine Stadt jederzeit schnell ändern. Personen, Ensembles und Werke bleiben stadtübergreifend verfügbar.")
+                .font(.body)
+                .foregroundStyle(.secondary)
+
+            Button {
+                Task { await recommendByLocation() }
+            } label: {
+                Label(
+                    isLocating ? "Standort wird bestimmt …" : "Stadt anhand meines Standorts empfehlen",
+                    systemImage: "location.north.fill"
+                )
+                .font(.subheadline.weight(.semibold))
+                .frame(maxWidth: .infinity)
+                .frame(height: 52)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(KlangradarTheme.accent)
+            .background(KlangradarTheme.accent.opacity(0.14), in: .capsule)
+            .disabled(isLocating)
+
+            if let locationError {
+                Text(locationError).font(.footnote).foregroundStyle(.red)
+            }
+        }
+        .padding(.top, 26)
+    }
+
     private func cityRow(name: String, subtitle: String?, isSelected: Bool, action: @escaping () -> Void) -> some View {
-        Button {
-            action()
-            dismiss()
-        } label: {
+        Button(action: action) {
             HStack(spacing: 12) {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.title2)
+                    .foregroundStyle(KlangradarTheme.accent)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(name).font(.headline).foregroundStyle(.primary)
                     if let subtitle {
@@ -70,19 +88,13 @@ struct CitySwitcherView: View {
                     }
                 }
                 Spacer()
-                ZStack {
-                    Circle()
-                        .fill(isSelected ? KlangradarTheme.accent : Color.secondary.opacity(0.15))
-                        .frame(width: 24, height: 24)
-                    if isSelected {
-                        Image(systemName: "checkmark")
-                            .font(.caption.bold())
-                            .foregroundStyle(.white)
-                    }
-                }
             }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 18)
             .contentShape(.rect)
         }
+        .buttonStyle(.plain)
+        .background(.white.opacity(0.44), in: .rect(cornerRadius: 30))
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 
@@ -92,10 +104,6 @@ struct CitySwitcherView: View {
     /// zu duplizieren, für die aktuell fünf Städte ausreichend.
     private func countryLabel(for city: RegionOption) -> String? {
         city.name == "Wien" ? "Österreich" : "Deutschland"
-    }
-
-    private func cityDisplayName(for city: RegionOption) -> String {
-        city.name == "München" ? city.name : "\(city.name) · Beta"
     }
 
     @MainActor
@@ -116,18 +124,31 @@ struct CitySwitcherView: View {
     }
 }
 
-/// Kompaktes, systemeigenes Menü für die Tab-Leisten. Anders als der
-/// Profil-Dialog verdeckt es nicht den Inhalt und entspricht dem bisherigen
-/// kleinen Karten-Dropdown.
+/// Der kleine Stadt-Chip folgt der früheren Kopfzeile der App. Auf Home,
+/// Suche und Kalender öffnet er die gestaltete Auswahl; ausschließlich die
+/// Karte verwendet das platzsparende Dropdown mit "Alle Städte".
 struct CityCompactMenu: View {
     @ObservedObject var cityStore: CityStore
     var allowsAllCities = false
-    /// Nur die Karte zeigt die aktuelle Auswahl zusätzlich im geöffneten
-    /// Dropdown. Auf Home, Suche und Kalender ist die Auswahl bereits im
-    /// kompakten Stadt-Chip sichtbar und bleibt dort bewusst ruhiger.
-    var showsSelectionIndicator = false
+    var isMapMenu = false
+    @State private var showsCitySwitcher = false
 
     var body: some View {
+        Group {
+            if isMapMenu {
+                mapMenu
+            } else {
+                Button { showsCitySwitcher = true } label: { chipLabel }
+                    .buttonStyle(.plain)
+            }
+        }
+        .sheet(isPresented: $showsCitySwitcher) {
+            CitySwitcherView(cityStore: cityStore)
+        }
+        .accessibilityLabel("Stadt auswählen")
+    }
+
+    private var mapMenu: some View {
         Menu {
             if allowsAllCities {
                 Button {
@@ -136,7 +157,7 @@ struct CityCompactMenu: View {
                     menuLabel(
                         "Alle Städte",
                         selected: cityStore.selectedCity == nil,
-                        showsSelectionIndicator: showsSelectionIndicator
+                        showsSelectionIndicator: true
                     )
                 }
             }
@@ -147,26 +168,27 @@ struct CityCompactMenu: View {
                     menuLabel(
                         city.name,
                         selected: cityStore.selectedCity?.id == city.id,
-                        showsSelectionIndicator: showsSelectionIndicator
+                        showsSelectionIndicator: true
                     )
                 }
             }
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "location.north.fill")
-                    .rotationEffect(.degrees(28))
-                Text(cityStore.selectedCity?.name ?? (allowsAllCities ? "Alle Städte" : "Stadt"))
-                Image(systemName: "chevron.down")
-                    .font(.caption.weight(.bold))
-            }
-            .font(.title3.weight(.semibold))
-            .foregroundStyle(KlangradarTheme.accent)
-            .padding(.horizontal, 17)
-            .frame(height: 48)
-            .background(.ultraThinMaterial, in: .capsule)
-            .overlay { Capsule().stroke(.white.opacity(0.7), lineWidth: 1) }
+        } label: { chipLabel }
+    }
+
+    private var chipLabel: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "location.north.fill")
+                .rotationEffect(.degrees(28))
+            Text(cityStore.selectedCity?.name ?? (allowsAllCities ? "Alle Städte" : "Stadt"))
+            Image(systemName: "chevron.down")
+                .font(.caption.weight(.bold))
         }
-        .accessibilityLabel("Stadt auswählen")
+        .font(.title3.weight(.semibold))
+        .foregroundStyle(KlangradarTheme.accent)
+        .padding(.horizontal, 17)
+        .frame(height: 48)
+        .background(.ultraThinMaterial, in: .capsule)
+        .overlay { Capsule().stroke(.white.opacity(0.7), lineWidth: 1) }
     }
 
     @ViewBuilder

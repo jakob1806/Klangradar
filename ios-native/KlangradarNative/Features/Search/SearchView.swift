@@ -61,7 +61,7 @@ struct SearchView: View {
                 .scrollDismissesKeyboard(.interactively)
             }
             .navigationTitle("Suche")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     CityCompactMenu(cityStore: cityStore)

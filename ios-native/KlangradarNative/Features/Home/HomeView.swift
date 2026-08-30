@@ -140,6 +140,7 @@ struct HomeView: View {
                     .frame(maxWidth: KlangradarTheme.contentMaxWidth)
             }
             .navigationTitle("Klangradar")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     CityCompactMenu(cityStore: cityStore)
