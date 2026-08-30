@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { formatMunichDateTime } from "@/lib/munich-time";
+import { getEventOrganizerOptions } from "../event-organizer-context";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,7 @@ function Metric({ label, value }: { label: string; value: number }) {
 
 export default async function MarketingPage() {
   const supabase = await createClient();
+  await getEventOrganizerOptions();
   const [{ data: promotionsData, error: promotionsError }, { data: metricsData, error: metricsError }] = await Promise.all([
     supabase.from("event_promotions").select("id, placement, status, payment_status, requested_at, events(id, title, start_datetime)").order("requested_at", { ascending: false }).returns<Promotion[]>(),
     supabase.rpc("organizer_event_metrics").returns<EventMetric[]>(),

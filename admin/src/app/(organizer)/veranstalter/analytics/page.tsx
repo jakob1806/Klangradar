@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { formatMunichDateTime } from "@/lib/munich-time";
+import { getEventOrganizerOptions } from "../event-organizer-context";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +18,7 @@ function percentage(numerator: number, denominator: number) {
 
 export default async function AnalyticsPage() {
   const supabase = await createClient();
+  await getEventOrganizerOptions();
   const { data, error } = await supabase.rpc("organizer_event_metrics").returns<Metric[]>();
   const metrics: Metric[] = Array.isArray(data) ? data : [];
   const totals = metrics.reduce((sum, item) => ({ views: sum.views + Number(item.views), saves: sum.saves + Number(item.saves), shares: sum.shares + Number(item.shares), ticketClicks: sum.ticketClicks + Number(item.ticket_clicks) }), { views: 0, saves: 0, shares: 0, ticketClicks: 0 });
