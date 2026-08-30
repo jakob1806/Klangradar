@@ -114,6 +114,7 @@ struct HomeView: View {
     private let usesPreviewData: Bool
     @State private var collections: [EditorialCollection] = []
     @State private var categoryOrder: [HomeRecommendationCategory] = HomeRecommendationCategory.defaultOrder
+    @State private var personDirectory: [DirectoryItem] = []
     @State private var ensembleDirectory: [DirectoryItem] = []
 
     init(
@@ -150,7 +151,10 @@ struct HomeView: View {
             .task {
                 await model.load()
                 collections = (try? await contentRepository.collections()) ?? []
-                ensembleDirectory = (try? await contentRepository.directory(kind: .ensemble)) ?? []
+                async let persons = contentRepository.directory(kind: .person)
+                async let ensembles = contentRepository.directory(kind: .ensemble)
+                personDirectory = (try? await persons) ?? []
+                ensembleDirectory = (try? await ensembles) ?? []
             }
             .onAppear {
                 categoryOrder = HomeCategoryPreferences.order(for: model.currentUserID)
@@ -258,25 +262,9 @@ struct HomeView: View {
         case .editorialCollections:
             if !collections.isEmpty { CollectionRail(collections: collections) }
         case .followedPersons:
-            ForEach(followedSections(from: events, kind: .person)) { section in
-                EventRail(title: section.title, events: section.events)
-            }
+            EntityRail(title: category.title, items: followedPersonDirectoryItems)
         case .followedEnsembles:
-            let sections = followedSections(from: events, kind: .ensemble)
-            ForEach(sections) { section in
-                EventRail(title: section.title, events: section.events)
-            }
-            // Gefolgte Ensembles ohne bereits geladenes bevorstehendes Event
-            // tauchten bislang gar nicht auf (rein event-basierte Reihen
-            // oben) — Nutzeranfrage "auch gefolgte ensembles anzeigen":
-            // zusätzlich alle übrigen gefolgten Ensembles als Karten zeigen.
-            EntityRail(
-                title: sections.isEmpty ? category.title : "Weitere gefolgte Ensembles",
-                items: followedEnsembleDirectoryItems.filter { item in
-                    guard let id = UUID(uuidString: item.id) else { return false }
-                    return !sections.contains { $0.id == id }
-                }
-            )
+            EntityRail(title: category.title, items: followedEnsembleDirectoryItems)
         case .followedVenues:
             ForEach(followedSections(from: events, kind: .venue)) { section in
                 EventRail(title: section.title, events: section.events)
@@ -295,10 +283,18 @@ struct HomeView: View {
     }
 
     private var followedEnsembleDirectoryItems: [DirectoryItem] {
-        ensembleDirectory
+        followedDirectoryItems(personDirectory: ensembleDirectory, kind: .ensemble)
+    }
+
+    private var followedPersonDirectoryItems: [DirectoryItem] {
+        followedDirectoryItems(personDirectory: personDirectory, kind: .person)
+    }
+
+    private func followedDirectoryItems(personDirectory: [DirectoryItem], kind: EntityKind) -> [DirectoryItem] {
+        personDirectory
             .filter { item in
                 guard let id = UUID(uuidString: item.id) else { return false }
-                return follows.isFollowing(kind: .ensemble, id: id)
+                return follows.isFollowing(kind: kind, id: id)
             }
             .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
     }
