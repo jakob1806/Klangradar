@@ -20,7 +20,7 @@ export default async function PromotePage() {
     supabase.from("event_promotions").select("id, placement, status, requester_note, reviewer_note, requested_at, events(title, start_datetime)").order("requested_at", { ascending: false }).returns<PromotionRow[]>(),
   ]);
   const organizerIds = organizers.map((organizer) => organizer.id);
-  const { data: eventData } = organizerIds.length ? await supabase.from("events").select("id, title, start_datetime").eq("status", "scheduled").gt("start_datetime", now).in("organizer_id", organizerIds).order("start_datetime", { ascending: true }).returns<EventRow[]>() : { data: [] as EventRow[] };
+  const { data: eventData, error: eventError } = organizerIds.length ? await supabase.from("events").select("id, title, start_datetime").eq("status", "scheduled").gt("start_datetime", now).in("organizer_id", organizerIds).order("start_datetime", { ascending: true }).returns<EventRow[]>() : { data: [] as EventRow[], error: null };
   const events = eventData ?? [];
   const promotions = promotionData ?? [];
 
@@ -32,7 +32,11 @@ export default async function PromotePage() {
       </div>
       <section className="rounded-xl border border-black/[0.06] bg-[#f5f5f7] p-5">
         <h2 className="mb-4 text-base font-semibold text-[#1d1d1f]">Neue Promotion</h2>
-        <PromotionRequestForm events={events.map((event) => ({ id: event.id, title: event.title, startLabel: formatMunichDateTime(event.start_datetime) }))} />
+        {eventError ? (
+          <p className="text-sm text-amber-800">Deine Events konnten gerade nicht geladen werden. Bitte lade die Seite erneut; die Events selbst sind nicht verloren.</p>
+        ) : (
+          <PromotionRequestForm events={events.map((event) => ({ id: event.id, title: event.title, startLabel: formatMunichDateTime(event.start_datetime) }))} />
+        )}
       </section>
       <section className="mt-10">
         <h2 className="mb-3 text-sm font-semibold text-[#86868b]">Meine Anfragen</h2>
