@@ -1,18 +1,26 @@
 "use client";
 
+import Image from "next/image";
 import { useMemo, useState } from "react";
 
-type EventOption = { id: string; title: string; startLabel: string };
+type EventOption = { id: string; title: string; startLabel: string; venueName: string | null; imageUrl: string | null; sourceLabel: string };
 
 export function PromotionEventPicker({ events }: { events: EventOption[] }) {
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false);
   const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState<EventOption | null>(null);
-  const matches = useMemo(() => events.filter((event) => `${event.title} ${event.startLabel}`.toLocaleLowerCase("de-DE").includes(query.toLocaleLowerCase("de-DE"))).slice(0, 8), [events, query]);
-  return <div>
-    <input type="hidden" name="event_id" value={selected?.id ?? ""} required />
-    <label className="block text-sm font-medium text-[#1d1d1f]" htmlFor="promotion-event-search">Event</label>
-    <input id="promotion-event-search" value={selected ? `${selected.title} · ${selected.startLabel}` : query} onChange={(event) => { setSelected(null); setQuery(event.target.value); }} placeholder="Event nach Titel oder Termin suchen …" className="mt-1.5 w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-sm outline-none ring-[#0071e3] focus:ring-2" />
-    {!selected && query && <div className="mt-2 overflow-hidden rounded-lg border border-black/10 bg-white shadow-sm">{matches.length ? matches.map((event) => <button type="button" key={event.id} onClick={() => { setSelected(event); setQuery(""); }} className="block w-full border-b border-black/[0.05] px-3 py-2.5 text-left text-sm last:border-0 hover:bg-[#f5f5f7]"><span className="block font-medium text-[#1d1d1f]">{event.title}</span><span className="text-xs text-[#86868b]">{event.startLabel}</span></button>) : <p className="px-3 py-3 text-sm text-[#86868b]">Kein passendes eigenes Event gefunden.</p>}</div>}
-    {selected && <p className="mt-2 text-xs text-[#0071e3]">Ausgewählt. Nur kommende Events deiner bestätigten Institutionen sind verfügbar.</p>}
-  </div>;
+  const selected = events.find((event) => event.id === selectedId) ?? null;
+  const visibleEvents = useMemo(() => {
+    const normalized = query.trim().toLocaleLowerCase("de-DE");
+    const filtered = normalized ? events.filter((event) => `${event.title} ${event.venueName ?? ""} ${event.startLabel}`.toLocaleLowerCase("de-DE").includes(normalized)) : events;
+    return showAll || normalized ? filtered : filtered.slice(0, 6);
+  }, [events, query, showAll]);
+
+  return <section>
+    <input type="hidden" name="event_id" value={selectedId ?? ""} required />
+    <div className="flex items-end justify-between gap-4"><div><h3 className="text-sm font-medium text-[#1d1d1f]">Event auswählen</h3><p className="mt-1 text-xs text-[#86868b]">Eigene Events und Termine deiner beanspruchten Profile.</p></div>{events.length > 6 && <button type="button" onClick={() => setShowAll((value) => !value)} className="shrink-0 text-sm font-medium text-[#0071e3] hover:underline">{showAll ? "Weniger zeigen" : `Alle ${events.length} zeigen`}</button>}</div>
+    <div className="mt-3 grid gap-3 sm:grid-cols-2">{visibleEvents.map((event) => { const active = event.id === selectedId; return <button key={event.id} type="button" onClick={() => setSelectedId(event.id)} className={`flex overflow-hidden rounded-xl border text-left transition ${active ? "border-[#0071e3] bg-blue-50 ring-1 ring-[#0071e3]" : "border-black/10 bg-white hover:border-[#0071e3]"}`}><div className="relative m-3 h-16 w-20 shrink-0 overflow-hidden rounded-lg bg-[#f5f5f7]">{event.imageUrl && <Image src={event.imageUrl} alt="" fill sizes="80px" className="object-cover" unoptimized />}</div><span className="min-w-0 py-3 pr-3"><span className="line-clamp-2 block text-sm font-semibold text-[#1d1d1f]">{event.title}</span><span className="mt-1 block text-xs text-[#48484a]">{event.startLabel}{event.venueName ? ` · ${event.venueName}` : ""}</span><span className="mt-1 block truncate text-xs text-[#86868b]">{event.sourceLabel}</span></span></button>; })}</div>
+    {events.length > 6 && <label className="mt-4 block text-sm font-medium text-[#1d1d1f]">Event filtern <span className="font-normal text-[#86868b]">(optional)</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Titel, Ort oder Datum" className="mt-1.5 w-full rounded-xl border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-[#0071e3] focus:ring-1 focus:ring-[#0071e3]" /></label>}
+    {selected && <p className="mt-3 text-sm font-medium text-[#0071e3]">Ausgewählt: {selected.title}</p>}
+  </section>;
 }
