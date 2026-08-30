@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useActionState, useState } from "react";
 import { Field, Select, TextArea, TextInput } from "@/components/form-fields";
 import { SubmitButton } from "@/components/submit-button";
 import { toMunichDatetimeLocal } from "@/lib/munich-time";
@@ -66,16 +66,20 @@ export function OrganizerEventForm({
   organizers,
   genres,
 }: {
-  action: (formData: FormData) => void;
+  action: (formData: FormData) => Promise<{ error?: string }>;
   initial?: OrganizerEventFormValues;
   organizers: { id: string; name: string }[];
   genres: { id: string; label_de: string }[];
 }) {
   const [slug, setSlug] = useState(initial?.slug ?? "");
   const [slugTouched, setSlugTouched] = useState(Boolean(initial));
+  const [state, formAction] = useActionState(
+    async (_previous: { error?: string }, formData: FormData) => action(formData),
+    {},
+  );
 
   return (
-    <form action={action} className="flex max-w-2xl flex-col gap-4">
+    <form action={formAction} className="flex max-w-2xl flex-col gap-4">
       <Field label="Titel" required>
         <TextInput
           name="title"
@@ -207,6 +211,12 @@ export function OrganizerEventForm({
       {initial && (
         <p className="text-xs text-neutral-400">
           Änderungen an einem bereits veröffentlichten Event sind sofort sichtbar, ohne erneute Prüfung.
+        </p>
+      )}
+
+      {state.error && (
+        <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          {state.error}
         </p>
       )}
 

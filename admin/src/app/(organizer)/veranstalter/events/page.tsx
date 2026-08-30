@@ -29,16 +29,15 @@ interface EventRow {
 // (die RLS-Policies werden pro Command-Typ ODER-verknüpft).
 export default async function VeranstalterEventsPage() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
   const organizers = await getEventOrganizerOptions();
   const organizerIds = organizers.map((organizer) => organizer.id);
-  const { data } = organizerIds.length ? await supabase
+  const { data, error } = organizerIds.length ? await supabase
     .from("events")
     .select("id, title, start_datetime, status, venues(name), image_urls")
     .in("organizer_id", organizerIds)
     .gte("start_datetime", new Date().toISOString())
     .order("start_datetime", { ascending: true })
-    .returns<EventRow[]>() : { data: [] as EventRow[] };
+    .returns<EventRow[]>() : { data: [] as EventRow[], error: null };
 
   const events = data ?? [];
 
@@ -50,6 +49,11 @@ export default async function VeranstalterEventsPage() {
       </div>
 
       <p className="-mt-3 mb-6 text-sm text-[#86868b]">Nur kommende Events deiner beanspruchten Profile, chronologisch ab heute.</p>
+      {error && (
+        <p className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Deine Events konnten gerade nicht geladen werden. Bitte lade die Seite erneut; die Events selbst sind nicht verloren.
+        </p>
+      )}
       {events.length === 0 ? (
         organizerIds.length === 0 ? <p className="text-sm text-[#86868b]">Noch keine Events. Beanspruche zuerst ein Profil unter <Link href="/veranstalter/claim" className="font-medium text-[#0071e3] hover:underline">Beanspruchen</Link>.</p>
         : <p className="text-sm text-[#86868b]">Noch keine kommenden Events. Lege dein erstes Event an.</p>

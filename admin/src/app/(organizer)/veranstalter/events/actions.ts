@@ -4,25 +4,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { munichLocalToISOString } from "@/lib/munich-time";
+import { getEventOrganizerOptions } from "../event-organizer-context";
 
-async function getApprovedOrganizerIds(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
-  const { data } = await supabase
-    .from("entity_claims")
-    .select("entity_id, entity_type")
-    .eq("user_id", userId)
-    .eq("status", "approved");
-  const directIds = (data ?? []).filter((claim) => claim.entity_type === "organizer").map((claim) => claim.entity_id as string);
-  const profileClaims = (data ?? []).filter((claim) => ["person", "ensemble", "venue"].includes(claim.entity_type));
-  const profileIds = await Promise.all(profileClaims.map(async (claim) => {
-    const { data: contextId, error } = await supabase.rpc("ensure_profile_event_organizer_context", {
-      p_entity_type: claim.entity_type,
-      p_entity_id: claim.entity_id,
-    });
-    if (error) throw new Error(error.message);
-    return contextId as string;
-  }));
-  return [...new Set([...directIds, ...profileIds])];
-}
+type EventActionResult = { error?: string };
 
 function readEventFields(formData: FormData) {
   // datetime-local enthält absichtlich keine Zone. Server Actions laufen auf
@@ -94,28 +78,29 @@ async function syncGenres(supabase: Awaited<ReturnType<typeof createClient>>, ev
   }
 }
 
-export async function createOrganizerEvent(formData: FormData) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Nicht angemeldet");
+export async function createOrganizerEvent(formData: FormData): Promise<EventActionResult> {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { error: "Bitte melde dich erneut an." };
 
-  const f = readEventFields(formData);
+    const f = readEventFields(formData);
 
   // organizer_id NIE aus dem Formular vertrauen — serverseitig gegen die
   // eigenen genehmigten Claims verifizieren, statt sich auf die
   // RLS-Ablehnung allein zu verlassen (freundliche Fehlermeldung statt
   // einer rohen Postgres-Policy-Verletzung).
-  const approvedOrganizerIds = await getApprovedOrganizerIds(supabase, user.id);
-  if (approvedOrganizerIds.length === 0) {
-    throw new Error("Du hast noch keine genehmigte Institution — bitte zuerst unter „Beanspruchen“ verknüpfen.");
-  }
-  if (!approvedOrganizerIds.includes(f.organizer_id)) {
-    throw new Error("Ungültige Institution.");
-  }
+    const approvedOrganizerIds = (await getEventOrganizerOptions()).map((organizer) => organizer.id);
+    if (approvedOrganizerIds.length === 0) {
+      return { error: "Du hast noch kein genehmigtes Profil. Bitte beanspruche zuerst eine Institution, Venue, Person oder ein Ensemble." };
+    }
+    if (!approvedOrganizerIds.includes(f.organizer_id)) {
+      return { error: "Bitte wähle eines deiner genehmigten Profile aus." };
+    }
 
-  const { data, error } = await supabase
+    const { data, error } = await supabase
     .from("events")
     .insert({
       slug: f.slug,
@@ -142,38 +127,47 @@ export async function createOrganizerEvent(formData: FormData) {
     .select("id")
     .single();
 
-  if (error || !data) throw new Error(error?.message ?? "Anlegen fehlgeschlagen");
+    if (error || !data) return { error: "Das Event konnte nicht angelegt werden. Bitte prüfe die Pflichtfelder und versuche es erneut." };
 
-  const newGenreIds = await ensureNewGenres(supabase, f.newGenres);
-  await syncGenres(supabase, data.id, [...new Set([...f.genreIds, ...newGenreIds])]);
+    const newGenreIds = await ensureNewGenres(supabase, f.newGenres);
+    await syncGenres(supabase, data.id, [...new Set([...f.genreIds, ...newGenreIds])]);
 
-  revalidatePath("/veranstalter/events");
-  redirect("/veranstalter/events");
+    revalidatePath("/veranstalter/events");
+    redirect("/veranstalter/events");
+  } catch (cause) {
+    // redirect() wird von Next intern als Sonderfall geworfen und muss
+    // unverändert weitergereicht werden. Alle tatsächlichen Fehler werden
+    // im Formular angezeigt statt eine vollständige Fehlerseite zu erzeugen.
+    if (cause && typeof cause === "object" && "digest" in cause) throw cause;
+    console.error("Organizer event creation failed", cause);
+    return { error: "Das Event konnte gerade nicht angelegt werden. Bitte versuche es gleich noch einmal." };
+  }
 }
 
-export async function updateOrganizerEvent(eventId: string, formData: FormData) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Nicht angemeldet");
+export async function updateOrganizerEvent(eventId: string, formData: FormData): Promise<EventActionResult> {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { error: "Bitte melde dich erneut an." };
 
-  const f = readEventFields(formData);
+    const f = readEventFields(formData);
 
-  const approvedOrganizerIds = await getApprovedOrganizerIds(supabase, user.id);
-  const { data: existing } = await supabase.from("events").select("organizer_id").eq("id", eventId).maybeSingle();
-  if (!existing?.organizer_id || !approvedOrganizerIds.includes(existing.organizer_id)) {
-    throw new Error("Du bist für dieses Event nicht berechtigt.");
-  }
-  if (!approvedOrganizerIds.includes(f.organizer_id)) {
-    throw new Error("Ungültige Institution.");
-  }
+    const approvedOrganizerIds = (await getEventOrganizerOptions()).map((organizer) => organizer.id);
+    const { data: existing } = await supabase.from("events").select("organizer_id").eq("id", eventId).maybeSingle();
+    if (!existing?.organizer_id || !approvedOrganizerIds.includes(existing.organizer_id)) {
+      return { error: "Du bist für dieses Event nicht berechtigt." };
+    }
+    if (!approvedOrganizerIds.includes(f.organizer_id)) {
+      return { error: "Bitte wähle eines deiner genehmigten Profile aus." };
+    }
 
   // Bewusst KEIN status-Feld im Patch — Veranstalter dürfen alle anderen
   // Felder frei ändern (auch nach Veröffentlichung, sofort sichtbar), der
   // Trigger events_organizer_status_guard verwirft ohnehin jede
   // status-Änderung durch Nicht-Redaktion.
-  const { error } = await supabase
+    const { error } = await supabase
     .from("events")
     .update({
       slug: f.slug,
@@ -199,13 +193,18 @@ export async function updateOrganizerEvent(eventId: string, formData: FormData) 
     })
     .eq("id", eventId);
 
-  if (error) throw new Error(error.message);
+    if (error) return { error: "Die Änderungen konnten nicht gespeichert werden. Bitte versuche es erneut." };
 
-  const newGenreIds = await ensureNewGenres(supabase, f.newGenres);
-  await syncGenres(supabase, eventId, [...new Set([...f.genreIds, ...newGenreIds])]);
+    const newGenreIds = await ensureNewGenres(supabase, f.newGenres);
+    await syncGenres(supabase, eventId, [...new Set([...f.genreIds, ...newGenreIds])]);
 
-  revalidatePath("/veranstalter/events");
-  redirect("/veranstalter/events");
+    revalidatePath("/veranstalter/events");
+    redirect("/veranstalter/events");
+  } catch (cause) {
+    if (cause && typeof cause === "object" && "digest" in cause) throw cause;
+    console.error("Organizer event update failed", cause);
+    return { error: "Die Änderungen konnten gerade nicht gespeichert werden. Bitte versuche es gleich noch einmal." };
+  }
 }
 
 export async function addOrganizerEventImage(eventId: string, imageUrl: string) {
@@ -214,7 +213,7 @@ export async function addOrganizerEventImage(eventId: string, imageUrl: string) 
   if (!user) throw new Error("Nicht angemeldet.");
   const expectedPrefix = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/entity-photos/organizer-event-images/${user.id}/`;
   if (!imageUrl.startsWith(expectedPrefix)) throw new Error("Ungültige Bildquelle.");
-  const approvedOrganizerIds = await getApprovedOrganizerIds(supabase, user.id);
+  const approvedOrganizerIds = (await getEventOrganizerOptions()).map((organizer) => organizer.id);
   const { data: event } = await supabase.from("events").select("organizer_id, image_urls").eq("id", eventId).maybeSingle();
   if (!event?.organizer_id || !approvedOrganizerIds.includes(event.organizer_id as string)) throw new Error("Du bist für dieses Event nicht berechtigt.");
   const images = [...new Set([...(event.image_urls as string[] | null ?? []), imageUrl])];

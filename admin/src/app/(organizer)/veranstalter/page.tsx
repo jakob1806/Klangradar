@@ -50,15 +50,26 @@ export default async function VeranstalterDashboardPage() {
     >();
 
   const allClaims = claims ?? [];
-  const refs = allClaims.map((c) => ({ entityType: c.entity_type, entityId: c.entity_id }));
+  // Für Profile (Person, Ensemble, Venue) wird im Hintergrund ein technischer
+  // Veranstalter-Kontext angelegt, damit Events weiterhin einen organizer_id
+  // besitzen können. Dieser Kontext ist ausschließlich Besitz-/Rechte-Logik,
+  // kein zweites beanspruchtes Profil und darf deshalb nie im Dashboard
+  // auftauchen. Bestehende Kontexte haben absichtlich diesen festen Marker.
+  const visibleClaims = allClaims.filter(
+    (claim) => !(
+      claim.entity_type === "organizer" &&
+      claim.justification === "Automatisch aus genehmigtem Profil-Claim"
+    ),
+  );
+  const refs = visibleClaims.map((c) => ({ entityType: c.entity_type, entityId: c.entity_id }));
   const [names, trustLevels] = await Promise.all([
     resolveEntityNames(supabase, refs),
     resolveTrustLevels(supabase, refs),
   ]);
 
-  const pending = allClaims.filter((c) => c.status === "pending");
-  const approved = allClaims.filter((c) => c.status === "approved");
-  const rejected = allClaims.filter((c) => c.status === "rejected");
+  const pending = visibleClaims.filter((c) => c.status === "pending");
+  const approved = visibleClaims.filter((c) => c.status === "approved");
+  const rejected = visibleClaims.filter((c) => c.status === "rejected");
 
   const eventOrganizers = await getEventOrganizerOptions();
   const approvedOrganizerIds = eventOrganizers.map((organizer) => organizer.id);
@@ -75,7 +86,7 @@ export default async function VeranstalterDashboardPage() {
     upcomingEvents = data ?? [];
   }
 
-  if (allClaims.length === 0) {
+  if (visibleClaims.length === 0) {
     return (
       <div className="mx-auto flex max-w-xl flex-col items-center gap-4 px-6 py-24 text-center">
         <h1 className="type-heading text-2xl text-[#1d1d1f]">Willkommen im Veranstalter-Portal</h1>
