@@ -43,77 +43,84 @@ private struct MarketingImageField: View {
 }
 
 struct MarketingContentEditorView: View {
+    enum Surface { case home, search }
+
     @EnvironmentObject private var store: MarketingContentStore
     @Environment(\.dismiss) private var dismiss
+    let surface: Surface
+    let onFinished: () -> Void
     @State private var showsResetConfirmation = false
 
     var body: some View {
         NavigationStack {
             List {
-                Section("Hero-Veranstaltung") {
-                    MarketingImageField(imagePath: $store.content.hero.imagePath)
-                    TextField("Datum & Uhrzeit", text: $store.content.hero.dateLabel)
-                    TextField("Titel", text: $store.content.hero.title)
-                    TextField("Veranstaltungsort", text: $store.content.hero.venue)
-                }
+                if surface == .home {
+                    Section("Hero-Veranstaltung") {
+                        MarketingImageField(imagePath: $store.content.hero.imagePath)
+                        TextField("Datum & Uhrzeit", text: $store.content.hero.dateLabel)
+                        TextField("Titel", text: $store.content.hero.title)
+                        TextField("Veranstaltungsort", text: $store.content.hero.venue)
+                    }
 
-                ForEach($store.content.modules) { $module in
-                    Section {
-                        TextField("Kategoriename", text: $module.title)
+                    ForEach($store.content.modules) { $module in
+                        Section {
+                            TextField("Kategoriename", text: $module.title)
 
-                        ForEach($module.events) { $event in
-                            VStack(alignment: .leading, spacing: 8) {
-                                MarketingImageField(imagePath: $event.imagePath)
-                                TextField("Veranstaltungstitel", text: $event.title)
-                                TextField("Datum, Uhrzeit · Ort", text: $event.subtitle)
+                            ForEach($module.events) { $event in
+                                eventFields(event: $event)
                             }
-                            .padding(.vertical, 4)
-                        }
-                        .onDelete { offsets in module.events.remove(atOffsets: offsets) }
-                        .onMove { from, to in module.events.move(fromOffsets: from, toOffset: to) }
+                            .onDelete { offsets in module.events.remove(atOffsets: offsets) }
+                            .onMove { from, to in module.events.move(fromOffsets: from, toOffset: to) }
 
+                            Button {
+                                module.events.append(MarketingEventData(title: "Neue Veranstaltung", subtitle: "Datum, Uhrzeit · Ort"))
+                            } label: {
+                                Label("Veranstaltung hinzufügen", systemImage: "plus")
+                            }
+                        } header: {
+                            HStack {
+                                Text("Kategorie")
+                                Spacer()
+                                Button { moveModule(module.id, by: -1) } label: { Image(systemName: "chevron.up") }
+                                    .disabled(!canMoveModule(module.id, by: -1))
+                                Button { moveModule(module.id, by: 1) } label: { Image(systemName: "chevron.down") }
+                                    .disabled(!canMoveModule(module.id, by: 1))
+                            }
+                            .buttonStyle(.plain)
+                            .font(.caption.weight(.semibold))
+                        }
+                        .swipeActions(edge: .trailing) {
+                            Button(role: .destructive) { store.content.modules.removeAll { $0.id == module.id } } label: {
+                                Label("Kategorie löschen", systemImage: "trash")
+                            }
+                        }
+                    }
+
+                    Section {
                         Button {
-                            module.events.append(MarketingEventData(title: "Neue Veranstaltung", subtitle: "Datum, Uhrzeit · Ort"))
+                            store.content.modules.append(MarketingModuleData(
+                                title: "Neue Kategorie",
+                                events: [MarketingEventData(title: "Neue Veranstaltung", subtitle: "Datum, Uhrzeit · Ort")]
+                            ))
+                        } label: {
+                            Label("Kategorie hinzufügen", systemImage: "plus.circle.fill")
+                        }
+                    }
+                } else {
+                    Section("Suche") {
+                        TextField("Überschrift", text: $store.content.search.headline)
+                    }
+                    Section("Angezeigte Veranstaltungen") {
+                        ForEach($store.content.search.events) { $event in
+                            eventFields(event: $event)
+                        }
+                        .onDelete { offsets in store.content.search.events.remove(atOffsets: offsets) }
+                        .onMove { from, to in store.content.search.events.move(fromOffsets: from, toOffset: to) }
+                        Button {
+                            store.content.search.events.append(MarketingEventData(title: "Neue Veranstaltung", subtitle: "Datum, Uhrzeit · Ort"))
                         } label: {
                             Label("Veranstaltung hinzufügen", systemImage: "plus")
                         }
-                    } header: {
-                        HStack {
-                            Text("Kategorie")
-                            Spacer()
-                            Button {
-                                moveModule(module.id, by: -1)
-                            } label: {
-                                Image(systemName: "chevron.up")
-                            }
-                            .disabled(!canMoveModule(module.id, by: -1))
-                            Button {
-                                moveModule(module.id, by: 1)
-                            } label: {
-                                Image(systemName: "chevron.down")
-                            }
-                            .disabled(!canMoveModule(module.id, by: 1))
-                        }
-                        .buttonStyle(.plain)
-                        .font(.caption.weight(.semibold))
-                    }
-                    .swipeActions(edge: .trailing) {
-                        Button(role: .destructive) {
-                            store.content.modules.removeAll { $0.id == module.id }
-                        } label: {
-                            Label("Kategorie löschen", systemImage: "trash")
-                        }
-                    }
-                }
-
-                Section {
-                    Button {
-                        store.content.modules.append(MarketingModuleData(
-                            title: "Neue Kategorie",
-                            events: [MarketingEventData(title: "Neue Veranstaltung", subtitle: "Datum, Uhrzeit · Ort")]
-                        ))
-                    } label: {
-                        Label("Kategorie hinzufügen", systemImage: "plus.circle.fill")
                     }
                 }
 
@@ -123,10 +130,15 @@ struct MarketingContentEditorView: View {
                     }
                 }
             }
-            .navigationTitle("Startseite bearbeiten")
+            .navigationTitle(surface == .home ? "Startseite bearbeiten" : "Suche bearbeiten")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Fertig") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Fertig") {
+                        onFinished()
+                        dismiss()
+                    }
+                }
                 ToolbarItem(placement: .primaryAction) { EditButton() }
             }
             .confirmationDialog(
@@ -138,6 +150,16 @@ struct MarketingContentEditorView: View {
                 Button("Abbrechen", role: .cancel) {}
             }
         }
+    }
+
+    @ViewBuilder
+    private func eventFields(event: Binding<MarketingEventData>) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            MarketingImageField(imagePath: event.imagePath)
+            TextField("Veranstaltungstitel", text: event.title)
+            TextField("Datum, Uhrzeit · Ort", text: event.subtitle)
+        }
+        .padding(.vertical, 4)
     }
 
     private func canMoveModule(_ id: UUID, by offset: Int) -> Bool {

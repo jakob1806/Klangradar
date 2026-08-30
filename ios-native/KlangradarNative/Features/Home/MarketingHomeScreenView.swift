@@ -9,7 +9,8 @@ import SwiftUI
 /// Marketing-Screenshots gedacht, niemals im echten Nutzerfluss einhängen.
 struct MarketingHomeScreenView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    @StateObject private var store = MarketingContentStore()
+    @EnvironmentObject private var store: MarketingContentStore
+    @Binding var isPresentationMode: Bool
     @State private var showsEditor = false
 
     var body: some View {
@@ -20,10 +21,13 @@ struct MarketingHomeScreenView: View {
 
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 34) {
-                        MarketingHeroView(
-                            hero: store.content.hero,
-                            height: horizontalSizeClass == .regular ? 280 : 224
-                        )
+                        NavigationLink(value: heroEvent) {
+                            MarketingHeroView(
+                                hero: store.content.hero,
+                                height: horizontalSizeClass == .regular ? 280 : 224
+                            )
+                        }
+                        .buttonStyle(.plain)
 
                         ForEach(store.content.modules) { module in
                             MarketingEventRail(title: module.title, events: module.events)
@@ -36,17 +40,32 @@ struct MarketingHomeScreenView: View {
             }
             .navigationTitle("Klangradar")
             .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button { showsEditor = true } label: {
-                        Label("Bearbeiten", systemImage: "pencil")
+                if !isPresentationMode {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button { showsEditor = true } label: {
+                            Label("Bearbeiten", systemImage: "pencil")
+                        }
                     }
                 }
             }
             .sheet(isPresented: $showsEditor) {
-                MarketingContentEditorView()
-                    .environmentObject(store)
+                MarketingContentEditorView(surface: .home) {
+                    isPresentationMode = true
+                }
+                .environmentObject(store)
+            }
+            .navigationDestination(for: MarketingEventData.self) { event in
+                MarketingEventDetailView(event: event)
             }
         }
+    }
+
+    private var heroEvent: MarketingEventData {
+        MarketingEventData(
+            imagePath: store.content.hero.imagePath,
+            title: store.content.hero.title,
+            subtitle: "\(store.content.hero.dateLabel) · \(store.content.hero.venue)"
+        )
     }
 }
 
@@ -183,7 +202,10 @@ private struct MarketingEventRail: View {
                 ScrollView(.horizontal) {
                     LazyHStack(alignment: .top, spacing: 16) {
                         ForEach(events) { event in
-                            MarketingEventCard(event: event)
+                            NavigationLink(value: event) {
+                                MarketingEventCard(event: event)
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                     .padding(.horizontal, KlangradarTheme.pagePadding)
@@ -194,6 +216,125 @@ private struct MarketingEventRail: View {
     }
 }
 
+/// Editierbarer Suche-Tab für Marketing-Aufnahmen. Er verhält sich wie die
+/// normale Suche (Eingabe, Filterung, antippbare Details), verwendet aber
+/// bewusst den vom Marketing festgelegten Inhalt.
+struct MarketingSearchScreenView: View {
+    @EnvironmentObject private var store: MarketingContentStore
+    @Binding var isPresentationMode: Bool
+    @State private var query = ""
+    @State private var showsEditor = false
+
+    private var visibleEvents: [MarketingEventData] {
+        let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return store.content.search.events }
+        return store.content.search.events.filter {
+            $0.title.localizedCaseInsensitiveContains(query)
+                || $0.subtitle.localizedCaseInsensitiveContains(query)
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                KlangradarBackground().ignoresSafeArea()
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 18) {
+                        Text(query.isEmpty ? store.content.search.headline : "Ergebnisse")
+                            .font(.title2.bold())
+                            .padding(.horizontal, KlangradarTheme.pagePadding)
+
+                        if visibleEvents.isEmpty {
+                            ContentUnavailableView.search(text: query)
+                                .padding(.top, 48)
+                        } else {
+                            ForEach(visibleEvents) { event in
+                                NavigationLink(value: event) {
+                                    MarketingSearchEventRow(event: event)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                    .padding(.top, 14)
+                    .padding(.bottom, 116)
+                }
+            }
+            .navigationTitle("Suche")
+            .navigationBarTitleDisplayMode(.large)
+            .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Konzerte, Personen, Ensembles, Orte, Werke")
+            .toolbar {
+                if !isPresentationMode {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button { showsEditor = true } label: {
+                            Label("Bearbeiten", systemImage: "pencil")
+                        }
+                    }
+                }
+            }
+            .sheet(isPresented: $showsEditor) {
+                MarketingContentEditorView(surface: .search) {
+                    isPresentationMode = true
+                }
+                .environmentObject(store)
+            }
+            .navigationDestination(for: MarketingEventData.self) { event in
+                MarketingEventDetailView(event: event)
+            }
+        }
+    }
+}
+
+private struct MarketingSearchEventRow: View {
+    let event: MarketingEventData
+
+    var body: some View {
+        HStack(spacing: 14) {
+            MarketingArtwork(imagePath: event.imagePath)
+                .frame(width: 104, height: 76)
+                .clipShape(.rect(cornerRadius: 16))
+            VStack(alignment: .leading, spacing: 5) {
+                Text(event.title).font(.headline).foregroundStyle(.primary).lineLimit(2)
+                Text(event.subtitle).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
+            }
+            Spacer(minLength: 0)
+            Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
+        }
+        .padding(.horizontal, KlangradarTheme.pagePadding)
+        .contentShape(.rect)
+    }
+}
+
+private struct MarketingEventDetailView: View {
+    let event: MarketingEventData
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                MarketingArtwork(imagePath: event.imagePath)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 260)
+                    .clipped()
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(event.title).font(.title.bold())
+                    Label(event.subtitle, systemImage: "calendar")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Divider().padding(.vertical, 4)
+                    Text("Über die Veranstaltung").font(.title3.bold())
+                    Text("Alle Angaben, Bilder und Texte wurden für diese Marketing-Aufnahme vorbereitet.")
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, KlangradarTheme.pagePadding)
+            }
+            .padding(.bottom, 40)
+        }
+        .navigationTitle("Veranstaltung")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
 #Preview {
-    MarketingHomeScreenView()
+    MarketingHomeScreenView(isPresentationMode: .constant(false))
+        .environmentObject(MarketingContentStore())
 }
