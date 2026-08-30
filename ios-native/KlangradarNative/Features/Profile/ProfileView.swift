@@ -17,6 +17,7 @@ struct ProfileView: View {
     @State private var hasEditorialAccess = false
 #if DEBUG
     @State private var showsMarketingShell = false
+    @State private var startsMarketingInPresentationMode = true
 #endif
 
     var body: some View {
@@ -96,12 +97,19 @@ struct ProfileView: View {
 #if DEBUG
                 Section {
                     Button {
+                        startsMarketingInPresentationMode = true
                         showsMarketingShell = true
                     } label: {
                         Label("Marketing-Screenshots", systemImage: "camera.viewfinder")
                     }
+                    Button {
+                        startsMarketingInPresentationMode = false
+                        showsMarketingShell = true
+                    } label: {
+                        Label("Marketing-Inhalte vorbereiten", systemImage: "pencil.and.list.clipboard")
+                    }
                 } footer: {
-                    Text("Nur in Debug-Builds sichtbar. Eigene App-Vorschau mit frei editierbarem Homescreen (Texte, Kategorien, Bilder) — die übrigen Tabs zeigen die echte App zum Weiternavigieren, z. B. für Personen-/Ensemble-/Venue-/Veranstaltungsdetails.")
+                    Text("Marketing-Screenshots startet direkt ohne Werkzeugleisten für echte Aufnahmen. Inhalte vorbereiten zeigt die Bearbeiten-Werkzeuge für Home und Suche; mit „Fertig“ wechselst du zurück in den aufnahmebereiten Modus. Aus diesem kommst du per Doppeltipp auf Home wieder heraus.")
                 }
 #endif
 
@@ -148,7 +156,8 @@ struct ProfileView: View {
                     editorialRepository: editorialRepository,
                     eventRepository: eventRepository,
                     contentRepository: contentRepository,
-                    usesPreviewData: usesPreviewData
+                    usesPreviewData: usesPreviewData,
+                    startsInPresentationMode: startsMarketingInPresentationMode
                 )
             }
 #endif

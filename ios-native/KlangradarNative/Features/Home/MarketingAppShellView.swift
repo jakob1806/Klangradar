@@ -16,10 +16,15 @@ struct MarketingAppShellView: View {
     let eventRepository: any EventRepository
     let contentRepository: any ContentRepository
     let usesPreviewData: Bool
+    /// Der normale Einstieg ist bewusst bereits aufnahmebereit: weder X noch
+    /// Stift erscheinen in einer Bildschirmaufnahme. Das Vorbereiten wird
+    /// aus dem Profil explizit gestartet.
+    let startsInPresentationMode: Bool
 
     @Environment(\.dismiss) private var dismiss
     @State private var selection: MarketingTab = .home
-    @State private var isPresentationMode = false
+    @State private var isPresentationMode: Bool
+    @State private var availableEvents: [ConcertEvent] = []
     @StateObject private var marketingContent = MarketingContentStore()
     // Von SearchView/EventCard/EntityDetailView usw. per @EnvironmentObject
     // erwartet — dieselben Stores wie in RootTabView, sonst crasht das
@@ -36,7 +41,8 @@ struct MarketingAppShellView: View {
         editorialRepository: EditorialRepository?,
         eventRepository: any EventRepository,
         contentRepository: any ContentRepository,
-        usesPreviewData: Bool
+        usesPreviewData: Bool,
+        startsInPresentationMode: Bool = true
     ) {
         self.auth = auth
         self.userRepository = userRepository
@@ -44,6 +50,8 @@ struct MarketingAppShellView: View {
         self.eventRepository = eventRepository
         self.contentRepository = contentRepository
         self.usesPreviewData = usesPreviewData
+        self.startsInPresentationMode = startsInPresentationMode
+        _isPresentationMode = State(initialValue: startsInPresentationMode)
         _favorites = StateObject(wrappedValue: FavoriteStore(auth: auth, repository: userRepository))
         _follows = StateObject(wrappedValue: FollowStore(auth: auth, repository: userRepository))
         _reportStore = StateObject(wrappedValue: ReportStore(auth: auth, repository: userRepository))
@@ -53,11 +61,21 @@ struct MarketingAppShellView: View {
     var body: some View {
         ZStack(alignment: .topTrailing) {
             TabView(selection: $selection) {
-                MarketingHomeScreenView(isPresentationMode: $isPresentationMode)
+                MarketingHomeScreenView(
+                    isPresentationMode: $isPresentationMode,
+                    availableEvents: availableEvents,
+                    eventRepository: eventRepository,
+                    contentRepository: contentRepository
+                )
                     .tag(MarketingTab.home)
                     .tabItem { Label("Home", systemImage: "house") }
 
-                MarketingSearchScreenView(isPresentationMode: $isPresentationMode)
+                MarketingSearchScreenView(
+                    isPresentationMode: $isPresentationMode,
+                    availableEvents: availableEvents,
+                    eventRepository: eventRepository,
+                    contentRepository: contentRepository
+                )
                     .tag(MarketingTab.search)
                     .tabItem { Label("Suche", systemImage: "magnifyingglass") }
 
@@ -127,6 +145,13 @@ struct MarketingAppShellView: View {
         .task { await favorites.load() }
         .task { await follows.load() }
         .task { await cityStore.load() }
+        .task { await loadAvailableEvents() }
+    }
+
+    @MainActor
+    private func loadAvailableEvents() async {
+        guard let events = try? await eventRepository.upcomingEvents(limit: 150) else { return }
+        availableEvents = (try? await eventRepository.enrichingImages(in: events)) ?? events
     }
 }
 

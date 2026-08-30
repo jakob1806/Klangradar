@@ -7,17 +7,61 @@ import Foundation
 /// Rein clientseitig, kein Supabase-Zugriff.
 
 struct MarketingHeroData: Codable, Equatable {
+    /// Optionaler Bezug zu einem echten Klangradar-Event. Die frei wählbaren
+    /// Texte/Bilder bleiben dennoch für eine Aufnahme überschreibbar.
+    var sourceEventID: UUID?
     var imagePath: String?
     var dateLabel: String
     var title: String
     var venue: String
+
+    init(sourceEventID: UUID? = nil, imagePath: String?, dateLabel: String, title: String, venue: String) {
+        self.sourceEventID = sourceEventID
+        self.imagePath = imagePath
+        self.dateLabel = dateLabel
+        self.title = title
+        self.venue = venue
+    }
+
+    private enum CodingKeys: String, CodingKey { case sourceEventID, imagePath, dateLabel, title, venue }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        sourceEventID = try container.decodeIfPresent(UUID.self, forKey: .sourceEventID)
+        imagePath = try container.decodeIfPresent(String.self, forKey: .imagePath)
+        dateLabel = try container.decode(String.self, forKey: .dateLabel)
+        title = try container.decode(String.self, forKey: .title)
+        venue = try container.decode(String.self, forKey: .venue)
+    }
 }
 
 struct MarketingEventData: Codable, Equatable, Hashable, Identifiable {
     var id: UUID = UUID()
+    /// Ist gesetzt, wenn die Marketing-Karte ein echtes Klangradar-Event
+    /// repräsentiert. Dann öffnet ein Tap dessen vollwertige Detailansicht.
+    var sourceEventID: UUID?
     var imagePath: String?
     var title: String
     var subtitle: String
+
+    init(id: UUID = UUID(), sourceEventID: UUID? = nil, imagePath: String? = nil, title: String, subtitle: String) {
+        self.id = id
+        self.sourceEventID = sourceEventID
+        self.imagePath = imagePath
+        self.title = title
+        self.subtitle = subtitle
+    }
+
+    private enum CodingKeys: String, CodingKey { case id, sourceEventID, imagePath, title, subtitle }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        sourceEventID = try container.decodeIfPresent(UUID.self, forKey: .sourceEventID)
+        imagePath = try container.decodeIfPresent(String.self, forKey: .imagePath)
+        title = try container.decode(String.self, forKey: .title)
+        subtitle = try container.decode(String.self, forKey: .subtitle)
+    }
 }
 
 struct MarketingModuleData: Codable, Equatable, Identifiable {

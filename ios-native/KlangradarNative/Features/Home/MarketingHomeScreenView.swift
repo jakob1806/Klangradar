@@ -11,6 +11,9 @@ struct MarketingHomeScreenView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @EnvironmentObject private var store: MarketingContentStore
     @Binding var isPresentationMode: Bool
+    let availableEvents: [ConcertEvent]
+    let eventRepository: any EventRepository
+    let contentRepository: any ContentRepository
     @State private var showsEditor = false
 
     var body: some View {
@@ -21,16 +24,14 @@ struct MarketingHomeScreenView: View {
 
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 34) {
-                        NavigationLink(value: heroEvent) {
-                            MarketingHeroView(
-                                hero: store.content.hero,
-                                height: horizontalSizeClass == .regular ? 280 : 224
-                            )
-                        }
-                        .buttonStyle(.plain)
+                        heroLink
 
                         ForEach(store.content.modules) { module in
-                            MarketingEventRail(title: module.title, events: module.events)
+                            MarketingEventRail(
+                                title: module.title,
+                                events: module.events,
+                                availableEvents: availableEvents
+                            )
                         }
                     }
                     .padding(.top, 8)
@@ -49,7 +50,7 @@ struct MarketingHomeScreenView: View {
                 }
             }
             .sheet(isPresented: $showsEditor) {
-                MarketingContentEditorView(surface: .home) {
+                MarketingContentEditorView(surface: .home, availableEvents: availableEvents) {
                     isPresentationMode = true
                 }
                 .environmentObject(store)
@@ -57,7 +58,30 @@ struct MarketingHomeScreenView: View {
             .navigationDestination(for: MarketingEventData.self) { event in
                 MarketingEventDetailView(event: event)
             }
+            .navigationDestination(for: ConcertEvent.self) { event in
+                EventDetailView(event: event, repository: eventRepository, contentRepository: contentRepository)
+            }
         }
+    }
+
+    @ViewBuilder
+    private var heroLink: some View {
+        if let event = linkedEvent(for: store.content.hero.sourceEventID) {
+            NavigationLink(value: event) { heroView }
+                .buttonStyle(.plain)
+        } else {
+            NavigationLink(value: heroEvent) { heroView }
+                .buttonStyle(.plain)
+        }
+    }
+
+    private var heroView: some View {
+        MarketingHeroView(hero: store.content.hero, height: horizontalSizeClass == .regular ? 280 : 224)
+    }
+
+    private func linkedEvent(for id: UUID?) -> ConcertEvent? {
+        guard let id else { return nil }
+        return availableEvents.first(where: { $0.id == id })
     }
 
     private var heroEvent: MarketingEventData {
@@ -191,6 +215,7 @@ private struct MarketingEventCard: View {
 private struct MarketingEventRail: View {
     let title: String
     let events: [MarketingEventData]
+    let availableEvents: [ConcertEvent]
 
     var body: some View {
         if !events.isEmpty {
@@ -202,10 +227,13 @@ private struct MarketingEventRail: View {
                 ScrollView(.horizontal) {
                     LazyHStack(alignment: .top, spacing: 16) {
                         ForEach(events) { event in
-                            NavigationLink(value: event) {
-                                MarketingEventCard(event: event)
+                            if let liveEvent = linkedEvent(for: event) {
+                                NavigationLink(value: liveEvent) { MarketingEventCard(event: event) }
+                                    .buttonStyle(.plain)
+                            } else {
+                                NavigationLink(value: event) { MarketingEventCard(event: event) }
+                                    .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain)
                         }
                     }
                     .padding(.horizontal, KlangradarTheme.pagePadding)
@@ -213,6 +241,11 @@ private struct MarketingEventRail: View {
                 .scrollIndicators(.hidden)
             }
         }
+    }
+
+    private func linkedEvent(for marketingEvent: MarketingEventData) -> ConcertEvent? {
+        guard let id = marketingEvent.sourceEventID else { return nil }
+        return availableEvents.first(where: { $0.id == id })
     }
 }
 
@@ -222,6 +255,9 @@ private struct MarketingEventRail: View {
 struct MarketingSearchScreenView: View {
     @EnvironmentObject private var store: MarketingContentStore
     @Binding var isPresentationMode: Bool
+    let availableEvents: [ConcertEvent]
+    let eventRepository: any EventRepository
+    let contentRepository: any ContentRepository
     @State private var query = ""
     @State private var showsEditor = false
 
@@ -249,10 +285,13 @@ struct MarketingSearchScreenView: View {
                                 .padding(.top, 48)
                         } else {
                             ForEach(visibleEvents) { event in
-                                NavigationLink(value: event) {
-                                    MarketingSearchEventRow(event: event)
+                                if let liveEvent = linkedEvent(for: event) {
+                                    NavigationLink(value: liveEvent) { MarketingSearchEventRow(event: event) }
+                                        .buttonStyle(.plain)
+                                } else {
+                                    NavigationLink(value: event) { MarketingSearchEventRow(event: event) }
+                                        .buttonStyle(.plain)
                                 }
-                                .buttonStyle(.plain)
                             }
                         }
                     }
@@ -273,7 +312,7 @@ struct MarketingSearchScreenView: View {
                 }
             }
             .sheet(isPresented: $showsEditor) {
-                MarketingContentEditorView(surface: .search) {
+                MarketingContentEditorView(surface: .search, availableEvents: availableEvents) {
                     isPresentationMode = true
                 }
                 .environmentObject(store)
@@ -281,7 +320,15 @@ struct MarketingSearchScreenView: View {
             .navigationDestination(for: MarketingEventData.self) { event in
                 MarketingEventDetailView(event: event)
             }
+            .navigationDestination(for: ConcertEvent.self) { event in
+                EventDetailView(event: event, repository: eventRepository, contentRepository: contentRepository)
+            }
         }
+    }
+
+    private func linkedEvent(for marketingEvent: MarketingEventData) -> ConcertEvent? {
+        guard let id = marketingEvent.sourceEventID else { return nil }
+        return availableEvents.first(where: { $0.id == id })
     }
 }
 
@@ -335,6 +382,11 @@ private struct MarketingEventDetailView: View {
 }
 
 #Preview {
-    MarketingHomeScreenView(isPresentationMode: .constant(false))
+    MarketingHomeScreenView(
+        isPresentationMode: .constant(false),
+        availableEvents: [],
+        eventRepository: PreviewEventRepository(),
+        contentRepository: PreviewContentRepository()
+    )
         .environmentObject(MarketingContentStore())
 }
