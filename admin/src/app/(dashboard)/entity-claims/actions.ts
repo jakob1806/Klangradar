@@ -3,6 +3,33 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { logSystemAction } from "@/lib/system-log";
+import { getResend } from "@/lib/resend";
+import { resolveEntityNames, type ClaimableEntityType } from "@/lib/entity-tables";
+
+// Bewusst ohne await im Aufrufer und mit eigenem try/catch: eine fehlgeschlagene
+// Benachrichtigungsmail (z. B. Resend down) darf den bereits erfolgten
+// Status-Flip nicht rückgängig machen oder dem Redakteur einen Fehler zeigen
+// — dieselbe Nachsichtigkeit wie bei logSystemAction, das ebenfalls nach dem
+// eigentlichen Update passiert.
+async function notifyClaimant(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  claim: { entity_type: ClaimableEntityType; entity_id: string; verification_email: string | null },
+  outcome: "approved" | "rejected",
+) {
+  if (!claim.verification_email) return;
+  try {
+    const names = await resolveEntityNames(supabase, [{ entityType: claim.entity_type, entityId: claim.entity_id }]);
+    const name = names.get(`${claim.entity_type}:${claim.entity_id}`) ?? "deine Anfrage";
+    const subject = outcome === "approved" ? `Dein Claim für ${name} wurde genehmigt` : `Dein Claim für ${name} wurde abgelehnt`;
+    const html =
+      outcome === "approved"
+        ? `<p>Dein Antrag, <strong>${name}</strong> auf Klangradar zu verwalten, wurde genehmigt.</p><p><a href="https://klangradar.com/veranstalter">Jetzt im Veranstalterportal loslegen</a></p>`
+        : `<p>Dein Antrag, <strong>${name}</strong> auf Klangradar zu verwalten, wurde leider abgelehnt.</p><p>Bei Fragen antworte gerne auf diese E-Mail.</p>`;
+    await getResend().emails.send({ from: "Klangradar <noreply@klangradar.com>", to: claim.verification_email, subject, html });
+  } catch (error) {
+    console.error("Konnte Claim-Benachrichtigung nicht senden:", error);
+  }
+}
 
 // Deutlich einfacher als approveEntityCandidate (entity-candidates/actions.ts):
 // die Zielentität existiert bereits, kein Slug, kein "existiert schon"-Check,
@@ -17,7 +44,7 @@ export async function approveEntityClaim(claimId: string) {
 
   const { data: claim, error: fetchError } = await supabase
     .from("entity_claims")
-    .select("entity_type, entity_id")
+    .select("entity_type, entity_id, verification_email")
     .eq("id", claimId)
     .maybeSingle();
   if (fetchError || !claim) throw new Error(fetchError?.message ?? "Claim nicht gefunden");
@@ -49,6 +76,7 @@ export async function approveEntityClaim(claimId: string) {
     action: "approved",
     actor: user?.email ?? user?.id ?? "unknown",
   });
+  await notifyClaimant(supabase, claim, "approved");
 
   revalidatePath("/entity-claims");
 }
@@ -58,6 +86,13 @@ export async function rejectEntityClaim(claimId: string) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  const { data: claim, error: fetchError } = await supabase
+    .from("entity_claims")
+    .select("entity_type, entity_id, verification_email")
+    .eq("id", claimId)
+    .maybeSingle();
+  if (fetchError || !claim) throw new Error(fetchError?.message ?? "Claim nicht gefunden");
 
   const { error } = await supabase
     .from("entity_claims")
@@ -71,6 +106,7 @@ export async function rejectEntityClaim(claimId: string) {
     action: "rejected",
     actor: user?.email ?? user?.id ?? "unknown",
   });
+  await notifyClaimant(supabase, claim, "rejected");
 
   revalidatePath("/entity-claims");
 }
