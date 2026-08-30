@@ -30,7 +30,7 @@ export default async function MarketingPage() {
   const promotions = promotionsData ?? [];
   const metrics = Array.isArray(metricsData) ? metricsData : [];
   const metricByEvent = new Map(metrics.map((metric) => [metric.event_id, metric]));
-  const active = promotions.filter((promotion) => promotion.status === "approved");
+  const active = promotions.filter((promotion) => promotion.status === "approved" && promotion.payment_status === "paid");
   const totals = metrics.reduce((sum, item) => ({ views: sum.views + Number(item.views), tickets: sum.tickets + Number(item.ticket_clicks), saves: sum.saves + Number(item.saves) }), { views: 0, tickets: 0, saves: 0 });
 
   return <div className="mx-auto max-w-5xl px-6 py-10">
