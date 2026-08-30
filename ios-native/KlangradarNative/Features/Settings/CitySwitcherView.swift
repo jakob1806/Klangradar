@@ -122,6 +122,10 @@ struct CitySwitcherView: View {
 struct CityCompactMenu: View {
     @ObservedObject var cityStore: CityStore
     var allowsAllCities = false
+    /// Nur die Karte zeigt die aktuelle Auswahl zusätzlich im geöffneten
+    /// Dropdown. Auf Home, Suche und Kalender ist die Auswahl bereits im
+    /// kompakten Stadt-Chip sichtbar und bleibt dort bewusst ruhiger.
+    var showsSelectionIndicator = false
 
     var body: some View {
         Menu {
@@ -129,14 +133,22 @@ struct CityCompactMenu: View {
                 Button {
                     cityStore.select(nil)
                 } label: {
-                    menuLabel("Alle Städte", selected: cityStore.selectedCity == nil)
+                    menuLabel(
+                        "Alle Städte",
+                        selected: cityStore.selectedCity == nil,
+                        showsSelectionIndicator: showsSelectionIndicator
+                    )
                 }
             }
             ForEach(cityStore.activeCities) { city in
                 Button {
                     cityStore.select(city)
                 } label: {
-                    menuLabel(city.name, selected: cityStore.selectedCity?.id == city.id)
+                    menuLabel(
+                        city.name,
+                        selected: cityStore.selectedCity?.id == city.id,
+                        showsSelectionIndicator: showsSelectionIndicator
+                    )
                 }
             }
         } label: {
@@ -158,7 +170,19 @@ struct CityCompactMenu: View {
     }
 
     @ViewBuilder
-    private func menuLabel(_ title: String, selected: Bool) -> some View {
-        if selected { Label(title, systemImage: "checkmark") } else { Text(title) }
+    private func menuLabel(
+        _ title: String,
+        selected: Bool,
+        showsSelectionIndicator: Bool
+    ) -> some View {
+        HStack(spacing: 10) {
+            // Einen festen Platz reservieren: Der Haken steht in der Karte
+            // wirklich links vom Text und lässt die Zeilen beim Wechsel nicht
+            // hin- und herspringen.
+            Image(systemName: "checkmark")
+                .font(.body.weight(.bold))
+                .opacity(showsSelectionIndicator && selected ? 1 : 0)
+            Text(title)
+        }
     }
 }

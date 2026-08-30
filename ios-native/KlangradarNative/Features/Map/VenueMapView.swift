@@ -129,7 +129,11 @@ struct VenueMapView: View {
                 // CityStore/CitySwitcherView) -- Chip nur zeigen, wenn es
                 // überhaupt eine Auswahl zu treffen gibt.
                 if cityStore.activeCities.count > 1 {
-                    CityCompactMenu(cityStore: cityStore, allowsAllCities: true)
+                    CityCompactMenu(
+                        cityStore: cityStore,
+                        allowsAllCities: true,
+                        showsSelectionIndicator: true
+                    )
                         .foregroundStyle(.primary)
                 }
                     Spacer()
