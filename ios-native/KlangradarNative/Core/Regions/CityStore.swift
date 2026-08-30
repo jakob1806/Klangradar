@@ -28,6 +28,12 @@ final class CityStore: ObservableObject {
         defer { isLoading = false }
         activeCities = (try? await repository?.activeRegions()) ?? []
         await seedFromPreferredRegionIfNeeded()
+        // Ohne eigene oder gespeicherte Auswahl soll die App wie zuvor mit
+        // einer konkreten Stadt starten statt mit dem Platzhalter "Stadt" im
+        // Chip -- "Alle Städte" bleibt eine bewusste Auswahl über die Karte.
+        if selectedCity == nil, !didSeedFromPreference {
+            selectedCity = activeCities.first
+        }
     }
 
     /// Explizite Nutzerauswahl (z.B. aus CitySwitcherView) -- persistiert bei

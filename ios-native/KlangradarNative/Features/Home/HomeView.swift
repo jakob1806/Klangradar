@@ -140,7 +140,7 @@ struct HomeView: View {
                     .frame(maxWidth: KlangradarTheme.contentMaxWidth)
             }
             .navigationTitle("Klangradar")
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     CityCompactMenu(cityStore: cityStore)
@@ -156,6 +156,7 @@ struct HomeView: View {
                 EntityDetailView(route: route, repository: contentRepository)
             }
             .task {
+                model.regionID = cityStore.selectedCity?.id
                 await model.load()
                 collections = (try? await contentRepository.collections()) ?? []
                 async let persons = contentRepository.directory(kind: .person)
@@ -165,6 +166,9 @@ struct HomeView: View {
             }
             .onAppear {
                 categoryOrder = HomeCategoryPreferences.order(for: model.currentUserID)
+            }
+            .onChange(of: cityStore.selectedCity) { _, newCity in
+                Task { await model.setRegion(newCity?.id) }
             }
             .onReceive(NotificationCenter.default.publisher(for: HomeCategoryPreferences.didChange)) { _ in
                 categoryOrder = HomeCategoryPreferences.order(for: model.currentUserID)

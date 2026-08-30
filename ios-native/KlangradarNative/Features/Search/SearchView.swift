@@ -76,6 +76,9 @@ struct SearchView: View {
             .navigationDestination(for: EntityKind.self) { DirectoryView(kind: $0, repository: contentRepository) }
             .navigationDestination(for: EntityRoute.self) { EntityDetailView(route: $0, repository: contentRepository) }
             .task { await loadEventsAndCategories() }
+            .onChange(of: cityStore.selectedCity) { _, _ in
+                Task { await loadEventsAndCategories() }
+            }
             .task { await loadDirectory(.person) }
             .task { await loadDirectory(.ensemble) }
             .task { await loadDirectory(.venue) }
@@ -398,7 +401,7 @@ struct SearchView: View {
 
     private func loadEventsAndCategories() async {
         do {
-            async let loadedEvents = eventRepository.allUpcomingEvents()
+            async let loadedEvents = eventRepository.allUpcomingEvents(regionID: cityStore.selectedCity?.id)
             async let categories = try? eventRepository.inspirationCategories()
             let basicEvents = try await loadedEvents
             let remoteCategories = await categories ?? []
