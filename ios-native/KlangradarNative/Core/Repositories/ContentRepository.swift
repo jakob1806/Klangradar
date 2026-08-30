@@ -175,6 +175,7 @@ struct LiveContentRepository: ContentRepository {
             gallery: await galleryResult,
             events: await eventResult,
             similar: await similarResult,
+            avatarCrop: avatarCrop(from: row),
             venueLatitude: latLng?.0,
             venueLongitude: latLng?.1
         )

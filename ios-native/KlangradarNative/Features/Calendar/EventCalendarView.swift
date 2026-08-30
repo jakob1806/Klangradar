@@ -5,6 +5,7 @@ struct EventCalendarView: View {
     let contentRepository: any ContentRepository
     let auth: AuthStore?
     let userRepository: UserRepository?
+    @EnvironmentObject private var cityStore: CityStore
     @State private var selectedDate = Date.now
     @State private var visibleMonth = Date.now
     @State private var events: [ConcertEvent] = []
@@ -101,6 +102,11 @@ struct EventCalendarView: View {
                 }
             }
             .navigationTitle("Kalender")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    CityCompactMenu(cityStore: cityStore)
+                }
+            }
             .navigationDestination(for: ConcertEvent.self) { EventDetailView(event: $0, repository: repository, contentRepository: contentRepository) }
             .task {
                 let basic = (try? await repository.allUpcomingEvents()) ?? []

@@ -110,6 +110,7 @@ struct HomeView: View {
     @StateObject private var model: HomeViewModel
     @EnvironmentObject private var favorites: FavoriteStore
     @EnvironmentObject private var follows: FollowStore
+    @EnvironmentObject private var cityStore: CityStore
     private let contentRepository: any ContentRepository
     private let usesPreviewData: Bool
     @State private var collections: [EditorialCollection] = []
@@ -139,6 +140,11 @@ struct HomeView: View {
                     .frame(maxWidth: KlangradarTheme.contentMaxWidth)
             }
             .navigationTitle("Klangradar")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    CityCompactMenu(cityStore: cityStore)
+                }
+            }
             .navigationDestination(for: ConcertEvent.self) { event in
                 EventDetailView(event: event, repository: model.repository, contentRepository: contentRepository)
             }

@@ -7,7 +7,6 @@ struct VenueMapView: View {
     @ObservedObject var cityStore: CityStore
 
     @State private var venues: [VenueLocation] = []
-    @State private var showsCitySwitcher = false
     @State private var selectedVenueID: UUID?
     @State private var selectedVenue: VenueLocation?
     // Nutzerfeedback: mehrere Säle desselben Gebäudes (z.B. Gasteig HP8:
@@ -67,7 +66,6 @@ struct VenueMapView: View {
             .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showsFilter) { filterSheet }
-        .sheet(isPresented: $showsCitySwitcher) { CitySwitcherView(cityStore: cityStore) }
         .task { await loadVenues() }
         .onChange(of: cityStore.selectedCity) { _, _ in
             hasAutoFitCamera = false
@@ -131,14 +129,10 @@ struct VenueMapView: View {
                 // CityStore/CitySwitcherView) -- Chip nur zeigen, wenn es
                 // überhaupt eine Auswahl zu treffen gibt.
                 if cityStore.activeCities.count > 1 {
-                    Button { showsCitySwitcher = true } label: {
-                        Label(cityStore.selectedCity?.name ?? "Alle Städte", systemImage: "building.2")
-                            .font(.subheadline.weight(.medium))
-                            .padding(.horizontal, 12)
-                            .frame(height: 36)
-                            .background(.regularMaterial, in: .capsule)
-                    }
-                        .buttonStyle(.plain)
+                    CityCompactMenu(cityStore: cityStore, allowsAllCities: true)
+                        .padding(.horizontal, 12)
+                        .frame(height: 36)
+                        .background(.regularMaterial, in: .capsule)
                         .foregroundStyle(.primary)
                 }
                     Spacer()
