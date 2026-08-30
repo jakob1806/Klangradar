@@ -15,10 +15,8 @@ struct ProfileView: View {
     @State private var showsLogin = false
     @State private var showsCitySwitcher = false
     @State private var hasEditorialAccess = false
-#if DEBUG
     @State private var showsMarketingShell = false
     @State private var startsMarketingInPresentationMode = true
-#endif
 
     var body: some View {
         NavigationStack {
@@ -94,24 +92,30 @@ struct ProfileView: View {
                     }
                 }
 
-#if DEBUG
-                Section {
-                    Button {
-                        startsMarketingInPresentationMode = true
-                        showsMarketingShell = true
-                    } label: {
-                        Label("Marketing-Screenshots", systemImage: "camera.viewfinder")
+                // Marketing-Aufnahmen gehören in eine auslieferbare App,
+                // aber nicht in den öffentlichen Nutzerfluss. Der Zugang ist
+                // deshalb an den schon bestehenden Redaktionszugang gebunden
+                // statt an das DEBUG-Build-Flag.
+                if hasEditorialAccess {
+                    Section {
+                        Button {
+                            startsMarketingInPresentationMode = true
+                            showsMarketingShell = true
+                        } label: {
+                            Label("Marketing-Screenshots", systemImage: "camera.viewfinder")
+                        }
+                        Button {
+                            startsMarketingInPresentationMode = false
+                            showsMarketingShell = true
+                        } label: {
+                            Label("Marketing-Inhalte vorbereiten", systemImage: "pencil.and.list.clipboard")
+                        }
+                    } header: {
+                        Text("Marketing")
+                    } footer: {
+                        Text("Marketing-Screenshots startet direkt ohne Werkzeugleisten für echte Aufnahmen. Inhalte vorbereiten zeigt die Bearbeiten-Werkzeuge für Home und Suche; mit „Fertig“ wechselst du zurück in den aufnahmebereiten Modus. Aus diesem kommst du per Doppeltipp auf Home wieder heraus.")
                     }
-                    Button {
-                        startsMarketingInPresentationMode = false
-                        showsMarketingShell = true
-                    } label: {
-                        Label("Marketing-Inhalte vorbereiten", systemImage: "pencil.and.list.clipboard")
-                    }
-                } footer: {
-                    Text("Marketing-Screenshots startet direkt ohne Werkzeugleisten für echte Aufnahmen. Inhalte vorbereiten zeigt die Bearbeiten-Werkzeuge für Home und Suche; mit „Fertig“ wechselst du zurück in den aufnahmebereiten Modus. Aus diesem kommst du per Doppeltipp auf Home wieder heraus.")
                 }
-#endif
 
                 Section("Darstellung") {
                     Picker("Erscheinungsbild", selection: $appearance) {
@@ -148,7 +152,6 @@ struct ProfileView: View {
             .sheet(isPresented: $showsCitySwitcher) {
                 CitySwitcherView(cityStore: cityStore)
             }
-#if DEBUG
             .fullScreenCover(isPresented: $showsMarketingShell) {
                 MarketingAppShellView(
                     auth: auth,
@@ -160,7 +163,6 @@ struct ProfileView: View {
                     startsInPresentationMode: startsMarketingInPresentationMode
                 )
             }
-#endif
             .task(id: auth.accessToken) { await checkEditorialAccess() }
         }
     }
