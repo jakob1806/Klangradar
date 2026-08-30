@@ -708,6 +708,7 @@
 				FF22E2A6E6818F5A683B0131 /* Sources */,
 				7E27C52A199BC6D543B85C42 /* Frameworks */,
 				72480A59808820DB61550F77 /* Resources */,
+				F2A7C3D1A9B44E5D8A1C0001 /* Embed local Supabase configuration */,
 			);
 			buildRules = (
 			);
@@ -783,6 +784,25 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		F2A7C3D1A9B44E5D8A1C0001 /* Embed local Supabase configuration */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/Config/Secrets.plist",
+			);
+			name = "Embed local Supabase configuration";
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Secrets.plist",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "if [ -f \"${SRCROOT}/Config/Secrets.plist\" ]; then\n  cp \"${SRCROOT}/Config/Secrets.plist\" \"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/Secrets.plist\"\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		AD66BDA0D6A3EF0C829D71EB /* Sources */ = {
