@@ -283,22 +283,30 @@ struct MarketingSearchScreenView: View {
                 KlangradarBackground().ignoresSafeArea()
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 18) {
-                        Text(query.isEmpty ? store.content.search.headline : "Ergebnisse")
-                            .font(.title2.bold())
-                            .padding(.horizontal, KlangradarTheme.pagePadding)
-
-                        if visibleEvents.isEmpty {
-                            ContentUnavailableView.search(text: query)
-                                .padding(.top, 48)
+                        if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            discoveryContent
                         } else {
-                            ForEach(visibleEvents) { event in
-                                if let liveEvent = linkedEvent(for: event) {
-                                    NavigationLink(value: liveEvent) { MarketingSearchEventRow(event: event) }
-                                        .buttonStyle(.plain)
-                                } else {
-                                    NavigationLink(value: event) { MarketingSearchEventRow(event: event) }
-                                        .buttonStyle(.plain)
+                            Text("Ergebnisse")
+                                .font(.title2.bold())
+                                .padding(.horizontal, KlangradarTheme.pagePadding)
+
+                            if visibleEvents.isEmpty {
+                                ContentUnavailableView.search(text: query)
+                                    .padding(.top, 48)
+                            } else {
+                                LazyVStack(spacing: 0) {
+                                    ForEach(visibleEvents) { event in
+                                        marketingEventLink(event) {
+                                            MarketingSearchEventRow(event: event)
+                                        }
+                                        if event.id != visibleEvents.last?.id {
+                                            Divider().padding(.leading, 132)
+                                        }
+                                    }
                                 }
+                                .padding(.vertical, 8)
+                                .background(.regularMaterial, in: .rect(cornerRadius: 24))
+                                .padding(.horizontal, KlangradarTheme.pagePadding)
                             }
                         }
                     }
@@ -335,6 +343,60 @@ struct MarketingSearchScreenView: View {
             .navigationDestination(for: ConcertEvent.self) { event in
                 EventDetailView(event: event, repository: eventRepository, contentRepository: contentRepository)
             }
+            .navigationDestination(for: EntityKind.self) { kind in
+                DirectoryView(kind: kind, repository: contentRepository)
+            }
+        }
+    }
+
+    private var discoveryContent: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Alles entdecken")
+                .font(.title2.bold())
+
+            LazyVGrid(
+                columns: [GridItem(.flexible()), GridItem(.flexible())],
+                spacing: 14
+            ) {
+                ForEach(EntityKind.allCases, id: \.self) { kind in
+                    NavigationLink(value: kind) {
+                        MarketingDiscoveryTile(kind: kind)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            if !store.content.search.headline.isEmpty {
+                Text(store.content.search.headline)
+                    .font(.title2.bold())
+                    .padding(.top, 10)
+            }
+
+            ScrollView(.horizontal) {
+                LazyHStack(spacing: 14) {
+                    ForEach(store.content.search.events) { event in
+                        marketingEventLink(event) {
+                            MarketingSearchDiscoveryEventCard(event: event)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+            .scrollIndicators(.hidden)
+        }
+        .padding(.horizontal, KlangradarTheme.pagePadding)
+    }
+
+    @ViewBuilder
+    private func marketingEventLink<Content: View>(
+        _ event: MarketingEventData,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        if let liveEvent = linkedEvent(for: event) {
+            NavigationLink(value: liveEvent, label: content)
+        } else {
+            NavigationLink(value: event, label: content)
         }
     }
 
@@ -361,6 +423,77 @@ private struct MarketingSearchEventRow: View {
         }
         .padding(.horizontal, KlangradarTheme.pagePadding)
         .contentShape(.rect)
+    }
+}
+
+/// Die vier Entdecken-Einstiege folgen dem Aufbau der echten Suche. Sie
+/// bleiben im Aufnahmemodus voll bedienbar und öffnen die normalen Verzeichnisse.
+private struct MarketingDiscoveryTile: View {
+    let kind: EntityKind
+
+    private var colors: [Color] {
+        switch kind {
+        case .person: [.indigo, .purple]
+        case .ensemble: [.teal, .blue]
+        case .venue: [.orange, .red]
+        case .work: [.pink, .purple]
+        }
+    }
+
+    var body: some View {
+        ZStack(alignment: .bottomTrailing) {
+            LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
+            Image(systemName: kind.systemImage)
+                .font(.system(size: 52, weight: .bold))
+                .foregroundStyle(.white.opacity(0.24))
+                .rotationEffect(.degrees(-9))
+                .offset(x: 12, y: 12)
+            Text(kind.title)
+                .font(.headline.bold())
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .padding(15)
+        }
+        .frame(height: 132)
+        .clipShape(.rect(cornerRadius: 20))
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private struct MarketingSearchDiscoveryEventCard: View {
+    let event: MarketingEventData
+
+    var body: some View {
+        ZStack(alignment: .bottomLeading) {
+            MarketingArtwork(imagePath: event.imagePath)
+                .frame(width: 238, height: 292)
+                .clipped()
+            LinearGradient(
+                colors: [.clear, .black.opacity(0.18), .black.opacity(0.92)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            VStack(alignment: .leading, spacing: 6) {
+                Text("KONZERT")
+                    .font(.caption2.bold())
+                    .tracking(0.8)
+                    .foregroundStyle(.white.opacity(0.78))
+                Text(event.title)
+                    .font(.headline.bold())
+                    .lineLimit(3)
+                Text(event.subtitle)
+                    .font(.caption)
+                    .lineLimit(2)
+                    .foregroundStyle(.white.opacity(0.78))
+            }
+            .foregroundStyle(.white)
+            .padding(16)
+        }
+        .frame(width: 238, height: 292)
+        .clipShape(.rect(cornerRadius: 22))
+        .contentShape(.rect(cornerRadius: 22))
+        .shadow(color: .black.opacity(0.12), radius: 12, y: 6)
+        .accessibilityElement(children: .combine)
     }
 }
 
