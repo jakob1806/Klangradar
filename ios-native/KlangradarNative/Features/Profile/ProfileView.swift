@@ -69,12 +69,16 @@ struct ProfileView: View {
                     } label: {
                         HStack {
                             Label("Stadt", systemImage: "building.2")
+                                .foregroundStyle(.primary)
                             Spacer()
                             Text(cityStore.selectedCity?.name ?? "Alle Städte")
                                 .foregroundStyle(.secondary)
                         }
                     }
-                    .foregroundStyle(.primary)
+                    // Eine Button-Zeile übernimmt sonst die Accent-Farbe des
+                    // gesamten Formulars. Stadt und der ausgewählte Ort sollen
+                    // genau wie Favoriten/Listen neutral erscheinen.
+                    .buttonStyle(.plain)
                 }
 
                 if hasEditorialAccess, let editorialRepository {
