@@ -72,8 +72,20 @@ struct ProfileView: View {
                             Spacer()
                             Text(cityStore.selectedCity?.name ?? "Alle Städte")
                                 .foregroundStyle(.secondary)
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.tertiary)
                         }
                     }
+                    // .buttonStyle(.plain) statt uns auf .foregroundStyle(.primary)
+                    // allein zu verlassen: ein Button (anders als die
+                    // NavigationLinks der Nachbarzeilen) übernimmt in einer
+                    // List/Form sonst weiterhin den Accent-Tint für Label-Text
+                    // und -Icon, egal was foregroundStyle danach setzt — genau
+                    // das ließ „Stadt" hellblau statt in Standardfarbe erscheinen.
+                    // Der fehlende Chevron machte die Zeile zusätzlich optisch
+                    // inkonsistent zu den NavigationLink-Zeilen darüber.
+                    .buttonStyle(.plain)
                     .foregroundStyle(.primary)
                 }
 
