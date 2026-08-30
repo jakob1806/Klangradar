@@ -7,37 +7,54 @@ import SwiftUI
 struct CitySwitcherView: View {
     @ObservedObject var cityStore: CityStore
     var allowsAllCities = false
+    /// Nutzerwunsch: unter Profil soll die Stadtauswahl als eigene, volle
+    /// Seite gepusht statt als Sheet präsentiert werden — Home/Suche/
+    /// Kalender bleiben unverändert beim Sheet über `CityCompactMenu`.
+    /// Ein zweites eigenes `NavigationStack` innerhalb eines Push-Ziels
+    /// würde die Navigationsleiste des Profil-Stacks duplizieren, deshalb
+    /// wird der Wrapper nur im Sheet-Fall gebraucht.
+    var embedsNavigationStack = true
     @Environment(\.dismiss) private var dismiss
 
     @State private var isLocating = false
     @State private var locationError: String?
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    cityHeader
-
-                    ForEach(cityStore.activeCities) { city in
-                        cityRow(
-                            name: city.name,
-                            subtitle: countryLabel(for: city),
-                            isSelected: cityStore.selectedCity?.id == city.id
-                        ) { cityStore.select(city) }
-                    }
-                }
-                .padding(.horizontal, 20)
-                .padding(.bottom, 36)
+        Group {
+            if embedsNavigationStack {
+                NavigationStack { pageContent }
+            } else {
+                pageContent
             }
-            .background(KlangradarBackground().ignoresSafeArea())
-            .toolbar {
+        }
+        .task { if cityStore.activeCities.isEmpty { await cityStore.load() } }
+    }
+
+    private var pageContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                cityHeader
+
+                ForEach(cityStore.activeCities) { city in
+                    cityRow(
+                        name: city.name,
+                        subtitle: countryLabel(for: city),
+                        isSelected: cityStore.selectedCity?.id == city.id
+                    ) { cityStore.select(city) }
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 36)
+        }
+        .background(KlangradarBackground().ignoresSafeArea())
+        .toolbar {
+            if embedsNavigationStack {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Fertig") { dismiss() }.fontWeight(.semibold)
                 }
             }
-            .toolbarBackground(.hidden, for: .navigationBar)
         }
-        .task { if cityStore.activeCities.isEmpty { await cityStore.load() } }
+        .toolbarBackground(.hidden, for: .navigationBar)
     }
 
     private var cityHeader: some View {
@@ -178,10 +195,13 @@ struct CityCompactMenu: View {
         } label: { chipLabel }
     }
 
-    // Kein eigener Hintergrund/Glass-Effekt hier: ToolbarItem(.topBarTrailing)
-    // umschließt seinen Inhalt auf iOS 26 bereits automatisch mit nativem
-    // Liquid Glass -- ein zusätzlicher .glassEffect()/eigener Kapsel-
-    // Hintergrund erzeugte sichtbar "ein Glas im Glas".
+    // In der Toolbar (ToolbarItem(.topBarTrailing)) braucht der Chip keinen
+    // eigenen Hintergrund -- iOS 26 zeichnet dort bereits automatisch
+    // natives Liquid Glass, ein zusätzlicher wirkte wie "Glas im Glas". Auf
+    // der Karte sitzt derselbe Chip aber in einem einfachen `.overlay`
+    // (kein Toolbar-Kontext), bekam dadurch nie einen Hintergrund und wirkte
+    // neben dem "Filter"-Button zu durchsichtig (Nutzerfeedback) -- deshalb
+    // dort explizit dasselbe `.regularMaterial` wie der Filter-Button.
     private var chipLabel: some View {
         HStack(spacing: 6) {
             Image(systemName: "location.north.fill")
@@ -195,6 +215,9 @@ struct CityCompactMenu: View {
         .foregroundStyle(KlangradarTheme.accent)
         .padding(.horizontal, 12)
         .frame(height: 34)
+        .background {
+            if isMapMenu { Capsule().fill(.regularMaterial) }
+        }
     }
 
     // Native UIMenu ignoriert `.opacity(0)` auf verschachtelten Images beim

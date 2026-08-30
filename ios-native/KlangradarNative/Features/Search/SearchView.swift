@@ -60,9 +60,26 @@ struct SearchView: View {
                 }
                 .scrollDismissesKeyboard(.interactively)
             }
-            .navigationTitle("Suche")
+            // Nutzerwunsch: "Suche" soll wie "Klangradar" auf Home links
+            // stehen statt (UIKit-Standard bei .inline) zentriert — deshalb
+            // ein eigener .topBarLeading-Titel statt .navigationTitle.
+            // .sharedBackgroundVisibility(.hidden) unterdrückt die
+            // automatische Liquid-Glass-Kapsel, die iOS 26 sonst um
+            // .topBarLeading-Inhalte zeichnet (siehe gleiche Lösung in
+            // HomeView).
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                if #available(iOS 26.0, *) {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Text("Suche").font(.headline.bold()).fixedSize()
+                    }
+                    .sharedBackgroundVisibility(.hidden)
+                } else {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Text("Suche").font(.headline.bold()).fixedSize()
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     CityCompactMenu(cityStore: cityStore)
                 }
