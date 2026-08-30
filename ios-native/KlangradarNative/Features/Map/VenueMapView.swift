@@ -130,9 +130,6 @@ struct VenueMapView: View {
                 // überhaupt eine Auswahl zu treffen gibt.
                 if cityStore.activeCities.count > 1 {
                     CityCompactMenu(cityStore: cityStore, allowsAllCities: true)
-                        .padding(.horizontal, 12)
-                        .frame(height: 36)
-                        .background(.regularMaterial, in: .capsule)
                         .foregroundStyle(.primary)
                 }
                     Spacer()

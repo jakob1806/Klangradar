@@ -140,8 +140,19 @@ struct CityCompactMenu: View {
                 }
             }
         } label: {
-            Label(cityStore.selectedCity?.name ?? (allowsAllCities ? "Alle Städte" : "Stadt"), systemImage: "building.2")
-                .font(.subheadline.weight(.medium))
+            HStack(spacing: 8) {
+                Image(systemName: "location.north.fill")
+                    .rotationEffect(.degrees(28))
+                Text(cityStore.selectedCity?.name ?? (allowsAllCities ? "Alle Städte" : "Stadt"))
+                Image(systemName: "chevron.down")
+                    .font(.caption.weight(.bold))
+            }
+            .font(.title3.weight(.semibold))
+            .foregroundStyle(KlangradarTheme.accent)
+            .padding(.horizontal, 17)
+            .frame(height: 48)
+            .background(.ultraThinMaterial, in: .capsule)
+            .overlay { Capsule().stroke(.white.opacity(0.7), lineWidth: 1) }
         }
         .accessibilityLabel("Stadt auswählen")
     }

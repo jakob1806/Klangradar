@@ -69,7 +69,7 @@ struct ProfileView: View {
                     } label: {
                         HStack {
                             Label("Stadt", systemImage: "building.2")
-                                .foregroundStyle(.primary)
+                                .foregroundStyle(KlangradarTheme.accent)
                             Spacer()
                             Text(cityStore.selectedCity?.name ?? "Alle Städte")
                                 .foregroundStyle(.secondary)
