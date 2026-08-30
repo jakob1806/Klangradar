@@ -132,7 +132,7 @@ struct VenueMapView: View {
                     CityCompactMenu(
                         cityStore: cityStore,
                         allowsAllCities: true,
-                        showsSelectionIndicator: true
+                        isMapMenu: true
                     )
                         .foregroundStyle(.primary)
                 }

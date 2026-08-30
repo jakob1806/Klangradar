@@ -102,6 +102,7 @@ struct EventCalendarView: View {
                 }
             }
             .navigationTitle("Kalender")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     CityCompactMenu(cityStore: cityStore)
