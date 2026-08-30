@@ -62,6 +62,43 @@ export default async function EventsPage({
   const supabase = await createClient();
   const cityFilter = await getActiveCityFilter();
 
+  // Eine Suche nach "Bach" soll nicht nur gleichnamige Veranstaltungen
+  // finden, sondern auch Konzerte mit einem beteiligten Bach, einem passenden
+  // Ensemble oder einer passenden Spielstätte. Die Verknüpfungen werden hier
+  // zuerst in Event-IDs übersetzt. So bleibt die eigentliche Eventliste samt
+  // Status-, Stadtfilter und Pagination vollständig serverseitig.
+  let matchingEventIds: string[] | null = null;
+  if (q) {
+    const [{ data: titleMatches }, { data: venueMatches }, { data: personMatches }, { data: ensembleMatches }] = await Promise.all([
+      supabase.from("events").select("id").ilike("title", `%${q}%`).limit(5000),
+      supabase.from("venues").select("id").ilike("name", `%${q}%`).limit(1000),
+      supabase.from("persons").select("id").ilike("full_name", `%${q}%`).limit(1000),
+      supabase.from("ensembles").select("id").ilike("name", `%${q}%`).limit(1000),
+    ]);
+
+    const venueIds = (venueMatches ?? []).map((venue) => venue.id);
+    const personIds = (personMatches ?? []).map((person) => person.id);
+    const ensembleIds = (ensembleMatches ?? []).map((ensemble) => ensemble.id);
+    const [{ data: venueEvents }, { data: personParticipantEvents }, { data: ensembleParticipantEvents }] = await Promise.all([
+      venueIds.length
+        ? supabase.from("events").select("id").in("venue_id", venueIds).limit(5000)
+        : Promise.resolve({ data: [] as { id: string }[] }),
+      personIds.length
+        ? supabase.from("event_participants").select("event_id").in("person_id", personIds).limit(5000)
+        : Promise.resolve({ data: [] as { event_id: string }[] }),
+      ensembleIds.length
+        ? supabase.from("event_participants").select("event_id").in("ensemble_id", ensembleIds).limit(5000)
+        : Promise.resolve({ data: [] as { event_id: string }[] }),
+    ]);
+
+    matchingEventIds = [...new Set([
+      ...(titleMatches ?? []).map((event) => event.id),
+      ...(venueEvents ?? []).map((event) => event.id),
+      ...(personParticipantEvents ?? []).map((participant) => participant.event_id),
+      ...(ensembleParticipantEvents ?? []).map((participant) => participant.event_id),
+    ])];
+  }
+
   // Server-seitig statt Client-Filter: die Liste ist paginiert (50/Seite),
   // ein reiner Client-Filter würde nur innerhalb der gerade geladenen Seite
   // suchen, nicht über alle Events hinweg. Städte-Filter kommt über den
@@ -75,16 +112,20 @@ export default async function EventsPage({
   if (status !== "all") {
     query = query.eq("status", status);
   }
-  if (q) {
-    query = query.ilike("title", `%${q}%`);
+  if (matchingEventIds) {
+    query = query.in("id", matchingEventIds);
   }
   if (cityFilter.cityId) {
     query = query.eq("city_id", cityFilter.cityId);
   }
-  const { data, error, count } = await query
-    .order("start_datetime", { ascending: true })
-    .range(from, to)
-    .returns<EventRow[]>();
+  // PostgREST kann kein `in ()` ausführen. Eine leere, intelligente Suche
+  // wird deshalb bewusst ohne Datenbankabfrage als leeres Ergebnis gezeigt.
+  const { data, error, count } = matchingEventIds?.length === 0
+    ? { data: [] as EventRow[], error: null, count: 0 }
+    : await query
+      .order("start_datetime", { ascending: true })
+      .range(from, to)
+      .returns<EventRow[]>();
 
   // "Bild"-Spalte prüfte bisher nur events.image_urls (vom Scraping befüllt)
   // und ignorierte dabei komplett die images-Galerie-Tabelle — dorthin
@@ -197,7 +238,7 @@ export default async function EventsPage({
           type="search"
           name="q"
           defaultValue={q}
-          placeholder="Titel durchsuchen…"
+          placeholder="Event, Venue, Ensemble oder Person suchen…"
           className="w-full max-w-xs rounded-lg border border-black/10 px-3 py-2 text-sm outline-none focus:border-[#0071e3]"
         />
         <button
