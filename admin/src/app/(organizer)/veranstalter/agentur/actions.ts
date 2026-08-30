@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { getEventOrganizerOptions } from "../event-organizer-context";
 
 export type RosterActionState = { error?: string; success?: true };
 
@@ -13,6 +14,8 @@ export async function addRosterEntry(_state: RosterActionState, formData: FormDa
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Bitte melde dich erneut an." };
+  const organizerIds = (await getEventOrganizerOptions()).map((organizer) => organizer.id);
+  if (!organizerIds.includes(organizerId)) return { error: "Diese Agentur darfst du nicht verwalten." };
   const { error } = await supabase.from("organizer_agency_roster").insert({ organizer_id: organizerId, entity_type: entityType, entity_id: entityId, added_by: user.id });
   if (error) return { error: error.code === "23505" ? "Dieses Profil ist bereits im Roster." : error.message };
   revalidatePath("/veranstalter/agentur");
@@ -21,6 +24,7 @@ export async function addRosterEntry(_state: RosterActionState, formData: FormDa
 
 export async function removeRosterEntry(id: string) {
   const supabase = await createClient();
+  await getEventOrganizerOptions();
   const { error } = await supabase.from("organizer_agency_roster").delete().eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/veranstalter/agentur");

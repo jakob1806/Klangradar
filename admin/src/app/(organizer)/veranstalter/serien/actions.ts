@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { getEventOrganizerOptions } from "../event-organizer-context";
 
 export async function createEventSeries(_previousState: { error?: string; success?: true }, formData: FormData): Promise<{ error?: string; success?: true }> {
   const title = String(formData.get("title") ?? "").trim();
@@ -19,15 +20,8 @@ export async function createEventSeries(_previousState: { error?: string; succes
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Bitte melde dich erneut an." };
 
-  const { data: claim } = await supabase
-    .from("entity_claims")
-    .select("id")
-    .eq("entity_type", "organizer")
-    .eq("entity_id", organizerId)
-    .eq("user_id", user.id)
-    .eq("status", "approved")
-    .maybeSingle();
-  if (!claim) return { error: "Diese Institution darfst du nicht verwalten." };
+  const organizerIds = (await getEventOrganizerOptions()).map((organizer) => organizer.id);
+  if (!organizerIds.includes(organizerId)) return { error: "Dieses Profil darfst du nicht verwalten." };
 
   const { data: ownedEvents } = await supabase
     .from("events")

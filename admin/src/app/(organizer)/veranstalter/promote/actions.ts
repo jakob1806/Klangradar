@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getStripe } from "@/lib/stripe";
+import { getEventOrganizerOptions } from "../event-organizer-context";
 
 const PLACEMENTS = new Set(["standard", "featured", "local_spotlight", "homepage_feature", "push"]);
 
@@ -31,15 +32,10 @@ export async function requestPromotion(formData: FormData): Promise<{ error?: st
       return { error: "Promotionen sind nur für kommende, veröffentlichte Events möglich." };
     }
 
-    const { data: claim } = await supabase
-      .from("entity_claims")
-      .select("id")
-      .eq("entity_type", "organizer")
-      .eq("entity_id", event.organizer_id as string)
-      .eq("user_id", user.id)
-      .eq("status", "approved")
-      .maybeSingle();
-    if (!claim) return { error: "Dieses Event gehört nicht zu einer von dir verwalteten Institution." };
+    const organizerIds = (await getEventOrganizerOptions()).map((organizer) => organizer.id);
+    if (!event.organizer_id || !organizerIds.includes(event.organizer_id as string)) {
+      return { error: "Dieses Event gehört nicht zu einem von dir verwalteten Profil." };
+    }
 
     const { error } = await supabase.from("event_promotions").insert({
       event_id: eventId,

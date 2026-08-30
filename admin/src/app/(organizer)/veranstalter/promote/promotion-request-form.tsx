@@ -20,7 +20,7 @@ export function PromotionRequestForm({ events }: { events: EventOption[] }) {
   const [error, setError] = useState<string | null>(null);
 
   if (!events.length) {
-    return <p className="text-sm text-[#86868b]">Sobald ein kommendes Event veröffentlicht ist, kannst du dafür eine Promotion beantragen.</p>;
+    return <p className="text-sm text-[#86868b]">Für Promotionen brauchst du ein kommendes, veröffentlichtes Event. Entwürfe werden nach redaktioneller Freigabe automatisch hier auswählbar.</p>;
   }
 
   return (

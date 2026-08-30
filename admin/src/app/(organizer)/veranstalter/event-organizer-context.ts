@@ -22,9 +22,15 @@ export async function getEventOrganizerOptions() {
       p_entity_type: claim.entity_type,
       p_entity_id: claim.entity_id,
     });
-    if (error) throw new Error(error.message);
+    // Ein optionaler Hilfskontext darf niemals das gesamte Portal in eine
+    // Server-Fehlerseite schicken. Direkte Institution-Claims bleiben auch
+    // bei einer kurzfristig veralteten API-Schema-Cache-Version verfügbar.
+    if (error) {
+      console.error("Could not resolve profile event context", error.message);
+      return null;
+    }
     return data as string;
-  }))).filter(Boolean);
+  }))).filter((id): id is string => Boolean(id));
 
   const ids = [...new Set([...directOrganizerIds, ...generatedIds])];
   const names = await resolveEntityNames(supabase, ids.map((entityId) => ({ entityType: "organizer" as ClaimableEntityType, entityId })));
