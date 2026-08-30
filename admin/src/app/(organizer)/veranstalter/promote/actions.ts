@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getStripe } from "@/lib/stripe";
-import { getEventOrganizerOptions } from "../event-organizer-context";
+import { getPromotableEvents } from "./promotable-events";
 
 const PLACEMENTS = new Set(["standard", "featured", "local_spotlight", "homepage_feature", "push"]);
 
@@ -23,18 +23,10 @@ export async function requestPromotion(formData: FormData): Promise<{ error?: st
 
   // RLS ist die verbindliche zweite Schranke. Diese Prüfung liefert der UI
   // aber eine klare Antwort, statt eine rohe Policy-Fehlermeldung zu zeigen.
-    const { data: event } = await supabase
-      .from("events")
-      .select("id, organizer_id, status, start_datetime")
-      .eq("id", eventId)
-      .maybeSingle();
-    if (!event || event.status !== "scheduled" || new Date(event.start_datetime as string).getTime() <= Date.now()) {
-      return { error: "Promotionen sind nur für kommende, veröffentlichte Events möglich." };
-    }
-
-    const organizerIds = (await getEventOrganizerOptions()).map((organizer) => organizer.id);
-    if (!event.organizer_id || !organizerIds.includes(event.organizer_id as string)) {
-      return { error: "Dieses Event gehört nicht zu einem von dir verwalteten Profil." };
+    const { events, error: accessibleEventsError } = await getPromotableEvents();
+    if (accessibleEventsError) return { error: "Deine berechtigten Events konnten gerade nicht geprüft werden. Bitte versuche es erneut." };
+    if (!events.some((event) => event.id === eventId)) {
+      return { error: "Dieses Event ist nicht mehr kommend, nicht veröffentlicht oder gehört nicht zu einem von dir beanspruchten Profil." };
     }
 
     const { error } = await supabase.from("event_promotions").insert({
