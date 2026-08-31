@@ -23,7 +23,7 @@ export default async function OrganizerLayout({ children }: { children: React.Re
     <div className={`${bodySans.variable} flex min-h-screen bg-[#F5F5F1] font-[family-name:var(--font-organizer-body)]`}>
       <aside className="fixed inset-y-0 left-0 hidden w-64 flex-col border-r border-[#18181B]/[0.06] bg-white lg:flex">
         <Link href="/veranstalter" className="flex items-center gap-2.5 px-5 py-6">
-          <span className="flex size-8 items-center justify-center rounded-[9px] bg-[#2D2A6E] text-sm font-extrabold text-white">K</span>
+          <Image src="/app-logo.svg" alt="Klangradar" width={32} height={32} className="rounded-[9px]" />
           <span className="flex flex-col leading-none">
             <span className="text-[15px] font-extrabold tracking-tight text-[#18181B]">Klangradar</span>
             <span className="text-[11px] text-[#A1A1AA]">Veranstalter-Portal</span>

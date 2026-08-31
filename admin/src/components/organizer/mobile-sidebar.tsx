@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import { Menu } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/organizer/ui/sheet";
 import { SidebarNavigation } from "@/components/organizer/sidebar-nav";
@@ -17,7 +18,7 @@ export function MobileSidebarTrigger() {
       <SheetContent side="left" className="flex flex-col border-[#18181B]/10 bg-white p-0 pt-5">
         <SheetHeader>
           <div className="flex items-center gap-2.5 px-5 pb-4">
-            <span className="flex size-8 items-center justify-center rounded-[9px] bg-[#2D2A6E] text-sm font-extrabold text-white">K</span>
+            <Image src="/app-logo.svg" alt="Klangradar" width={32} height={32} className="rounded-[9px]" />
             <span className="flex flex-col leading-none">
               <span className="text-[15px] font-extrabold tracking-tight text-[#18181B]">Klangradar</span>
               <SheetTitle className="text-[11px] font-normal text-[#A1A1AA]">Veranstalter-Portal</SheetTitle>
