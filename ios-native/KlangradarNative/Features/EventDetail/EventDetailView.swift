@@ -110,6 +110,12 @@ struct EventDetailView: View {
                             systemImage: favorites.ids.contains(event.id) ? "heart.fill" : "heart",
                             label: "Favorit"
                         ) { Task { await favorites.toggle(event.id) } }
+                        if let icsURL = calendarExportURL() {
+                            ShareLink(item: icsURL) {
+                                heroButtonLabel(systemImage: "calendar.badge.plus")
+                            }
+                            .accessibilityLabel("Zum Kalender hinzufügen")
+                        }
                         ShareLink(item: shareText) {
                             heroButtonLabel(systemImage: "square.and.arrow.up")
                         }
@@ -773,6 +779,27 @@ struct EventDetailView: View {
     }
 
     private var shareText: String { "\(event.title) · \(event.dateLine)" }
+
+    /// Nutzerwunsch: Kalender-Export für ein einzelnes angeklicktes Konzert.
+    /// `detail` liefert Ort/Ticket-Link erst nach dem Laden — vorher wird
+    /// der Button einfach ausgeblendet, statt mit unvollständigen Daten zu
+    /// exportieren.
+    private func calendarExportURL() -> URL? {
+        guard let start = event.startDate else { return nil }
+        let venueRow = detail?.object("venues")
+        let location = venueRow.map { row in
+            [row.string("name"), address(row)].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", ")
+        } ?? event.venueName
+        let input = IcsEventInput(
+            uid: event.id.uuidString,
+            title: event.title,
+            start: start,
+            description: detail?.string("description_de"),
+            location: location,
+            url: detail?.string("ticket_url") ?? detail?.string("website_url")
+        )
+        return try? IcsExport.write([input], fileName: "konzert_\(event.slug).ics")
+    }
 }
 
 struct EdgeSwipeBackModifier: ViewModifier {

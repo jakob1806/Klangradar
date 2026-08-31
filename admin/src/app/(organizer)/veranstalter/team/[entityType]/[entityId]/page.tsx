@@ -2,6 +2,9 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { NAME_COLUMN_FOR_ENTITY_TYPE, TABLE_FOR_ENTITY_TYPE, type ClaimableEntityType } from "@/lib/entity-tables";
 import { TeamMemberActions } from "./team-member-actions";
+import { PageHeader, PageBody } from "@/components/organizer/page-header";
+import { Card, CardContent } from "@/components/organizer/ui/card";
+import { Table, TableBody, TableRow, TableCell } from "@/components/organizer/ui/table";
 
 export const dynamic = "force-dynamic";
 
@@ -65,7 +68,7 @@ export default async function TeamPage({
   const myClaim = allClaims.find((c) => c.user_id === user!.id);
   if (!myClaim || myClaim.status !== "approved") {
     return (
-      <div className="mx-auto max-w-xl px-6 py-16 text-center text-[#48484a]">
+      <div className="mx-auto max-w-xl px-6 py-16 text-center text-[#726c78]">
         Du hast keinen genehmigten Zugriff auf dieses Team.
       </div>
     );
@@ -81,32 +84,36 @@ export default async function TeamPage({
   const rejected = allClaims.filter((c) => c.status === "rejected");
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-10">
-      <h1 className="type-heading mb-1 text-2xl text-[#1d1d1f]">Team — {entityName}</h1>
-      <p className="mb-8 text-sm text-[#86868b]">
-        {isOwner
-          ? "Als Owner kannst du offene Anfragen direkt selbst genehmigen und Rollen passend zu Redaktion, Marketing oder Finanzen vergeben."
-          : `Deine Rolle: ${ROLE_LABEL[myClaim.role] ?? myClaim.role}. Nur Owner können Team-Mitglieder verwalten.`}
-      </p>
+    <div>
+      <PageHeader
+        eyebrow="Team"
+        title={`Team — ${entityName}`}
+        description={
+          isOwner
+            ? "Als Owner kannst du offene Anfragen direkt selbst genehmigen und Rollen passend zu Redaktion, Marketing oder Finanzen vergeben."
+            : `Deine Rolle: ${ROLE_LABEL[myClaim.role] ?? myClaim.role}. Nur Owner können Team-Mitglieder verwalten.`
+        }
+      />
+      <PageBody className="mx-auto flex max-w-3xl flex-col gap-8">
+        {pending.length > 0 && (
+          <section className="flex flex-col gap-3">
+            <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#726c78]">Offene Anfragen ({pending.length})</h2>
+            <TeamTable claims={pending} nameByUserId={nameByUserId} isOwner={isOwner} />
+          </section>
+        )}
 
-      {pending.length > 0 && (
-        <section className="mb-8">
-          <h2 className="mb-3 text-sm font-semibold text-[#86868b]">Offene Anfragen ({pending.length})</h2>
-          <TeamTable claims={pending} nameByUserId={nameByUserId} isOwner={isOwner} />
+        <section className="flex flex-col gap-3">
+          <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#726c78]">Aktive Mitglieder ({approved.length})</h2>
+          <TeamTable claims={approved} nameByUserId={nameByUserId} isOwner={isOwner} />
         </section>
-      )}
 
-      <section className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold text-[#86868b]">Aktive Mitglieder ({approved.length})</h2>
-        <TeamTable claims={approved} nameByUserId={nameByUserId} isOwner={isOwner} />
-      </section>
-
-      {rejected.length > 0 && (
-        <section>
-          <h2 className="mb-3 text-sm font-semibold text-[#86868b]">Abgelehnt/Entfernt ({rejected.length})</h2>
-          <TeamTable claims={rejected} nameByUserId={nameByUserId} isOwner={false} />
-        </section>
-      )}
+        {rejected.length > 0 && (
+          <section className="flex flex-col gap-3">
+            <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#726c78]">Abgelehnt/Entfernt ({rejected.length})</h2>
+            <TeamTable claims={rejected} nameByUserId={nameByUserId} isOwner={false} />
+          </section>
+        )}
+      </PageBody>
     </div>
   );
 }
@@ -120,20 +127,26 @@ function TeamTable({
   nameByUserId: Map<string, string>;
   isOwner: boolean;
 }) {
+  if (claims.length === 0) {
+    return (
+      <Card>
+        <CardContent className="pt-5 text-sm text-[#726c78]">Keine Einträge.</CardContent>
+      </Card>
+    );
+  }
+
   return (
-    <div className="overflow-hidden rounded-xl border border-black/[0.06] bg-white">
-      <table className="w-full text-sm">
-        <tbody className="divide-y divide-neutral-200">
-          {claims.map((claim) => (
-            <tr key={claim.id}>
-              <td className="px-4 py-3 font-medium text-[#1d1d1f]">{nameByUserId.get(claim.user_id) ?? claim.user_id}</td>
-              <td className="px-4 py-3 text-[#86868b]">{ROLE_LABEL[claim.role] ?? claim.role}</td>
-              <td className="px-4 py-3 text-[#86868b]">{STATUS_LABEL[claim.status]}</td>
-              <td className="px-4 py-3 text-right">{isOwner && <TeamMemberActions claimId={claim.id} status={claim.status} role={claim.role} />}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <Table>
+      <TableBody>
+        {claims.map((claim) => (
+          <TableRow key={claim.id}>
+            <TableCell className="font-medium">{nameByUserId.get(claim.user_id) ?? claim.user_id}</TableCell>
+            <TableCell className="text-[#726c78]">{ROLE_LABEL[claim.role] ?? claim.role}</TableCell>
+            <TableCell className="text-[#726c78]">{STATUS_LABEL[claim.status]}</TableCell>
+            <TableCell className="text-right">{isOwner && <TeamMemberActions claimId={claim.id} status={claim.status} role={claim.role} />}</TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
   );
 }

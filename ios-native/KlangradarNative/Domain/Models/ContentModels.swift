@@ -86,6 +86,14 @@ struct GalleryImage: Identifiable, Hashable, Sendable {
     let sourceURL: URL?
 }
 
+/// Ein Werk im Programm eines verknüpften Konzerts (siehe LinkedEvent.
+/// programWorks) — bewusst nur Titel+Komponist, für die Kurzanzeige in der
+/// Konzertliste auf Personen-/Ensemble-Detailseiten (Nutzerwunsch).
+struct ProgramWorkSummary: Hashable, Sendable {
+    let title: String
+    let composerName: String?
+}
+
 struct LinkedEvent: Identifiable, Hashable, Sendable {
     let id: String
     let slug: String
@@ -96,6 +104,7 @@ struct LinkedEvent: Identifiable, Hashable, Sendable {
     let imageURLs: [String]?
     let venueID: UUID?
     let venuePhotoURL: String?
+    let programWorks: [ProgramWorkSummary]
 
     init(
         id: String,
@@ -106,7 +115,8 @@ struct LinkedEvent: Identifiable, Hashable, Sendable {
         role: String?,
         imageURLs: [String]? = nil,
         venueID: UUID? = nil,
-        venuePhotoURL: String? = nil
+        venuePhotoURL: String? = nil,
+        programWorks: [ProgramWorkSummary] = []
     ) {
         self.id = id
         self.slug = slug
@@ -117,6 +127,7 @@ struct LinkedEvent: Identifiable, Hashable, Sendable {
         self.imageURLs = imageURLs
         self.venueID = venueID
         self.venuePhotoURL = venuePhotoURL
+        self.programWorks = programWorks
     }
 
     var concertEvent: ConcertEvent? {

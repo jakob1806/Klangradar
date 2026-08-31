@@ -424,53 +424,102 @@ private extension EntityDetailView {
 
         if !sorted.isEmpty {
             section(kind == .venue ? "Kommende Veranstaltungen" : "Veranstaltungen") {
-                MonthGroupedEventList(groups: monthGroups(sorted)) { event in
-                    AnyView(linkedEventRow(event, showsVenue: kind != .venue))
+                VStack(alignment: .leading, spacing: 12) {
+                    if let icsURL = calendarExportURL(sorted, kind: kind) {
+                        ShareLink(item: icsURL) {
+                            Label("Alle Konzerte exportieren", systemImage: "calendar.badge.plus")
+                                .font(.subheadline.weight(.semibold))
+                        }
+                        .tint(KlangradarTheme.accent)
+                    }
+                    MonthGroupedEventList(groups: monthGroups(sorted)) { event in
+                        AnyView(linkedEventRow(event, showsVenue: kind != .venue, showsProgram: kind != .venue))
+                    }
                 }
             }
         }
     }
 
-    @ViewBuilder private func linkedEventRow(_ event: LinkedEvent, showsVenue: Bool) -> some View {
+    /// Nutzerwunsch: Kalender-Export für alle Konzerte einer gefolgten
+    /// Person/eines Ensembles/eines Orts in einer Datei (mehrere VEVENT-
+    /// Blöcke, System-Kalender bieten dafür einen Sammel-Import an).
+    private func calendarExportURL(_ events: [LinkedEvent], kind: EntityKind) -> URL? {
+        let inputs = events.compactMap { event -> IcsEventInput? in
+            guard let start = event.startDate else { return nil }
+            return IcsEventInput(uid: event.id, title: event.title, start: start, location: event.venueName)
+        }
+        guard !inputs.isEmpty else { return nil }
+        return try? IcsExport.write(inputs, fileName: "\(kind.rawValue)_konzerte.ics")
+    }
+
+    @ViewBuilder private func linkedEventRow(_ event: LinkedEvent, showsVenue: Bool, showsProgram: Bool) -> some View {
         if let concert = event.concertEvent {
-            NavigationLink(value: concert) { linkedEventLabel(event, showsVenue: showsVenue) }
+            NavigationLink(value: concert) { linkedEventLabel(event, showsVenue: showsVenue, showsProgram: showsProgram) }
                 .buttonStyle(.plain)
         } else {
-            linkedEventLabel(event, showsVenue: showsVenue)
+            linkedEventLabel(event, showsVenue: showsVenue, showsProgram: showsProgram)
         }
     }
 
-    private func linkedEventLabel(_ event: LinkedEvent, showsVenue: Bool) -> some View {
-        HStack(spacing: 14) {
-            VStack(spacing: 0) {
-                Text(event.startDate.map { KlangradarDateTime.string($0, format: "dd") } ?? "–")
-                    .font(.title3.bold())
-                Text(event.startDate.map { KlangradarDateTime.string($0, format: "MMM") } ?? "")
-                    .font(.caption2.weight(.semibold))
-                    .textCase(.uppercase)
-                    .foregroundStyle(KlangradarTheme.accent)
-            }
-            .frame(width: 50, height: 54)
-            .background(KlangradarTheme.accent.opacity(0.1), in: .rect(cornerRadius: 14))
-
-            VStack(alignment: .leading, spacing: 5) {
-                Text(event.title).font(.headline).lineLimit(2)
-                HStack(spacing: 5) {
-                    if let date = event.startDate {
-                        Text(KlangradarDateTime.string(date, format: "EEE HH:mm"))
-                    }
-                    if showsVenue, let venue = event.venueName { Text("· \(venue)") }
-                    if let role = event.role { Text("· \(role)") }
+    private func linkedEventLabel(_ event: LinkedEvent, showsVenue: Bool, showsProgram: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 14) {
+                VStack(spacing: 0) {
+                    Text(event.startDate.map { KlangradarDateTime.string($0, format: "dd") } ?? "–")
+                        .font(.title3.bold())
+                    Text(event.startDate.map { KlangradarDateTime.string($0, format: "MMM") } ?? "")
+                        .font(.caption2.weight(.semibold))
+                        .textCase(.uppercase)
+                        .foregroundStyle(KlangradarTheme.accent)
                 }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
+                .frame(width: 50, height: 54)
+                .background(KlangradarTheme.accent.opacity(0.1), in: .rect(cornerRadius: 14))
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(event.title).font(.headline).lineLimit(2)
+                    HStack(spacing: 5) {
+                        if let date = event.startDate {
+                            Text(KlangradarDateTime.string(date, format: "EEE HH:mm"))
+                        }
+                        if showsVenue, let venue = event.venueName { Text("· \(venue)") }
+                        if let role = event.role { Text("· \(role)") }
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                }
+                Spacer(minLength: 4)
+                Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(.tertiary)
             }
-            Spacer(minLength: 4)
-            Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(.tertiary)
+            if showsProgram, !event.programWorks.isEmpty {
+                programList(event.programWorks)
+            }
         }
         .padding(14)
         .contentShape(.rect)
+    }
+
+    /// Nutzerwunsch: Programm unter jedem Konzert soll immer vollständig
+    /// sichtbar sein statt auf zwei Zeilen abgeschnitten — deshalb jedes
+    /// Werk als eigene Zeile statt einer zusammengefassten, truncated
+    /// Text-Zeile. Rückt unter das Datumsfeld (50pt + 14pt Abstand) ein,
+    /// damit es optisch zur Konzertzeile gehört statt lose darunter zu stehen.
+    private func programList(_ works: [ProgramWorkSummary]) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            ForEach(Array(works.enumerated()), id: \.offset) { _, work in
+                Group {
+                    if let composer = work.composerName {
+                        Text(composer).fontWeight(.semibold) + Text("  \(work.title)")
+                    } else {
+                        Text(work.title)
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.leading, 64)
+        .padding(.top, 6)
     }
 
     private func monthGroups(_ events: [LinkedEvent]) -> [LinkedEventMonthGroup] {

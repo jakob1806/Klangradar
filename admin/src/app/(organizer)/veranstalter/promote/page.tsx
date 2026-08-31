@@ -4,6 +4,10 @@ import { PromotionRequestForm } from "./promotion-request-form";
 import { PromotionCheckoutButton } from "./promotion-checkout-button";
 import { getPromotableEvents } from "./promotable-events";
 import { getStripe } from "@/lib/stripe";
+import { PageHeader, PageBody } from "@/components/organizer/page-header";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/organizer/ui/card";
+import { Badge } from "@/components/organizer/ui/badge";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/organizer/ui/table";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +16,13 @@ const STATUS_LABEL: Record<string, string> = { pending: "In Prüfung", payment_p
 const PRICE_ID_BY_PLACEMENT: Record<string, string> = { standard: "price_1U9otxCkrdnLOI0hTRLkOdoW", featured: "price_1U9ouVCkrdnLOI0hCbzW8jWj", local_spotlight: "price_1U9oukCkrdnLOI0hBkihCzyF", push: "price_1U9ov5CkrdnLOI0hFUwOpA6i", homepage_feature: "price_1U9ovMCkrdnLOI0hqkPMYDag" };
 
 interface PromotionRow { id: string; placement: string; status: string; requester_note: string | null; reviewer_note: string | null; requested_at: string; events: { title: string; start_datetime: string } | null; }
+
+function statusVariant(status: string): "success" | "warning" | "danger" | "default" {
+  if (status === "approved") return "success";
+  if (status === "payment_pending") return "warning";
+  if (status === "rejected" || status === "cancelled") return "danger";
+  return "default";
+}
 
 export default async function PromotePage() {
   const supabase = await createClient();
@@ -34,25 +45,65 @@ export default async function PromotePage() {
   const promotions = promotionData ?? [];
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-10">
-      <div className="mb-8">
-        <h1 className="type-heading text-2xl text-[#1d1d1f]">Push & Promote</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-[#48484a]">Wähle ein kommendes Event aus deinen eigenen Terminen oder den Terminen beanspruchter Profile. Nach redaktioneller Freigabe erhältst du den Zahlungslink; die Platzierung startet erst nach erfolgreicher Zahlung.</p>
-      </div>
-      <section className="rounded-xl border border-black/[0.06] bg-[#f5f5f7] p-5">
-        <h2 className="mb-4 text-base font-semibold text-[#1d1d1f]">Neue Promotion</h2>
-        {eventError ? (
-          <p className="text-sm text-amber-800">Deine Events konnten gerade nicht geladen werden. Bitte lade die Seite erneut; die Events selbst sind nicht verloren. ({eventError})</p>
-        ) : (
-          <PromotionRequestForm events={events.map((event) => ({ ...event, startLabel: formatMunichDateTime(event.startDatetime) }))} priceLabels={priceLabels} />
-        )}
-      </section>
-      <section className="mt-10">
-        <h2 className="mb-3 text-sm font-semibold text-[#86868b]">Meine Anfragen</h2>
-        {promotions.length === 0 ? <p className="text-sm text-[#86868b]">Noch keine Promotionen beantragt.</p> : (
-          <div className="overflow-hidden rounded-xl border border-black/[0.06] bg-white"><table className="w-full text-sm"><thead className="border-b border-black/[0.06] text-left"><tr><th className="px-4 py-3 text-xs text-[#86868b]">Event</th><th className="px-4 py-3 text-xs text-[#86868b]">Platzierung</th><th className="px-4 py-3 text-xs text-[#86868b]">Status</th><th className="px-4 py-3 text-xs text-[#86868b]">Hinweis</th></tr></thead><tbody className="divide-y divide-neutral-200">{promotions.map((promotion) => <tr key={promotion.id}><td className="px-4 py-3 font-medium text-[#1d1d1f]"><span className="block">{promotion.events?.title ?? "Gelöschtes Event"}</span><span className="text-xs font-normal text-[#86868b]">{promotion.events && formatMunichDateTime(promotion.events.start_datetime)}</span></td><td className="px-4 py-3 text-[#48484a]">{PLACEMENT_LABEL[promotion.placement] ?? promotion.placement}</td><td className="px-4 py-3 text-[#48484a]"><span className="block">{STATUS_LABEL[promotion.status] ?? promotion.status}</span>{promotion.status === "payment_pending" && <PromotionCheckoutButton promotionId={promotion.id} />}</td><td className="max-w-xs px-4 py-3 text-[#86868b]">{promotion.reviewer_note ?? promotion.requester_note ?? "—"}</td></tr>)}</tbody></table></div>
-        )}
-      </section>
+    <div>
+      <PageHeader
+        eyebrow="Sichtbarkeit"
+        title="Push & Promote"
+        description="Wähle ein kommendes Event aus deinen eigenen Terminen oder den Terminen beanspruchter Profile. Nach redaktioneller Freigabe erhältst du den Zahlungslink; die Platzierung startet erst nach erfolgreicher Zahlung."
+      />
+      <PageBody className="flex flex-col gap-10">
+        <Card>
+          <CardHeader>
+            <CardTitle>Neue Promotion</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {eventError ? (
+              <p className="text-sm text-[#8a5a0c]">Deine Events konnten gerade nicht geladen werden. Bitte lade die Seite erneut; die Events selbst sind nicht verloren. ({eventError})</p>
+            ) : (
+              <PromotionRequestForm events={events.map((event) => ({ ...event, startLabel: formatMunichDateTime(event.startDatetime) }))} priceLabels={priceLabels} />
+            )}
+          </CardContent>
+        </Card>
+        <section className="flex flex-col gap-3">
+          <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#726c78]">Meine Anfragen</h2>
+          {promotions.length === 0 ? (
+            <Card>
+              <CardContent className="pt-5 text-sm text-[#726c78]">Noch keine Promotionen beantragt.</CardContent>
+            </Card>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Event</TableHead>
+                  <TableHead>Platzierung</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Hinweis</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {promotions.map((promotion) => (
+                  <TableRow key={promotion.id}>
+                    <TableCell className="font-medium text-[#15131a]">
+                      <span className="block">{promotion.events?.title ?? "Gelöschtes Event"}</span>
+                      <span className="text-xs font-normal text-[#726c78]">{promotion.events && formatMunichDateTime(promotion.events.start_datetime)}</span>
+                    </TableCell>
+                    <TableCell className="text-[#4a4550]">{PLACEMENT_LABEL[promotion.placement] ?? promotion.placement}</TableCell>
+                    <TableCell>
+                      <Badge variant={statusVariant(promotion.status)}>{STATUS_LABEL[promotion.status] ?? promotion.status}</Badge>
+                      {promotion.status === "payment_pending" && (
+                        <div className="mt-2">
+                          <PromotionCheckoutButton promotionId={promotion.id} />
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell className="max-w-xs text-[#726c78]">{promotion.reviewer_note ?? promotion.requester_note ?? "—"}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </section>
+      </PageBody>
     </div>
   );
 }

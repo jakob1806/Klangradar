@@ -1,13 +1,40 @@
 "use client";
 
-import { useActionState, useState, type FormEvent } from "react";
-import { Field, Select, TextArea, TextInput } from "@/components/form-fields";
-import { SubmitButton } from "@/components/submit-button";
+import { useActionState, useState, type FormEvent, type ReactNode } from "react";
+import { SubmitButton } from "@/components/organizer/submit-button";
 import { toMunichDatetimeLocal } from "@/lib/munich-time";
 import { GenrePicker } from "@/app/(dashboard)/events/genre-picker";
 import { VenuePicker } from "./venue-picker";
 import { OrganizerPicker } from "./organizer-picker";
 import { EventPreviewCard, type EventPreviewData } from "./event-preview-card";
+import { Label } from "@/components/organizer/ui/label";
+import { Input, Textarea } from "@/components/organizer/ui/input";
+
+const selectClass =
+  "flex h-9 w-full items-center rounded-lg border border-black/10 bg-white px-3 text-sm text-[#15131a] transition focus:border-[#2D2A6E] focus:outline-none focus:ring-2 focus:ring-[#2D2A6E]/25 disabled:cursor-not-allowed disabled:opacity-50";
+
+function Field({
+  label,
+  required,
+  hint,
+  children,
+}: {
+  label: string;
+  required?: boolean;
+  hint?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Label>
+        {label}
+        {required && <span className="text-[#BE185D]"> *</span>}
+      </Label>
+      {children}
+      {hint && <span className="text-xs text-[#726c78]">{hint}</span>}
+    </div>
+  );
+}
 
 function slugify(value: string) {
   return value
@@ -118,7 +145,7 @@ export function OrganizerEventForm({
     <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_320px]">
     <form action={formAction} onChange={handleFormChange} className="flex max-w-2xl flex-col gap-4">
       <Field label="Titel" required>
-        <TextInput
+        <Input
           name="title"
           required
           defaultValue={initial?.title}
@@ -129,7 +156,7 @@ export function OrganizerEventForm({
       </Field>
 
       <Field label="Slug (URL)" required>
-        <TextInput
+        <Input
           name="slug"
           required
           value={slug}
@@ -141,16 +168,16 @@ export function OrganizerEventForm({
       </Field>
 
       <Field label="Untertitel">
-        <TextInput name="subtitle" defaultValue={initial?.subtitle ?? ""} />
+        <Input name="subtitle" defaultValue={initial?.subtitle ?? ""} />
       </Field>
 
       <Field label="Beschreibung">
-        <TextArea name="description_de" rows={3} defaultValue={initial?.description_de ?? ""} />
+        <Textarea name="description_de" rows={3} defaultValue={initial?.description_de ?? ""} />
       </Field>
 
       <div className="grid grid-cols-2 gap-4">
         <Field label="Beginn" required>
-          <TextInput
+          <Input
             name="start_datetime"
             type="datetime-local"
             required
@@ -158,12 +185,12 @@ export function OrganizerEventForm({
           />
         </Field>
         <Field label="Dauer (Minuten)">
-          <TextInput name="duration_minutes" type="number" defaultValue={initial?.duration_minutes ?? ""} />
+          <Input name="duration_minutes" type="number" defaultValue={initial?.duration_minutes ?? ""} />
         </Field>
       </div>
 
-      <label className="flex items-center gap-2 text-sm text-neutral-700">
-        <input type="checkbox" name="has_intermission" defaultChecked={initial?.has_intermission} />
+      <label className="flex items-center gap-2 text-sm text-[#4a4550]">
+        <input type="checkbox" name="has_intermission" defaultChecked={initial?.has_intermission} className="size-4 rounded border-black/20 text-[#2D2A6E] focus:ring-[#2D2A6E]/25" />
         Mit Pause
       </label>
 
@@ -185,7 +212,7 @@ export function OrganizerEventForm({
           />
         </Field>
         <Field label="Saal / Bühne">
-          <TextInput name="venue_detail" placeholder="z. B. Probebühne" defaultValue={initial?.venue_detail ?? ""} />
+          <Input name="venue_detail" placeholder="z. B. Probebühne" defaultValue={initial?.venue_detail ?? ""} />
         </Field>
       </div>
 
@@ -195,51 +222,51 @@ export function OrganizerEventForm({
 
       <div className="grid grid-cols-2 gap-4">
         <Field label="Preis von (€)">
-          <TextInput name="price_min" type="number" step="0.01" defaultValue={initial?.price_min ?? ""} />
+          <Input name="price_min" type="number" step="0.01" defaultValue={initial?.price_min ?? ""} />
         </Field>
         <Field label="Preis bis (€)">
-          <TextInput name="price_max" type="number" step="0.01" defaultValue={initial?.price_max ?? ""} />
+          <Input name="price_max" type="number" step="0.01" defaultValue={initial?.price_max ?? ""} />
         </Field>
       </div>
 
-      <label className="flex items-center gap-2 text-sm text-neutral-700">
-        <input type="checkbox" name="is_free" defaultChecked={initial?.is_free} />
+      <label className="flex items-center gap-2 text-sm text-[#4a4550]">
+        <input type="checkbox" name="is_free" defaultChecked={initial?.is_free} className="size-4 rounded border-black/20 text-[#2D2A6E] focus:ring-[#2D2A6E]/25" />
         Kostenlos
       </label>
 
       <Field label="Ticket-Link">
-        <TextInput name="ticket_url" type="url" defaultValue={initial?.ticket_url ?? ""} />
+        <Input name="ticket_url" type="url" defaultValue={initial?.ticket_url ?? ""} />
       </Field>
 
       <Field label="Ticket-Status">
-        <Select name="remaining_tickets_status" defaultValue={initial?.remaining_tickets_status ?? ""}>
+        <select name="remaining_tickets_status" defaultValue={initial?.remaining_tickets_status ?? ""} className={selectClass}>
           {TICKET_STATUS_OPTIONS.map((s) => (
             <option key={s.value} value={s.value}>
               {s.label}
             </option>
           ))}
-        </Select>
+        </select>
       </Field>
 
       <div className="grid grid-cols-2 gap-4">
         <Field label="Einlass">
-          <TextInput name="doors_info" placeholder="z.B. Einlass 19:00 Uhr" defaultValue={initial?.doors_info ?? ""} />
+          <Input name="doors_info" placeholder="z.B. Einlass 19:00 Uhr" defaultValue={initial?.doors_info ?? ""} />
         </Field>
         <Field label="Altersbeschränkung">
-          <TextInput name="age_restriction" placeholder="z.B. ab 6 Jahren" defaultValue={initial?.age_restriction ?? ""} />
+          <Input name="age_restriction" placeholder="z.B. ab 6 Jahren" defaultValue={initial?.age_restriction ?? ""} />
         </Field>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <Field label="Ermäßigung">
-          <TextInput
+          <Input
             name="discount_info"
             placeholder="z.B. Schüler/Studierende 50%"
             defaultValue={initial?.discount_info ?? ""}
           />
         </Field>
         <Field label="Vorverkaufsgebühr">
-          <TextInput
+          <Input
             name="presale_fee_info"
             placeholder="z.B. zzgl. VVK-Gebühr"
             defaultValue={initial?.presale_fee_info ?? ""}
@@ -248,18 +275,18 @@ export function OrganizerEventForm({
       </div>
 
       {!initial && (
-        <p className="text-xs text-neutral-400">
+        <p className="text-xs text-[#726c78]">
           Dein Event wird als Entwurf angelegt und erscheint erst nach redaktioneller Prüfung öffentlich.
         </p>
       )}
       {initial && (
-        <p className="text-xs text-neutral-400">
+        <p className="text-xs text-[#726c78]">
           Änderungen an einem bereits veröffentlichten Event sind sofort sichtbar, ohne erneute Prüfung.
         </p>
       )}
 
       {state.error && (
-        <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+        <p role="alert" className="rounded-xl border border-[#BE185D]/20 bg-[#BE185D]/10 px-4 py-3 text-sm text-[#a91551]">
           {state.error}
         </p>
       )}
@@ -270,7 +297,7 @@ export function OrganizerEventForm({
     </form>
 
     <div className="lg:sticky lg:top-6 lg:self-start">
-      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#86868b]">Vorschau</p>
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#726c78]">Vorschau</p>
       <EventPreviewCard preview={preview} />
     </div>
     </div>

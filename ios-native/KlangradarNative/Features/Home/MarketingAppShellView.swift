@@ -105,6 +105,11 @@ struct MarketingAppShellView: View {
             }
 
             if !isPresentationMode {
+                // Nutzerfeedback: das X lag oben rechts genau über dem
+                // "Bearbeiten"-Stift der Live-Tabs (Home/Suche-Toolbar,
+                // ebenfalls top-trailing) und verdeckte ihn. Bewusst links
+                // statt rechts, damit beide Werkzeuge während des
+                // Vorbereitens gleichzeitig erreichbar bleiben.
                 Button {
                     dismiss()
                 } label: {
@@ -114,6 +119,7 @@ struct MarketingAppShellView: View {
                         .foregroundStyle(.secondary, Color(.systemBackground).opacity(0.85))
                 }
                 .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityLabel("Marketing-Vorschau schließen")
             }
 

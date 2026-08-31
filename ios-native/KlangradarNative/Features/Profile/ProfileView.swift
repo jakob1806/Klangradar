@@ -13,7 +13,6 @@ struct ProfileView: View {
     @AppStorage(BiometricAuth.enabledStorageKey) private var biometricProtectionEnabled = false
     @EnvironmentObject private var cityStore: CityStore
     @State private var showsLogin = false
-    @State private var showsCitySwitcher = false
     @State private var hasEditorialAccess = false
     @State private var showsMarketingShell = false
     @State private var startsMarketingInPresentationMode = true
@@ -64,24 +63,24 @@ struct ProfileView: View {
                     } label: {
                         Label("Homepage anordnen", systemImage: "arrow.up.arrow.down")
                     }
-                    Button {
-                        showsCitySwitcher = true
+                    // Nutzerwunsch: unter Profil öffnet die Stadtauswahl eine
+                    // volle Seite (Push) statt eines Popups/Sheets — Home,
+                    // Suche und Kalender nutzen weiterhin CityCompactMenu mit
+                    // Sheet-Präsentation, siehe CitySwitcherView.
+                    NavigationLink {
+                        CitySwitcherView(cityStore: cityStore, embedsNavigationStack: false)
                     } label: {
                         HStack {
-                            Label("Stadt", systemImage: "building.2")
-                                .foregroundStyle(KlangradarTheme.accent)
+                            Label {
+                                Text("Stadt")
+                            } icon: {
+                                Image(systemName: "building.2").foregroundStyle(KlangradarTheme.accent)
+                            }
                             Spacer()
                             Text(cityStore.selectedCity?.name ?? "Alle Städte")
                                 .foregroundStyle(.secondary)
-                            Image(systemName: "chevron.right")
-                                .font(.footnote.weight(.semibold))
-                                .foregroundStyle(.tertiary)
                         }
                     }
-                    // Eine Button-Zeile übernimmt sonst die Accent-Farbe des
-                    // gesamten Formulars. Stadt und der ausgewählte Ort sollen
-                    // genau wie Favoriten/Listen neutral erscheinen.
-                    .buttonStyle(.plain)
                 }
 
                 if hasEditorialAccess, let editorialRepository {
@@ -155,9 +154,6 @@ struct ProfileView: View {
             }
             .sheet(isPresented: $showsLogin) {
                 PasswordLoginView(auth: auth, repository: userRepository)
-            }
-            .sheet(isPresented: $showsCitySwitcher) {
-                CitySwitcherView(cityStore: cityStore)
             }
             .fullScreenCover(isPresented: $showsMarketingShell) {
                 MarketingAppShellView(

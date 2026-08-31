@@ -26,6 +26,7 @@ final class HomeViewModel: ObservableObject {
 
     let repository: any EventRepository
     var currentUserID: UUID? { auth?.userID }
+    var regionID: UUID?
     private let auth: AuthStore?
     private let userRepository: UserRepository?
     private var authCancellable: AnyCancellable?
@@ -77,6 +78,15 @@ final class HomeViewModel: ObservableObject {
 
     func refresh() async { await refresh(showsLoading: true, usesCacheOnFailure: false) }
 
+    /// Von HomeView bei Änderung von `cityStore.selectedCity` aufgerufen --
+    /// nur bei einer tatsächlichen Änderung neu laden, sonst würde jeder
+    /// erneute Aufruf (auch mit demselben Wert) unnötig neu laden.
+    func setRegion(_ regionID: UUID?) async {
+        guard self.regionID != regionID else { return }
+        self.regionID = regionID
+        await refresh(showsLoading: true, usesCacheOnFailure: false)
+    }
+
     private func applySnapshot(_ snapshot: HomeSnapshot) {
         state = .loaded(snapshot.events)
         recommendedEvents = snapshot.recommendedEvents
@@ -97,7 +107,7 @@ final class HomeViewModel: ObservableObject {
             // vorgeschlagen" — 40 war zu knapp, sobald "Heute in München"
             // schon ein paar Events abzieht und danach noch personalisiert
             // sortiert wird. 100 deckt realistisch mehrere Wochen ab.
-            let events = try await repository.upcomingEvents(limit: 100)
+            let events = try await repository.upcomingEvents(limit: 100, regionID: regionID)
             async let enrichedTask: [ConcertEvent]? = try? repository.enrichingImages(in: events)
             async let personalizedTask = loadPersonalizedEntityIDs()
             async let modulesTask = loadHomeModules()

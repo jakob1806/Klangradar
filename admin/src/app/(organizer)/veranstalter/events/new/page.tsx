@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { OrganizerEventForm } from "../../organizer-event-form";
 import { createOrganizerEvent } from "../actions";
 import { getEventOrganizerOptions } from "../../event-organizer-context";
+import { PageHeader, PageBody } from "@/components/organizer/page-header";
+import { Card, CardContent } from "@/components/organizer/ui/card";
 
 export const dynamic = "force-dynamic";
 
@@ -18,21 +20,30 @@ export default async function NewOrganizerEventPage() {
   ]);
   if (organizers.length === 0) {
     return (
-      <div className="mx-auto max-w-xl px-6 py-16 text-center">
-        <p className="text-[#48484a]">
-          Du hast noch kein genehmigtes Profil. Beanspruche zuerst eine Institution, Venue, Person oder ein Ensemble.
-        </p>
-        <Link href="/veranstalter/claim" className="mt-4 inline-block font-medium text-[#0071e3] hover:underline">
-          Jetzt beanspruchen
-        </Link>
+      <div>
+        <PageHeader eyebrow="Events" title="Neues Event" />
+        <PageBody>
+          <Card>
+            <CardContent className="flex flex-col items-center gap-3 pt-5 text-center">
+              <p className="text-[#4a4550]">
+                Du hast noch kein genehmigtes Profil. Beanspruche zuerst eine Institution, Venue, Person oder ein Ensemble.
+              </p>
+              <Link href="/veranstalter/claim" className="font-semibold text-[#2D2A6E] hover:underline">
+                Jetzt beanspruchen
+              </Link>
+            </CardContent>
+          </Card>
+        </PageBody>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-10">
-      <h1 className="type-heading mb-6 text-2xl text-[#1d1d1f]">Neues Event</h1>
-      <OrganizerEventForm action={createOrganizerEvent} organizers={organizers} genres={genres ?? []} />
+    <div>
+      <PageHeader eyebrow="Events" title="Neues Event" />
+      <PageBody>
+        <OrganizerEventForm action={createOrganizerEvent} organizers={organizers} genres={genres ?? []} />
+      </PageBody>
     </div>
   );
 }

@@ -2,6 +2,10 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { formatMunichDateTime } from "@/lib/munich-time";
 import { getEventOrganizerOptions } from "../event-organizer-context";
+import { PageHeader, PageBody } from "@/components/organizer/page-header";
+import { Card, CardContent } from "@/components/organizer/ui/card";
+import { Badge } from "@/components/organizer/ui/badge";
+import { Button } from "@/components/organizer/ui/button";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +21,25 @@ type EventMetric = { event_id: string; title: string; start_datetime: string; vi
 type Promotion = { id: string; placement: string; status: string; payment_status: string; requested_at: string; events: { id: string; title: string; start_datetime: string } | null };
 
 function Metric({ label, value }: { label: string; value: number }) {
-  return <div className="rounded-2xl border border-black/[.06] bg-white p-4"><p className="text-xs font-medium text-[#86868b]">{label}</p><p className="mt-1 text-2xl font-semibold tracking-tight text-[#1d1d1f]">{value.toLocaleString("de-DE")}</p></div>;
+  return (
+    <Card>
+      <CardContent className="pt-5">
+        <p className="text-xs font-medium text-[#726c78]">{label}</p>
+        <p className="mt-1 text-2xl font-semibold tracking-tight text-[#15131a]">{value.toLocaleString("de-DE")}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function statusVariant(status: string): "success" | "warning" | "danger" | "default" {
+  if (status === "approved") return "success";
+  if (status === "payment_pending") return "warning";
+  if (status === "rejected") return "danger";
+  return "default";
+}
+
+function statusLabel(status: string) {
+  return status === "approved" ? "Aktiv" : status === "payment_pending" ? "Zahlung ausstehend" : status === "rejected" ? "Abgelehnt" : "In Prüfung";
 }
 
 export default async function MarketingPage() {
@@ -33,14 +55,71 @@ export default async function MarketingPage() {
   const active = promotions.filter((promotion) => promotion.status === "approved" && promotion.payment_status === "paid");
   const totals = metrics.reduce((sum, item) => ({ views: sum.views + Number(item.views), tickets: sum.tickets + Number(item.ticket_clicks), saves: sum.saves + Number(item.saves) }), { views: 0, tickets: 0, saves: 0 });
 
-  return <div className="mx-auto max-w-5xl px-6 py-10">
-    <div className="flex flex-wrap items-end justify-between gap-4"><div><h1 className="type-heading text-2xl text-[#1d1d1f]">Marketing Center</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-[#48484a]">Plane Sichtbarkeit und beobachte die Entwicklung deiner beworbenen Veranstaltungen.</p></div><Link href="/veranstalter/promote" className="rounded-full bg-[#0071e3] px-4 py-2 text-sm font-semibold text-white">Neue Kampagne</Link></div>
-    {promotionsError || metricsError ? <p className="mt-8 text-sm text-amber-700">Das Marketing Center ist nach der nächsten Datenbank-Aktualisierung verfügbar.</p> : <>
-      <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><Metric label="Aktive Kampagnen" value={active.length} /><Metric label="Event-Aufrufe" value={totals.views} /><Metric label="Gespeichert" value={totals.saves} /><Metric label="Ticketlink-Klicks" value={totals.tickets} /></div>
-      <p className="mt-3 text-xs leading-5 text-[#86868b]">Aufrufe, Saves und Ticket-Klicks zeigen aktuell die Gesamtentwicklung des jeweiligen Events, nicht nur Zugriffe aus einer einzelnen Kampagne. Kanalgenaue Reichweitenmessung wird als nächster Schritt ergänzt.</p>
-      <section className="mt-10"><div className="flex items-baseline justify-between gap-3"><h2 className="text-lg font-semibold text-[#1d1d1f]">Kampagnen</h2><Link href="/veranstalter/finanzen" className="text-sm font-medium text-[#0071e3]">Kosten ansehen</Link></div>
-        {promotions.length === 0 ? <p className="mt-3 text-sm text-[#86868b]">Noch keine Kampagnen angelegt.</p> : <div className="mt-3 grid gap-3">{promotions.map((promotion) => { const metric = promotion.events ? metricByEvent.get(promotion.events.id) : undefined; return <article key={promotion.id} className="rounded-2xl border border-black/[.06] bg-white p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-semibold text-[#1d1d1f]">{PLACEMENT_LABEL[promotion.placement] ?? promotion.placement}</p><p className="mt-1 text-sm text-[#48484a]">{promotion.events?.title ?? "Gelöschtes Event"}</p><p className="mt-1 text-xs text-[#86868b]">{promotion.events && formatMunichDateTime(promotion.events.start_datetime)}</p></div><span className="rounded-full bg-black/[.04] px-3 py-1 text-xs font-medium text-[#48484a]">{promotion.status === "approved" ? "Aktiv" : promotion.status === "payment_pending" ? "Zahlung ausstehend" : promotion.status === "rejected" ? "Abgelehnt" : "In Prüfung"}</span></div><div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm text-[#48484a]"><span><strong className="text-[#1d1d1f]">{metric?.views ?? 0}</strong> Aufrufe</span><span><strong className="text-[#1d1d1f]">{metric?.ticket_clicks ?? 0}</strong> Ticket-Klicks</span><span><strong className="text-[#1d1d1f]">{metric?.saves ?? 0}</strong> Saves</span></div></article>; })}</div>}
-      </section>
-    </>}
-  </div>;
+  return (
+    <div>
+      <PageHeader
+        eyebrow="Sichtbarkeit"
+        title="Marketing Center"
+        description="Plane Sichtbarkeit und beobachte die Entwicklung deiner beworbenen Veranstaltungen."
+        actions={
+          <Button asChild>
+            <Link href="/veranstalter/promote">Neue Kampagne</Link>
+          </Button>
+        }
+      />
+      <PageBody>
+        {promotionsError || metricsError ? (
+          <p className="text-sm text-[#8a5a0c]">Das Marketing Center ist nach der nächsten Datenbank-Aktualisierung verfügbar.</p>
+        ) : (
+          <>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <Metric label="Aktive Kampagnen" value={active.length} />
+              <Metric label="Event-Aufrufe" value={totals.views} />
+              <Metric label="Gespeichert" value={totals.saves} />
+              <Metric label="Ticketlink-Klicks" value={totals.tickets} />
+            </div>
+            <p className="mt-3 text-xs leading-5 text-[#726c78]">
+              Aufrufe, Saves und Ticket-Klicks zeigen aktuell die Gesamtentwicklung des jeweiligen Events, nicht nur Zugriffe aus einer einzelnen Kampagne. Kanalgenaue Reichweitenmessung wird als nächster Schritt ergänzt.
+            </p>
+            <section className="mt-10 flex flex-col gap-3">
+              <div className="flex items-baseline justify-between gap-3">
+                <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#726c78]">Kampagnen</h2>
+                <Link href="/veranstalter/finanzen" className="text-sm font-semibold text-[#2D2A6E] hover:underline">
+                  Kosten ansehen
+                </Link>
+              </div>
+              {promotions.length === 0 ? (
+                <Card>
+                  <CardContent className="pt-5 text-sm text-[#726c78]">Noch keine Kampagnen angelegt.</CardContent>
+                </Card>
+              ) : (
+                <div className="grid gap-3">
+                  {promotions.map((promotion) => {
+                    const metric = promotion.events ? metricByEvent.get(promotion.events.id) : undefined;
+                    return (
+                      <Card key={promotion.id}>
+                        <CardContent className="flex flex-wrap items-start justify-between gap-3 pt-5">
+                          <div>
+                            <p className="font-semibold text-[#15131a]">{PLACEMENT_LABEL[promotion.placement] ?? promotion.placement}</p>
+                            <p className="mt-1 text-sm text-[#4a4550]">{promotion.events?.title ?? "Gelöschtes Event"}</p>
+                            <p className="mt-1 text-xs text-[#726c78]">{promotion.events && formatMunichDateTime(promotion.events.start_datetime)}</p>
+                          </div>
+                          <Badge variant={statusVariant(promotion.status)}>{statusLabel(promotion.status)}</Badge>
+                        </CardContent>
+                        <CardContent className="flex flex-wrap gap-x-6 gap-y-2 pt-0 text-sm text-[#4a4550]">
+                          <span><strong className="text-[#15131a]">{metric?.views ?? 0}</strong> Aufrufe</span>
+                          <span><strong className="text-[#15131a]">{metric?.ticket_clicks ?? 0}</strong> Ticket-Klicks</span>
+                          <span><strong className="text-[#15131a]">{metric?.saves ?? 0}</strong> Saves</span>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          </>
+        )}
+      </PageBody>
+    </div>
+  );
 }

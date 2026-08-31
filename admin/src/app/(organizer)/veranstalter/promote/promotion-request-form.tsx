@@ -3,6 +3,9 @@
 import { useState, useTransition } from "react";
 import { requestPromotion } from "./actions";
 import { PromotionEventPicker } from "./promotion-event-picker";
+import { Label } from "@/components/organizer/ui/label";
+import { Textarea } from "@/components/organizer/ui/input";
+import { Button } from "@/components/organizer/ui/button";
 
 type EventOption = { id: string; title: string; startLabel: string; venueName: string | null; imageUrl: string | null; sourceLabel: string };
 
@@ -20,7 +23,7 @@ export function PromotionRequestForm({ events, priceLabels }: { events: EventOpt
   const [error, setError] = useState<string | null>(null);
 
   if (!events.length) {
-    return <p className="text-sm text-[#86868b]">Es gibt aktuell keine kommenden veröffentlichten Events deiner eigenen oder beanspruchten Profile.</p>;
+    return <p className="text-sm text-[#726c78]">Es gibt aktuell keine kommenden veröffentlichten Events deiner eigenen oder beanspruchten Profile.</p>;
   }
 
   return (
@@ -47,28 +50,31 @@ export function PromotionRequestForm({ events, priceLabels }: { events: EventOpt
     >
       <PromotionEventPicker events={events} />
       <fieldset>
-        <legend className="text-sm font-medium text-[#1d1d1f]">Gewünschte Platzierung</legend>
+        <legend className="text-sm font-medium text-[#15131a]">Gewünschte Platzierung</legend>
         <div className="mt-2 grid gap-2 sm:grid-cols-2">
           {PLACEMENTS.map((placement) => (
-            <label key={placement.value} className="cursor-pointer rounded-xl border border-black/10 bg-white p-4 text-sm transition hover:border-[#0071e3] has-[:checked]:border-[#0071e3] has-[:checked]:ring-1 has-[:checked]:ring-[#0071e3]">
-              <input required type="radio" name="placement" value={placement.value} className="mr-2 accent-[#0071e3]" />
-              <span className="font-medium text-[#1d1d1f]">{placement.label}</span>
-              <span className="float-right text-xs font-semibold text-[#0071e3]">{priceLabels[placement.value] ?? placement.price}</span>
-              <span className="mt-1 block text-xs leading-5 text-[#86868b]">{placement.description}</span>
+            <label
+              key={placement.value}
+              className="cursor-pointer rounded-xl border border-[#15131a]/10 bg-white p-4 text-sm transition hover:border-[#2D2A6E] has-[:checked]:border-[#2D2A6E] has-[:checked]:ring-1 has-[:checked]:ring-[#2D2A6E]"
+            >
+              <input required type="radio" name="placement" value={placement.value} className="mr-2 accent-[#2D2A6E]" />
+              <span className="font-medium text-[#15131a]">{placement.label}</span>
+              <span className="float-right text-xs font-semibold text-[#2D2A6E]">{priceLabels[placement.value] ?? placement.price}</span>
+              <span className="mt-1 block text-xs leading-5 text-[#726c78]">{placement.description}</span>
             </label>
           ))}
         </div>
       </fieldset>
-      <label className="block text-sm font-medium text-[#1d1d1f]">
-        Nachricht an die Redaktion <span className="font-normal text-[#86868b]">(optional)</span>
-        <textarea name="requester_note" maxLength={1000} rows={3} className="mt-1.5 w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-sm" placeholder="Warum passt diese Promotion zu deinem Event?" />
-      </label>
-      {error && <p className="text-sm text-red-700">{error}</p>}
-      {message && <p className="text-sm text-emerald-700">{message}</p>}
-      <p className="text-xs leading-5 text-[#86868b]">Ablauf: Anfrage senden → Redaktion prüft die Platzierung → Zahlungslink erhalten → nach erfolgreicher Zahlung wird die Promotion aktiviert.</p>
-      <button disabled={pending} className="rounded-full bg-[#0071e3] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#0077ed] disabled:opacity-50">
-        {pending ? "Wird gesendet…" : "Promotion beantragen"}
-      </button>
+      <div>
+        <Label htmlFor="promotion-requester-note">
+          Nachricht an die Redaktion <span className="font-normal text-[#726c78]">(optional)</span>
+        </Label>
+        <Textarea id="promotion-requester-note" name="requester_note" maxLength={1000} rows={3} className="mt-1.5" placeholder="Warum passt diese Promotion zu deinem Event?" />
+      </div>
+      {error && <p className="text-sm text-[#a91551]">{error}</p>}
+      {message && <p className="text-sm text-[#175f3c]">{message}</p>}
+      <p className="text-xs leading-5 text-[#726c78]">Ablauf: Anfrage senden → Redaktion prüft die Platzierung → Zahlungslink erhalten → nach erfolgreicher Zahlung wird die Promotion aktiviert.</p>
+      <Button disabled={pending}>{pending ? "Wird gesendet…" : "Promotion beantragen"}</Button>
     </form>
   );
 }
