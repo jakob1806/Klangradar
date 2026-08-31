@@ -23,7 +23,7 @@ export async function NotificationBell() {
     >
       <Bell className="size-[18px]" />
       {unread > 0 && (
-        <span className="absolute right-1 top-1 flex size-[15px] items-center justify-center rounded-full bg-[#b3273e] text-[9px] font-bold text-white">
+        <span className="absolute right-1 top-1 flex size-[15px] items-center justify-center rounded-full bg-[#BE185D] text-[9px] font-bold text-white">
           {unread > 9 ? "9+" : unread}
         </span>
       )}

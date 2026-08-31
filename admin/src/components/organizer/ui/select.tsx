@@ -13,7 +13,7 @@ export function SelectTrigger({ className, children, ...props }: React.Component
   return (
     <SelectPrimitive.Trigger
       className={cn(
-        "flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-black/10 bg-white px-3 text-sm text-[#15131a] transition focus:border-[#7d1a3a] focus:outline-none focus:ring-2 focus:ring-[#7d1a3a]/25 disabled:cursor-not-allowed disabled:opacity-50",
+        "flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-black/10 bg-white px-3 text-sm text-[#15131a] transition focus:border-[#2D2A6E] focus:outline-none focus:ring-2 focus:ring-[#2D2A6E]/25 disabled:cursor-not-allowed disabled:opacity-50",
         className
       )}
       {...props}

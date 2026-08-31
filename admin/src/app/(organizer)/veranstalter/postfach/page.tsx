@@ -74,7 +74,7 @@ export default async function PostfachPage() {
             action={markNotificationReadAndGo.bind(null, notification.id, notification.link_href ?? "/veranstalter")}
           >
             <button type="submit" className="w-full text-left">
-              <Card className={notification.read_at ? "opacity-70" : "border-[#7d1a3a]/25 bg-[#7d1a3a]/[0.03]"}>
+              <Card className={notification.read_at ? "opacity-70" : "border-[#2D2A6E]/25 bg-[#2D2A6E]/[0.03]"}>
                 <CardContent className="flex items-start justify-between gap-4 pt-5">
                   <div className="flex flex-col gap-1">
                     <div className="flex items-center gap-2">

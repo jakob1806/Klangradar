@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { Field, TextArea, TextInput } from "@/components/form-fields";
 import { SubmitButton } from "@/components/submit-button";
 import { ImageUploadField } from "@/components/image-upload-field";
 import { GalleryEditor } from "@/components/entity-gallery/gallery-editor";
@@ -13,6 +12,11 @@ import {
   type ClaimableEntityType,
 } from "@/lib/entity-tables";
 import { submitEditSuggestion } from "./actions";
+import { PageHeader, PageBody } from "@/components/organizer/page-header";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/organizer/ui/card";
+import { Input, Textarea } from "@/components/organizer/ui/input";
+import { Label } from "@/components/organizer/ui/label";
+import { Separator } from "@/components/organizer/ui/separator";
 
 export const dynamic = "force-dynamic";
 
@@ -55,7 +59,7 @@ export default async function EditEntityProfilePage({
 
   if (!claim) {
     return (
-      <div className="mx-auto max-w-xl px-6 py-16 text-center text-[#48484a]">
+      <div className="mx-auto max-w-xl px-6 py-16 text-center text-[#726c78]">
         Du hast keinen genehmigten Zugriff auf dieses Profil.
       </div>
     );
@@ -82,38 +86,108 @@ export default async function EditEntityProfilePage({
     .returns<GalleryImage[]>() : { data: [] as GalleryImage[] };
 
   return (
-    <div className="mx-auto max-w-2xl px-6 py-10">
-      <h1 className="type-heading mb-2 text-2xl text-[#1d1d1f]">Profil bearbeiten</h1>
-      <p className="mb-6 text-sm text-[#86868b]">{(entityRecord[nameColumn] as string) ?? ""}</p>
-
-        <form action={submitEditSuggestion.bind(null, entityType, entityId)} className="flex flex-col gap-4">
-          {fieldNames.map((field) => field === "social_links" ? (
-            <div key={field} className="rounded-xl border border-black/[0.06] bg-white p-4"><p className="text-sm font-semibold text-[#1d1d1f]">Social Media</p><p className="mt-1 text-xs text-[#86868b]">Bitte vollständige Profil-Links mit https:// eintragen. In den Apps erscheinen später Icon und Plattformname, nie die rohe URL.</p><div className="mt-4 grid gap-3 sm:grid-cols-2">{SOCIAL_PLATFORMS.map((platform) => <Field key={platform} label={platform[0].toUpperCase() + platform.slice(1)}><TextInput name={`social_${platform}`} type="url" defaultValue={socialLinks[platform] ?? ""} placeholder={`https://www.${platform}.com/deinprofil`} /></Field>)}</div></div>
-          ) : field === "gallery_urls" ? (
-            <div key={field}>{galleryOrigin ? <GalleryEditor originType={galleryOrigin} originId={entityId} path={`/veranstalter/profile/${entityType}/${entityId}`} images={galleryImages ?? []} storagePrefix={`claimed-gallery/${entityType}/${user!.id}`} /> : <Field label="Galeriebilder"><TextArea name={field} rows={5} defaultValue="" /></Field>}</div>
-          ) : field === "photo_url" ? (
-            <div key={field}><ImageUploadField name={field} initialUrl={(entityRecord[field] as string) ?? null} entityType={`claimed/${entityType}/${user!.id}`} shape={entityType === "person" ? "circle" : "rounded"} label={entityType === "person" ? "Profilbild (rund)" : "Hauptbild"} /></div>
-          ) : (
-            <Field key={field} label={fields[field]}>
-              {isTextArea(field) ? (
-                <TextArea name={field} rows={4} defaultValue={(entityRecord[field] as string) ?? ""} />
+    <div>
+      <PageHeader eyebrow="Profil" title="Profil bearbeiten" description={(entityRecord[nameColumn] as string) ?? ""} />
+      <PageBody className="mx-auto flex max-w-2xl flex-col gap-8">
+        <Card>
+          <CardContent className="pt-5">
+            <form action={submitEditSuggestion.bind(null, entityType, entityId)} className="flex flex-col gap-5">
+              {fieldNames.map((field) => field === "social_links" ? (
+                <Card key={field}>
+                  <CardHeader>
+                    <CardTitle>Social Media</CardTitle>
+                    <CardDescription>
+                      Bitte vollständige Profil-Links mit https:// eintragen. In den Apps erscheinen später Icon und Plattformname,
+                      nie die rohe URL.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="grid gap-3 sm:grid-cols-2">
+                    {SOCIAL_PLATFORMS.map((platform) => (
+                      <div key={platform} className="flex flex-col gap-1.5">
+                        <Label>{platform[0].toUpperCase() + platform.slice(1)}</Label>
+                        <Input
+                          name={`social_${platform}`}
+                          type="url"
+                          defaultValue={socialLinks[platform] ?? ""}
+                          placeholder={`https://www.${platform}.com/deinprofil`}
+                        />
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              ) : field === "gallery_urls" ? (
+                <div key={field}>
+                  {galleryOrigin ? (
+                    <GalleryEditor
+                      originType={galleryOrigin}
+                      originId={entityId}
+                      path={`/veranstalter/profile/${entityType}/${entityId}`}
+                      images={galleryImages ?? []}
+                      storagePrefix={`claimed-gallery/${entityType}/${user!.id}`}
+                    />
+                  ) : (
+                    <div className="flex flex-col gap-1.5">
+                      <Label>Galeriebilder</Label>
+                      <Textarea name={field} rows={5} defaultValue="" />
+                    </div>
+                  )}
+                </div>
+              ) : field === "photo_url" ? (
+                <div key={field}>
+                  <ImageUploadField
+                    name={field}
+                    initialUrl={(entityRecord[field] as string) ?? null}
+                    entityType={`claimed/${entityType}/${user!.id}`}
+                    shape={entityType === "person" ? "circle" : "rounded"}
+                    label={entityType === "person" ? "Profilbild (rund)" : "Hauptbild"}
+                  />
+                </div>
               ) : (
-                <TextInput name={field} type={inputType(field)} defaultValue={(entityRecord[field] as string) ?? ""} />
-              )}
-            </Field>
-          ))}
-          <p className="text-xs text-neutral-400">Dein Claim ist bestätigt. Änderungen werden sofort veröffentlicht.</p>
-          <div>
-            <SubmitButton>Änderungen veröffentlichen</SubmitButton>
+                <div key={field} className="flex flex-col gap-1.5">
+                  <Label>{fields[field]}</Label>
+                  {isTextArea(field) ? (
+                    <Textarea name={field} rows={4} defaultValue={(entityRecord[field] as string) ?? ""} />
+                  ) : (
+                    <Input name={field} type={inputType(field)} defaultValue={(entityRecord[field] as string) ?? ""} />
+                  )}
+                </div>
+              ))}
+              <p className="text-xs text-[#726c78]">Dein Claim ist bestätigt. Änderungen werden sofort veröffentlicht.</p>
+              <div>
+                <SubmitButton>Änderungen veröffentlichen</SubmitButton>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+        {galleryOrigin && typeof entityRecord.photo_url === "string" && entityRecord.photo_url && (
+          <div className="flex flex-col gap-4">
+            <Separator />
+            <div>
+              <h2 className="mb-1 text-[15px] font-semibold text-[#15131a]">Runder Ausschnitt für App-Miniaturen</h2>
+              <p className="mb-4 text-sm text-[#726c78]">Lege fest, welcher Bereich deines Hauptbilds in runden Profilbildern erscheint.</p>
+              <AvatarCropButton
+                entityType={`${galleryOrigin}s` as "persons" | "ensembles" | "venues"}
+                entityId={entityId}
+                photoUrl={entityRecord.photo_url as string}
+                initialCrop={
+                  entityRecord.avatar_crop_x != null &&
+                  entityRecord.avatar_crop_y != null &&
+                  entityRecord.avatar_crop_width != null &&
+                  entityRecord.avatar_crop_height != null
+                    ? {
+                        x: Number(entityRecord.avatar_crop_x),
+                        y: Number(entityRecord.avatar_crop_y),
+                        width: Number(entityRecord.avatar_crop_width),
+                        height: Number(entityRecord.avatar_crop_height),
+                      }
+                    : null
+                }
+                path={`/veranstalter/profile/${entityType}/${entityId}`}
+              />
+            </div>
           </div>
-        </form>
-      {galleryOrigin && typeof entityRecord.photo_url === "string" && entityRecord.photo_url && (
-        <div className="mt-8 border-t border-black/[0.06] pt-6">
-          <p className="mb-3 text-sm font-semibold text-[#1d1d1f]">Runder Ausschnitt für App-Miniaturen</p>
-          <p className="mb-4 text-sm text-[#86868b]">Lege fest, welcher Bereich deines Hauptbilds in runden Profilbildern erscheint.</p>
-          <AvatarCropButton entityType={`${galleryOrigin}s` as "persons" | "ensembles" | "venues"} entityId={entityId} photoUrl={entityRecord.photo_url as string} initialCrop={entityRecord.avatar_crop_x != null && entityRecord.avatar_crop_y != null && entityRecord.avatar_crop_width != null && entityRecord.avatar_crop_height != null ? { x: Number(entityRecord.avatar_crop_x), y: Number(entityRecord.avatar_crop_y), width: Number(entityRecord.avatar_crop_width), height: Number(entityRecord.avatar_crop_height) } : null} path={`/veranstalter/profile/${entityType}/${entityId}`} />
-        </div>
-      )}
+        )}
+      </PageBody>
     </div>
   );
 }

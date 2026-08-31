@@ -37,7 +37,7 @@ export function UserMenu({ email }: { email: string | null }) {
       <DropdownMenuContent align="end">
         {email && <DropdownMenuLabel className="truncate normal-case tracking-normal text-[#15131a]">{email}</DropdownMenuLabel>}
         <DropdownMenuSeparator />
-        <DropdownMenuItem disabled={pending} onSelect={handleSignOut} className="text-[#b3273e]">
+        <DropdownMenuItem disabled={pending} onSelect={handleSignOut} className="text-[#BE185D]">
           {pending ? "Abmelden…" : "Abmelden"}
         </DropdownMenuItem>
       </DropdownMenuContent>

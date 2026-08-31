@@ -1,7 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
-import { Field, TextArea, TextInput } from "@/components/form-fields";
 import { SubmitButton } from "@/components/submit-button";
 import { requestEntityClaim } from "./entity-claim-actions";
+import { PageHeader, PageBody } from "@/components/organizer/page-header";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/organizer/ui/card";
+import { Input, Textarea } from "@/components/organizer/ui/input";
+import { Label } from "@/components/organizer/ui/label";
+import { Button } from "@/components/organizer/ui/button";
 
 type SearchableEntityType = "venue" | "person" | "ensemble";
 
@@ -54,40 +58,58 @@ export async function EntityClaimSearch({
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-6 py-10">
-      <h1 className="type-heading mb-2 text-2xl text-[#1d1d1f]">{title}</h1>
-      <p className="mb-6 text-sm text-[#86868b]">{description}</p>
+    <div>
+      <PageHeader eyebrow="Beanspruchen" title={title} description={description} />
+      <PageBody className="mx-auto flex max-w-2xl flex-col gap-8">
+        <form method="get" className="flex gap-2">
+          <Input type="search" name="q" defaultValue={query} placeholder={placeholder} className="flex-1" />
+          <Button type="submit" variant="outline">
+            Suchen
+          </Button>
+        </form>
 
-      <form method="get" className="mb-6 flex gap-2">
-        <TextInput type="search" name="q" defaultValue={query} placeholder={placeholder} className="flex-1" />
-        <button
-          type="submit"
-          className="rounded-lg border border-black/10 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-black/[0.04]"
-        >
-          Suchen
-        </button>
-      </form>
-
-      {query &&
-        (results.length > 0 ? (
-          <ul className="divide-y divide-neutral-200 overflow-hidden rounded-xl border border-black/[0.06] bg-white">
-            {results.map((r) => (
-              <li key={r.id} className="px-4 py-4">
-                <span className="font-medium text-[#1d1d1f]">{r.name}</span>
-                <form action={requestEntityClaim.bind(null, entityType, r.id)} className="mt-3 grid gap-3 sm:grid-cols-2">
-                  <Field label="Geschäftliche E-Mail" required><TextInput name="verification_email" type="email" required placeholder="name@institution.de" /></Field>
-                  <Field label="Nachweis-Link" required><TextInput name="evidence_url" type="url" required placeholder="https://www.beispiel.de/impressum" /></Field>
-                  <div className="sm:col-span-2"><Field label="Warum bist du berechtigt?" required><TextArea name="justification" rows={2} required placeholder="Funktion bei der Institution und Bezug zum Nachweis" /></Field></div>
-                  <div className="sm:col-span-2"><SubmitButton pendingLabel="Sende…">Mit Nachweis beantragen</SubmitButton></div>
-                </form>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-sm text-[#86868b]">
-            Keine Treffer für „{query}“. Bitte kontaktiere die Redaktion, falls die Einrichtung fehlt.
-          </p>
-        ))}
+        {query &&
+          (results.length > 0 ? (
+            <div className="flex flex-col gap-4">
+              {results.map((r) => (
+                <Card key={r.id}>
+                  <CardHeader>
+                    <CardTitle>{r.name}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <form action={requestEntityClaim.bind(null, entityType, r.id)} className="grid gap-3 sm:grid-cols-2">
+                      <div className="flex flex-col gap-1.5">
+                        <Label>
+                          Geschäftliche E-Mail <span className="text-[#a91551]">*</span>
+                        </Label>
+                        <Input name="verification_email" type="email" required placeholder="name@institution.de" />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <Label>
+                          Nachweis-Link <span className="text-[#a91551]">*</span>
+                        </Label>
+                        <Input name="evidence_url" type="url" required placeholder="https://www.beispiel.de/impressum" />
+                      </div>
+                      <div className="flex flex-col gap-1.5 sm:col-span-2">
+                        <Label>
+                          Warum bist du berechtigt? <span className="text-[#a91551]">*</span>
+                        </Label>
+                        <Textarea name="justification" rows={2} required placeholder="Funktion bei der Institution und Bezug zum Nachweis" />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <SubmitButton pendingLabel="Sende…">Mit Nachweis beantragen</SubmitButton>
+                      </div>
+                    </form>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-[#726c78]">
+              Keine Treffer für „{query}“. Bitte kontaktiere die Redaktion, falls die Einrichtung fehlt.
+            </p>
+          ))}
+      </PageBody>
     </div>
   );
 }

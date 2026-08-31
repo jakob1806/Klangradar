@@ -28,10 +28,10 @@ export default async function TeamIndexPage() {
           <div className="flex flex-col gap-2">
             {organizers.map((organizer) => (
               <Link key={organizer.id} href={`/veranstalter/team/organizer/${organizer.id}`}>
-                <Card className="transition hover:border-[#7d1a3a]/30">
+                <Card className="transition hover:border-[#2D2A6E]/30">
                   <CardContent className="flex items-center justify-between pt-5">
                     <span className="text-sm font-semibold text-[#15131a]">{organizer.name}</span>
-                    <span className="flex items-center gap-1 text-sm font-semibold text-[#7d1a3a]">
+                    <span className="flex items-center gap-1 text-sm font-semibold text-[#2D2A6E]">
                       Team verwalten <ArrowRight className="size-3.5" />
                     </span>
                   </CardContent>

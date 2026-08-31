@@ -23,7 +23,14 @@ export type NavGroup = { label: string; icon: LucideIcon; items: NavItem[] };
 // auch mit den neuen Team-/Postfach-Bereichen (Nutzerwunsch: "deutliche
 // Erweiterung im Bereich der Navigation").
 export const NAV_GROUPS: NavGroup[] = [
-  { label: "Übersicht", icon: LayoutDashboard, items: [{ href: "/veranstalter", label: "Dashboard" }] },
+  {
+    label: "Übersicht",
+    icon: LayoutDashboard,
+    items: [
+      { href: "/veranstalter", label: "Dashboard" },
+      { href: "/veranstalter/postfach", label: "Postfach" },
+    ],
+  },
   {
     label: "Events",
     icon: CalendarDays,
@@ -66,10 +73,9 @@ function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-// Eigenständige, dunkle Sidebar-Optik (Nutzerwunsch: "unabhängig von Apple")
-// statt der hellen, halbtransparenten Redaktions-Chrome — Weinrot als
-// einzige Akzentfarbe für den aktiven Zustand, sonst zurückhaltendes Grau
-// auf Tinte.
+// Helle, weiche Sidebar-Optik (Soft-Minimalist-Flat-UI) — Indigo als einzige
+// Akzentfarbe für den aktiven Zustand (weiche Pastell-Fläche + Indigo-Text),
+// sonst zurückhaltendes Grau auf Off-White.
 export function SidebarNavigation({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
 
@@ -77,7 +83,7 @@ export function SidebarNavigation({ onNavigate }: { onNavigate?: () => void }) {
     <nav className="flex flex-1 flex-col gap-5 overflow-y-auto px-3 pb-4">
       {NAV_GROUPS.map((group) => (
         <div key={group.label} className="flex flex-col gap-0.5">
-          <div className="flex items-center gap-2 px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-white/35">
+          <div className="flex items-center gap-2 px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-[#A1A1AA]">
             <group.icon className="size-3.5" aria-hidden="true" />
             {group.label}
           </div>
@@ -90,8 +96,8 @@ export function SidebarNavigation({ onNavigate }: { onNavigate?: () => void }) {
                 onClick={onNavigate}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "rounded-[8px] px-3 py-1.5 text-[13.5px] font-medium transition",
-                  active ? "bg-[#7d1a3a] text-white shadow-[0_2px_8px_rgba(125,26,58,0.35)]" : "text-white/65 hover:bg-white/[0.06] hover:text-white"
+                  "rounded-[10px] px-3 py-1.5 text-[13.5px] font-medium transition",
+                  active ? "bg-[#ECEBFA] text-[#2D2A6E] font-semibold" : "text-[#71717A] hover:bg-[#EEEEE9] hover:text-[#18181B]"
                 )}
               >
                 {item.label}

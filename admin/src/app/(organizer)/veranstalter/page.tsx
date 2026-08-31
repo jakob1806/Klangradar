@@ -3,6 +3,11 @@ import { createClient } from "@/lib/supabase/server";
 import { resolveEntityNames, resolveTrustLevels, type ClaimableEntityType, type TrustLevel } from "@/lib/entity-tables";
 import { formatMunichDateTime } from "@/lib/munich-time";
 import { getEventOrganizerOptions } from "./event-organizer-context";
+import { PageHeader, PageBody } from "@/components/organizer/page-header";
+import { Card, CardContent } from "@/components/organizer/ui/card";
+import { Badge } from "@/components/organizer/ui/badge";
+import { Button } from "@/components/organizer/ui/button";
+import { Table, TableBody, TableRow, TableCell } from "@/components/organizer/ui/table";
 
 export const dynamic = "force-dynamic";
 
@@ -88,89 +93,90 @@ export default async function VeranstalterDashboardPage() {
 
   if (visibleClaims.length === 0) {
     return (
-      <div className="mx-auto flex max-w-xl flex-col items-center gap-4 px-6 py-24 text-center">
-        <h1 className="type-heading text-2xl text-[#1d1d1f]">Willkommen im Veranstalter-Portal</h1>
-        <p className="text-[#48484a]">
+      <div className="mx-auto flex max-w-xl flex-col items-center gap-4 px-6 py-28 text-center">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#2D2A6E]">Willkommen</span>
+        <h1 className="text-3xl font-semibold tracking-tight text-[#15131a]">Dein Veranstalterportal</h1>
+        <p className="text-[15px] text-[#726c78]">
           Du verwaltest noch keine Institution, Venue, Person oder kein Ensemble. Beanspruche eine
           bestehende Einrichtung oder lege deine eigene Institution neu an, um loszulegen.
         </p>
-        <Link
-          href="/veranstalter/claim"
-          className="rounded-full bg-[#0071e3] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#0077ed]"
-        >
-          Jetzt beanspruchen
-        </Link>
+        <Button asChild size="lg" className="mt-2">
+          <Link href="/veranstalter/claim">Jetzt beanspruchen</Link>
+        </Button>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-10">
-      <h1 className="type-heading mb-6 text-2xl text-[#1d1d1f]">Dashboard</h1>
-
-      {pending.length > 0 && (
-        <section className="mb-8">
-          <h2 className="mb-3 text-sm font-semibold text-[#86868b]">In Prüfung ({pending.length})</h2>
-          <ClaimList claims={pending} names={names} />
-        </section>
-      )}
-
-      <section className="mb-8">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-[#86868b]">Genehmigt ({approved.length})</h2>
-          <Link href="/veranstalter/claim" className="text-sm font-medium text-[#0071e3] hover:underline">
-            Weitere beanspruchen
-          </Link>
-        </div>
-        {approved.length > 0 ? (
-          <ClaimList claims={approved} names={names} trustLevels={trustLevels} showProfileLink />
-        ) : (
-          <p className="text-sm text-[#86868b]">Noch keine genehmigten Berechtigungen.</p>
+    <div>
+      <PageHeader eyebrow="Übersicht" title="Dashboard" description="Deine Berechtigungen und anstehenden Konzerte auf einen Blick." />
+      <PageBody className="flex flex-col gap-10">
+        {pending.length > 0 && (
+          <section className="flex flex-col gap-3">
+            <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#726c78]">In Prüfung ({pending.length})</h2>
+            <ClaimList claims={pending} names={names} />
+          </section>
         )}
-      </section>
 
-      {rejected.length > 0 && (
-        <section className="mb-8">
-          <h2 className="mb-3 text-sm font-semibold text-[#86868b]">Abgelehnt ({rejected.length})</h2>
-          <ClaimList claims={rejected} names={names} />
-        </section>
-      )}
-
-      {approvedOrganizerIds.length > 0 && (
-        <section>
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-[#86868b]">Anstehende Events</h2>
-            <Link href="/veranstalter/events/new" className="text-sm font-medium text-[#0071e3] hover:underline">
-              Neues Event anlegen
+        <section className="flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#726c78]">Genehmigt ({approved.length})</h2>
+            <Link href="/veranstalter/claim" className="text-sm font-semibold text-[#2D2A6E] hover:underline">
+              Weitere beanspruchen
             </Link>
           </div>
-          {upcomingEvents.length > 0 ? (
-            <div className="overflow-hidden rounded-xl border border-black/[0.06] bg-white">
-              <table className="w-full text-sm">
-                <tbody className="divide-y divide-neutral-200">
-                  {upcomingEvents.map((event) => (
-                    <tr key={event.id}>
-                      <td className="px-4 py-3 font-medium text-[#1d1d1f]">{event.title}</td>
-                      <td className="px-4 py-3 text-[#48484a]">{event.venues?.name ?? "—"}</td>
-                      <td className="px-4 py-3 tabular-nums text-[#48484a]">
-                        {formatMunichDateTime(event.start_datetime)}
-                      </td>
-                      <td className="px-4 py-3 text-[#86868b]">{event.status === "draft" ? "Entwurf" : event.status}</td>
-                      <td className="px-4 py-3 text-right">
-                        <Link href={`/veranstalter/events/${event.id}`} className="font-medium text-[#0071e3] hover:underline">
-                          Bearbeiten
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          {approved.length > 0 ? (
+            <ClaimList claims={approved} names={names} trustLevels={trustLevels} showProfileLink />
           ) : (
-            <p className="text-sm text-[#86868b]">Noch keine Events angelegt.</p>
+            <Card>
+              <CardContent className="pt-5 text-sm text-[#726c78]">Noch keine genehmigten Berechtigungen.</CardContent>
+            </Card>
           )}
         </section>
-      )}
+
+        {rejected.length > 0 && (
+          <section className="flex flex-col gap-3">
+            <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#726c78]">Abgelehnt ({rejected.length})</h2>
+            <ClaimList claims={rejected} names={names} />
+          </section>
+        )}
+
+        {approvedOrganizerIds.length > 0 && (
+          <section className="flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#726c78]">Anstehende Events</h2>
+              <Link href="/veranstalter/events/new" className="flex items-center gap-1 text-sm font-semibold text-[#2D2A6E] hover:underline">
+                Neues Event anlegen
+              </Link>
+            </div>
+            {upcomingEvents.length > 0 ? (
+              <Table>
+                <TableBody>
+                  {upcomingEvents.map((event) => (
+                    <TableRow key={event.id}>
+                      <TableCell className="font-medium">{event.title}</TableCell>
+                      <TableCell className="text-[#4a4550]">{event.venues?.name ?? "—"}</TableCell>
+                      <TableCell className="tabular-nums text-[#4a4550]">{formatMunichDateTime(event.start_datetime)}</TableCell>
+                      <TableCell>
+                        <Badge>{event.status === "draft" ? "Entwurf" : event.status}</Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Link href={`/veranstalter/events/${event.id}`} className="font-semibold text-[#2D2A6E] hover:underline">
+                          Bearbeiten
+                        </Link>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <Card>
+                <CardContent className="pt-5 text-sm text-[#726c78]">Noch keine Events angelegt.</CardContent>
+              </Card>
+            )}
+          </section>
+        )}
+      </PageBody>
     </div>
   );
 }
@@ -187,51 +193,40 @@ function ClaimList({
   showProfileLink?: boolean;
 }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-black/[0.06] bg-white">
-      <table className="w-full text-sm">
-        <tbody className="divide-y divide-neutral-200">
-          {claims.map((claim) => {
-            const trust = trustLevels?.get(`${claim.entity_type}:${claim.entity_id}`);
-            return (
-            <tr key={claim.id}>
-              <td className="px-4 py-3 font-medium text-[#1d1d1f]">
+    <Table>
+      <TableBody>
+        {claims.map((claim) => {
+          const trust = trustLevels?.get(`${claim.entity_type}:${claim.entity_id}`);
+          return (
+            <TableRow key={claim.id}>
+              <TableCell className="font-medium">
                 <span className="inline-flex items-center gap-2">
                   {names.get(`${claim.entity_type}:${claim.entity_id}`) ?? "(unbekannt)"}
                   {trust && (trust === "verified" || trust === "official") && (
-                    <span
-                      className="type-label rounded-full border border-black/10 bg-black/[0.03] px-2 py-0.5 !text-[#0071e3]"
-                      title={TRUST_LABEL[trust]}
-                    >
+                    <Badge variant="gold" title={TRUST_LABEL[trust]}>
                       {TRUST_LABEL[trust]}
-                    </span>
+                    </Badge>
                   )}
                 </span>
-              </td>
-              <td className="px-4 py-3 text-[#86868b]">{ENTITY_TYPE_LABEL[claim.entity_type]}</td>
-              <td className="px-4 py-3 text-[#86868b]">{STATUS_LABEL[claim.status] ?? claim.status}</td>
-              <td className="px-4 py-3 text-right">
+              </TableCell>
+              <TableCell className="text-[#726c78]">{ENTITY_TYPE_LABEL[claim.entity_type]}</TableCell>
+              <TableCell className="text-[#726c78]">{STATUS_LABEL[claim.status] ?? claim.status}</TableCell>
+              <TableCell className="text-right">
                 {showProfileLink && (
                   <span className="inline-flex items-center gap-3">
-                    <Link
-                      href={`/veranstalter/profile/${claim.entity_type}/${claim.entity_id}`}
-                      className="font-medium text-[#0071e3] hover:underline"
-                    >
+                    <Link href={`/veranstalter/profile/${claim.entity_type}/${claim.entity_id}`} className="font-semibold text-[#2D2A6E] hover:underline">
                       Profil bearbeiten
                     </Link>
-                    <Link
-                      href={`/veranstalter/team/${claim.entity_type}/${claim.entity_id}`}
-                      className="font-medium text-[#0071e3] hover:underline"
-                    >
+                    <Link href={`/veranstalter/team/${claim.entity_type}/${claim.entity_id}`} className="font-semibold text-[#2D2A6E] hover:underline">
                       Team
                     </Link>
                   </span>
                 )}
-              </td>
-            </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
+              </TableCell>
+            </TableRow>
+          );
+        })}
+      </TableBody>
+    </Table>
   );
 }

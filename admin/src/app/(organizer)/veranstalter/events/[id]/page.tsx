@@ -4,6 +4,7 @@ import { OrganizerEventForm, type OrganizerEventFormValues } from "../../organiz
 import { updateOrganizerEvent } from "../actions";
 import { EventImageUpload } from "../../event-image-upload";
 import { getEventOrganizerOptions } from "../../event-organizer-context";
+import { PageHeader, PageBody } from "@/components/organizer/page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -83,16 +84,18 @@ export default async function EditOrganizerEventPage({ params }: { params: Promi
   };
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-10">
-      <h1 className="type-heading mb-6 text-2xl text-[#1d1d1f]">Event bearbeiten</h1>
-      <OrganizerEventForm
-        action={updateOrganizerEvent.bind(null, event.id)}
-        initial={initial}
-        organizers={organizers}
-        genres={genres ?? []}
-        initialImageUrl={event.image_urls?.[0] ?? null}
-      />
-      <div className="mt-8 max-w-2xl"><EventImageUpload eventId={event.id} userId={user!.id} /></div>
+    <div>
+      <PageHeader eyebrow="Events" title="Event bearbeiten" description={event.title} />
+      <PageBody className="flex flex-col gap-8">
+        <OrganizerEventForm
+          action={updateOrganizerEvent.bind(null, event.id)}
+          initial={initial}
+          organizers={organizers}
+          genres={genres ?? []}
+          initialImageUrl={event.image_urls?.[0] ?? null}
+        />
+        <div className="max-w-2xl"><EventImageUpload eventId={event.id} userId={user!.id} /></div>
+      </PageBody>
     </div>
   );
 }

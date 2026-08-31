@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { PageHeader, PageBody } from "@/components/organizer/page-header";
+import { Card } from "@/components/organizer/ui/card";
 
 export const dynamic = "force-dynamic";
 
@@ -20,5 +22,30 @@ export default async function LibraryPage() {
     supabase.from("venues").select("id", { count: "exact", head: true }),
   ]);
   const counts = [events, persons, ensembles, venues];
-  return <div className="mx-auto max-w-6xl px-6 py-10"><p className="text-sm font-semibold tracking-wide text-[#0071e3]">KLANGRADAR</p><h1 className="type-heading mt-2 text-3xl text-[#1d1d1f]">Bibliothek</h1><p className="mt-3 max-w-2xl text-[#48484a]">Alles, was Klangradar kennt – zum Entdecken und Nachschlagen. Inhalte in der Bibliothek sind nur lesbar.</p><div className="mt-8 grid gap-4 sm:grid-cols-2">{SECTIONS.map((section, index) => <Link key={section.href} href={section.href} className="group overflow-hidden rounded-2xl border border-black/[0.06] bg-white transition hover:-translate-y-0.5 hover:shadow-lg"><div className="relative h-32 bg-gradient-to-br from-[#e9efff] to-[#f5f5f7]"><span className="absolute bottom-4 left-5 text-3xl font-semibold text-[#1d1d1f]/20">0{index + 1}</span></div><div className="p-5"><div className="flex items-center justify-between"><h2 className="text-xl font-semibold text-[#1d1d1f] group-hover:text-[#0071e3]">{section.title}</h2><span className="text-sm text-[#86868b]">{counts[index] ?? 0}</span></div><p className="mt-2 text-sm leading-6 text-[#48484a]">{section.text}</p><p className="mt-4 text-sm font-medium text-[#0071e3]">Durchsuchen →</p></div></Link>)}</div></div>;
+  return (
+    <div>
+      <PageHeader eyebrow="Klangradar" title="Bibliothek" description="Alles, was Klangradar kennt – zum Entdecken und Nachschlagen. Inhalte in der Bibliothek sind nur lesbar." />
+      <PageBody>
+        <div className="grid gap-4 sm:grid-cols-2">
+          {SECTIONS.map((section, index) => (
+            <Link key={section.href} href={section.href} className="group block">
+              <Card className="overflow-hidden transition hover:-translate-y-0.5 hover:shadow-md">
+                <div className="relative h-32 bg-gradient-to-br from-[#2D2A6E]/[0.06] to-[#15131a]/[0.03]">
+                  <span className="absolute bottom-4 left-5 text-3xl font-semibold text-[#15131a]/20">0{index + 1}</span>
+                </div>
+                <div className="p-5">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-semibold text-[#15131a] group-hover:text-[#2D2A6E]">{section.title}</h2>
+                    <span className="text-sm text-[#726c78]">{counts[index] ?? 0}</span>
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-[#4a4550]">{section.text}</p>
+                  <p className="mt-4 text-sm font-medium text-[#2D2A6E]">Durchsuchen →</p>
+                </div>
+              </Card>
+            </Link>
+          ))}
+        </div>
+      </PageBody>
+    </div>
+  );
 }
