@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/organizer/ui/card";
 import { Badge } from "@/components/organizer/ui/badge";
 import { Button } from "@/components/organizer/ui/button";
 import { Table, TableBody, TableRow, TableCell } from "@/components/organizer/ui/table";
+import { Steps } from "@/components/organizer/ui/steps";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,8 @@ const TRUST_LABEL: Record<TrustLevel, string> = {
   verified: "Verifiziert",
   official: "Offiziell",
 };
+
+const CLAIM_STEPS = ["Eingereicht", "Prüfung", "Entschieden"];
 
 interface EventRow {
   id: string;
@@ -210,6 +213,13 @@ function ClaimList({
                 </span>
               </TableCell>
               <TableCell className="text-[#726c78]">{ENTITY_TYPE_LABEL[claim.entity_type]}</TableCell>
+              <TableCell>
+                <Steps
+                  steps={CLAIM_STEPS}
+                  currentIndex={claim.status === "approved" ? 2 : 0}
+                  haltedAt={claim.status === "rejected" ? 1 : undefined}
+                />
+              </TableCell>
               <TableCell className="text-[#726c78]">{STATUS_LABEL[claim.status] ?? claim.status}</TableCell>
               <TableCell className="text-right">
                 {showProfileLink && (

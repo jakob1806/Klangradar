@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState, type FormEvent, type ReactNode } from "react";
-import { SubmitButton } from "@/components/submit-button";
+import { SubmitButton } from "@/components/organizer/submit-button";
 import { toMunichDatetimeLocal } from "@/lib/munich-time";
 import { GenrePicker } from "@/app/(dashboard)/events/genre-picker";
 import { VenuePicker } from "./venue-picker";

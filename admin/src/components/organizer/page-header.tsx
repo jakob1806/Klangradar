@@ -31,6 +31,19 @@ export function PageHeader({
   );
 }
 
+// Dezenter Eintritts-Übergang pro Seite (statt eines global installierten
+// Animations-Plugins, das hier nicht sicher verfügbar ist) — reines CSS,
+// respektiert prefers-reduced-motion, spielt einmal beim Mount des
+// Seiteninhalts ab.
 export function PageBody({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("px-6 py-8 lg:px-10", className)} {...props} />;
+  return (
+    <>
+      <style>{`
+        @keyframes organizer-page-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+        .organizer-page-in { animation: organizer-page-in 0.35s cubic-bezier(0.16, 1, 0.3, 1); }
+        @media (prefers-reduced-motion: reduce) { .organizer-page-in { animation: none; } }
+      `}</style>
+      <div className={cn("organizer-page-in px-6 py-8 lg:px-10", className)} {...props} />
+    </>
+  );
 }

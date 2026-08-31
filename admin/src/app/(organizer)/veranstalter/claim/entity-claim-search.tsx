@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { SubmitButton } from "@/components/submit-button";
+import { SubmitButton } from "@/components/organizer/submit-button";
 import { requestEntityClaim } from "./entity-claim-actions";
 import { PageHeader, PageBody } from "@/components/organizer/page-header";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/organizer/ui/card";

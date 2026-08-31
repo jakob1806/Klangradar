@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { SubmitButton } from "@/components/submit-button";
+import { SubmitButton } from "@/components/organizer/submit-button";
 import { ImageUploadField } from "@/components/image-upload-field";
 import { GalleryEditor } from "@/components/entity-gallery/gallery-editor";
 import type { GalleryImage } from "@/lib/gallery-actions";

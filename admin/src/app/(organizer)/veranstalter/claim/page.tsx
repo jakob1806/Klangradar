@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { SubmitButton } from "@/components/submit-button";
+import { SubmitButton } from "@/components/organizer/submit-button";
 import { requestOrganizerClaim, createOwnOrganizer } from "./actions";
 import { PageHeader, PageBody } from "@/components/organizer/page-header";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/organizer/ui/card";
