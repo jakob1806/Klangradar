@@ -31,6 +31,34 @@ async function notifyClaimant(
   }
 }
 
+// Postfach-Eintrag im Veranstalterportal selbst (organizer_notifications,
+// siehe 20261201000001) — unabhängig von der E-Mail oben, die z. B. bei
+// fehlender verification_email gar nicht verschickt wird. Gleiche
+// Nachsichtigkeit: ein Fehler hier darf den Status-Flip nicht gefährden.
+async function pushOrganizerNotification(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  claim: { entity_type: ClaimableEntityType; entity_id: string; user_id: string },
+  outcome: "approved" | "rejected",
+) {
+  try {
+    const names = await resolveEntityNames(supabase, [{ entityType: claim.entity_type, entityId: claim.entity_id }]);
+    const name = names.get(`${claim.entity_type}:${claim.entity_id}`) ?? "deine Anfrage";
+    await supabase.from("organizer_notifications").insert({
+      user_id: claim.user_id,
+      organizer_id: claim.entity_type === "organizer" ? claim.entity_id : null,
+      type: outcome === "approved" ? "claim_approved" : "claim_rejected",
+      title: outcome === "approved" ? `Claim für ${name} genehmigt` : `Claim für ${name} abgelehnt`,
+      body:
+        outcome === "approved"
+          ? `Du kannst ${name} jetzt im Veranstalterportal verwalten.`
+          : `Dein Antrag für ${name} wurde abgelehnt.`,
+      link_href: "/veranstalter",
+    });
+  } catch (error) {
+    console.error("Konnte Postfach-Benachrichtigung nicht anlegen:", error);
+  }
+}
+
 // Deutlich einfacher als approveEntityCandidate (entity-candidates/actions.ts):
 // die Zielentität existiert bereits, kein Slug, kein "existiert schon"-Check,
 // keine Duplikat-Weiterleitung nötig — Genehmigen/Ablehnen ist ein reiner
@@ -44,7 +72,7 @@ export async function approveEntityClaim(claimId: string) {
 
   const { data: claim, error: fetchError } = await supabase
     .from("entity_claims")
-    .select("entity_type, entity_id, verification_email")
+    .select("entity_type, entity_id, user_id, verification_email")
     .eq("id", claimId)
     .maybeSingle();
   if (fetchError || !claim) throw new Error(fetchError?.message ?? "Claim nicht gefunden");
@@ -77,6 +105,7 @@ export async function approveEntityClaim(claimId: string) {
     actor: user?.email ?? user?.id ?? "unknown",
   });
   await notifyClaimant(supabase, claim, "approved");
+  await pushOrganizerNotification(supabase, claim, "approved");
 
   revalidatePath("/entity-claims");
 }
@@ -89,7 +118,7 @@ export async function rejectEntityClaim(claimId: string) {
 
   const { data: claim, error: fetchError } = await supabase
     .from("entity_claims")
-    .select("entity_type, entity_id, verification_email")
+    .select("entity_type, entity_id, user_id, verification_email")
     .eq("id", claimId)
     .maybeSingle();
   if (fetchError || !claim) throw new Error(fetchError?.message ?? "Claim nicht gefunden");
@@ -107,6 +136,7 @@ export async function rejectEntityClaim(claimId: string) {
     actor: user?.email ?? user?.id ?? "unknown",
   });
   await notifyClaimant(supabase, claim, "rejected");
+  await pushOrganizerNotification(supabase, claim, "rejected");
 
   revalidatePath("/entity-claims");
 }
