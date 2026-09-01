@@ -102,14 +102,17 @@ struct RootTabView: View {
                     Image("KlangradarLogo")
                         .resizable()
                         .scaledToFill()
-                        .frame(width: 58, height: 58)
-                        .clipShape(Circle())
-                        .overlay { Circle().stroke(.white.opacity(0.82), lineWidth: 1.5) }
-                        .shadow(color: .black.opacity(0.18), radius: 13, y: 6)
+                        .frame(width: 56, height: 56)
+                        .clipShape(.rect(cornerRadius: 17, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 17, style: .continuous)
+                                .stroke(.white.opacity(0.76), lineWidth: 1)
+                        }
+                        .shadow(color: .black.opacity(0.16), radius: 11, y: 5)
                 }
                 .buttonStyle(RootCoachButtonStyle())
-                .accessibilityLabel("Klangradar Coach öffnen")
-                .accessibilityHint("Öffnet den persönlichen Coach in einer halbhohen Ansicht")
+                .accessibilityLabel("Klangradar KI öffnen")
+                .accessibilityHint("Öffnet die persönliche Klangradar KI in einer halbhohen Ansicht")
                 .padding(.trailing, 18)
                 .padding(.bottom, 88)
                 .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .bottomTrailing)))
