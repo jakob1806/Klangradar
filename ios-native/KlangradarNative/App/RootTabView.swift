@@ -21,6 +21,7 @@ struct RootTabView: View {
     @AppStorage(BiometricAuth.enabledStorageKey) private var biometricProtectionEnabled = false
     @State private var isBiometricUnlocked = !BiometricAuth.isEnabled
     @State private var isAuthenticatingBiometrics = false
+    @State private var showsCoach = false
 
     init(environment: AppEnvironment) {
         self.environment = environment
@@ -93,6 +94,28 @@ struct RootTabView: View {
         .environmentObject(reportStore)
         .environmentObject(genreFilterRouter)
         .environmentObject(cityStore)
+        .overlay(alignment: .bottomTrailing) {
+            if selection == .home, environment.restClient != nil, !shouldShowBiometricLock {
+                Button {
+                    showsCoach = true
+                } label: {
+                    Image("KlangradarLogo")
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 58, height: 58)
+                        .clipShape(Circle())
+                        .overlay { Circle().stroke(.white.opacity(0.82), lineWidth: 1.5) }
+                        .shadow(color: .black.opacity(0.18), radius: 13, y: 6)
+                }
+                .buttonStyle(RootCoachButtonStyle())
+                .accessibilityLabel("Klangradar Coach öffnen")
+                .accessibilityHint("Öffnet den persönlichen Coach in einer halbhohen Ansicht")
+                .padding(.trailing, 18)
+                .padding(.bottom, 88)
+                .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .bottomTrailing)))
+                .zIndex(20)
+            }
+        }
         .onChange(of: genreFilterRouter.pending) { _, pending in
             if pending != nil { selection = .search }
         }
@@ -123,6 +146,25 @@ struct RootTabView: View {
         }
         .sheet(isPresented: $auth.isCompletingPasswordRecovery) {
             PasswordResetCompletionView(auth: auth)
+        }
+        .sheet(isPresented: $showsCoach) {
+            if let repository = environment.restClient.map(UserRepository.init(client:)) {
+                NavigationStack {
+                    KlangradarCoachView(
+                        auth: auth,
+                        repository: repository,
+                        eventRepository: environment.events,
+                        contentRepository: environment.content,
+                        startsInChat: true,
+                        showsDismissButton: true
+                    )
+                }
+                .environmentObject(favorites)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+                .presentationCornerRadius(28)
+                .presentationBackgroundInteraction(.enabled(upThrough: .medium))
+            }
         }
         .alert("Link konnte nicht geöffnet werden", isPresented: callbackErrorBinding) {
             Button("OK", role: .cancel) { auth.callbackErrorMessage = nil }
@@ -218,6 +260,15 @@ struct RootTabView: View {
         // lokal bereits abgeschlossenes (auch als Gast übersprungenes)
         // Onboarding hat Vorrang.
         showsOnboarding = !didCompleteOnboarding && !completed
+    }
+}
+
+private struct RootCoachButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+            .opacity(configuration.isPressed ? 0.9 : 1)
+            .animation(.easeOut(duration: 0.14), value: configuration.isPressed)
     }
 }
 
