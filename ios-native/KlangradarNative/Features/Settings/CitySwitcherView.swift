@@ -7,38 +7,50 @@ import SwiftUI
 struct CitySwitcherView: View {
     @ObservedObject var cityStore: CityStore
     var allowsAllCities = false
+    var embedsNavigationStack = true
     @Environment(\.dismiss) private var dismiss
 
     @State private var isLocating = false
     @State private var locationError: String?
 
+    @ViewBuilder
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    cityHeader
+        if embedsNavigationStack {
+            NavigationStack { content }
+        } else {
+            content
+        }
+    }
 
-                    LazyVStack(spacing: 12) {
-                        ForEach(displayCities) { city in
-                            cityRow(
-                                name: city.name,
-                                subtitle: countryLabel(for: city),
-                                isSelected: cityStore.selectedCity?.id == city.id
-                            ) { cityStore.select(city) }
-                        }
+    private var content: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                cityHeader
+
+                LazyVStack(spacing: 12) {
+                    ForEach(displayCities) { city in
+                        cityRow(
+                            name: city.name,
+                            subtitle: countryLabel(for: city),
+                            isSelected: cityStore.selectedCity?.id == city.id
+                        ) { cityStore.select(city) }
                     }
                 }
-                .padding(.horizontal, 24)
-                .padding(.bottom, 36)
             }
-            .background(KlangradarBackground().ignoresSafeArea())
-            .toolbar {
+            .padding(.horizontal, 24)
+            .padding(.bottom, 36)
+        }
+        .background(KlangradarBackground().ignoresSafeArea())
+        .toolbar {
+            if embedsNavigationStack {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Fertig") { dismiss() }.fontWeight(.semibold)
                 }
             }
-            .toolbarBackground(.hidden, for: .navigationBar)
         }
+        .toolbarBackground(.hidden, for: .navigationBar)
+        .navigationTitle(embedsNavigationStack ? "" : "Stadt wechseln")
+        .navigationBarTitleDisplayMode(.inline)
         .task { if cityStore.activeCities.isEmpty { await cityStore.load() } }
     }
 

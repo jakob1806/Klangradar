@@ -9,9 +9,7 @@ security definer
 set search_path = public
 stable
 as $$
-  select
-    has_event_capability(p_event_id, 'promotions')
-    or exists (
+  select exists (
       select 1
       from events e
       left join event_participants ep on ep.event_id = e.id
@@ -31,7 +29,7 @@ drop policy "Team sieht Promotionen nach Rolle" on event_promotions;
 drop policy "Marketing beantragt Promotion eigener Events" on event_promotions;
 
 create policy "Vertretung sieht Promotionen eigener Profile" on event_promotions
-  for select using (has_event_promotion_access(event_id) or has_event_capability(event_id, 'finances'));
+  for select using (has_event_promotion_access(event_id));
 
 create policy "Vertretung beantragt Promotion eigener Profile" on event_promotions
   for insert with check (

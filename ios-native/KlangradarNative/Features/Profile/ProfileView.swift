@@ -263,6 +263,7 @@ struct KlangradarCoachView: View {
     @State private var memoryProposal: JSONObject?
     @State private var goalProposal: JSONObject?
     @State private var draft = ""
+    @State private var retryDraft: String?
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var showsCheckin = false
@@ -416,7 +417,24 @@ struct KlangradarCoachView: View {
                     if let proposal = memoryProposal { proposalCard("Soll ich mir das merken?", proposal, action: "confirm_memory") }
                     if let proposal = goalProposal { proposalCard("Dieses Ziel übernehmen?", proposal, action: "confirm_goal") }
                     if isLoading { ProgressView("Coach denkt mit deinen Daten …").frame(maxWidth: .infinity).padding() }
-                    if let errorMessage { Text(errorMessage).font(.footnote).foregroundStyle(.red) }
+                    if let errorMessage {
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: "exclamationmark.circle.fill").foregroundStyle(.orange)
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(errorMessage).font(.subheadline)
+                                if let retryDraft {
+                                    Button("Erneut versuchen") {
+                                        draft = retryDraft
+                                        Task { await send() }
+                                    }
+                                    .font(.subheadline.weight(.semibold))
+                                }
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(14)
+                        .background(Color.orange.opacity(0.1), in: .rect(cornerRadius: 16, style: .continuous))
+                    }
                     Color.clear.frame(height: 1).id("coach-bottom")
                 }.padding()
             }
@@ -494,27 +512,43 @@ struct KlangradarCoachView: View {
     @MainActor private func loadDashboard() async {
         guard let repository, let token = auth.accessToken else { errorMessage = "Bitte melde dich an, damit der Coach deine Daten sicher verwenden kann."; return }
         isLoading = true; defer { isLoading = false }
-        do { dashboard = try await repository.coachDashboard(token: token); errorMessage = nil } catch { errorMessage = error.localizedDescription }
+        do { dashboard = try await repository.coachDashboard(token: token); errorMessage = nil } catch { errorMessage = coachErrorDescription(error) }
     }
 
     @MainActor private func send() async {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, !isLoading, let repository, let token = auth.accessToken else { return }
-        draft = ""; isLoading = true; errorMessage = nil; messages.append(.init(text: text, user: true)); memoryProposal = nil; goalProposal = nil
+        draft = ""; retryDraft = text; isLoading = true; errorMessage = nil; messages.append(.init(text: text, user: true)); memoryProposal = nil; goalProposal = nil
         defer { isLoading = false }
         do {
             let reply = try await repository.askCoach(message: text, conversationID: conversationID, token: token)
             conversationID = reply.conversationID; messages.append(.init(text: reply.answer, user: false)); events = reply.events
-            memoryProposal = reply.memoryProposal; goalProposal = reply.goalProposal; suggestedPrompts = reply.suggestedPrompts
-        } catch { errorMessage = error.localizedDescription }
+            memoryProposal = reply.memoryProposal; goalProposal = reply.goalProposal; suggestedPrompts = reply.suggestedPrompts; retryDraft = nil
+        } catch { errorMessage = coachErrorDescription(error) }
     }
 
     @MainActor private func confirm(_ proposal: JSONObject, action: String) async {
         guard let repository, let token = auth.accessToken else { return }
-        do { try await repository.confirmCoachProposal(proposal, kind: action, token: token); if action == "confirm_memory" { memoryProposal = nil } else { goalProposal = nil }; messages.append(.init(text: action == "confirm_memory" ? "Gespeichert. Du kannst diese Erinnerung jederzeit in Mein Klangradar ändern oder löschen." : "Ziel übernommen. Ich berücksichtige es künftig in Planung und Check-ins.", user: false)); await loadDashboard() } catch { errorMessage = error.localizedDescription }
+        do { try await repository.confirmCoachProposal(proposal, kind: action, token: token); if action == "confirm_memory" { memoryProposal = nil } else { goalProposal = nil }; messages.append(.init(text: action == "confirm_memory" ? "Gespeichert. Du kannst diese Erinnerung jederzeit in Mein Klangradar ändern oder löschen." : "Ziel übernommen. Ich berücksichtige es künftig in Planung und Check-ins.", user: false)); await loadDashboard() } catch { errorMessage = coachErrorDescription(error) }
     }
 
     private func insightIcon(_ kind: String) -> String { switch kind { case "ticket": "ticket.fill"; case "goal": "target"; case "trend": "chart.line.uptrend.xyaxis"; case "reflection": "quote.bubble.fill"; case "discovery": "safari.fill"; default: "calendar.badge.clock" } }
+
+    private func coachErrorDescription(_ error: Error) -> String {
+        guard let apiError = error as? APIError else {
+            return "Der Coach ist gerade nicht erreichbar. Prüfe deine Verbindung und versuche es erneut."
+        }
+        switch apiError {
+        case .httpStatus(401, _):
+            return "Deine Anmeldung ist abgelaufen. Melde dich bitte erneut an."
+        case .httpStatus(404, _):
+            return "Der Coach wird gerade aktualisiert. Bitte versuche es gleich noch einmal."
+        case .httpStatus(let status, _) where status >= 500:
+            return "Der Coach braucht gerade etwas länger. Bitte versuche es gleich noch einmal."
+        default:
+            return apiError.localizedDescription
+        }
+    }
 }
 
 private struct CoachSendButtonStyle: ButtonStyle {
