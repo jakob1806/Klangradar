@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/calendar/presentation/calendar_screen.dart';
+import '../../features/coach/presentation/coach_screen.dart';
 import '../../features/collections/presentation/collection_detail_screen.dart';
 import '../../features/event_detail/presentation/event_detail_screen.dart';
 import '../../features/favorites/presentation/favorites_screen.dart';
@@ -76,6 +77,11 @@ GoRouter buildAppRouter({String initialLocation = '/home'}) => GoRouter(
           ],
         ),
       ],
+    ),
+    GoRoute(
+      path: '/coach',
+      parentNavigatorKey: rootNavigatorKey,
+      builder: (context, state) => const CoachScreen(),
     ),
     GoRoute(
       path: '/event/:slug',

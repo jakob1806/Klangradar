@@ -286,10 +286,16 @@ struct LiveEventRepository: EventRepository {
         let eventID = detail.string("id") ?? ""
         let programID = detail.string("program_id")
         let venueID = detail.object("venues")?.string("id")
+        let venueCity = detail.object("venues")?.string("address_city")
         let genreID = detail.objects("event_genres").first?.object("genres")?.string("id")
 
         async let otherDates = optionalOtherDates(programID: programID, excluding: eventID)
-        async let similarEvents = optionalSimilarEvents(eventID: eventID, genreID: genreID, venueID: venueID)
+        async let similarEvents = optionalSimilarEvents(
+            eventID: eventID,
+            genreID: genreID,
+            venueID: venueID,
+            city: venueCity
+        )
         async let groupContent = optionalGroupContent(programID: programID, excluding: eventID)
         async let ticketLinks = optionalTicketLinks(eventID: eventID)
 
@@ -432,15 +438,38 @@ struct LiveEventRepository: EventRepository {
         return rows ?? []
     }
 
-    private func optionalSimilarEvents(eventID: String, genreID: String?, venueID: String?) async -> [JSONObject] {
-        guard !eventID.isEmpty, genreID != nil || venueID != nil else { return [] }
+    private func optionalSimilarEvents(eventID: String, genreID: String?, venueID: String?, city: String?) async -> [JSONObject] {
+        guard !eventID.isEmpty, genreID != nil || venueID != nil,
+              let city = city?.trimmingCharacters(in: .whitespacesAndNewlines), !city.isEmpty
+        else { return [] }
         let rows: [JSONObject]? = try? await client.rpc("similar_events", parameters: [
             "p_event_id": .string(eventID),
             "p_genre_id": genreID.map(JSONValue.string) ?? .null,
             "p_venue_id": venueID.map(JSONValue.string) ?? .null,
-            "p_result_limit": .number(6)
+            // Die RPC kennt die Stadt noch nicht. Mehr Kandidaten laden und
+            // erst danach lokal auf die Stadt des Ausgangsevents begrenzen.
+            "p_result_limit": .number(24)
         ])
-        return rows ?? []
+        guard let rows, !rows.isEmpty else { return [] }
+
+        let venueIDs = Set(rows.compactMap { $0.string("venue_id") })
+        guard !venueIDs.isEmpty else { return [] }
+        let venueRows: [JSONObject] = (try? await client.get(table: "venues", queryItems: [
+            URLQueryItem(name: "select", value: "id,address_city"),
+            URLQueryItem(name: "id", value: "in.(\(venueIDs.joined(separator: ",")))")
+        ])) ?? []
+        let normalizedCity = city.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+        let matchingVenueIDs = Set(venueRows.compactMap { venue -> String? in
+            guard let candidateCity = venue.string("address_city")?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current),
+                  candidateCity == normalizedCity
+            else { return nil }
+            return venue.string("id")
+        })
+        return Array(rows.filter { row in
+            row.string("venue_id").map(matchingVenueIDs.contains) == true
+        }.prefix(6))
     }
 
     private func optionalGroupContent(programID: String?, excluding eventID: String) async -> JSONObject? {

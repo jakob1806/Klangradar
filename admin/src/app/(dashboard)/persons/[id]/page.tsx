@@ -9,6 +9,7 @@ import type { GalleryImage } from "@/lib/gallery-actions";
 import { updatePerson } from "../actions";
 import { PersonDeleteControl } from "../person-delete-control";
 import { PersonForm, type PersonFormValues } from "../person-form";
+import { EntityConnections } from "@/components/entity-connections";
 
 export default async function EditPersonPage({
   params,
@@ -76,6 +77,7 @@ export default async function EditPersonPage({
           showEventFallbackToggle
         />
       </div>
+      <EntityConnections kind="person" id={id} />
     </div>
   );
 }

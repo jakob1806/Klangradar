@@ -1,6 +1,7 @@
 #!/bin/bash
 
-cd "/Users/jakob/Claude Projekte/ios-native"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$SCRIPT_DIR" || exit 1
 
 clear
 

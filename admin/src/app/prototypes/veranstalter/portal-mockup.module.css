@@ -1,0 +1,180 @@
+.stage { min-height: 100dvh; background: #f3f1ec; color: #171714; }
+.portal { min-height: 100dvh; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+.brand { display: flex; align-items: center; gap: 10px; color: #171714; }
+.brandMark { display: grid; width: 34px; height: 34px; place-items: center; overflow: hidden; border-radius: 9px; background: #fff; box-shadow: 0 1px 0 rgb(255 255 255 / .8), 0 5px 16px rgb(35 31 24 / .1); }
+.brandMark img { width: 100%; height: 100%; }
+.brand > span:last-child { display: flex; flex-direction: column; line-height: 1.08; }
+.brand strong { font-size: 14px; font-weight: 680; letter-spacing: -.02em; }
+.brand small { margin-top: 3px; color: #77746d; font-size: 10px; }
+.brandInverse { color: #f8f6f0; }
+.brandInverse small { color: #97968f; }
+.kicker { margin: 0 0 8px; color: #77746d; font-size: 11px; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; }
+.primaryAction, .secondaryAction { min-height: 40px; border: 0; border-radius: 9px; padding: 0 16px; font: inherit; font-size: 13px; font-weight: 650; cursor: pointer; transition: transform 140ms cubic-bezier(.23,1,.32,1), background-color 160ms ease; }
+.primaryAction { background: #176b53; color: #fff; box-shadow: 0 1px 0 rgb(255 255 255 / .18) inset, 0 7px 18px rgb(23 107 83 / .16); }
+.secondaryAction { border: 1px solid rgb(25 24 20 / .12); background: transparent; color: inherit; }
+.primaryAction:active, .secondaryAction:active, .eventRow button:active { transform: scale(.97); }
+.sectionHeading { display: flex; align-items: end; justify-content: space-between; gap: 24px; }
+.sectionHeading h2 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 25px; font-weight: 400; letter-spacing: -.025em; }
+.sectionHeading a { color: #176b53; font-size: 12px; font-weight: 650; }
+.eventRows { margin-top: 22px; border-top: 1px solid rgb(25 24 20 / .16); }
+.eventRow { display: grid; grid-template-columns: 50px minmax(0, 1fr) 120px 84px; align-items: center; gap: 18px; min-height: 78px; border-bottom: 1px solid rgb(25 24 20 / .11); }
+.eventRow time { display: flex; align-items: baseline; gap: 5px; }
+.eventRow time strong { font-family: Georgia, serif; font-size: 25px; font-weight: 400; }
+.eventRow time span { color: #77746d; font-size: 9px; font-weight: 700; letter-spacing: .08em; }
+.eventIdentity { display: flex; min-width: 0; flex-direction: column; gap: 5px; }
+.eventIdentity strong { overflow: hidden; font-size: 14px; font-weight: 650; letter-spacing: -.015em; text-overflow: ellipsis; white-space: nowrap; }
+.eventIdentity span { color: #77746d; font-size: 11px; }
+.eventState { color: #9a5c22; font-size: 10px; font-weight: 650; }
+.statePublished { color: #176b53; }
+.eventRow button { justify-self: end; border: 0; background: transparent; color: #176b53; font-size: 11px; font-weight: 700; cursor: pointer; transition: transform 140ms cubic-bezier(.23,1,.32,1); }
+
+.editorial { background: #f4f1e9; }
+.editorialHeader { display: grid; grid-template-columns: 230px 1fr 44px; align-items: center; min-height: 68px; border-bottom: 1px solid rgb(25 24 20 / .13); padding: 0 clamp(28px, 5vw, 76px); }
+.editorialHeader nav { display: flex; justify-content: center; gap: 28px; }
+.editorialHeader nav a { position: relative; color: #77746d; font-size: 12px; font-weight: 600; }
+.editorialHeader nav a[data-active] { color: #171714; }
+.editorialHeader nav a[data-active]::after { position: absolute; right: 0; bottom: -25px; left: 0; height: 2px; background: #176b53; content: ""; }
+.accountButton { width: 34px; height: 34px; border: 1px solid rgb(25 24 20 / .12); border-radius: 50%; background: transparent; color: #4f4c45; font-size: 11px; font-weight: 700; }
+.editorialHero { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(280px, .8fr); align-items: end; gap: 60px; max-width: 1240px; margin: 0 auto; padding: 76px 52px 56px; }
+.editorialHero h1 { max-width: 760px; margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: clamp(52px, 6.4vw, 92px); font-weight: 400; line-height: .92; letter-spacing: -.055em; }
+.editorialHeroActions { justify-self: end; width: min(100%, 340px); padding-bottom: 8px; }
+.editorialHeroActions p { margin: 0 0 24px; color: #5f5b53; font-family: Georgia, serif; font-size: 17px; line-height: 1.45; }
+.editorialStatus { display: grid; grid-template-columns: repeat(4, 1fr); max-width: 1240px; margin: 0 auto; border-top: 1px solid rgb(25 24 20 / .14); border-bottom: 1px solid rgb(25 24 20 / .14); }
+.editorialStatus > div { display: flex; min-height: 112px; flex-direction: column; justify-content: center; border-right: 1px solid rgb(25 24 20 / .12); padding: 18px 28px; }
+.editorialStatus > div:last-child { border-right: 0; }
+.editorialStatus span { color: #77746d; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.editorialStatus strong { margin-top: 10px; font-family: Georgia, serif; font-size: 24px; font-weight: 400; }
+.editorialStatus small { margin-top: 6px; color: #77746d; font-size: 10px; }
+.editorialAlert { background: #e7ddc8; }
+.editorialContent { max-width: 1240px; margin: 0 auto; padding: 58px 52px 100px; }
+
+.console { display: grid; grid-template-columns: 238px minmax(0, 1fr); background: #eeece7; }
+.consoleSidebar { position: sticky; top: 0; display: flex; height: 100dvh; flex-direction: column; background: #1f2522; padding: 22px 16px 16px; color: #f8f6f0; }
+.consoleSidebar nav { display: flex; flex: 1; flex-direction: column; gap: 22px; margin-top: 36px; }
+.consoleSidebar nav > div { display: flex; flex-direction: column; gap: 3px; }
+.consoleSidebar nav div > span { margin: 0 10px 6px; color: #7f837f; font-size: 9px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.consoleSidebar nav a { display: flex; min-height: 34px; align-items: center; justify-content: space-between; border-radius: 7px; padding: 0 10px; color: #b9b9b4; font-size: 12px; font-weight: 560; }
+.consoleSidebar nav a[data-active] { background: #f1efe8; color: #1f2522; }
+.consoleSidebar nav a small { color: #7f837f; font-variant-numeric: tabular-nums; }
+.consoleAccount { display: grid; grid-template-columns: 32px 1fr 24px; align-items: center; gap: 9px; border-top: 1px solid rgb(255 255 255 / .1); padding: 16px 4px 2px; }
+.consoleAccount > b { display: grid; width: 30px; height: 30px; place-items: center; border-radius: 8px; background: #3b4641; font-size: 10px; }
+.consoleAccount > span { display: flex; flex-direction: column; font-size: 11px; font-weight: 650; }
+.consoleAccount small { margin-top: 2px; color: #7f837f; font-size: 9px; font-weight: 500; }
+.consoleAccount button { border: 0; background: transparent; color: #8e928e; }
+.consoleMain { min-width: 0; padding: 34px clamp(28px, 4vw, 58px) 80px; }
+.consoleMain > header { display: flex; align-items: end; justify-content: space-between; gap: 24px; }
+.consoleMain h1 { margin: 0; font-size: clamp(34px, 4vw, 48px); font-weight: 650; letter-spacing: -.05em; }
+.consoleMain > header > div:last-child { display: flex; gap: 8px; }
+.consoleMetrics { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 34px; border: 1px solid rgb(25 24 20 / .11); border-radius: 13px; background: rgb(255 255 255 / .56); }
+.consoleMetrics > div { display: flex; min-height: 122px; flex-direction: column; justify-content: center; border-right: 1px solid rgb(25 24 20 / .1); padding: 20px 24px; }
+.consoleMetrics > div:last-child { border-right: 0; }
+.consoleMetrics span { color: #77746d; font-size: 10px; font-weight: 650; }
+.consoleMetrics strong { margin-top: 9px; font-size: 30px; font-weight: 620; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+.consoleMetrics small { margin-top: 7px; color: #77746d; font-size: 10px; }
+.positive { color: #176b53 !important; }
+.consoleGrid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(250px, .72fr); gap: 18px; margin-top: 18px; }
+.consoleEvents, .taskPanel { border: 1px solid rgb(25 24 20 / .11); border-radius: 13px; background: rgb(255 255 255 / .56); padding: 24px; }
+.consoleEvents .sectionHeading h2, .taskPanel .sectionHeading h2 { font-family: inherit; font-size: 19px; font-weight: 650; }
+.eventRowsCompact { margin-top: 14px; }
+.eventRowsCompact .eventRow { grid-template-columns: 42px minmax(0, 1fr) 92px; gap: 12px; min-height: 64px; }
+.eventRowsCompact .eventRow time strong { font-size: 20px; }
+.eventRowsCompact .eventRow button { display: none; }
+.taskPanel .sectionHeading > span { display: grid; width: 25px; height: 25px; place-items: center; border-radius: 7px; background: #e5e0d6; color: #625d54; font-size: 10px; font-weight: 700; }
+.taskPanel label { display: flex; gap: 10px; border-top: 1px solid rgb(25 24 20 / .1); padding: 15px 2px; }
+.taskPanel label:first-of-type { margin-top: 14px; }
+.taskPanel input { accent-color: #176b53; }
+.taskPanel label span { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
+.taskPanel label b { font-size: 11px; font-weight: 650; }
+.taskPanel label small { overflow: hidden; color: #77746d; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+
+.season { background: #f5f3ee; }
+.seasonHeader { display: grid; grid-template-columns: 190px minmax(220px, 1fr) auto auto; align-items: center; gap: 30px; min-height: 72px; border-bottom: 1px solid rgb(25 24 20 / .12); padding: 0 clamp(28px, 4vw, 62px); }
+.seasonContext { display: flex; flex-direction: column; border-left: 1px solid rgb(25 24 20 / .14); padding-left: 24px; }
+.seasonContext span { color: #77746d; font-size: 9px; }
+.seasonContext strong { margin-top: 3px; font-size: 11px; }
+.seasonHeader nav { display: flex; gap: 22px; }
+.seasonHeader nav a { color: #77746d; font-size: 11px; font-weight: 600; }
+.seasonHeader nav a[data-active] { color: #171714; }
+.seasonIntro { display: flex; align-items: end; justify-content: space-between; max-width: 1260px; margin: 0 auto; padding: 48px 52px 26px; }
+.seasonIntro h1 { margin: 0; font-family: Georgia, serif; font-size: clamp(52px, 6vw, 76px); font-weight: 400; letter-spacing: -.055em; line-height: .9; }
+.monthControls { display: flex; align-items: center; gap: 12px; }
+.monthControls button { display: grid; width: 34px; height: 34px; place-items: center; border: 1px solid rgb(25 24 20 / .12); border-radius: 8px; background: transparent; }
+.monthControls span { font-size: 11px; font-weight: 650; }
+.seasonBoard { max-width: 1260px; margin: 0 auto; padding: 0 52px 96px; }
+.calendarRail { display: grid; grid-template-columns: repeat(7, 1fr); border-top: 1px solid rgb(25 24 20 / .14); border-bottom: 1px solid rgb(25 24 20 / .14); }
+.calendarRail span { position: relative; padding: 16px 12px 13px; color: #8a867d; font-size: 8px; font-weight: 700; line-height: 1.8; text-align: center; }
+.calendarRail b { color: #504d46; font-family: Georgia, serif; font-size: 18px; font-weight: 400; }
+.calendarRail span[data-active] { color: #176b53; }
+.calendarRail span[data-active] b { color: #176b53; }
+.calendarRail span[data-active]::after { position: absolute; right: 28%; bottom: -1px; left: 28%; height: 2px; background: #176b53; content: ""; }
+.featuredEvent { display: grid; grid-template-columns: 140px minmax(0, 1fr) minmax(270px, .78fr); min-height: 370px; border-bottom: 1px solid rgb(25 24 20 / .14); }
+.featuredDate { display: flex; flex-direction: column; border-right: 1px solid rgb(25 24 20 / .12); padding: 38px 26px 26px 0; }
+.featuredDate span { color: #77746d; font-size: 10px; }
+.featuredDate strong { margin-top: 20px; font-family: Georgia, serif; font-size: 76px; font-weight: 400; letter-spacing: -.06em; line-height: .8; }
+.featuredDate small { margin-top: 18px; color: #77746d; font-size: 9px; }
+.featuredCopy { display: flex; align-items: flex-start; flex-direction: column; justify-content: center; padding: 36px 46px; }
+.featuredCopy h2 { margin: 14px 0 18px; font-family: Georgia, serif; font-size: clamp(34px, 4vw, 54px); font-weight: 400; letter-spacing: -.045em; line-height: .94; }
+.featuredCopy p { margin: 0; color: #5f5b53; font-family: Georgia, serif; font-size: 13px; line-height: 1.6; }
+.featuredCopy > div { display: flex; gap: 8px; margin-top: 28px; }
+.poster { display: flex; min-height: 310px; flex-direction: column; align-self: center; justify-content: center; margin: 30px 0; background: #174f42; padding: 38px; color: #e8dec6; box-shadow: 0 24px 44px rgb(24 58 48 / .2); }
+.poster span, .poster small { font-size: 10px; font-weight: 700; letter-spacing: .22em; }
+.poster b { margin-top: 4px; font-size: clamp(32px, 3.4vw, 48px); font-weight: 720; letter-spacing: -.06em; }
+.poster i { margin: auto 0; font-family: Georgia, serif; font-size: 96px; font-weight: 400; line-height: .8; }
+.seasonFooter { display: grid; grid-template-columns: 180px 230px 1fr; align-items: center; gap: 24px; padding-top: 24px; }
+.seasonFooter > div { display: flex; align-items: baseline; gap: 9px; }
+.seasonFooter strong { font-family: Georgia, serif; font-size: 26px; font-weight: 400; }
+.seasonFooter span { color: #77746d; font-size: 10px; }
+.seasonFooter a { justify-self: end; color: #176b53; font-size: 11px; font-weight: 700; }
+
+:global(.proto-picker) { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 2147483647; display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: 999px; background: rgba(10, 10, 10, 0.82); -webkit-backdrop-filter: blur(12px) saturate(1.4); backdrop-filter: blur(12px) saturate(1.4); box-shadow: 0 0 0 1px rgba(255,255,255,.08) inset, 0 8px 24px rgba(0,0,0,.24), 0 2px 6px rgba(0,0,0,.12); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 13px; line-height: 1; -webkit-font-smoothing: antialiased; user-select: none; -webkit-user-select: none; }
+:global(.proto-picker-highlight) { position: absolute; top: 4px; left: 0; height: 28px; border-radius: 999px; background: rgba(255,255,255,.12); will-change: transform; }
+:global(.proto-picker[data-ready] .proto-picker-highlight) { transition: transform 250ms cubic-bezier(.23,1,.32,1), width 250ms cubic-bezier(.23,1,.32,1); }
+:global(.proto-picker-item) { position: relative; display: flex; align-items: center; height: 28px; padding: 0 12px; border: 0; border-radius: 999px; background: transparent; color: rgba(255,255,255,.55); font: inherit; cursor: pointer; transition: color 150ms ease-out; }
+:global(.proto-picker-item:hover) { color: rgba(255,255,255,.85); }
+:global(.proto-picker-item:active) { transform: scale(.97); }
+:global(.proto-picker-item:focus-visible) { outline: 2px solid rgba(255,255,255,.4); outline-offset: 2px; }
+:global(.proto-picker-item[data-active]) { color: #fff; }
+
+@media (hover: hover) and (pointer: fine) {
+  .primaryAction:hover { background: #115e48; }
+  .secondaryAction:hover { background: rgb(25 24 20 / .05); }
+  .eventRow button:hover, .sectionHeading a:hover, .seasonFooter a:hover { text-decoration: underline; }
+}
+@media (prefers-reduced-motion: reduce) {
+  :global(.proto-picker[data-ready] .proto-picker-highlight) { transition: none; }
+  .primaryAction, .secondaryAction, .eventRow button { transition: none; }
+}
+@media (max-width: 900px) {
+  .editorialHeader { grid-template-columns: 1fr auto; }
+  .editorialHeader nav { display: none; }
+  .editorialHero { grid-template-columns: 1fr; padding-top: 48px; }
+  .editorialHeroActions { justify-self: start; }
+  .editorialStatus { grid-template-columns: repeat(2, 1fr); margin-inline: 24px; }
+  .console { grid-template-columns: 78px minmax(0, 1fr); }
+  .consoleSidebar .brand > span:last-child, .consoleSidebar nav div > span, .consoleSidebar nav a:not([data-active]), .consoleAccount span, .consoleAccount button { display: none; }
+  .consoleSidebar nav a[data-active] { justify-content: center; padding: 0; font-size: 0; }
+  .consoleSidebar nav a[data-active]::after { font-size: 12px; content: "Ü"; }
+  .consoleAccount { grid-template-columns: 1fr; }
+  .consoleGrid { grid-template-columns: 1fr; }
+  .seasonHeader { grid-template-columns: 1fr auto; }
+  .seasonContext, .seasonHeader nav { display: none; }
+  .featuredEvent { grid-template-columns: 100px 1fr; }
+  .poster { display: none; }
+}
+@media (max-width: 620px) {
+  .editorialHero, .editorialContent, .seasonIntro, .seasonBoard { padding-inline: 22px; }
+  .editorialStatus { grid-template-columns: 1fr; }
+  .editorialStatus > div { border-right: 0; border-bottom: 1px solid rgb(25 24 20 / .12); }
+  .eventRow { grid-template-columns: 42px minmax(0, 1fr) 64px; }
+  .eventState { display: none; }
+  .consoleMetrics { grid-template-columns: 1fr; }
+  .consoleMetrics > div { border-right: 0; border-bottom: 1px solid rgb(25 24 20 / .1); }
+  .consoleMain > header { align-items: flex-start; flex-direction: column; }
+  .seasonHeader .primaryAction { padding-inline: 10px; }
+  .featuredEvent { grid-template-columns: 1fr; }
+  .featuredDate { display: none; }
+  .featuredCopy { padding-inline: 0; }
+  .seasonFooter { grid-template-columns: 1fr; }
+  .seasonFooter a { justify-self: start; }
+  :global(.proto-picker) { max-width: calc(100vw - 24px); overflow-x: auto; }
+}

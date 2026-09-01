@@ -487,21 +487,19 @@ private struct DiscoveryTile: View {
             Image("WorkDiscovery")
                 .resizable()
                 .scaledToFill()
-        } else if let featured, featured.imageURL != nil {
-            CroppedAsyncImage(url: featured.imageURL, crop: featured.avatarCrop) {
-                artworkPlaceholder
-            }
         } else if kind == .person,
                   featured?.title.localizedCaseInsensitiveContains("bach") == true {
-            // Die Personen-Kachel ist bewusst auf J. S. Bach kuratiert. Wenn
-            // ein Import sein Profilfoto temporär leer liefert, bleibt der
-            // visuelle Einstieg trotzdem erhalten statt zum Platzhalter zu
-            // wechseln. Das Bild ist das gemeinfreie Bach-Porträt aus Wikimedia
-            // Commons; ein redaktionell gesetztes photo_url hat weiterhin Vorrang.
+            // Für die kuratierte Personen-Kachel immer das verlässliche
+            // Bach-Porträt verwenden. Ein veralteter, aber nicht-nil gesetzter
+            // photo_url-Wert darf diesen Fallback nicht mehr überspringen.
             CroppedAsyncImage(
                 url: URL(string: "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/Johann_Sebastian_Bach.jpg/330px-Johann_Sebastian_Bach.jpg"),
                 crop: nil
             ) {
+                artworkPlaceholder
+            }
+        } else if let featured, featured.imageURL != nil {
+            CroppedAsyncImage(url: featured.imageURL, crop: featured.avatarCrop) {
                 artworkPlaceholder
             }
         } else {

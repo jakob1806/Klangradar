@@ -105,31 +105,6 @@ enum HomeCategoryPreferences {
     }
 }
 
-/// Schaltet den kompakten Leading-Titel anhand des tatsächlichen Scroll-
-/// Offsets der `ScrollView` um. `onScrollGeometryChange` (iOS 18+) liest den
-/// UIScrollView-`contentOffset` direkt und bleibt dadurch auch bei tief
-/// gescrolltem, teils entladenem `LazyVStack`-Inhalt zuverlässig aktuell —
-/// anders als ein `GeometryReader`/`PreferenceKey` in einem Lazy-Container,
-/// dessen Beitrag beim Entladen der Ursprungszeile stillschweigend auf den
-/// PreferenceKey-Default zurückfällt und den Titel wieder verschwinden lässt
-/// (so beobachtet beim ersten Anlauf dieser Funktion). Unter iOS 17 bleibt
-/// die große Wortmarke einfach durchgehend sichtbar statt zu kollabieren.
-private struct HomeScrollCollapseModifier: ViewModifier {
-    @Binding var showsCompactTitle: Bool
-
-    func body(content: Content) -> some View {
-        if #available(iOS 18.0, *) {
-            content.onScrollGeometryChange(for: CGFloat.self) { geometry in
-                geometry.contentOffset.y
-            } action: { _, offset in
-                showsCompactTitle = offset > 44
-            }
-        } else {
-            content
-        }
-    }
-}
-
 struct HomeView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @StateObject private var model: HomeViewModel
@@ -138,17 +113,13 @@ struct HomeView: View {
     @EnvironmentObject private var cityStore: CityStore
     private let contentRepository: any ContentRepository
     private let usesPreviewData: Bool
+    private let auth: AuthStore?
+    private let userRepository: UserRepository?
     @State private var collections: [EditorialCollection] = []
     @State private var categoryOrder: [HomeRecommendationCategory] = HomeRecommendationCategory.defaultOrder
     @State private var personDirectory: [DirectoryItem] = []
     @State private var ensembleDirectory: [DirectoryItem] = []
-    /// Nutzerwunsch: das große "Klangradar"-Wortmarke am Seitenanfang soll
-    /// beim Herunterscrollen zu einem KLEINEN, LINKSBÜNDIGEN Titel in der
-    /// Navigationsleiste werden statt (wie beim nativen `.large`-Titel)
-    /// zentriert zu erscheinen — dafür ersetzt ein eigener, scrollender
-    /// Header den System-Großtitel; dieser Wert steuert, ob stattdessen
-    /// schon der kompakte Titel oben links sichtbar ist.
-    @State private var showsCompactTitle = false
+    @State private var showsCoach = false
 
     init(
         repository: any EventRepository,
@@ -160,6 +131,8 @@ struct HomeView: View {
         _model = StateObject(wrappedValue: HomeViewModel(repository: repository, auth: auth, userRepository: userRepository))
         self.contentRepository = contentRepository
         self.usesPreviewData = usesPreviewData
+        self.auth = auth
+        self.userRepository = userRepository
     }
 
     var body: some View {
@@ -171,19 +144,36 @@ struct HomeView: View {
                 content
                     .frame(maxWidth: KlangradarTheme.contentMaxWidth)
             }
-            .navigationTitle("")
+            .overlay(alignment: .bottomTrailing) {
+                if auth != nil, userRepository != nil {
+                    Button {
+                        showsCoach = true
+                    } label: {
+                        Text("K")
+                            .font(.system(size: 24, weight: .black, design: .rounded))
+                            .foregroundStyle(.white)
+                            .frame(width: 58, height: 58)
+                            .background(
+                                LinearGradient(
+                                    colors: [KlangradarTheme.accent, KlangradarTheme.accent.opacity(0.72)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                in: Circle()
+                            )
+                            .overlay { Circle().stroke(.white.opacity(0.34), lineWidth: 1) }
+                            .shadow(color: KlangradarTheme.accent.opacity(0.32), radius: 14, y: 7)
+                    }
+                    .buttonStyle(CoachFloatingButtonStyle())
+                    .accessibilityLabel("Klangradar Coach öffnen")
+                    .accessibilityHint("Öffnet den persönlichen Coach in einer halbhohen Ansicht")
+                    .padding(.trailing, 18)
+                    .padding(.bottom, 18)
+                }
+            }
+            .navigationTitle("Klangradar")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                // .topBarLeading sitzt (anders als .principal) wirklich am
-                // linken Rand, iOS 26 umschließt seinen Inhalt dort aber
-                // automatisch mit einer Liquid-Glass-Kapsel (Button-Optik) —
-                // für einen reinen Titel unerwünscht (Nutzerfeedback).
-                // .sharedBackgroundVisibility(.hidden) ist die dafür
-                // vorgesehene Apple-API (iOS 26); auf iOS 17-25 zeigt dieser
-                // Titel ohnehin nicht auf (showsCompactTitle bleibt dort
-                // false, siehe HomeScrollCollapseModifier), daher kein
-                // Fallback nötig.
-                compactTitleToolbarContent
                 ToolbarItem(placement: .topBarTrailing) {
                     CityCompactMenu(cityStore: cityStore)
                 }
@@ -198,7 +188,6 @@ struct HomeView: View {
                 EntityDetailView(route: route, repository: contentRepository)
             }
             .task {
-                model.regionID = cityStore.selectedCity?.id
                 await model.load()
                 collections = (try? await contentRepository.collections()) ?? []
                 async let persons = contentRepository.directory(kind: .person)
@@ -208,9 +197,6 @@ struct HomeView: View {
             }
             .onAppear {
                 categoryOrder = HomeCategoryPreferences.order(for: model.currentUserID)
-            }
-            .onChange(of: cityStore.selectedCity) { _, newCity in
-                Task { await model.setRegion(newCity?.id) }
             }
             .onReceive(NotificationCenter.default.publisher(for: HomeCategoryPreferences.didChange)) { _ in
                 categoryOrder = HomeCategoryPreferences.order(for: model.currentUserID)
@@ -222,30 +208,22 @@ struct HomeView: View {
             .onChange(of: favorites.ids) { _, _ in
                 Task { await model.loadFavoriteEvents() }
             }
-        }
-    }
-
-    /// .topBarLeading sitzt (anders als .principal) wirklich am linken
-    /// Rand, iOS 26 umschließt seinen Inhalt dort aber automatisch mit
-    /// einer Liquid-Glass-Kapsel (Button-Optik) — für einen reinen Titel
-    /// unerwünscht (Nutzerfeedback). .sharedBackgroundVisibility(.hidden)
-    /// ist die dafür vorgesehene Apple-API (iOS 26); auf iOS 17-25 zeigt
-    /// dieser Titel ohnehin nicht auf (showsCompactTitle bleibt dort false,
-    /// siehe HomeScrollCollapseModifier), daher kein Fallback nötig. In eine
-    /// eigene @ToolbarContentBuilder-Property ausgelagert, weil der Compiler
-    /// den bedingten Toolbar-Inhalt sonst nicht mehr in vertretbarer Zeit
-    /// typprüfen konnte.
-    @ToolbarContentBuilder
-    private var compactTitleToolbarContent: some ToolbarContent {
-        if showsCompactTitle {
-            if #available(iOS 26.0, *) {
-                ToolbarItem(placement: .topBarLeading) {
-                    Text("Klangradar").font(.headline.bold()).fixedSize()
-                }
-                .sharedBackgroundVisibility(.hidden)
-            } else {
-                ToolbarItem(placement: .topBarLeading) {
-                    Text("Klangradar").font(.headline.bold()).fixedSize()
+            .sheet(isPresented: $showsCoach) {
+                if let auth, let userRepository {
+                    NavigationStack {
+                        KlangradarCoachView(
+                            auth: auth,
+                            repository: userRepository,
+                            eventRepository: model.repository,
+                            contentRepository: contentRepository,
+                            startsInChat: true,
+                            showsDismissButton: true
+                        )
+                    }
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
+                    .presentationCornerRadius(28)
+                    .presentationBackgroundInteraction(.enabled(upThrough: .medium))
                 }
             }
         }
@@ -272,8 +250,6 @@ struct HomeView: View {
         case let .loaded(events):
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 34) {
-                    homeWordmark
-
                     if usesPreviewData {
                         previewNotice
                     }
@@ -289,25 +265,11 @@ struct HomeView: View {
                         recommendationSection(category, events: events)
                     }
                 }
+                .padding(.top, 8)
                 .padding(.bottom, 110)
             }
-            .modifier(HomeScrollCollapseModifier(showsCompactTitle: $showsCompactTitle))
             .refreshable { await model.refresh() }
         }
-    }
-
-    /// Eigene, linksbündige "Klangradar"-Wortmarke statt des nativen
-    /// Großtitels — sitzt näher am oberen Rand (Nutzerfeedback: der
-    /// System-Großtitel saß spürbar zu weit unten) und wird beim
-    /// Herunterscrollen durch den kompakten Leading-Toolbar-Titel oben
-    /// abgelöst, statt UIKit-typisch zu einem zentrierten Titel zu
-    /// schrumpfen.
-    private var homeWordmark: some View {
-        Text("Klangradar")
-            .font(.largeTitle.bold())
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, KlangradarTheme.pagePadding)
-            .padding(.top, 2)
     }
 
     @ViewBuilder
@@ -353,7 +315,12 @@ struct HomeView: View {
                 lhs.matchesPersonalization(model.personalizedEntityIDs) && !rhs.matchesPersonalization(model.personalizedEntityIDs)
             })
         case .followed:
-            EventRail(title: category.title, events: followedEvents(from: events))
+            // Auch ältere gespeicherte Startseiten-Konfigurationen können
+            // noch die frühere Sammelkategorie „Gefolgt“ enthalten. Personen
+            // und Ensembles erscheinen darin nun ebenfalls als runde Profile
+            // statt wieder in rechteckige Veranstaltungskarten zurückzufallen.
+            EntityRail(title: "Gefolgte Personen", items: followedPersonDirectoryItems)
+            EntityRail(title: "Gefolgte Ensembles", items: followedEnsembleDirectoryItems)
         case .editorialCollections:
             if !collections.isEmpty { CollectionRail(collections: collections) }
         case .followedPersons:
@@ -508,6 +475,15 @@ struct HomeView: View {
         guard let saturday = calendar.date(byAdding: .day, value: daysUntilSaturday, to: today),
               let monday = calendar.date(byAdding: .day, value: 2, to: saturday) else { return false }
         return date >= saturday && date < monday
+    }
+}
+
+private struct CoachFloatingButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+            .opacity(configuration.isPressed ? 0.9 : 1)
+            .animation(.easeOut(duration: 0.14), value: configuration.isPressed)
     }
 }
 

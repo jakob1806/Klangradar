@@ -14,7 +14,7 @@ struct ProfileView: View {
     @EnvironmentObject private var cityStore: CityStore
     @State private var showsLogin = false
     @State private var hasEditorialAccess = false
-    @State private var showsMarketingShell = false
+    @State private var showsMarketingShell = ProcessInfo.processInfo.environment["KLANGRADAR_MARKETING_CAPTURE"] == "1"
 
     var body: some View {
         NavigationStack {
@@ -41,6 +41,16 @@ struct ProfileView: View {
                         MyKlangradarHubView(auth: auth, repository: userRepository)
                     } label: {
                         Label("Mein Klangradar", systemImage: "person.crop.rectangle.stack")
+                    }
+                    NavigationLink {
+                        KlangradarCoachView(
+                            auth: auth,
+                            repository: userRepository,
+                            eventRepository: eventRepository,
+                            contentRepository: contentRepository
+                        )
+                    } label: {
+                        Label("Klangradar Coach", systemImage: "wand.and.stars")
                     }
                     NavigationLink {
                         FavoriteEventsView(auth: auth, repository: userRepository, eventRepository: eventRepository, contentRepository: contentRepository)
@@ -397,6 +407,358 @@ private struct MyKlangradarHubView: View {
 
     @MainActor private func load() async { guard let repository, let token = auth.accessToken else { return }; stats = try? await repository.klangradarStats(token: token) }
 }
+
+
+struct KlangradarCoachView: View {
+    private enum Section: String, CaseIterable { case overview = "Heute", chat = "Coach fragen" }
+    private struct ChatMessage: Identifiable { let id = UUID(); let text: String; let user: Bool }
+
+    @ObservedObject var auth: AuthStore
+    let repository: UserRepository?
+    let eventRepository: any EventRepository
+    let contentRepository: any ContentRepository
+    private let showsDismissButton: Bool
+    @EnvironmentObject private var favorites: FavoriteStore
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var selectedSection: Section
+    @State private var dashboard: CoachDashboard?
+    @State private var conversationID: UUID?
+    @State private var messages: [ChatMessage] = [
+        .init(text: "Frag mich nach deinem Geschmack, deinen Gewohnheiten oder einem konkreten Konzertabend. Ich nutze nur belegbare Klangradar-Daten und sage dir, wenn ich dich noch nicht gut genug kenne.", user: false)
+    ]
+    @State private var events: [CoachEvent] = []
+    @State private var suggestedPrompts = ["Was passt dieses Wochenende zu mir?", "Erkläre mein Geschmacksprofil", "Plane einen Abend unter 50 €"]
+    @State private var memoryProposal: JSONObject?
+    @State private var goalProposal: JSONObject?
+    @State private var draft = ""
+    @State private var retryDraft: String?
+    @State private var isLoading = false
+    @State private var errorMessage: String?
+    @State private var showsCheckin = false
+
+    init(
+        auth: AuthStore,
+        repository: UserRepository?,
+        eventRepository: any EventRepository,
+        contentRepository: any ContentRepository,
+        startsInChat: Bool = false,
+        showsDismissButton: Bool = false
+    ) {
+        self.auth = auth
+        self.repository = repository
+        self.eventRepository = eventRepository
+        self.contentRepository = contentRepository
+        self.showsDismissButton = showsDismissButton
+        _selectedSection = State(initialValue: startsInChat ? .chat : .overview)
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Picker("Bereich", selection: $selectedSection) {
+                ForEach(Section.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal).padding(.bottom, 8)
+
+            switch selectedSection {
+            case .overview: overview
+            case .chat: chat
+            }
+        }
+        .background { KlangradarBackground().ignoresSafeArea() }
+        .navigationTitle("Klangradar Coach")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if showsDismissButton {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Fertig") { dismiss() }
+                        .fontWeight(.semibold)
+                }
+            }
+        }
+        .navigationDestination(for: ConcertEvent.self) { event in
+            EventDetailView(event: event, repository: eventRepository, contentRepository: contentRepository)
+        }
+        .sheet(isPresented: $showsCheckin) { CoachCheckinSheet(auth: auth, repository: repository) { await loadDashboard() } }
+        .task { await loadDashboard() }
+    }
+
+    private var overview: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 18) {
+                coachHeader
+                Button { showsCheckin = true } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "slider.horizontal.3").font(.title3)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Kurzer Check-in").font(.headline)
+                            Text(dashboard?.latestCheckin == nil ? "Stimmung, Energie, Zeit und Budget angeben" : "Aktuellen Abendkontext anpassen")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer(); Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(.tertiary)
+                    }.padding(16).background(.thinMaterial, in: .rect(cornerRadius: 20, style: .continuous))
+                }.buttonStyle(.plain)
+
+                if let dashboard {
+                    Text("Deine Coach-Linsen").font(.title2.bold())
+                    lensGrid(dashboard)
+                    if dashboard.signalQuality == "low" {
+                        Label("Ich lerne dich noch kennen. Empfehlungen basieren aktuell vor allem auf deinen bestätigten Interessen und gespeicherten Events.", systemImage: "info.circle")
+                            .font(.footnote).foregroundStyle(.secondary).padding(14).background(.thinMaterial, in: .rect(cornerRadius: 16))
+                    }
+                    if !dashboard.insights.isEmpty {
+                        Text("Für dich jetzt").font(.title2.bold()).padding(.top, 4)
+                        ForEach(dashboard.insights) { insight in insightCard(insight) }
+                    }
+                    if !dashboard.trends.isEmpty {
+                        Text("Beobachtete Zusammenhänge").font(.title2.bold()).padding(.top, 4)
+                        ForEach(Array(dashboard.trends.enumerated()), id: \.offset) { _, trend in trendCard(trend) }
+                    }
+                } else if isLoading { ProgressView("Coach-Daten werden ausgewertet …").frame(maxWidth: .infinity).padding(40) }
+                if let errorMessage { Text(errorMessage).font(.footnote).foregroundStyle(.red) }
+            }.padding().padding(.bottom, 80)
+        }
+        .refreshable { await loadDashboard() }
+    }
+
+    private var coachHeader: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack { Image(systemName: "sparkles").font(.title2); Spacer(); Text("PERSÖNLICHER KULTUR-COACH").font(.caption2.bold()).tracking(1) }
+            Text("Was passt heute zu dir?").font(.largeTitle.bold())
+            Text("Ich verbinde deinen Geschmack, deine Planung und deinen aktuellen Check-in – mit echten Veranstaltungen aus Klangradar.")
+                .font(.subheadline).foregroundStyle(.white.opacity(0.86))
+            Button("Coach fragen", systemImage: "bubble.left.and.bubble.right.fill") { withAnimation { selectedSection = .chat } }
+                .buttonStyle(.borderedProminent).tint(.white).foregroundStyle(KlangradarTheme.accent)
+        }.foregroundStyle(.white).padding(20)
+            .background(LinearGradient(colors: [KlangradarTheme.accent, KlangradarTheme.accent.opacity(0.68), .purple.opacity(0.72)], startPoint: .topLeading, endPoint: .bottomTrailing), in: .rect(cornerRadius: 26, style: .continuous))
+    }
+
+    private func lensGrid(_ value: CoachDashboard) -> some View {
+        LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 12) {
+            coachLens("Passung", "heart.text.square.fill", "\(value.knownPreferences) Präferenzen", "\(value.recentIntentSignals) starke aktuelle Signale")
+            coachLens("Kulturrhythmus", "calendar.badge.clock", "\(value.plannedEvents) geplant", "\(value.reflectedVisits) Besuche reflektiert")
+            coachLens("Entdeckung", "safari.fill", "\(value.recentViews) Ansichten", value.topGenres.isEmpty ? "Noch offen" : value.topGenres.prefix(2).joined(separator: " · "))
+            coachLens("Datengrundlage", "chart.bar.doc.horizontal.fill", value.signalQuality == "high" ? "Aussagekräftig" : value.signalQuality == "medium" ? "Im Aufbau" : "Lernphase", "Jede Aussage bleibt prüfbar")
+        }
+    }
+
+    private func coachLens(_ title: String, _ icon: String, _ value: String, _ detail: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Image(systemName: icon).foregroundStyle(KlangradarTheme.accent)
+            Text(title).font(.headline)
+            Text(value).font(.subheadline.weight(.semibold))
+            Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+        }.frame(maxWidth: .infinity, minHeight: 118, alignment: .leading).padding(15)
+            .background(.thinMaterial, in: .rect(cornerRadius: 20, style: .continuous))
+    }
+
+    private func insightCard(_ insight: CoachInsight) -> some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack { Image(systemName: insightIcon(insight.kind)).foregroundStyle(insight.priority >= 3 ? .orange : KlangradarTheme.accent); Text(insight.title).font(.headline); Spacer() }
+            Text(insight.body).font(.subheadline).foregroundStyle(.secondary)
+            if let action = insight.actions.first, action.string("type") == "ask_coach", let prompt = action.string("prompt") {
+                Button("Mit Coach planen") { draft = prompt; selectedSection = .chat; Task { await send() } }.buttonStyle(.bordered)
+            }
+        }.padding(16).background(.thinMaterial, in: .rect(cornerRadius: 20, style: .continuous))
+    }
+
+    private func trendCard(_ trend: JSONObject) -> some View {
+        let sample = trend.integer("sample_size") ?? 0
+        let rating = trend.number("avg_rating")
+        let energy = trend.number("avg_energy_change")
+        return VStack(alignment: .leading, spacing: 6) {
+            Text((trend.string("value") ?? "Muster").capitalized).font(.headline)
+            Text([rating.map { "Ø Bewertung \($0.formatted(.number.precision(.fractionLength(1))))/5" }, energy.map { "Energieveränderung \($0 >= 0 ? "+" : "")\($0.formatted(.number.precision(.fractionLength(1))))" }].compactMap { $0 }.joined(separator: " · "))
+                .font(.subheadline)
+            Text("Zusammenhang aus \(sample) Reflexionen – keine Kausalitätsaussage.").font(.caption).foregroundStyle(.secondary)
+        }.frame(maxWidth: .infinity, alignment: .leading).padding(16).background(.thinMaterial, in: .rect(cornerRadius: 18))
+    }
+
+    private var chat: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 13) {
+                    ForEach(messages) { message in
+                        HStack { if message.user { Spacer(minLength: 45) }; Text(message.text).padding(.horizontal, 14).padding(.vertical, 11).background(message.user ? KlangradarTheme.accent : Color(uiColor: .secondarySystemGroupedBackground)).foregroundStyle(message.user ? .white : .primary).clipShape(.rect(cornerRadius: 18, style: .continuous)); if !message.user { Spacer(minLength: 45) } }
+                    }
+                    ForEach(events) { event in coachEventCard(event) }
+                    if let proposal = memoryProposal { proposalCard("Soll ich mir das merken?", proposal, action: "confirm_memory") }
+                    if let proposal = goalProposal { proposalCard("Dieses Ziel übernehmen?", proposal, action: "confirm_goal") }
+                    if isLoading { ProgressView("Coach denkt mit deinen Daten …").frame(maxWidth: .infinity).padding() }
+                    if let errorMessage {
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: "exclamationmark.circle.fill").foregroundStyle(.orange)
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(errorMessage).font(.subheadline)
+                                if let retryDraft {
+                                    Button("Erneut versuchen") {
+                                        draft = retryDraft
+                                        Task { await send() }
+                                    }
+                                    .font(.subheadline.weight(.semibold))
+                                }
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(14)
+                        .background(Color.orange.opacity(0.1), in: .rect(cornerRadius: 16, style: .continuous))
+                    }
+                    Color.clear.frame(height: 1).id("coach-bottom")
+                }.padding()
+            }
+            .safeAreaInset(edge: .bottom) {
+                VStack(spacing: 10) {
+                    if !suggestedPrompts.isEmpty {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(suggestedPrompts, id: \.self) { prompt in
+                                    Button(prompt) { draft = prompt; Task { await send() } }
+                                        .buttonStyle(.bordered)
+                                        .buttonBorderShape(.capsule)
+                                }
+                            }
+                            .padding(.horizontal, 16)
+                        }
+                    }
+                    HStack(alignment: .bottom, spacing: 10) {
+                        TextField("Nachricht an deinen Coach", text: $draft, axis: .vertical)
+                            .font(.body)
+                            .lineLimit(1...5)
+                            .submitLabel(.send)
+                            .onSubmit { Task { await send() } }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 13)
+                            .frame(minHeight: 50)
+                            .background(Color(uiColor: .secondarySystemBackground), in: .rect(cornerRadius: 22, style: .continuous))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                                    .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                            }
+
+                        Button { Task { await send() } } label: {
+                            Image(systemName: "arrow.up")
+                                .font(.system(size: 17, weight: .bold))
+                                .foregroundStyle(.white)
+                                .frame(width: 50, height: 50)
+                                .background(KlangradarTheme.accent, in: Circle())
+                        }
+                        .buttonStyle(CoachSendButtonStyle())
+                        .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLoading)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.bottom, 10)
+                }
+                .padding(.top, 10)
+                .background(.ultraThinMaterial)
+                .overlay(alignment: .top) { Divider().opacity(0.45) }
+            }
+            .onChange(of: messages.count) { _, _ in withAnimation { proxy.scrollTo("coach-bottom") } }
+        }
+    }
+
+    private func coachEventCard(_ event: CoachEvent) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            NavigationLink(value: event.concertEvent) { VStack(alignment: .leading, spacing: 4) {
+                Text(event.startDate.map { KlangradarDateTime.string($0, format: "EEE, d. MMM · HH:mm") } ?? "Termin folgt").font(.caption.bold()).foregroundStyle(KlangradarTheme.accent)
+                Text(event.title).font(.headline).foregroundStyle(.primary); Text(event.venueName).font(.subheadline).foregroundStyle(.secondary)
+            }.frame(maxWidth: .infinity, alignment: .leading) }
+            if !event.reasons.isEmpty { Text(event.reasons.joined(separator: " · ")).font(.caption).foregroundStyle(.secondary) }
+            HStack {
+                Button(favorites.ids.contains(event.id) ? "Gespeichert" : "Speichern", systemImage: favorites.ids.contains(event.id) ? "heart.fill" : "heart") { Task { await favorites.toggle(event.id) } }.buttonStyle(.bordered)
+                if let url = event.ticketURL { Link(destination: url) { Label("Tickets", systemImage: "ticket") }.buttonStyle(.borderedProminent) }
+            }
+        }.padding(15).background(.thinMaterial, in: .rect(cornerRadius: 20, style: .continuous))
+    }
+
+    private func proposalCard(_ title: String, _ proposal: JSONObject, action: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title).font(.headline); Text(proposal.string("label") ?? proposal.string("title") ?? "Persönliche Einstellung").font(.subheadline).foregroundStyle(.secondary)
+            HStack { Button("Übernehmen") { Task { await confirm(proposal, action: action) } }.buttonStyle(.borderedProminent); Button("Nicht jetzt") { if action == "confirm_memory" { memoryProposal = nil } else { goalProposal = nil } }.buttonStyle(.bordered) }
+        }.padding(15).background(Color.orange.opacity(0.1), in: .rect(cornerRadius: 18))
+    }
+
+    @MainActor private func loadDashboard() async {
+        guard let repository, let token = auth.accessToken else { errorMessage = "Bitte melde dich an, damit der Coach deine Daten sicher verwenden kann."; return }
+        isLoading = true; defer { isLoading = false }
+        do { dashboard = try await repository.coachDashboard(token: token); errorMessage = nil } catch { errorMessage = coachErrorDescription(error) }
+    }
+
+    @MainActor private func send() async {
+        let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, !isLoading, let repository, let token = auth.accessToken else { return }
+        draft = ""; retryDraft = text; isLoading = true; errorMessage = nil; messages.append(.init(text: text, user: true)); memoryProposal = nil; goalProposal = nil
+        defer { isLoading = false }
+        do {
+            let reply = try await repository.askCoach(message: text, conversationID: conversationID, token: token)
+            conversationID = reply.conversationID; messages.append(.init(text: reply.answer, user: false)); events = reply.events
+            memoryProposal = reply.memoryProposal; goalProposal = reply.goalProposal; suggestedPrompts = reply.suggestedPrompts; retryDraft = nil
+        } catch { errorMessage = coachErrorDescription(error) }
+    }
+
+    @MainActor private func confirm(_ proposal: JSONObject, action: String) async {
+        guard let repository, let token = auth.accessToken else { return }
+        do { try await repository.confirmCoachProposal(proposal, kind: action, token: token); if action == "confirm_memory" { memoryProposal = nil } else { goalProposal = nil }; messages.append(.init(text: action == "confirm_memory" ? "Gespeichert. Du kannst diese Erinnerung jederzeit in Mein Klangradar ändern oder löschen." : "Ziel übernommen. Ich berücksichtige es künftig in Planung und Check-ins.", user: false)); await loadDashboard() } catch { errorMessage = coachErrorDescription(error) }
+    }
+
+    private func insightIcon(_ kind: String) -> String { switch kind { case "ticket": "ticket.fill"; case "goal": "target"; case "trend": "chart.line.uptrend.xyaxis"; case "reflection": "quote.bubble.fill"; case "discovery": "safari.fill"; default: "calendar.badge.clock" } }
+
+    private func coachErrorDescription(_ error: Error) -> String {
+        guard let apiError = error as? APIError else {
+            return "Der Coach ist gerade nicht erreichbar. Prüfe deine Verbindung und versuche es erneut."
+        }
+        switch apiError {
+        case .httpStatus(401, _):
+            return "Deine Anmeldung ist abgelaufen. Melde dich bitte erneut an."
+        case .httpStatus(404, _):
+            return "Der Coach wird gerade aktualisiert. Bitte versuche es gleich noch einmal."
+        case .httpStatus(let status, _) where status >= 500:
+            return "Der Coach braucht gerade etwas länger. Bitte versuche es gleich noch einmal."
+        default:
+            return apiError.localizedDescription
+        }
+    }
+}
+
+private struct CoachSendButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(isEnabled ? (configuration.isPressed ? 0.82 : 1) : 0.3)
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+            .animation(.easeOut(duration: 0.14), value: configuration.isPressed)
+    }
+}
+
+private struct CoachCheckinSheet: View {
+    @ObservedObject var auth: AuthStore
+    let repository: UserRepository?
+    let onSaved: () async -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var mood = "curious"
+    @State private var energy = 3
+    @State private var minutes = 150
+    @State private var budget = 50.0
+    @State private var companion = "alone"
+    @State private var isSaving = false
+    private let moods = [("calm","Ruhig","leaf"),("curious","Neugierig","sparkles"),("romantic","Romantisch","heart"),("social","Gesellig","person.2"),("adventurous","Abenteuerlustig","safari")]
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Wie ist dir heute?") { ScrollView(.horizontal, showsIndicators: false) { HStack { ForEach(moods, id: \.0) { value, label, icon in Button { mood = value } label: { Label(label, systemImage: icon).padding(.horizontal, 10).padding(.vertical, 8).background(mood == value ? KlangradarTheme.accent : Color.secondary.opacity(0.12), in: .capsule).foregroundStyle(mood == value ? .white : .primary) }.buttonStyle(.plain) } } } }
+                Section("Energie") { Picker("Energie", selection: $energy) { ForEach(1...5, id: \.self) { Text("\($0)").tag($0) } }.pickerStyle(.segmented) }
+                Section("Rahmen") { Stepper("Zeit: \(minutes) Minuten", value: $minutes, in: 30...480, step: 30); Stepper("Budget: \(Int(budget)) €", value: $budget, in: 0...500, step: 10); Picker("Begleitung", selection: $companion) { Text("Allein").tag("alone"); Text("Partner:in").tag("partner"); Text("Freunde").tag("friends"); Text("Familie").tag("family"); Text("Kinder").tag("children") } }
+            }
+            .navigationTitle("Kurzer Check-in").navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }; ToolbarItem(placement: .confirmationAction) { Button(isSaving ? "Speichert …" : "Fertig") { Task { await save() } }.disabled(isSaving) } }
+        }
+    }
+
+    @MainActor private func save() async { guard let repository, let token = auth.accessToken else { return }; isSaving = true; defer { isSaving = false }; do { try await repository.coachCheckin(mood: mood, energy: energy, minutes: minutes, budget: budget, companion: companion, token: token); await onSaved(); dismiss() } catch { } }
+}
+
 
 private struct AccentColorSettingsView: View {
     private struct AccentOption: Identifiable {

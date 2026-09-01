@@ -11,6 +11,7 @@ struct EventDetailView: View {
     @State private var loadError: String?
     @State private var fullScreenImage: FullScreenImageReference?
     @State private var showsAllOtherDates = false
+    @State private var showsAllParticipants = false
     @EnvironmentObject private var favorites: FavoriteStore
     @EnvironmentObject private var genreFilter: GenreFilterRouter
     @Environment(\.dismiss) private var dismiss
@@ -437,23 +438,44 @@ struct EventDetailView: View {
 
     @ViewBuilder private func participants(_ value: JSONObject) -> some View {
         let rows = value.objects("event_participants")
+        let compactLimit = 6
+        let visibleRows = showsAllParticipants ? rows : Array(rows.prefix(compactLimit))
         if !rows.isEmpty {
             section("Mitwirkende") {
-                LiquidGlassSurface(cornerRadius: 22) {
-                    VStack(spacing: 0) {
-                        ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
-                            if let participant = participantEntity(row), let route = entityRoute(from: participant.value, kind: participant.kind) {
-                                NavigationLink {
-                                    EntityDetailView(route: route, repository: contentRepository)
-                                } label: {
+                VStack(spacing: 12) {
+                    LiquidGlassSurface(cornerRadius: 22) {
+                        VStack(spacing: 0) {
+                            ForEach(Array(visibleRows.enumerated()), id: \.offset) { index, row in
+                                if let participant = participantEntity(row), let route = entityRoute(from: participant.value, kind: participant.kind) {
+                                    NavigationLink {
+                                        EntityDetailView(route: route, repository: contentRepository)
+                                    } label: {
+                                        participantLabel(row, participant: participant)
+                                    }
+                                    .buttonStyle(.plain)
+                                } else if let participant = participantEntity(row) {
                                     participantLabel(row, participant: participant)
                                 }
-                                .buttonStyle(.plain)
-                            } else if let participant = participantEntity(row) {
-                                participantLabel(row, participant: participant)
+                                if index < visibleRows.count - 1 { Divider().padding(.leading, 56) }
                             }
-                            if index < rows.count - 1 { Divider().padding(.leading, 56) }
                         }
+                    }
+
+                    if rows.count > compactLimit {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.24)) {
+                                showsAllParticipants.toggle()
+                            }
+                        } label: {
+                            Label(
+                                showsAllParticipants ? "Weniger anzeigen" : "Alle \(rows.count) Mitwirkenden anzeigen",
+                                systemImage: showsAllParticipants ? "chevron.up" : "chevron.down"
+                            )
+                            .font(.subheadline.weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.large)
                     }
                 }
             }

@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Eigenständige Tab-Leiste für Marketing-Screenshots: „Home" und „Suche"
 /// zeigen die frei editierbaren Nachbauten (`MarketingHomeScreenView`,
@@ -23,11 +24,11 @@ struct MarketingAppShellView: View {
     let eventRepository: any EventRepository
     let contentRepository: any ContentRepository
     let usesPreviewData: Bool
-
     @Environment(\.dismiss) private var dismiss
     @State private var selection: MarketingTab = .home
     @State private var isPresentationMode = false
     @State private var availableEvents: [ConcertEvent] = []
+    @State private var eventsLoadError: String?
     @StateObject private var marketingContent = MarketingContentStore()
     // Von SearchView/EventCard/EntityDetailView usw. per @EnvironmentObject
     // erwartet — dieselben Stores wie in RootTabView, sonst crasht das
@@ -106,41 +107,10 @@ struct MarketingAppShellView: View {
             }
 
             if !isPresentationMode {
-                // Nutzerfeedback: das X lag oben rechts genau über dem
-                // "Bearbeiten"-Stift der Live-Tabs (Home/Suche-Toolbar,
-                // ebenfalls top-trailing) und verdeckte ihn. Bewusst links
-                // statt rechts, damit beide Werkzeuge während des
-                // Vorbereitens gleichzeitig erreichbar bleiben.
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.title2)
-                        .symbolRenderingMode(.palette)
-                        .foregroundStyle(.secondary, Color(.systemBackground).opacity(0.85))
-                }
-                .padding(12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .accessibilityLabel("Marketing-Vorschau schließen")
-            }
-
-            // Im fertigen Aufnahmezustand bleibt die gesamte Oberfläche frei
-            // von Werkzeugen. Ein bewusster Doppeltipp auf Home ist der
-            // einzige Ausstieg und wird nicht versehentlich in einer Aufnahme
-            // ausgelöst.
-            if isPresentationMode {
-                VStack {
-                    Spacer()
-                    HStack {
-                        Color.clear
-                            .frame(width: 88, height: 54)
-                            .contentShape(.rect)
-                            .onTapGesture(count: 2) { dismiss() }
-                        Spacer()
-                    }
-                }
-                .ignoresSafeArea(edges: .bottom)
-                .accessibilityLabel("Marketing-Vorschau per Doppeltipp auf Home schließen")
+                preparationBar
+            } else {
+                MarketingHomeTabDoubleTapObserver { dismiss() }
+                    .allowsHitTesting(false)
             }
         }
         .environmentObject(favorites)
@@ -164,11 +134,103 @@ struct MarketingAppShellView: View {
     // Redaktions-Vorschau geladen wird, nicht im echten Nutzerfluss.
     @MainActor
     private func loadAvailableEvents() async {
-        guard let events = try? await eventRepository.allUpcomingEvents() else { return }
-        availableEvents = (try? await eventRepository.enrichingImages(in: events)) ?? events
+        eventsLoadError = nil
+        do {
+            let events = try await eventRepository.allUpcomingEvents()
+            availableEvents = (try? await eventRepository.enrichingImages(in: events)) ?? events
+        } catch {
+            eventsLoadError = "Echte Veranstaltungen konnten nicht geladen werden."
+        }
+    }
+
+    private var preparationBar: some View {
+        VStack {
+            Spacer()
+            HStack(spacing: 12) {
+                Button(role: .cancel) { dismiss() } label: {
+                    Label("Schließen", systemImage: "xmark")
+                }
+                .buttonStyle(.bordered)
+
+                Spacer()
+
+                if let eventsLoadError {
+                    Text(eventsLoadError)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+
+                Button {
+                    isPresentationMode = true
+                } label: {
+                    Label("Fertig", systemImage: "checkmark")
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            .padding(12)
+            .background(.ultraThinMaterial, in: .rect(cornerRadius: 18))
+            .shadow(color: .black.opacity(0.14), radius: 16, y: 6)
+            .padding(.horizontal, 14)
+            .padding(.bottom, 58)
+        }
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+        .accessibilityElement(children: .contain)
     }
 }
 
 private enum MarketingTab: Hashable {
     case home, search, map, calendar, profile
+}
+
+/// Beobachtet einen Doppeltipp auf das echte Home-Tab-Bar-Element, ohne
+/// dessen normale Einzeltipp-Navigation zu blockieren. Ein transparentes
+/// SwiftUI-Overlay würde den Home-Tab sonst unbedienbar machen.
+private struct MarketingHomeTabDoubleTapObserver: UIViewControllerRepresentable {
+    let onDoubleTap: () -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(onDoubleTap: onDoubleTap) }
+
+    func makeUIViewController(context: Context) -> UIViewController {
+        let controller = UIViewController()
+        controller.view.isUserInteractionEnabled = false
+        DispatchQueue.main.async { context.coordinator.attach(from: controller) }
+        return controller
+    }
+
+    func updateUIViewController(_ controller: UIViewController, context: Context) {
+        context.coordinator.onDoubleTap = onDoubleTap
+        DispatchQueue.main.async { context.coordinator.attach(from: controller) }
+    }
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        var onDoubleTap: () -> Void
+        private weak var tabBar: UITabBar?
+        private var recognizer: UITapGestureRecognizer?
+
+        init(onDoubleTap: @escaping () -> Void) { self.onDoubleTap = onDoubleTap }
+
+        func attach(from controller: UIViewController) {
+            guard let tabBar = controller.tabBarController?.tabBar, self.tabBar !== tabBar else { return }
+            if let recognizer, let oldTabBar = self.tabBar { oldTabBar.removeGestureRecognizer(recognizer) }
+            let recognizer = UITapGestureRecognizer(target: self, action: #selector(didDoubleTap(_:)))
+            recognizer.numberOfTapsRequired = 2
+            recognizer.cancelsTouchesInView = false
+            recognizer.delegate = self
+            tabBar.addGestureRecognizer(recognizer)
+            self.tabBar = tabBar
+            self.recognizer = recognizer
+        }
+
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+            guard let tabBar, let itemCount = tabBar.items?.count, itemCount > 0 else { return false }
+            let location = touch.location(in: tabBar)
+            return location.x >= 0 && location.x <= tabBar.bounds.width / CGFloat(itemCount)
+        }
+
+        @objc private func didDoubleTap(_ recognizer: UITapGestureRecognizer) {
+            guard recognizer.state == .ended else { return }
+            onDoubleTap()
+        }
+    }
 }

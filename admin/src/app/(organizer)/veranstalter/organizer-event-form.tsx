@@ -94,12 +94,16 @@ export function OrganizerEventForm({
   organizers,
   genres,
   initialImageUrl,
+  organizerLocked = false,
+  organizerLockedName,
 }: {
   action: (formData: FormData) => Promise<{ error?: string }>;
   initial?: OrganizerEventFormValues;
   organizers: { id: string; name: string }[];
   genres: { id: string; label_de: string }[];
   initialImageUrl?: string | null;
+  organizerLocked?: boolean;
+  organizerLockedName?: string | null;
 }) {
   const [slug, setSlug] = useState(initial?.slug ?? "");
   const [slugTouched, setSlugTouched] = useState(Boolean(initial));
@@ -194,7 +198,13 @@ export function OrganizerEventForm({
         Mit Pause
       </label>
 
-      {organizers.length > 1 ? (
+      {organizerLocked ? (
+        <div className="rounded-xl bg-[#f1ede5] px-4 py-3">
+          <input type="hidden" name="organizer_id" value={initial?.organizer_id ?? ""} />
+          <p className="text-xs font-semibold text-[#5f5b56]">Veranstalter bleibt unverändert</p>
+          <p className="mt-1 text-sm text-[#292825]">{organizerLockedName ?? "Bestehender Veranstalter"}</p>
+        </div>
+      ) : organizers.length > 1 ? (
         <OrganizerPicker organizers={organizers} initial={initial?.organizer_id} />
       ) : (
         <input type="hidden" name="organizer_id" value={initial?.organizer_id ?? organizers[0]?.id ?? ""} />

@@ -7,43 +7,37 @@ import SwiftUI
 struct CitySwitcherView: View {
     @ObservedObject var cityStore: CityStore
     var allowsAllCities = false
-    /// Nutzerwunsch: unter Profil soll die Stadtauswahl als eigene, volle
-    /// Seite gepusht statt als Sheet präsentiert werden — Home/Suche/
-    /// Kalender bleiben unverändert beim Sheet über `CityCompactMenu`.
-    /// Ein zweites eigenes `NavigationStack` innerhalb eines Push-Ziels
-    /// würde die Navigationsleiste des Profil-Stacks duplizieren, deshalb
-    /// wird der Wrapper nur im Sheet-Fall gebraucht.
     var embedsNavigationStack = true
     @Environment(\.dismiss) private var dismiss
 
     @State private var isLocating = false
     @State private var locationError: String?
 
+    @ViewBuilder
     var body: some View {
-        Group {
-            if embedsNavigationStack {
-                NavigationStack { pageContent }
-            } else {
-                pageContent
-            }
+        if embedsNavigationStack {
+            NavigationStack { content }
+        } else {
+            content
         }
-        .task { if cityStore.activeCities.isEmpty { await cityStore.load() } }
     }
 
-    private var pageContent: some View {
+    private var content: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 24) {
                 cityHeader
 
-                ForEach(cityStore.activeCities) { city in
-                    cityRow(
-                        name: city.name,
-                        subtitle: countryLabel(for: city),
-                        isSelected: cityStore.selectedCity?.id == city.id
-                    ) { cityStore.select(city) }
+                LazyVStack(spacing: 12) {
+                    ForEach(displayCities) { city in
+                        cityRow(
+                            name: city.name,
+                            subtitle: countryLabel(for: city),
+                            isSelected: cityStore.selectedCity?.id == city.id
+                        ) { cityStore.select(city) }
+                    }
                 }
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, 24)
             .padding(.bottom, 36)
         }
         .background(KlangradarBackground().ignoresSafeArea())
@@ -55,12 +49,15 @@ struct CitySwitcherView: View {
             }
         }
         .toolbarBackground(.hidden, for: .navigationBar)
+        .navigationTitle(embedsNavigationStack ? "" : "Stadt wechseln")
+        .navigationBarTitleDisplayMode(.inline)
+        .task { if cityStore.activeCities.isEmpty { await cityStore.load() } }
     }
 
     private var cityHeader: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 18) {
             Image(systemName: "music.note.house.fill")
-                .font(.system(size: 36, weight: .semibold))
+                .font(.system(size: 40, weight: .semibold))
                 .foregroundStyle(KlangradarTheme.accent)
 
             Text("Stadt wechseln")
@@ -72,12 +69,12 @@ struct CitySwitcherView: View {
             Button {
                 Task { await recommendByLocation() }
             } label: {
-                HStack(spacing: 8) {
+                HStack(spacing: 12) {
                     Image(systemName: "location.north.fill")
-                        .rotationEffect(.degrees(28))
+                        .rotationEffect(.degrees(38))
                     Text(isLocating ? "Standort wird bestimmt …" : "Stadt anhand meines Standorts empfehlen")
                 }
-                .font(.subheadline.weight(.semibold))
+                .font(.body)
                 .frame(maxWidth: .infinity)
                 .frame(height: 52)
             }
@@ -90,7 +87,7 @@ struct CitySwitcherView: View {
                 Text(locationError).font(.footnote).foregroundStyle(.red)
             }
         }
-        .padding(.top, 14)
+        .padding(.top, 38)
     }
 
     private func cityRow(name: String, subtitle: String?, isSelected: Bool, action: @escaping () -> Void) -> some View {
@@ -107,13 +104,23 @@ struct CitySwitcherView: View {
                 }
                 Spacer()
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 14)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 16)
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
-        .background(.white.opacity(0.44), in: .rect(cornerRadius: 18))
+        .background(.white.opacity(0.44), in: .rect(cornerRadius: 24))
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+    }
+
+    private var displayCities: [RegionOption] {
+        let order = ["München", "Berlin", "Hamburg", "Wien", "Frankfurt am Main"]
+        return cityStore.activeCities.sorted { left, right in
+            let leftIndex = order.firstIndex(of: left.name) ?? order.count
+            let rightIndex = order.firstIndex(of: right.name) ?? order.count
+            if leftIndex == rightIndex { return left.name.localizedStandardCompare(right.name) == .orderedAscending }
+            return leftIndex < rightIndex
+        }
     }
 
     /// Deutschland-Städte bekommen keinen Zusatz (überwiegende Mehrheit),
@@ -156,10 +163,8 @@ struct CityCompactMenu: View {
             if isMapMenu {
                 mapMenu
             } else {
-                // Kein .buttonStyle(.plain): das würde die automatische
-                // native Liquid-Glass-Kapsel unterdrücken, die iOS 26 für
-                // ToolbarItem-Inhalte selbst zeichnet.
                 Button { showsCitySwitcher = true } label: { chipLabel }
+                    .buttonStyle(.plain)
             }
         }
         .sheet(isPresented: $showsCitySwitcher) {
@@ -195,44 +200,44 @@ struct CityCompactMenu: View {
         } label: { chipLabel }
     }
 
-    // In der Toolbar (ToolbarItem(.topBarTrailing)) braucht der Chip keinen
-    // eigenen Hintergrund -- iOS 26 zeichnet dort bereits automatisch
-    // natives Liquid Glass, ein zusätzlicher wirkte wie "Glas im Glas". Auf
-    // der Karte sitzt derselbe Chip aber in einem einfachen `.overlay`
-    // (kein Toolbar-Kontext), bekam dadurch nie einen Hintergrund und wirkte
-    // neben dem "Filter"-Button zu durchsichtig (Nutzerfeedback) -- deshalb
-    // dort explizit dasselbe `.regularMaterial` wie der Filter-Button.
+    @ViewBuilder
     private var chipLabel: some View {
+        if #available(iOS 26.0, *) {
+            chipContent
+        } else {
+            chipContent
+                .background(.ultraThinMaterial, in: .capsule)
+                .overlay { Capsule().stroke(.white.opacity(0.7), lineWidth: 1) }
+        }
+    }
+
+    private var chipContent: some View {
         HStack(spacing: 6) {
             Image(systemName: "location.north.fill")
                 .rotationEffect(.degrees(28))
-                .font(.caption)
             Text(cityStore.selectedCity?.name ?? (allowsAllCities ? "Alle Städte" : "Stadt"))
             Image(systemName: "chevron.down")
                 .font(.caption2.weight(.bold))
         }
-        .font(.subheadline.weight(.semibold))
+        .font(.headline.weight(.semibold))
         .foregroundStyle(KlangradarTheme.accent)
-        .padding(.horizontal, 12)
-        .frame(height: 34)
-        .background {
-            if isMapMenu { Capsule().fill(.regularMaterial) }
-        }
+        .padding(.horizontal, 14)
+        .frame(height: 44)
     }
 
-    // Native UIMenu ignoriert `.opacity(0)` auf verschachtelten Images beim
-    // Konvertieren von SwiftUI-Buttons zu UIMenuElements -- ein "unsichtbarer"
-    // Haken wurde dadurch für ALLE Zeilen sichtbar gerendert. Das Icon daher
-    // nur einbauen, wenn die Zeile wirklich ausgewählt ist.
     @ViewBuilder
     private func menuLabel(
         _ title: String,
         selected: Bool,
         showsSelectionIndicator: Bool
     ) -> some View {
-        if showsSelectionIndicator && selected {
-            Label(title, systemImage: "checkmark")
-        } else {
+        HStack(spacing: 10) {
+            // Einen festen Platz reservieren: Der Haken steht in der Karte
+            // wirklich links vom Text und lässt die Zeilen beim Wechsel nicht
+            // hin- und herspringen.
+            Image(systemName: "checkmark")
+                .font(.body.weight(.bold))
+                .opacity(showsSelectionIndicator && selected ? 1 : 0)
             Text(title)
         }
     }

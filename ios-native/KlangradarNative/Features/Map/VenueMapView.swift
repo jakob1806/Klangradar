@@ -231,9 +231,10 @@ private struct VenuePreviewSheet: View {
     let eventRepository: any EventRepository
     @State private var events: [ConcertEvent] = []
     @State private var venueImageURL: URL?
+    @State private var navigationPath: [ConcertEvent] = []
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $navigationPath) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     AsyncImage(url: venueImageURL) { image in
@@ -259,7 +260,9 @@ private struct VenuePreviewSheet: View {
 
                     if !events.isEmpty { Text("Nächste Konzerte").font(.headline) }
                     ForEach(events.prefix(3)) { event in
-                        NavigationLink(value: event) {
+                        Button {
+                            navigationPath.append(event)
+                        } label: {
                             HStack(spacing: 12) {
                                 EventArtwork(event: event).frame(width: 48, height: 48).clipped().clipShape(.rect(cornerRadius: 10))
                                 VStack(alignment: .leading, spacing: 3) {
@@ -268,7 +271,8 @@ private struct VenuePreviewSheet: View {
                                 }
                                 Spacer(); Image(systemName: "chevron.right").foregroundStyle(.tertiary)
                             }
-                        }.buttonStyle(.plain)
+                        }
+                        .buttonStyle(.plain)
                     }
 
                     HStack {

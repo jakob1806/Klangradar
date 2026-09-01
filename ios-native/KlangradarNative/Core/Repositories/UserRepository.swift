@@ -39,6 +39,10 @@ struct RegionOption: Identifiable, Hashable, Sendable {
     var longitude: Double? = nil
 }
 
+// Zwei unabhängig entstandene, nicht überlappende Assistenz-Features
+// (unterschiedliche Edge Functions "personal-concierge" vs.
+// "klangradar-coach") -- beide behalten, da sie unterschiedliche Zwecke
+// verfolgen (Orts-/Ticket-Chat vs. Stimmungs-Check-in-Coaching).
 struct PersonalConciergeResult: Sendable {
     let conversationID: UUID
     let message: String
@@ -90,6 +94,64 @@ struct KlangradarStats: Sendable {
     let followedEnsembles: Int
     let followedVenues: Int
     let followedWorks: Int
+}
+
+struct CoachInsight: Identifiable, Hashable, Sendable {
+    let id: String
+    let kind: String
+    let title: String
+    let body: String
+    let priority: Int
+    let actions: [JSONObject]
+}
+
+struct CoachDashboard: Sendable {
+    let signalQuality: String
+    let knownPreferences: Int
+    let recentIntentSignals: Int
+    let plannedEvents: Int
+    let reflectedVisits: Int
+    let savedEvents: Int
+    let recentViews: Int
+    let topGenres: [String]
+    let latestCheckin: JSONObject?
+    let insights: [CoachInsight]
+    let trends: [JSONObject]
+}
+
+struct CoachEvent: Identifiable, Hashable, Sendable {
+    let id: UUID
+    let slug: String
+    let title: String
+    let subtitle: String?
+    let startDate: Date?
+    let venueID: UUID?
+    let venueName: String
+    let priceMin: Double?
+    let isFree: Bool
+    let ticketURL: URL?
+    let reasons: [String]
+
+    var concertEvent: ConcertEvent {
+        ConcertEvent(
+            id: id, slug: slug, title: title, subtitle: subtitle,
+            startDatetime: startDate.map { ISO8601DateFormatter().string(from: $0) } ?? ISO8601DateFormatter().string(from: .now),
+            imageUrls: nil, status: "scheduled",
+            venues: venueID.map { VenueSummary(id: $0, name: venueName) },
+            isFree: isFree
+        )
+    }
+}
+
+struct CoachReply: Sendable {
+    let conversationID: UUID?
+    let answer: String
+    let events: [CoachEvent]
+    let actions: [JSONObject]
+    let memoryProposal: JSONObject?
+    let goalProposal: JSONObject?
+    let suggestedPrompts: [String]
+    let provider: String
 }
 
 struct UserRepository: Sendable {
@@ -145,6 +207,67 @@ struct UserRepository: Sendable {
             followedEnsembles: Int(row.number("followed_ensembles") ?? 0), followedVenues: Int(row.number("followed_venues") ?? 0),
             followedWorks: Int(row.number("followed_works") ?? 0)
         )
+    }
+
+    func coachDashboard(token: String) async throws -> CoachDashboard {
+        let response: JSONObject = try await client.edgeFunction("klangradar-coach", body: ["action": .string("dashboard")], accessToken: token)
+        let context = response.object("context") ?? [:]
+        let lenses = context.object("coach_lenses") ?? [:]
+        let fit = lenses.object("fit") ?? [:]
+        let rhythm = lenses.object("rhythm") ?? [:]
+        let discovery = lenses.object("discovery") ?? [:]
+        let topGenres = discovery.objects("top_genres").compactMap { $0.string("name") }
+        return CoachDashboard(
+            signalQuality: context.string("signal_quality") ?? "low",
+            knownPreferences: fit.integer("known_preferences") ?? 0,
+            recentIntentSignals: fit.integer("recent_intent_signals") ?? 0,
+            plannedEvents: rhythm.integer("planned") ?? 0,
+            reflectedVisits: rhythm.integer("reflected_visits") ?? 0,
+            savedEvents: rhythm.integer("saved") ?? 0,
+            recentViews: discovery.integer("recent_views") ?? 0,
+            topGenres: topGenres,
+            latestCheckin: context.object("latest_checkin"),
+            insights: response.objects("insights").compactMap { row in
+                guard let title = row.string("title"), let body = row.string("body") else { return nil }
+                return CoachInsight(id: row.string("id") ?? row.string("fingerprint") ?? UUID().uuidString, kind: row.string("kind") ?? "planning", title: title, body: body, priority: row.integer("priority") ?? 0, actions: row.objects("actions"))
+            },
+            trends: response.objects("trends")
+        )
+    }
+
+    func coachCheckin(mood: String, energy: Int, minutes: Int?, budget: Double?, companion: String?, token: String) async throws {
+        var body: JSONObject = ["action": .string("checkin"), "mood": .string(mood), "energy": .number(Double(energy))]
+        body["available_minutes"] = minutes.map { .number(Double($0)) } ?? .null
+        body["budget"] = budget.map(JSONValue.number) ?? .null
+        body["companion"] = companion.map(JSONValue.string) ?? .null
+        let _: JSONObject = try await client.edgeFunction("klangradar-coach", body: body, accessToken: token)
+    }
+
+    func askCoach(message: String, conversationID: UUID?, token: String) async throws -> CoachReply {
+        var body: JSONObject = ["action": .string("chat"), "message": .string(message)]
+        if let conversationID { body["conversation_id"] = .string(conversationID.uuidString) }
+        let response: JSONObject = try await client.edgeFunction("klangradar-coach", body: body, accessToken: token)
+        let events = response.objects("events").compactMap { row -> CoachEvent? in
+            guard let id = row.string("id").flatMap(UUID.init(uuidString:)), let slug = row.string("slug"), let title = row.string("title") else { return nil }
+            return CoachEvent(
+                id: id, slug: slug, title: title, subtitle: row.string("subtitle"),
+                startDate: row.string("start_datetime").flatMap(FlexibleDateParser.date(from:)),
+                venueID: row.string("venue_id").flatMap(UUID.init(uuidString:)), venueName: row.string("venue_name") ?? "Ort folgt",
+                priceMin: row.number("price_min"), isFree: row.bool("is_free") ?? false,
+                ticketURL: (row.string("ticket_url") ?? row.string("website_url")).flatMap(URL.init(string:)), reasons: row.strings("reasons")
+            )
+        }
+        return CoachReply(
+            conversationID: response.string("conversation_id").flatMap(UUID.init(uuidString:)),
+            answer: response.string("answer") ?? "",
+            events: events, actions: response.objects("actions"),
+            memoryProposal: response.object("memory_proposal"), goalProposal: response.object("goal_proposal"),
+            suggestedPrompts: response.strings("suggested_prompts"), provider: response.string("provider") ?? "local"
+        )
+    }
+
+    func confirmCoachProposal(_ proposal: JSONObject, kind: String, token: String) async throws {
+        let _: JSONObject = try await client.edgeFunction("klangradar-coach", body: ["action": .string(kind), "proposal": .object(proposal)], accessToken: token)
     }
 
     func profile(userID: UUID, token: String) async throws -> KlangradarUserProfile {

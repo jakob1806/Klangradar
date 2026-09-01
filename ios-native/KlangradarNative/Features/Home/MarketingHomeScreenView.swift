@@ -75,7 +75,7 @@ struct MarketingHomeScreenView: View {
             }
             .sheet(isPresented: $showsEditor) {
                 MarketingContentEditorView(surface: .home, availableEvents: availableEvents) {
-                    isPresentationMode = true
+                    showsEditor = false
                 }
                 .environmentObject(store)
             }
@@ -438,7 +438,7 @@ struct MarketingSearchScreenView: View {
             }
             .sheet(isPresented: $showsEditor) {
                 MarketingContentEditorView(surface: .search, availableEvents: availableEvents) {
-                    isPresentationMode = true
+                    showsEditor = false
                 }
                 .environmentObject(store)
             }

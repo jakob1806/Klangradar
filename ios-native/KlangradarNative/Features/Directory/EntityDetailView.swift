@@ -242,7 +242,7 @@ struct EntityDetailView: View {
         let rows = metadataRows(detail)
         let socialLinks = detail.fields.object("social_links") ?? [:]
         if !rows.isEmpty || detail.fields.string("website_url") != nil || !socialLinks.isEmpty {
-            section("Kontakt & Social Media") {
+            section("Kontakt, Social Media & Musik") {
                 LiquidGlassSurface(cornerRadius: 20) {
                     VStack(spacing: 12) {
                         ForEach(rows, id: \.0) { label, value in
@@ -316,6 +316,7 @@ struct EntityDetailView: View {
         case "facebook": return "Facebook"
         case "youtube": return "YouTube"
         case "spotify": return "Spotify"
+        case "apple_music": return "Apple Music"
         case "tiktok": return "TikTok"
         case "linkedin": return "LinkedIn"
         default: return platform.prefix(1).uppercased() + platform.dropFirst()
@@ -349,6 +350,9 @@ private struct SocialPlatformIcon: View {
             case "spotify":
                 Image(systemName: "wave.3.right.circle.fill").font(.title3).foregroundStyle(.black)
                     .background(Color(red: 0.12, green: 0.84, blue: 0.38).padding(-5))
+            case "apple_music":
+                Image(systemName: "music.note").font(.body.weight(.bold)).foregroundStyle(.white)
+                    .background(Color.pink.padding(-7))
             case "tiktok":
                 Image(systemName: "music.note").font(.body.weight(.bold)).foregroundStyle(.white)
                     .background(Color.black.padding(-7))
@@ -371,7 +375,7 @@ private extension EntityDetailView {
         case "instagram": return "camera"
         case "facebook", "linkedin": return "person.2"
         case "youtube": return "play.rectangle"
-        case "spotify", "tiktok": return "music.note"
+        case "spotify", "apple_music", "tiktok": return "music.note"
         default: return "link"
         }
     }

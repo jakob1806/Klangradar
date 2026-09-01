@@ -24,6 +24,7 @@ struct RootTabView: View {
 
     init(environment: AppEnvironment) {
         self.environment = environment
+        _selection = State(initialValue: ProcessInfo.processInfo.environment["KLANGRADAR_MARKETING_CAPTURE"] == "1" ? .profile : .home)
         _auth = ObservedObject(wrappedValue: environment.auth)
         _favorites = StateObject(wrappedValue: FavoriteStore(auth: environment.auth, repository: environment.restClient.map(UserRepository.init(client:))))
         _follows = StateObject(wrappedValue: FollowStore(auth: environment.auth, repository: environment.restClient.map(UserRepository.init(client:))))
@@ -105,7 +106,7 @@ struct RootTabView: View {
                 await refreshOnboardingGate()
                 await favorites.load()
                 await follows.load()
-                await cityStore.reseedFromAuthIfNeeded()
+                await cityStore.load()
             }
         }
         .task { await favorites.load() }

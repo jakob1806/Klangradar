@@ -124,7 +124,7 @@ final class MarketingContentStore: ObservableObject {
         didSet { persist() }
     }
 
-    private static let storageKey = "marketingContent.v1"
+    private static let storageKey = "marketingContent.v2"
     private static let imagesDirectoryName = "MarketingImages"
 
     init() {
@@ -196,17 +196,19 @@ final class MarketingContentStore: ObservableObject {
     }
 
     static let defaultSearch = MarketingSearchContent(
-        headline: "Konzerte entdecken",
+        headline: "Münchens große Orchester",
         events: [
             MarketingEventData(
-                imagePath: "https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=1200&q=80",
-                title: "Symphonieorchester des Bayerischen Rundfunks",
-                subtitle: "Do., 1. Okt. 20:00 · Isarphilharmonie"
-            ),
-            MarketingEventData(
-                imagePath: "https://images.unsplash.com/photo-1514320291840-2e0a9bf2a9ae?w=1200&q=80",
+                sourceEventID: UUID(uuidString: "fdf33157-749a-4958-968c-f1e30861f3ee"),
+                imagePath: "https://www.brso.de/wp-content/uploads/sites/2/16-9-simon-rattle-c-br-astrid-ackermann.jpg",
                 title: "Sir Simon Rattle | Beethoven 9",
                 subtitle: "Do., 24. Sept. 19:00 · Herkulessaal"
+            ),
+            MarketingEventData(
+                sourceEventID: UUID(uuidString: "016bd554-d049-4093-9026-bfb8c03cc2cc"),
+                imagePath: "https://www.mphil.de/fileadmin/_processed_/0/0/csm_Martha_Argerich_Lahav_Shani_credit_Caroline_Doutre_1000x1000_d1e5296819.jpg",
+                title: "Martha Argerich & Lahav Shani",
+                subtitle: "Fr., 18. Sept. 19:30 · Isarphilharmonie"
             )
         ]
     )
@@ -234,11 +236,16 @@ final class MarketingContentStore: ObservableObject {
 
     static let defaultContent = MarketingContent(
         hero: MarketingHeroData(
-            imagePath: "https://images.unsplash.com/photo-1520523839897-bd0b52f945a0?w=1600&q=80",
-            dateLabel: "FR., 21. AUG. · 19:30",
-            title: "Sommerliches Orgelkonzert im Münchner Dom",
-            venue: "Frauenkirche (Dom zu Unserer Lieben Frau)"
+            sourceEventID: UUID(uuidString: "1c0802e6-7462-4a7a-976d-7839766b88c8"),
+            imagePath: "https://www.brso.de/wp-content/uploads/sites/2/sir-simon-rattle-dirigiert-mahler-c-peter-meisel-1200x675.jpg",
+            dateLabel: "SA., 7. NOV. · 19:00",
+            title: "Sir Simon Rattle | Mahler 2: »Auferstehungssymphonie«",
+            venue: "Isarphilharmonie (Gasteig HP8)"
         ),
+        // Nutzerfeedback: "auf dem Homescreen werden nicht alle Kategorien
+        // angezeigt, die auch auf dem echten Homescreen angezeigt werden" --
+        // eine Kategorie pro Eintrag in HomeRecommendationCategory.defaultOrder
+        // (HomeView.swift) statt fest verdrahteter Beispiel-Kategorien.
         modules: HomeRecommendationCategory.defaultOrder.map { category in
             MarketingModuleData(
                 title: category.title,

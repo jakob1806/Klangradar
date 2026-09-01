@@ -156,10 +156,12 @@ export async function updateOrganizerEvent(eventId: string, formData: FormData):
 
     const approvedOrganizerIds = (await getEventOrganizerOptions()).map((organizer) => organizer.id);
     const { data: existing } = await supabase.from("events").select("organizer_id").eq("id", eventId).maybeSingle();
-    if (!existing?.organizer_id || !approvedOrganizerIds.includes(existing.organizer_id)) {
+    const ownsOrganizer = Boolean(existing?.organizer_id && approvedOrganizerIds.includes(existing.organizer_id));
+    const { data: hasClaimedProfileAccess } = await supabase.rpc("has_claimed_profile_event_edit_access", { p_event_id: eventId });
+    if (!ownsOrganizer && !hasClaimedProfileAccess) {
       return { error: "Du bist für dieses Event nicht berechtigt." };
     }
-    if (!approvedOrganizerIds.includes(f.organizer_id)) {
+    if (ownsOrganizer && !approvedOrganizerIds.includes(f.organizer_id)) {
       return { error: "Bitte wähle eines deiner genehmigten Profile aus." };
     }
 
@@ -179,7 +181,9 @@ export async function updateOrganizerEvent(eventId: string, formData: FormData):
       has_intermission: f.has_intermission,
       venue_id: f.venue_id,
       venue_detail: f.venue_detail,
-      organizer_id: f.organizer_id,
+      // Bei einem Event eines geclaimten Künstlers bleibt die Institution,
+      // die das Event ursprünglich veranstaltet, unangetastet.
+      organizer_id: ownsOrganizer ? f.organizer_id : existing?.organizer_id,
       ticket_url: f.ticket_url,
       price_min: f.price_min,
       price_max: f.price_max,
@@ -215,7 +219,10 @@ export async function addOrganizerEventImage(eventId: string, imageUrl: string) 
   if (!imageUrl.startsWith(expectedPrefix)) throw new Error("Ungültige Bildquelle.");
   const approvedOrganizerIds = (await getEventOrganizerOptions()).map((organizer) => organizer.id);
   const { data: event } = await supabase.from("events").select("organizer_id, image_urls").eq("id", eventId).maybeSingle();
-  if (!event?.organizer_id || !approvedOrganizerIds.includes(event.organizer_id as string)) throw new Error("Du bist für dieses Event nicht berechtigt.");
+  if (!event) throw new Error("Das Event wurde nicht gefunden oder ist nicht zugänglich.");
+  const ownsOrganizer = Boolean(event?.organizer_id && approvedOrganizerIds.includes(event.organizer_id as string));
+  const { data: hasClaimedProfileAccess } = await supabase.rpc("has_claimed_profile_event_edit_access", { p_event_id: eventId });
+  if (!ownsOrganizer && !hasClaimedProfileAccess) throw new Error("Du bist für dieses Event nicht berechtigt.");
   const images = [...new Set([...(event.image_urls as string[] | null ?? []), imageUrl])];
   const { error } = await supabase.from("events").update({ image_urls: images, updated_at: new Date().toISOString() }).eq("id", eventId);
   if (error) throw new Error(error.message);
