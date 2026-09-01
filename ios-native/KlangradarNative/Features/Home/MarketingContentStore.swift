@@ -1,4 +1,4 @@
-import Foundation
+import SwiftUI
 
 /// Editierbarer Inhalt für `MarketingHomeScreenView`/`MarketingContentEditorView`
 /// — persistiert lokal (UserDefaults + Documents-Ordner für importierte
@@ -43,16 +43,20 @@ struct MarketingEventData: Codable, Equatable, Hashable, Identifiable {
     var imagePath: String?
     var title: String
     var subtitle: String
+    // Nutzerfeedback: der Entdecken-Kachel in der Suche stand fest "KONZERT"
+    // über jedem Titel, auch über einer Oper — jetzt pro Karte einstellbar.
+    var categoryLabel: String
 
-    init(id: UUID = UUID(), sourceEventID: UUID? = nil, imagePath: String? = nil, title: String, subtitle: String) {
+    init(id: UUID = UUID(), sourceEventID: UUID? = nil, imagePath: String? = nil, title: String, subtitle: String, categoryLabel: String = "KONZERT") {
         self.id = id
         self.sourceEventID = sourceEventID
         self.imagePath = imagePath
         self.title = title
         self.subtitle = subtitle
+        self.categoryLabel = categoryLabel
     }
 
-    private enum CodingKeys: String, CodingKey { case id, sourceEventID, imagePath, title, subtitle }
+    private enum CodingKeys: String, CodingKey { case id, sourceEventID, imagePath, title, subtitle, categoryLabel }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -61,6 +65,7 @@ struct MarketingEventData: Codable, Equatable, Hashable, Identifiable {
         imagePath = try container.decodeIfPresent(String.self, forKey: .imagePath)
         title = try container.decode(String.self, forKey: .title)
         subtitle = try container.decode(String.self, forKey: .subtitle)
+        categoryLabel = try container.decodeIfPresent(String.self, forKey: .categoryLabel) ?? "KONZERT"
     }
 }
 
@@ -68,6 +73,13 @@ struct MarketingModuleData: Codable, Equatable, Identifiable {
     var id: UUID = UUID()
     var title: String
     var events: [MarketingEventData]
+
+    /// Nutzerfeedback: "Gefolgte Personen"/"Gefolgte Ensembles" sollen die
+    /// bereits genutzten runden Avatar-Kacheln zeigen, keine rechteckigen
+    /// Event-Karten -- exakt wie `EntityRail` auf der echten Startseite
+    /// (siehe HomeView.swift). Über den Titel erkannt statt eines eigenen
+    /// gespeicherten Felds, damit bestehende Inhalte kompatibel bleiben.
+    var isEntityRail: Bool { title == "Gefolgte Personen" || title == "Gefolgte Ensembles" }
 }
 
 struct MarketingSearchContent: Codable, Equatable {
@@ -123,6 +135,29 @@ final class MarketingContentStore: ObservableObject {
         content = Self.defaultContent
     }
 
+    /// Für den Schnell-Editor beim direkten Antippen einer Karte in
+    /// Home/Suche (statt über den Umweg des großen Formulars): findet die
+    /// Karte anhand ihrer `MarketingEventData.id` in Modulen oder Suche und
+    /// liefert eine schreibende Bindung darauf, oder `nil`, falls die Karte
+    /// zwischenzeitlich entfernt wurde.
+    func binding(forCardID id: UUID) -> Binding<MarketingEventData>? {
+        for moduleIndex in content.modules.indices {
+            if let eventIndex = content.modules[moduleIndex].events.firstIndex(where: { $0.id == id }) {
+                return Binding(
+                    get: { self.content.modules[moduleIndex].events[eventIndex] },
+                    set: { self.content.modules[moduleIndex].events[eventIndex] = $0 }
+                )
+            }
+        }
+        if let eventIndex = content.search.events.firstIndex(where: { $0.id == id }) {
+            return Binding(
+                get: { self.content.search.events[eventIndex] },
+                set: { self.content.search.events[eventIndex] = $0 }
+            )
+        }
+        return nil
+    }
+
     /// Speichert importierte Foto-Daten unter Documents/MarketingImages und
     /// liefert den relativen Dateinamen, der in `imagePath` abgelegt wird —
     /// `resolvedURL(for:)` unterscheidet daran lokale Dateien von http(s)-URLs.
@@ -176,6 +211,27 @@ final class MarketingContentStore: ObservableObject {
         ]
     )
 
+    // Nutzerfeedback: "auf dem Homescreen werden nicht alle Kategorien
+    // angezeigt, die auch auf dem echten Homescreen angezeigt werden" -- der
+    // Default hatte nur zwei frei erfundene Kategorien statt der
+    // tatsächlichen Home-Reihen. Jetzt eine Kategorie pro Eintrag in
+    // `HomeRecommendationCategory.defaultOrder` (HomeView.swift), mit dem
+    // echten Titel -- Reihenfolge und Zusammensetzung entspricht damit dem,
+    // was Nutzer:innen auf der echten Startseite sehen. Inhalte bleiben wie
+    // gehabt frei bearbeitbar/löschbar.
+    private static let sampleModuleEvents: [MarketingEventData] = [
+        MarketingEventData(
+            imagePath: "https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=1200&q=80",
+            title: "Symphonieorchester des Bayerischen Rundfunks",
+            subtitle: "Do., 1. Okt. 20:00 · Isarphilharmonie"
+        ),
+        MarketingEventData(
+            imagePath: "https://images.unsplash.com/photo-1514320291840-2e0a9bf2a9ae?w=1200&q=80",
+            title: "Sir Simon Rattle | Beethoven 9",
+            subtitle: "Do., 24. Sept. 19:00 · Herkulessaal"
+        )
+    ]
+
     static let defaultContent = MarketingContent(
         hero: MarketingHeroData(
             imagePath: "https://images.unsplash.com/photo-1520523839897-bd0b52f945a0?w=1600&q=80",
@@ -183,32 +239,12 @@ final class MarketingContentStore: ObservableObject {
             title: "Sommerliches Orgelkonzert im Münchner Dom",
             venue: "Frauenkirche (Dom zu Unserer Lieben Frau)"
         ),
-        modules: [
-            MarketingModuleData(title: "Für dich", events: [
-                MarketingEventData(
-                    imagePath: "https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=1200&q=80",
-                    title: "Symphonieorchester des Bayerischen Rundfunks",
-                    subtitle: "Do., 1. Okt. 20:00 · Isarphilharmonie"
-                ),
-                MarketingEventData(
-                    imagePath: "https://images.unsplash.com/photo-1514320291840-2e0a9bf2a9ae?w=1200&q=80",
-                    title: "Sir Simon Rattle | Beethoven 9",
-                    subtitle: "Do., 24. Sept. 19:00 · Herkulessaal"
-                )
-            ]),
-            MarketingModuleData(title: "Münchner Philharmoniker", events: [
-                MarketingEventData(
-                    imagePath: "https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=1200&q=80",
-                    title: "Philharmoniker: Strawinsky & Ravel",
-                    subtitle: "Fr., 2. Okt. 20:00 · Isarphilharmonie"
-                ),
-                MarketingEventData(
-                    imagePath: "https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=1200&q=80",
-                    title: "Philharmoniker: Bruckner 8",
-                    subtitle: "Sa., 3. Okt. 19:30 · Isarphilharmonie"
-                )
-            ])
-        ],
+        modules: HomeRecommendationCategory.defaultOrder.map { category in
+            MarketingModuleData(
+                title: category.title,
+                events: sampleModuleEvents.map { MarketingEventData(imagePath: $0.imagePath, title: $0.title, subtitle: $0.subtitle) }
+            )
+        },
         search: defaultSearch
     )
 }

@@ -225,9 +225,12 @@ struct VenueSummary: Codable, Identifiable, Hashable, Sendable {
     let id: UUID
     let name: String
     let photoUrl: String?
+    // Für den Marketing-Event-Picker: Stadt-Filter, ohne für jede Auswahl
+    // extra Requests zu brauchen (siehe MarketingEventPicker).
+    let cityId: UUID?
 
-    init(id: UUID, name: String, photoUrl: String? = nil) {
-        self.id = id; self.name = name; self.photoUrl = photoUrl
+    init(id: UUID, name: String, photoUrl: String? = nil, cityId: UUID? = nil) {
+        self.id = id; self.name = name; self.photoUrl = photoUrl; self.cityId = cityId
     }
 
     var photoURL: URL? { photoUrl.flatMap(URL.init(string:)) }

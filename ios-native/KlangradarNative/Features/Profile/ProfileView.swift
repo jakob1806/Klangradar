@@ -15,7 +15,6 @@ struct ProfileView: View {
     @State private var showsLogin = false
     @State private var hasEditorialAccess = false
     @State private var showsMarketingShell = false
-    @State private var startsMarketingInPresentationMode = true
 
     var body: some View {
         NavigationStack {
@@ -33,6 +32,16 @@ struct ProfileView: View {
                 }
 
                 Section("Dein Klangradar") {
+                    NavigationLink {
+                        PersonalConciergeView(auth: auth, repository: userRepository, eventRepository: eventRepository, contentRepository: contentRepository)
+                    } label: {
+                        Label("Assistent & Abendplaner", systemImage: "sparkles")
+                    }
+                    NavigationLink {
+                        MyKlangradarHubView(auth: auth, repository: userRepository)
+                    } label: {
+                        Label("Mein Klangradar", systemImage: "person.crop.rectangle.stack")
+                    }
                     NavigationLink {
                         FavoriteEventsView(auth: auth, repository: userRepository, eventRepository: eventRepository, contentRepository: contentRepository)
                     } label: {
@@ -101,25 +110,22 @@ struct ProfileView: View {
                 // Marketing-Aufnahmen gehören in eine auslieferbare App,
                 // aber nicht in den öffentlichen Nutzerfluss. Der Zugang ist
                 // deshalb an den schon bestehenden Redaktionszugang gebunden
-                // statt an das DEBUG-Build-Flag.
+                // statt an das DEBUG-Build-Flag. Ein einziger Einstieg statt
+                // zwei getrennter Modi: startet sofort bearbeitbar (Stift
+                // oben rechts in Home/Suche), „Fertig“ blendet Stift und X
+                // aus und macht die Oberfläche aufnahmebereit; heraus kommt
+                // man per Doppeltipp auf Home in der Tableiste.
                 if hasEditorialAccess {
                     Section {
                         Button {
-                            startsMarketingInPresentationMode = true
                             showsMarketingShell = true
                         } label: {
                             Label("Marketing-Screenshots", systemImage: "camera.viewfinder")
                         }
-                        Button {
-                            startsMarketingInPresentationMode = false
-                            showsMarketingShell = true
-                        } label: {
-                            Label("Marketing-Inhalte vorbereiten", systemImage: "pencil.and.list.clipboard")
-                        }
                     } header: {
                         Text("Marketing")
                     } footer: {
-                        Text("Marketing-Screenshots startet direkt ohne Werkzeugleisten für echte Aufnahmen. Inhalte vorbereiten zeigt die Bearbeiten-Werkzeuge für Home und Suche; mit „Fertig“ wechselst du zurück in den aufnahmebereiten Modus. Aus diesem kommst du per Doppeltipp auf Home wieder heraus.")
+                        Text("Home und Suche bleiben zunächst bearbeitbar: Stift oben rechts wählt Inhalte, Texte und Bilder — auch echte Veranstaltungen statt Platzhaltern. Alles andere verhält sich wie die normale App. Mit „Fertig“ verschwinden Stift und X, und die Oberfläche ist aufnahmebereit. Heraus kommst du per Doppeltipp auf Home in der Tableiste.")
                     }
                 }
 
@@ -162,8 +168,7 @@ struct ProfileView: View {
                     editorialRepository: editorialRepository,
                     eventRepository: eventRepository,
                     contentRepository: contentRepository,
-                    usesPreviewData: usesPreviewData,
-                    startsInPresentationMode: startsMarketingInPresentationMode
+                    usesPreviewData: usesPreviewData
                 )
             }
             .task(id: auth.accessToken) { await checkEditorialAccess() }
@@ -237,6 +242,160 @@ struct ProfileView: View {
             }
         }
     }
+}
+
+private struct PersonalConciergeView: View {
+    private struct Message: Identifiable { let id = UUID(); let text: String; let isUser: Bool }
+    @ObservedObject var auth: AuthStore
+    let repository: UserRepository?
+    let eventRepository: any EventRepository
+    let contentRepository: any ContentRepository
+    @EnvironmentObject private var favorites: FavoriteStore
+    @State private var conversationID: UUID?
+    @State private var messages: [Message] = [
+        .init(text: "Erzähl mir, wie dein Abend aussehen soll. Ich suche nur echte Veranstaltungen aus Klangradar und merke mir Änderungen im Gespräch.", isUser: false)
+    ]
+    @State private var events: [PersonalConciergeEvent] = []
+    @State private var places: [PersonalConciergePlace] = []
+    @State private var draft = ""
+    @State private var isLoading = false
+    @State private var errorMessage: String?
+
+    private let prompts = ["Samstag romantisch, bis 50 €", "Heute spontan und unter 30 €", "Kammermusik, danach Restaurant", "U30-Angebote in München"]
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 14) {
+                    if messages.count == 1 {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack { ForEach(prompts, id: \.self) { prompt in
+                                Button(prompt) { draft = prompt; Task { await send() } }
+                                    .buttonStyle(.bordered).buttonBorderShape(.capsule)
+                            } }
+                        }
+                    }
+                    ForEach(messages) { message in
+                        HStack {
+                            if message.isUser { Spacer(minLength: 48) }
+                            Text(message.text)
+                                .padding(.horizontal, 14).padding(.vertical, 11)
+                                .background(message.isUser ? KlangradarTheme.accent : Color(uiColor: .secondarySystemGroupedBackground))
+                                .foregroundStyle(message.isUser ? .white : .primary)
+                                .clipShape(.rect(cornerRadius: 18, style: .continuous))
+                            if !message.isUser { Spacer(minLength: 48) }
+                        }
+                    }
+                    ForEach(events) { event in conciergeEventCard(event) }
+                    if !places.isEmpty {
+                        Text("Danach in der Nähe").font(.title3.bold()).padding(.top, 4)
+                        ForEach(places) { place in
+                            if let url = place.mapsURL {
+                                Link(destination: url) { placeRow(place) }
+                            } else { placeRow(place) }
+                        }
+                    }
+                    if isLoading { ProgressView("Ich suche in Klangradar …").frame(maxWidth: .infinity).padding() }
+                    if let errorMessage { Text(errorMessage).font(.footnote).foregroundStyle(.red) }
+                    Color.clear.frame(height: 1).id("bottom")
+                }.padding()
+            }
+            .safeAreaInset(edge: .bottom) {
+                HStack(spacing: 10) {
+                    TextField("Etwas günstiger, lieber früher …", text: $draft, axis: .vertical)
+                        .textFieldStyle(.roundedBorder).lineLimit(1...4).submitLabel(.send)
+                        .onSubmit { Task { await send() } }
+                    Button { Task { await send() } } label: {
+                        Image(systemName: "arrow.up.circle.fill").font(.title).symbolRenderingMode(.hierarchical)
+                    }.disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLoading)
+                }.padding().background(.ultraThinMaterial)
+            }
+            .onChange(of: messages.count) { _, _ in withAnimation { proxy.scrollTo("bottom") } }
+        }
+        .navigationTitle("Klangradar Assistent").navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(for: ConcertEvent.self) { event in
+            EventDetailView(event: event, repository: eventRepository, contentRepository: contentRepository)
+        }
+    }
+
+    @ViewBuilder private func conciergeEventCard(_ event: PersonalConciergeEvent) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            NavigationLink(value: event.concertEvent) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(event.startDate.map { KlangradarDateTime.string($0, format: "EEE, d. MMM · HH:mm") } ?? "Termin folgt")
+                        .font(.caption.weight(.semibold)).foregroundStyle(KlangradarTheme.accent)
+                    Text(event.title).font(.headline).foregroundStyle(.primary)
+                    Text(event.venueName).font(.subheadline).foregroundStyle(.secondary)
+                }.frame(maxWidth: .infinity, alignment: .leading)
+            }
+            if !event.reasons.isEmpty {
+                Text(event.reasons.joined(separator: " · ")).font(.caption).foregroundStyle(.secondary)
+            }
+            HStack {
+                Button(favorites.ids.contains(event.id) ? "Gespeichert" : "Speichern", systemImage: favorites.ids.contains(event.id) ? "heart.fill" : "heart") {
+                    Task { await favorites.toggle(event.id) }
+                }.buttonStyle(.bordered)
+                if let url = event.ticketURL { Link(destination: url) { Label("Tickets", systemImage: "ticket") }.buttonStyle(.borderedProminent) }
+                ShareLink(item: "\(event.title) – \(event.venueName)") { Image(systemName: "square.and.arrow.up") }
+            }
+        }.padding(15).background(Color(uiColor: .secondarySystemGroupedBackground)).clipShape(.rect(cornerRadius: 20, style: .continuous))
+    }
+
+    private func placeRow(_ place: PersonalConciergePlace) -> some View {
+        HStack { Image(systemName: "fork.knife.circle.fill").font(.title2); VStack(alignment: .leading) {
+            Text(place.name).font(.headline); Text([place.address, place.rating.map { "★ \($0.formatted(.number.precision(.fractionLength(1))))" }].compactMap { $0 }.joined(separator: " · ")).font(.caption).foregroundStyle(.secondary)
+        }; Spacer(); Image(systemName: "arrow.up.right") }.padding(12).background(Color(uiColor: .secondarySystemGroupedBackground)).clipShape(.rect(cornerRadius: 16))
+    }
+
+    @MainActor private func send() async {
+        let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, !isLoading, let repository, let token = auth.accessToken else {
+            if auth.accessToken == nil { errorMessage = "Bitte melde dich an, damit ich Gesprächskontext und persönliche Empfehlungen sicher speichern kann." }
+            return
+        }
+        draft = ""; errorMessage = nil; isLoading = true; messages.append(.init(text: text, isUser: true))
+        defer { isLoading = false }
+        do {
+            let result = try await repository.askConcierge(message: text, conversationID: conversationID, token: token)
+            conversationID = result.conversationID; events = result.events; places = result.places
+            messages.append(.init(text: result.message, isUser: false))
+        } catch { errorMessage = error.localizedDescription }
+    }
+}
+
+private struct MyKlangradarHubView: View {
+    @ObservedObject var auth: AuthStore
+    let repository: UserRepository?
+    @State private var stats: KlangradarStats?
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 22) {
+                Text("Deine Klassikwelt auf einen Blick").font(.title2.bold())
+                if let stats {
+                    LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 12) {
+                        stat("Gespeichert", stats.savedEvents, "heart.fill")
+                        stat("Geplant", stats.plannedEvents, "calendar.badge.checkmark")
+                        stat("Besucht", stats.visitedEvents, "checkmark.seal.fill")
+                        stat("Personen", stats.followedPersons, "person.fill")
+                        stat("Ensembles", stats.followedEnsembles, "person.3.fill")
+                        stat("Orte", stats.followedVenues, "building.columns.fill")
+                        stat("Werke", stats.followedWorks, "music.note.list")
+                    }
+                } else if auth.accessToken == nil { ContentUnavailableView("Anmeldung erforderlich", systemImage: "person.crop.circle.badge.exclamationmark") }
+                else { ProgressView().frame(maxWidth: .infinity).padding() }
+                Text("Wishlist, Konzertlisten, Interessen und Benachrichtigungen findest du direkt im Profil. Ein Konzert wird erst nach deiner Bestätigung als besucht gezählt.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }.padding()
+        }.navigationTitle("Mein Klangradar").task { await load() }
+    }
+
+    private func stat(_ title: String, _ value: Int, _ icon: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) { Image(systemName: icon).foregroundStyle(KlangradarTheme.accent); Text(value.formatted()).font(.title.bold()); Text(title).font(.subheadline).foregroundStyle(.secondary) }
+            .frame(maxWidth: .infinity, minHeight: 105, alignment: .leading).padding(15).background(Color(uiColor: .secondarySystemGroupedBackground)).clipShape(.rect(cornerRadius: 20, style: .continuous))
+    }
+
+    @MainActor private func load() async { guard let repository, let token = auth.accessToken else { return }; stats = try? await repository.klangradarStats(token: token) }
 }
 
 private struct AccentColorSettingsView: View {

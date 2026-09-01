@@ -5,6 +5,10 @@ struct EventCalendarView: View {
     let contentRepository: any ContentRepository
     let auth: AuthStore?
     let userRepository: UserRepository?
+    // Für Marketing-Screenshots (siehe MarketingAppShellView): Kalender
+    // bleibt dort bewusst eine reine Live-Ansicht ohne Werkzeug -- die echte
+    // Multiauswahl/Gruppen-Funktion bleibt im normalen Nutzerfluss unverändert.
+    var hidesSelectionUI = false
     @EnvironmentObject private var cityStore: CityStore
     @State private var selectedDate = Date.now
     @State private var visibleMonth = Date.now
@@ -41,7 +45,7 @@ struct EventCalendarView: View {
                         Text(KlangradarDateTime.string(selectedDate, format: "EEEE, d. MMMM"))
                             .font(.title2.bold())
                         Spacer()
-                        if auth?.userID != nil, !selectedEvents.isEmpty {
+                        if !hidesSelectionUI, auth?.userID != nil, !selectedEvents.isEmpty {
                             Button(isSelecting ? "Fertig" : "Auswählen") {
                                 isSelecting.toggle()
                                 if !isSelecting { selectedIDs.removeAll() }

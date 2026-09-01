@@ -507,6 +507,42 @@ struct EventDetailView: View {
                 }
             }
         }
+        let links = value.objects("_ticket_links")
+        if !links.isEmpty {
+            section(links.count > 1 ? "Tickets vergleichen" : "Tickets") {
+                VStack(spacing: 10) {
+                    ForEach(Array(links.enumerated()), id: \.offset) { _, link in
+                        if let rawURL = link.string("url"), let url = URL(string: rawURL) {
+                            Link(destination: url) {
+                                LiquidGlassSurface(cornerRadius: 18) {
+                                    HStack(spacing: 12) {
+                                        Image(systemName: "ticket.fill").foregroundStyle(KlangradarTheme.accent)
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(link.object("ticket_providers")?.string("name") ?? "Ticketanbieter").font(.headline).foregroundStyle(.primary)
+                                            Text(ticketLinkSummary(link)).font(.caption).foregroundStyle(.secondary)
+                                            if let note = link.string("discount_notes"), !note.isEmpty { Text(note).font(.caption2).foregroundStyle(.secondary) }
+                                        }
+                                        Spacer(); Image(systemName: "arrow.up.right").font(.caption.bold())
+                                    }.padding(15)
+                                }
+                            }.buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func ticketLinkSummary(_ link: JSONObject) -> String {
+        var parts: [String] = []
+        if let min = link.number("price_min"), let max = link.number("price_max"), min != max { parts.append("\(min.formatted())–\(max.formatted()) \(link.string("currency") ?? "EUR")") }
+        else if let price = link.number("price_min") ?? link.number("price_max") { parts.append("ab \(price.formatted()) \(link.string("currency") ?? "EUR")") }
+        let status: [String: String] = ["available":"Verfügbar", "few_left":"Wenige Tickets", "sold_out":"Ausverkauft", "box_office_only":"Nur Abendkasse", "unknown":"Stand unbekannt"]
+        if let raw = link.string("availability_status") { parts.append(status[raw] ?? raw) }
+        let discounts = link.strings("discount_categories").map { $0 == "u30" ? "U30" : ($0 == "student" ? "Studierende" : ($0 == "schueler" ? "Schüler:innen" : $0)) }
+        if !discounts.isEmpty { parts.append(discounts.joined(separator: ", ")) }
+        if let stamp = link.string("price_updated_at").flatMap(FlexibleDateParser.date(from:)) { parts.append("Stand \(KlangradarDateTime.string(stamp, format: "d. MMM, HH:mm"))") }
+        return parts.isEmpty ? "Preis und Verfügbarkeit beim Anbieter" : parts.joined(separator: " · ")
     }
 
     @ViewBuilder private func accessibility(_ value: JSONObject) -> some View {

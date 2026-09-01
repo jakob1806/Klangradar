@@ -17,6 +17,17 @@ final class CityStore: ObservableObject {
     private let auth: AuthStore
     private let repository: UserRepository?
     private var didSeedFromPreference = false
+    // Nutzerfeedback: "App öffnet sich immer in Berlin statt der gewählten
+    // Stadt" -- RootTabView startet auth.bootstrap() und cityStore.load()
+    // als parallele .task-Modifier, load() lief also oft schon los, bevor
+    // die Session (und damit auth.accessToken) wiederhergestellt war.
+    // seedFromPreferredRegionIfNeeded() bricht dann mangels Token sofort ab,
+    // und der Default (erste aktive Stadt, alphabetisch Berlin) greift --
+    // ohne Nachkorrektur, sobald die Session eintrifft. Dieses Flag
+    // unterscheidet "Default mangels Zeit gesetzt" von "bewusst leer"
+    // (nie angemeldet/keine Präferenz), damit reseedFromAuthIfNeeded()
+    // gezielt nachbessern kann, ohne eine echte spätere Auswahl anzutasten.
+    private var didApplyDefaultFallback = false
 
     init(auth: AuthStore, repository: UserRepository?) {
         self.auth = auth
@@ -26,14 +37,31 @@ final class CityStore: ObservableObject {
     func load() async {
         isLoading = true
         defer { isLoading = false }
-        activeCities = (try? await repository?.activeRegions()) ?? []
+        if activeCities.isEmpty {
+            activeCities = (try? await repository?.activeRegions()) ?? []
+        }
         await seedFromPreferredRegionIfNeeded()
         // Ohne eigene oder gespeicherte Auswahl soll die App wie zuvor mit
         // einer konkreten Stadt starten statt mit dem Platzhalter "Stadt" im
         // Chip -- "Alle Städte" bleibt eine bewusste Auswahl über die Karte.
         if selectedCity == nil, !didSeedFromPreference {
             selectedCity = activeCities.first
+            didApplyDefaultFallback = true
         }
+    }
+
+    /// Erneuter Versuch, nachdem die Auth-Session fertig geladen ist --
+    /// siehe `didApplyDefaultFallback`-Doku oben. Von RootTabView bei
+    /// `auth.userID`-Änderung aufgerufen; ohne Wirkung, falls schon eine
+    /// echte Präferenz griff oder eine bewusste Auswahl getroffen wurde.
+    func reseedFromAuthIfNeeded() async {
+        guard didApplyDefaultFallback, !didSeedFromPreference,
+              let repository, let userID = auth.userID, let token = auth.accessToken else { return }
+        guard let preferredID = try? await repository.preferredRegionID(userID: userID, token: token),
+              let match = activeCities.first(where: { $0.id == preferredID }) else { return }
+        didSeedFromPreference = true
+        didApplyDefaultFallback = false
+        selectedCity = match
     }
 
     /// Explizite Nutzerauswahl (z.B. aus CitySwitcherView) -- persistiert bei
@@ -43,6 +71,7 @@ final class CityStore: ObservableObject {
     func select(_ city: RegionOption?) {
         selectedCity = city
         didSeedFromPreference = true
+        didApplyDefaultFallback = false
         guard let repository, let userID = auth.userID, let token = auth.accessToken, let city else { return }
         Task { try? await repository.setPreferredRegion(regionID: city.id, userID: userID, token: token) }
     }

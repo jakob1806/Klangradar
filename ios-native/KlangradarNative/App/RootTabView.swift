@@ -105,6 +105,7 @@ struct RootTabView: View {
                 await refreshOnboardingGate()
                 await favorites.load()
                 await follows.load()
+                await cityStore.reseedFromAuthIfNeeded()
             }
         }
         .task { await favorites.load() }
