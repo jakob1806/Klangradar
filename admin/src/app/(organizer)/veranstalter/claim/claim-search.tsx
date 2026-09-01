@@ -58,11 +58,12 @@ export function ClaimSearch() {
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (selected) return; // Eingabe wurde gerade durch eine Auswahl gesetzt, nicht erneut suchen.
-    if (query.trim().length < 2) {
-      setMatches([]);
-      return;
-    }
+    // Bei zu kurzer Eingabe oder frisch getroffener Auswahl wird bewusst
+    // nichts zurückgesetzt: die Vorschlagsliste unten blendet sich ohnehin
+    // aus (siehe `query.trim().length >= 2` im Render), ein setState hier
+    // wäre nur ein Cascading-Render ohne sichtbaren Effekt (react-hooks/
+    // set-state-in-effect).
+    if (selected || query.trim().length < 2) return;
     debounceRef.current = setTimeout(() => {
       startTransition(async () => {
         setMatches(await searchClaimCandidates(query));
