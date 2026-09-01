@@ -1,24 +1,13 @@
 import Link from "next/link";
-import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
 import { resolveEntityNames, type ClaimableEntityType } from "@/lib/entity-tables";
-import { formatMunichDateTime } from "@/lib/munich-time";
 import { getEventOrganizerOptions } from "../event-organizer-context";
 import { PageHeader, PageBody } from "@/components/organizer/page-header";
 import { Card, CardContent } from "@/components/organizer/ui/card";
-import { Badge } from "@/components/organizer/ui/badge";
 import { Button } from "@/components/organizer/ui/button";
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/organizer/ui/table";
+import { EventsTable, type ListedEventRow } from "./events-table";
 
 export const dynamic = "force-dynamic";
-
-const STATUS_LABEL: Record<string, string> = {
-  scheduled: "Geplant",
-  sold_out: "Ausverkauft",
-  cancelled: "Abgesagt",
-  postponed: "Verschoben",
-  draft: "Entwurf",
-};
 
 interface EventRow {
   id: string;
@@ -137,42 +126,20 @@ export default async function VeranstalterEventsPage() {
             </CardContent>
           </Card>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Bild</TableHead>
-                <TableHead>Titel</TableHead>
-                <TableHead>Ort</TableHead>
-                <TableHead>Termin</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Zuordnung</TableHead>
-                <TableHead />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {events.map((event) => (
-                <TableRow key={event.id}>
-                  <TableCell><div className="relative h-12 w-16 overflow-hidden rounded-md bg-[#15131a]/[0.04]">{event.image_urls?.[0] && <Image src={event.image_urls[0]} alt="" fill className="object-cover" sizes="64px" unoptimized />}</div></TableCell>
-                  <TableCell className="font-medium">{event.title}</TableCell>
-                  <TableCell className="text-[#4a4550]">{event.venues?.name ?? "—"}</TableCell>
-                  <TableCell className="tabular-nums text-[#4a4550]">{formatMunichDateTime(event.start_datetime)}</TableCell>
-                  <TableCell>
-                    <Badge>{STATUS_LABEL[event.status] ?? event.status}</Badge>
-                  </TableCell>
-                  <TableCell className="text-xs text-[#726c78]">
-                    {event.source === "own" ? "Eigenes Event" : event.sourceLabel}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {event.source === "own" ? (
-                      <Link href={`/veranstalter/events/${event.id}`} className="font-semibold text-[#2D2A6E] hover:underline">Bearbeiten</Link>
-                    ) : (
-                      <Link href={`/veranstalter/events/discover/${event.id}`} className="font-semibold text-[#2D2A6E] hover:underline">Ansehen</Link>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <EventsTable
+            events={events.map(
+              (event): ListedEventRow => ({
+                id: event.id,
+                title: event.title,
+                start_datetime: event.start_datetime,
+                status: event.status,
+                venueName: event.venues?.name ?? null,
+                imageUrl: event.image_urls?.[0] ?? null,
+                source: event.source,
+                sourceLabel: event.sourceLabel,
+              })
+            )}
+          />
         )}
       </PageBody>
     </div>
