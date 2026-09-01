@@ -11,6 +11,18 @@ import { Table, TableBody, TableRow, TableCell } from "@/components/organizer/ui
 
 export const dynamic = "force-dynamic";
 
+function SummaryCard({ label, value, hint }: { label: string; value: string; hint: string }) {
+  return (
+    <Card>
+      <CardContent className="pt-5">
+        <p className="text-sm text-[#726c78]">{label}</p>
+        <p className="mt-1 text-3xl font-semibold tracking-tight text-[#15131a]">{value}</p>
+        <p className="mt-2 text-xs leading-5 text-[#726c78]">{hint}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
 const ENTITY_TYPE_LABEL: Record<ClaimableEntityType, string> = {
   organizer: "Institution",
   venue: "Venue",
@@ -91,6 +103,17 @@ export default async function VeranstalterDashboardPage() {
     upcomingEvents = data ?? [];
   }
 
+  // Nutzerfeedback: "Dashboard-Kennzahlen" — bislang nur Listen, keine
+  // einzige Zahl auf einen Blick. organizer_dashboard_summary() bündelt
+  // Summen datenschutzkonform serverseitig (siehe Migration), das
+  // Postfach zählt sich direkt aus der bereits RLS-gescopten Tabelle.
+  const [summaryResult, unreadNotificationsResult] = await Promise.all([
+    supabase.rpc("organizer_dashboard_summary").returns<{ upcoming_events: number; views_7d: number; ticket_clicks_7d: number }[]>().single(),
+    supabase.from("organizer_notifications").select("id", { count: "exact", head: true }).is("read_at", null),
+  ]);
+  const summary = summaryResult.data;
+  const unreadCount = unreadNotificationsResult.count ?? 0;
+
   if (visibleClaims.length === 0) {
     return (
       <div className="mx-auto flex max-w-xl flex-col items-center gap-4 px-6 py-28 text-center">
@@ -111,6 +134,23 @@ export default async function VeranstalterDashboardPage() {
     <div>
       <PageHeader eyebrow="Übersicht" title="Dashboard" description="Deine Berechtigungen und anstehenden Konzerte auf einen Blick." />
       <PageBody className="flex flex-col gap-10">
+        {summary && (
+          <div className="grid gap-3 sm:grid-cols-3">
+            <SummaryCard label="Anstehende Events" value={summary.upcoming_events.toLocaleString("de-DE")} hint="Über alle deine Institutionen/Profile." />
+            <SummaryCard label="Aufrufe (7 Tage)" value={summary.views_7d.toLocaleString("de-DE")} hint="Event-Aufrufe der letzten 7 Tage." />
+            <SummaryCard label="Ticket-Klicks (7 Tage)" value={summary.ticket_clicks_7d.toLocaleString("de-DE")} hint="Klicks auf „Tickets kaufen“, letzte 7 Tage." />
+          </div>
+        )}
+        {unreadCount > 0 && (
+          <Link
+            href="/veranstalter/postfach"
+            className="flex items-center justify-between rounded-xl border border-[#2D2A6E]/20 bg-[#2D2A6E]/[0.04] px-4 py-3 text-sm font-semibold text-[#2D2A6E] hover:bg-[#2D2A6E]/[0.07]"
+          >
+            {unreadCount} ungelesene Benachrichtigung{unreadCount === 1 ? "" : "en"} im Postfach
+            <span aria-hidden="true">→</span>
+          </Link>
+        )}
+
         {pending.length > 0 && (
           <section className="flex flex-col gap-3">
             <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#726c78]">In Prüfung ({pending.length})</h2>
@@ -144,10 +184,17 @@ export default async function VeranstalterDashboardPage() {
         {approvedOrganizerIds.length > 0 && (
           <section className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
-              <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#726c78]">Anstehende Events</h2>
-              <Link href="/veranstalter/events/new" className="flex items-center gap-1 text-sm font-semibold text-[#2D2A6E] hover:underline">
-                Neues Event anlegen
-              </Link>
+              <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#726c78]">
+                Anstehende Events{summary && summary.upcoming_events > upcomingEvents.length ? ` (${upcomingEvents.length} von ${summary.upcoming_events})` : ""}
+              </h2>
+              <div className="flex items-center gap-4">
+                <Link href="/veranstalter/events" className="text-sm font-semibold text-[#2D2A6E] hover:underline">
+                  Alle ansehen
+                </Link>
+                <Link href="/veranstalter/events/new" className="flex items-center gap-1 text-sm font-semibold text-[#2D2A6E] hover:underline">
+                  Neues Event anlegen
+                </Link>
+              </div>
             </div>
             {upcomingEvents.length > 0 ? (
               <Table>
