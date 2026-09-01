@@ -101,6 +101,27 @@ export default async function VeranstalterEventsPage() {
   const events = [...listedEvents.values()].sort((a, b) => a.start_datetime.localeCompare(b.start_datetime));
   const error = ownResult.error ?? venueResult.error ?? personParticipantsResult.error ?? ensembleParticipantsResult.error ?? participantEventsResult.error;
 
+  // Imports und redaktionelle Uploads landen häufig in der zentralen
+  // images-Galerie statt direkt in events.image_urls. Für die Portal-Liste
+  // beide Quellen zusammenführen, identisch zur Redaktions-Eventliste.
+  const galleryThumbByEventId = new Map<string, string>();
+  const idsWithoutInlineImage = events.filter((event) => !event.image_urls?.[0]).map((event) => event.id);
+  if (idsWithoutInlineImage.length > 0) {
+    const { data: galleryRows } = await supabase
+      .from("images")
+      .select("origin_id, thumbnail_path, storage_path, source_url, sort_order")
+      .eq("origin_type", "event")
+      .in("origin_id", idsWithoutInlineImage)
+      .in("license_status", ["confirmed_free", "confirmed_licensed"])
+      .order("sort_order", { ascending: true });
+    for (const row of galleryRows ?? []) {
+      if (galleryThumbByEventId.has(row.origin_id as string)) continue;
+      const path = row.thumbnail_path ?? row.storage_path;
+      const url = path ? supabase.storage.from("ingested-images").getPublicUrl(path).data.publicUrl : row.source_url;
+      if (url) galleryThumbByEventId.set(row.origin_id as string, url);
+    }
+  }
+
   return (
     <div className="mx-auto max-w-4xl px-6 py-10">
       <div className="mb-6 flex items-center justify-between">
@@ -133,8 +154,8 @@ export default async function VeranstalterEventsPage() {
             </thead>
             <tbody className="divide-y divide-neutral-200">
               {events.map((event) => (
-                <tr key={event.id}>
-                  <td className="px-4 py-3"><div className="relative h-12 w-16 overflow-hidden rounded-md bg-[#f5f5f7]">{event.image_urls?.[0] && <Image src={event.image_urls[0]} alt="" fill className="object-cover" sizes="64px" unoptimized />}</div></td>
+                <tr key={event.id} className="transition-colors hover:bg-black/[0.018]">
+                  <td className="px-4 py-3"><div className="relative h-14 w-20 overflow-hidden rounded-lg bg-[#eeeae2]">{(event.image_urls?.[0] ?? galleryThumbByEventId.get(event.id)) ? <Image src={event.image_urls?.[0] ?? galleryThumbByEventId.get(event.id)!} alt={`Vorschaubild für ${event.title}`} fill className="object-cover" sizes="80px" unoptimized /> : <div className="flex h-full items-end p-2 text-[9px] font-semibold uppercase tracking-[0.08em] text-[#9a948b]">Klangradar</div>}</div></td>
                   <td className="px-4 py-3 font-medium text-[#1d1d1f]">{event.title}</td>
                   <td className="px-4 py-3 text-[#48484a]">{event.venues?.name ?? "—"}</td>
                   <td className="px-4 py-3 tabular-nums text-[#48484a]">{formatMunichDateTime(event.start_datetime)}</td>
@@ -147,11 +168,7 @@ export default async function VeranstalterEventsPage() {
                     {event.source === "own" ? "Eigenes Event" : event.sourceLabel}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    {event.source === "own" ? (
-                      <Link href={`/veranstalter/events/${event.id}`} className="font-medium text-[#0071e3] hover:underline">Bearbeiten</Link>
-                    ) : (
-                      <Link href={`/veranstalter/events/discover/${event.id}`} className="font-medium text-[#0071e3] hover:underline">Ansehen</Link>
-                    )}
+                    <Link href={`/veranstalter/events/${event.id}`} className="font-semibold text-[#8b2635] hover:underline">Bearbeiten</Link>
                   </td>
                 </tr>
               ))}

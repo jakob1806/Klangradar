@@ -113,6 +113,8 @@ struct HomeView: View {
     @EnvironmentObject private var cityStore: CityStore
     private let contentRepository: any ContentRepository
     private let usesPreviewData: Bool
+    private let auth: AuthStore?
+    private let userRepository: UserRepository?
     @State private var collections: [EditorialCollection] = []
     @State private var categoryOrder: [HomeRecommendationCategory] = HomeRecommendationCategory.defaultOrder
     @State private var personDirectory: [DirectoryItem] = []
@@ -128,6 +130,8 @@ struct HomeView: View {
         _model = StateObject(wrappedValue: HomeViewModel(repository: repository, auth: auth, userRepository: userRepository))
         self.contentRepository = contentRepository
         self.usesPreviewData = usesPreviewData
+        self.auth = auth
+        self.userRepository = userRepository
     }
 
     var body: some View {
@@ -142,6 +146,16 @@ struct HomeView: View {
             .navigationTitle("Klangradar")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    if let auth {
+                        NavigationLink {
+                            KlangradarCoachView(auth: auth, repository: userRepository, eventRepository: model.repository, contentRepository: contentRepository)
+                        } label: {
+                            Image(systemName: "sparkles")
+                        }
+                        .accessibilityLabel("Klangradar Coach")
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     CityCompactMenu(cityStore: cityStore)
                 }

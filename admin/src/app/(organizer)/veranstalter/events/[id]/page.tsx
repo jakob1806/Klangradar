@@ -30,6 +30,7 @@ interface EventDetailRow {
   presale_fee_info: string | null;
   image_urls: string[] | null;
   venues: { name: string } | null;
+  organizers: { name: string } | null;
 }
 
 export default async function EditOrganizerEventPage({ params }: { params: Promise<{ id: string }> }) {
@@ -44,7 +45,7 @@ export default async function EditOrganizerEventPage({ params }: { params: Promi
   const { data: event } = await supabase
     .from("events")
     .select(
-      "id, slug, title, subtitle, description_de, start_datetime, duration_minutes, has_intermission, venue_id, venue_detail, organizer_id, ticket_url, price_min, price_max, is_free, remaining_tickets_status, doors_info, age_restriction, discount_info, presale_fee_info, image_urls, venues(name)",
+      "id, slug, title, subtitle, description_de, start_datetime, duration_minutes, has_intermission, venue_id, venue_detail, organizer_id, ticket_url, price_min, price_max, is_free, remaining_tickets_status, doors_info, age_restriction, discount_info, presale_fee_info, image_urls, venues(name), organizers(name)",
     )
     .eq("id", id)
     .maybeSingle()
@@ -57,6 +58,22 @@ export default async function EditOrganizerEventPage({ params }: { params: Promi
     supabase.from("genres").select("id, label_de").order("sort_order"),
     supabase.from("event_genres").select("genre_id").eq("event_id", id),
   ]);
+  const organizerLocked = Boolean(event.organizer_id && !organizers.some((organizer) => organizer.id === event.organizer_id));
+
+  let previewImageUrl = event.image_urls?.[0] ?? null;
+  if (!previewImageUrl) {
+    const { data: galleryImage } = await supabase
+      .from("images")
+      .select("thumbnail_path, storage_path, source_url")
+      .eq("origin_type", "event")
+      .eq("origin_id", id)
+      .in("license_status", ["confirmed_free", "confirmed_licensed"])
+      .order("sort_order", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    const path = galleryImage?.thumbnail_path ?? galleryImage?.storage_path;
+    previewImageUrl = path ? supabase.storage.from("ingested-images").getPublicUrl(path).data.publicUrl : galleryImage?.source_url ?? null;
+  }
 
   const initial: OrganizerEventFormValues = {
     slug: event.slug,
@@ -90,7 +107,9 @@ export default async function EditOrganizerEventPage({ params }: { params: Promi
         initial={initial}
         organizers={organizers}
         genres={genres ?? []}
-        initialImageUrl={event.image_urls?.[0] ?? null}
+        initialImageUrl={previewImageUrl}
+        organizerLocked={organizerLocked}
+        organizerLockedName={event.organizers?.name}
       />
       <div className="mt-8 max-w-2xl"><EventImageUpload eventId={event.id} userId={user!.id} /></div>
     </div>

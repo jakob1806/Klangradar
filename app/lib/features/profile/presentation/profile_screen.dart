@@ -64,6 +64,11 @@ class ProfileScreen extends ConsumerWidget {
             ),
           const SizedBox(height: AppSpacing.xxl),
           _ProfileRow(
+            label: 'Klangradar Coach',
+            colors: colors,
+            onTap: () => context.push('/coach'),
+          ),
+          _ProfileRow(
             label: l10n.profileMyFavorites,
             colors: colors,
             onTap: () => context.push('/favorites'),
