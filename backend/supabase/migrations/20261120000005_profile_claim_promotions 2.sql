@@ -25,8 +25,8 @@ as $$
     );
 $$;
 
-drop policy "Team sieht Promotionen nach Rolle" on event_promotions;
-drop policy "Marketing beantragt Promotion eigener Events" on event_promotions;
+drop policy if exists "Team sieht Promotionen nach Rolle" on event_promotions;
+drop policy if exists "Marketing beantragt Promotion eigener Events" on event_promotions;
 
 create policy "Vertretung sieht Promotionen eigener Profile" on event_promotions
   for select using (has_event_promotion_access(event_id));
