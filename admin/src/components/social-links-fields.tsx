@@ -8,6 +8,7 @@ const PLATFORMS = [
   ["facebook", "Facebook", "https://www.facebook.com/profil"],
   ["youtube", "YouTube", "https://www.youtube.com/@kanal"],
   ["spotify", "Spotify", "https://open.spotify.com/artist/…"],
+  ["apple_music", "Apple Music", "https://music.apple.com/de/artist/…"],
   ["tiktok", "TikTok", "https://www.tiktok.com/@profil"],
   ["linkedin", "LinkedIn", "https://www.linkedin.com/company/profil"],
 ] as const;
@@ -21,8 +22,8 @@ export function SocialLinksFields({ initial = {} }: { initial?: Record<string, s
 
   return (
     <fieldset className="space-y-3 rounded-xl border border-black/[0.08] bg-neutral-50 p-4">
-      <legend className="px-1 text-sm font-medium text-neutral-900">Social Media</legend>
-      <p className="text-xs text-neutral-500">Nur vollständige Profil-Links eintragen. Sie erscheinen als anklickbare Plattform-Links in den Apps.</p>
+      <legend className="px-1 text-sm font-medium text-neutral-900">Social Media & Musikdienste</legend>
+      <p className="text-xs text-neutral-500">Vollständige Profil-Links eintragen. Spotify und Apple Music erscheinen im Profil als direkte Hör-Links.</p>
       <input type="hidden" name="social_links" value={JSON.stringify(value)} />
       <div className="grid gap-3 sm:grid-cols-2">
         {PLATFORMS.map(([key, label, placeholder]) => (

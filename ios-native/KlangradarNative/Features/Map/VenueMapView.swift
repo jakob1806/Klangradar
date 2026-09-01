@@ -275,21 +275,19 @@ private struct VenuePreviewSheet: View {
                         .buttonStyle(.plain)
                     }
 
-                    HStack(spacing: 12) {
+                    HStack {
                         Button("Route", systemImage: "arrow.triangle.turn.up.right.diamond") { openRoute() }
-                            .buttonStyle(.bordered)
-                            .controlSize(.large)
-                            .frame(maxWidth: .infinity, minHeight: 50)
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.regular)
+                        Spacer()
                         if let slug = venue.slug {
                             NavigationLink {
                                 EntityDetailView(route: EntityRoute(kind: .venue, identifier: slug), repository: repository)
                             } label: {
-                                Text("Details ansehen")
-                                    .lineLimit(1)
-                                    .frame(maxWidth: .infinity, minHeight: 50)
+                                Text("Details ansehen").lineLimit(1)
                             }
                                 .buttonStyle(.borderedProminent)
-                                .controlSize(.large)
+                                .controlSize(.regular)
                         }
                     }
                 }

@@ -56,8 +56,8 @@ extension InspirationCategory {
 }
 
 protocol EventRepository: Sendable {
-    func upcomingEvents(limit: Int) async throws -> [ConcertEvent]
-    func allUpcomingEvents() async throws -> [ConcertEvent]
+    func upcomingEvents(limit: Int, regionID: UUID?) async throws -> [ConcertEvent]
+    func allUpcomingEvents(regionID: UUID?) async throws -> [ConcertEvent]
     func enrichingImages(in events: [ConcertEvent]) async throws -> [ConcertEvent]
     func eventDetail(slug: String) async throws -> JSONObject?
     /// Für antippbare Genre-Chips (siehe GenreFilterRouter) — kommende
@@ -67,41 +67,57 @@ protocol EventRepository: Sendable {
     func inspirationCategories() async throws -> [InspirationCategory]
 }
 
-struct LiveEventRepository: EventRepository {
-    let client: SupabaseRESTClient
-
-    func upcomingEvents(limit: Int = 40) async throws -> [ConcertEvent] {
-        try await fetchEvents(limit: limit, offset: 0)
+extension EventRepository {
+    func upcomingEvents(limit: Int) async throws -> [ConcertEvent] {
+        try await upcomingEvents(limit: limit, regionID: nil)
     }
 
     func allUpcomingEvents() async throws -> [ConcertEvent] {
+        try await allUpcomingEvents(regionID: nil)
+    }
+}
+
+struct LiveEventRepository: EventRepository {
+    let client: SupabaseRESTClient
+
+    func upcomingEvents(limit: Int = 40, regionID: UUID? = nil) async throws -> [ConcertEvent] {
+        try await fetchEvents(limit: limit, offset: 0, regionID: regionID)
+    }
+
+    func allUpcomingEvents(regionID: UUID? = nil) async throws -> [ConcertEvent] {
         var result: [ConcertEvent] = []
         let pageSize = 500
         while true {
-            let page = try await fetchEvents(limit: pageSize, offset: result.count)
+            let page = try await fetchEvents(limit: pageSize, offset: result.count, regionID: regionID)
             result.append(contentsOf: page)
             if page.count < pageSize { return result }
         }
     }
 
-    private func fetchEvents(limit: Int, offset: Int) async throws -> [ConcertEvent] {
-        try await client.get(
-            table: "events",
-            queryItems: [
-                URLQueryItem(
-                    name: "select",
-                    value: "id,slug,title,subtitle,start_datetime,venue_detail,image_urls,updated_at,status,category,is_free,venues(id,name,photo_url),event_genres(genres(id,slug,label_de)),event_participants(persons(id,full_name,photo_url),ensembles(id,name,photo_url))"
-                ),
-                URLQueryItem(name: "status", value: "eq.scheduled"),
-                URLQueryItem(
-                    name: "start_datetime",
-                    value: "gte.\(ISO8601DateFormatter().string(from: .now))"
-                ),
-                URLQueryItem(name: "order", value: "start_datetime.asc"),
-                URLQueryItem(name: "limit", value: String(limit)),
-                URLQueryItem(name: "offset", value: String(offset))
-            ]
-        )
+    /// `regionID` filtert per PostgREST-Embed-Filter auf `venues.city_id` --
+    /// dafür muss der Embed als `venues!inner(...)` erfolgen (siehe
+    /// app/lib/core/regions/calendar_providers.dart), sonst wird die
+    /// eingebettete Tabelle nur mitgeliefert statt gefiltert.
+    private func fetchEvents(limit: Int, offset: Int, regionID: UUID? = nil) async throws -> [ConcertEvent] {
+        let venuesEmbed = regionID == nil ? "venues(id,name,photo_url)" : "venues!inner(id,name,photo_url)"
+        var queryItems = [
+            URLQueryItem(
+                name: "select",
+                value: "id,slug,title,subtitle,start_datetime,venue_detail,image_urls,updated_at,status,category,is_free,\(venuesEmbed),event_genres(genres(id,slug,label_de)),event_participants(persons(id,full_name,photo_url),ensembles(id,name,photo_url))"
+            ),
+            URLQueryItem(name: "status", value: "eq.scheduled"),
+            URLQueryItem(
+                name: "start_datetime",
+                value: "gte.\(ISO8601DateFormatter().string(from: .now))"
+            ),
+            URLQueryItem(name: "order", value: "start_datetime.asc"),
+            URLQueryItem(name: "limit", value: String(limit)),
+            URLQueryItem(name: "offset", value: String(offset))
+        ]
+        if let regionID {
+            queryItems.append(URLQueryItem(name: "venues.city_id", value: "eq.\(regionID.uuidString)"))
+        }
+        return try await client.get(table: "events", queryItems: queryItems)
     }
 
     func enrichingImages(in events: [ConcertEvent]) async throws -> [ConcertEvent] {
@@ -493,11 +509,11 @@ struct LiveEventRepository: EventRepository {
 }
 
 struct PreviewEventRepository: EventRepository {
-    func upcomingEvents(limit: Int = 40) async throws -> [ConcertEvent] {
+    func upcomingEvents(limit: Int = 40, regionID: UUID? = nil) async throws -> [ConcertEvent] {
         Array(SampleData.events.prefix(limit))
     }
 
-    func allUpcomingEvents() async throws -> [ConcertEvent] { SampleData.events }
+    func allUpcomingEvents(regionID: UUID? = nil) async throws -> [ConcertEvent] { SampleData.events }
 
     func enrichingImages(in events: [ConcertEvent]) async throws -> [ConcertEvent] { events }
 

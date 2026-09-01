@@ -388,9 +388,14 @@ struct LiveContentRepository: ContentRepository {
             return rows.compactMap { linkedEvent(from: $0, role: nil) }
         }
 
+        // Nutzerwunsch: auf Personen-/Ensemble-Detailseiten soll unter jedem
+        // verknüpften Konzert auch dessen Programm (Werke/Komponisten)
+        // stehen — deshalb hier zusätzlich event_works mitladen (nicht bei
+        // .work, das wäre redundant zum eigenen Werk-Eintrag).
+        let programSelection = "event_works(position,works(title,composer:persons(full_name)))"
         let selection = kind == .work
             ? "position,events(id,slug,title,start_datetime,image_urls,venues(id,name,photo_url))"
-            : "role,role_label,events(id,slug,title,start_datetime,image_urls,venues(id,name,photo_url))"
+            : "role,role_label,events(id,slug,title,start_datetime,image_urls,venues(id,name,photo_url),\(programSelection))"
         let queryItems: (String) -> [URLQueryItem] = { selectedColumns in [
                 URLQueryItem(name: "select", value: selectedColumns),
                 URLQueryItem(name: filter, value: "eq.\(entityID)")
@@ -579,6 +584,13 @@ struct LiveContentRepository: ContentRepository {
             let slug = row.string("slug"),
             let title = row.string("title")
         else { return nil }
+        let programWorks = row.objects("event_works")
+            .sorted { ($0.integer("position") ?? Int.max) < ($1.integer("position") ?? Int.max) }
+            .compactMap { workRow -> ProgramWorkSummary? in
+                guard let work = workRow.object("works"), let title = work.string("title") else { return nil }
+                return ProgramWorkSummary(title: title.cleanedWorkTitle, composerName: work.object("composer")?.string("full_name"))
+            }
+
         return LinkedEvent(
             id: id,
             slug: slug,
@@ -588,7 +600,8 @@ struct LiveContentRepository: ContentRepository {
             role: role,
             imageURLs: row.strings("image_urls"),
             venueID: row.object("venues")?.string("id").flatMap(UUID.init(uuidString:)),
-            venuePhotoURL: row.object("venues")?.string("photo_url")
+            venuePhotoURL: row.object("venues")?.string("photo_url"),
+            programWorks: programWorks
         )
     }
 

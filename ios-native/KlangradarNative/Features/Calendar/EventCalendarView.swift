@@ -109,10 +109,9 @@ struct EventCalendarView: View {
                 }
             }
             .navigationDestination(for: ConcertEvent.self) { EventDetailView(event: $0, repository: repository, contentRepository: contentRepository) }
-            .task {
-                let basic = (try? await repository.allUpcomingEvents()) ?? []
-                events = basic
-                if let enriched = try? await repository.enrichingImages(in: basic) { events = enriched }
+            .task { await loadEvents() }
+            .onChange(of: cityStore.selectedCity) { _, _ in
+                Task { await loadEvents() }
             }
             .alert("Neue Gruppe", isPresented: $showsNamePrompt) {
                 TextField("Name der Gruppe", text: $groupName)
@@ -133,6 +132,12 @@ struct EventCalendarView: View {
             }
         }
         .environment(\.locale, Locale(identifier: "de_DE"))
+    }
+
+    private func loadEvents() async {
+        let basic = (try? await repository.allUpcomingEvents(regionID: cityStore.selectedCity?.id)) ?? []
+        events = basic
+        if let enriched = try? await repository.enrichingImages(in: basic) { events = enriched }
     }
 
     private func createGroup() async {

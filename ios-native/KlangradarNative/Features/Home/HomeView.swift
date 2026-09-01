@@ -119,6 +119,7 @@ struct HomeView: View {
     @State private var categoryOrder: [HomeRecommendationCategory] = HomeRecommendationCategory.defaultOrder
     @State private var personDirectory: [DirectoryItem] = []
     @State private var ensembleDirectory: [DirectoryItem] = []
+    @State private var showsCoach = false
 
     init(
         repository: any EventRepository,
@@ -143,19 +144,36 @@ struct HomeView: View {
                 content
                     .frame(maxWidth: KlangradarTheme.contentMaxWidth)
             }
+            .overlay(alignment: .bottomTrailing) {
+                if auth != nil, userRepository != nil {
+                    Button {
+                        showsCoach = true
+                    } label: {
+                        Text("K")
+                            .font(.system(size: 24, weight: .black, design: .rounded))
+                            .foregroundStyle(.white)
+                            .frame(width: 58, height: 58)
+                            .background(
+                                LinearGradient(
+                                    colors: [KlangradarTheme.accent, KlangradarTheme.accent.opacity(0.72)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                in: Circle()
+                            )
+                            .overlay { Circle().stroke(.white.opacity(0.34), lineWidth: 1) }
+                            .shadow(color: KlangradarTheme.accent.opacity(0.32), radius: 14, y: 7)
+                    }
+                    .buttonStyle(CoachFloatingButtonStyle())
+                    .accessibilityLabel("Klangradar Coach öffnen")
+                    .accessibilityHint("Öffnet den persönlichen Coach in einer halbhohen Ansicht")
+                    .padding(.trailing, 18)
+                    .padding(.bottom, 18)
+                }
+            }
             .navigationTitle("Klangradar")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    if let auth {
-                        NavigationLink {
-                            KlangradarCoachView(auth: auth, repository: userRepository, eventRepository: model.repository, contentRepository: contentRepository)
-                        } label: {
-                            Image(systemName: "sparkles")
-                        }
-                        .accessibilityLabel("Klangradar Coach")
-                    }
-                }
                 ToolbarItem(placement: .topBarTrailing) {
                     CityCompactMenu(cityStore: cityStore)
                 }
@@ -189,6 +207,24 @@ struct HomeView: View {
             // kommenden 100 Veranstaltungen.
             .onChange(of: favorites.ids) { _, _ in
                 Task { await model.loadFavoriteEvents() }
+            }
+            .sheet(isPresented: $showsCoach) {
+                if let auth, let userRepository {
+                    NavigationStack {
+                        KlangradarCoachView(
+                            auth: auth,
+                            repository: userRepository,
+                            eventRepository: model.repository,
+                            contentRepository: contentRepository,
+                            startsInChat: true,
+                            showsDismissButton: true
+                        )
+                    }
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
+                    .presentationCornerRadius(28)
+                    .presentationBackgroundInteraction(.enabled(upThrough: .medium))
+                }
             }
         }
     }
@@ -439,6 +475,15 @@ struct HomeView: View {
         guard let saturday = calendar.date(byAdding: .day, value: daysUntilSaturday, to: today),
               let monday = calendar.date(byAdding: .day, value: 2, to: saturday) else { return false }
         return date >= saturday && date < monday
+    }
+}
+
+private struct CoachFloatingButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+            .opacity(configuration.isPressed ? 0.9 : 1)
+            .animation(.easeOut(duration: 0.14), value: configuration.isPressed)
     }
 }
 

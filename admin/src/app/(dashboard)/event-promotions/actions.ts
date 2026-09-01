@@ -19,10 +19,16 @@ export async function reviewPromotion(id: string, status: "approved" | "rejected
   // ein späteres Buchungs-/Abrechnungssystem muss keinen Status umbiegen.
   const { data: promotionData, error: loadError } = await supabase
     .from("event_promotions")
-    .select("id, status, event_id, events(start_datetime)")
+    .select("id, status, event_id, requested_by, events(title, start_datetime)")
     .eq("id", id)
     .maybeSingle();
-  const promotion = promotionData as unknown as { id: string; status: string; event_id: string; events: { start_datetime: string } | null } | null;
+  const promotion = promotionData as unknown as {
+    id: string;
+    status: string;
+    event_id: string;
+    requested_by: string;
+    events: { title: string; start_datetime: string } | null;
+  } | null;
   if (loadError || !promotion) throw new Error(loadError?.message ?? "Promotion nicht gefunden.");
   if (promotion.status !== "pending") throw new Error("Diese Promotion wurde bereits entschieden.");
 
@@ -46,6 +52,27 @@ export async function reviewPromotion(id: string, status: "approved" | "rejected
   if (error) throw new Error(error.message);
 
   await logSystemAction(supabase, { entityType: "event_promotion", entityId: id, action: status, actor: user.email ?? user.id });
+
+  // Postfach-Eintrag im Veranstalterportal (organizer_notifications, siehe
+  // 20261201000001) — bei "approved" ist die Promotion technisch erst
+  // payment_pending (siehe require_paid_promotion_for_activation-Trigger),
+  // die Nachricht macht den nächsten Schritt (Zahlung) deshalb explizit.
+  try {
+    const eventTitle = promotion.events?.title ?? "dein Event";
+    await supabase.from("organizer_notifications").insert({
+      user_id: promotion.requested_by,
+      type: status === "approved" ? "promotion_approved" : "promotion_rejected",
+      title: status === "approved" ? `Promotion für ${eventTitle} freigegeben` : `Promotion für ${eventTitle} abgelehnt`,
+      body:
+        status === "approved"
+          ? "Die Redaktion hat deine Promotion-Anfrage geprüft — schließe jetzt die Zahlung ab, damit sie aktiv wird."
+          : reviewerNote.trim() || "Die Redaktion hat deine Promotion-Anfrage abgelehnt.",
+      link_href: "/veranstalter/promote",
+    });
+  } catch (notificationError) {
+    console.error("Konnte Postfach-Benachrichtigung nicht anlegen:", notificationError);
+  }
+
   revalidatePath("/event-promotions");
   revalidatePath("/veranstalter/promote");
 }

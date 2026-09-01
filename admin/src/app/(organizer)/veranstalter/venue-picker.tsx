@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { Input } from "@/components/organizer/ui/input";
 
 interface VenueMatch {
   id: string;
@@ -57,7 +58,7 @@ export function VenuePicker({
   return (
     <div className="relative">
       <input type="hidden" name="venue_id" value={selected?.id ?? ""} required />
-      <input
+      <Input
         type="text"
         value={query}
         onChange={(e) => {
@@ -68,10 +69,9 @@ export function VenuePicker({
         onFocus={() => results.length > 0 && setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         placeholder="Venue suchen…"
-        className="w-full border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-[#0071e3]"
       />
       {open && results.length > 0 && (
-        <ul className="absolute z-10 mt-1 w-full overflow-hidden rounded-lg border border-black/10 bg-white shadow-lg">
+        <ul className="absolute z-10 mt-1 w-full overflow-hidden rounded-xl border border-[#15131a]/[0.08] bg-white shadow-lg">
           {results.map((venue) => (
             <li key={venue.id}>
               <button
@@ -82,7 +82,7 @@ export function VenuePicker({
                   setOpen(false);
                   onSelect?.(venue);
                 }}
-                className="block w-full px-3 py-2 text-left text-sm hover:bg-black/[0.04]"
+                className="block w-full px-3 py-2 text-left text-sm text-[#15131a] hover:bg-[#2D2A6E]/[0.05]"
               >
                 {venue.name}
               </button>
@@ -91,7 +91,7 @@ export function VenuePicker({
         </ul>
       )}
       {!selected && query.trim().length >= 2 && (
-        <p className="mt-1 text-xs text-amber-600">Bitte eine Venue aus der Liste auswählen.</p>
+        <p className="mt-1 text-xs text-[#8a5a0c]">Bitte eine Venue aus der Liste auswählen.</p>
       )}
     </div>
   );

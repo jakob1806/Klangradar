@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { formatMunichDateTime } from "@/lib/munich-time";
+import { Card } from "@/components/organizer/ui/card";
 
 export interface EventPreviewData {
   title: string;
@@ -39,26 +40,26 @@ export function EventPreviewCard({ preview }: { preview: EventPreviewData }) {
   })();
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-black/[0.06] bg-white">
-      <div className="relative aspect-[16/9] bg-[#f5f5f7]">
+    <Card className="overflow-hidden">
+      <div className="relative aspect-[16/9] bg-[#15131a]/[0.04]">
         {preview.imageUrl ? (
           <Image src={preview.imageUrl} alt="" fill className="object-cover" sizes="320px" unoptimized />
         ) : (
-          <div className="flex h-full items-end bg-gradient-to-br from-[#e8efff] to-[#f5f5f7] p-4">
-            <span className="text-xs font-medium text-[#48484a]">Klangradar</span>
+          <div className="flex h-full items-end bg-gradient-to-br from-[#2D2A6E]/10 to-[#15131a]/[0.04] p-4">
+            <span className="text-xs font-medium text-[#4a4550]">Klangradar</span>
           </div>
         )}
       </div>
       <div className="p-4">
-        <p className="text-xs font-semibold text-[#0071e3]">{start ?? "Datum folgt"}</p>
-        <h3 className="mt-1.5 text-base font-semibold leading-tight text-[#1d1d1f]">{preview.title || "Titel deines Events"}</h3>
-        {preview.subtitle && <p className="mt-1 text-sm text-[#48484a]">{preview.subtitle}</p>}
-        <div className="mt-3 space-y-1 border-t border-black/[0.06] pt-3 text-sm">
-          <p className="font-medium text-[#1d1d1f]">{preview.venueName || "Venue wird noch bekanntgegeben"}</p>
-          <p className="text-[#48484a]">{price ?? "Preisinformation folgt"}</p>
-          {preview.doorsInfo && <p className="text-[#48484a]">{preview.doorsInfo}</p>}
+        <p className="text-xs font-semibold text-[#2D2A6E]">{start ?? "Datum folgt"}</p>
+        <h3 className="mt-1.5 text-base font-semibold leading-tight text-[#15131a]">{preview.title || "Titel deines Events"}</h3>
+        {preview.subtitle && <p className="mt-1 text-sm text-[#4a4550]">{preview.subtitle}</p>}
+        <div className="mt-3 space-y-1 border-t border-[#15131a]/[0.08] pt-3 text-sm">
+          <p className="font-medium text-[#15131a]">{preview.venueName || "Venue wird noch bekanntgegeben"}</p>
+          <p className="text-[#4a4550]">{price ?? "Preisinformation folgt"}</p>
+          {preview.doorsInfo && <p className="text-[#4a4550]">{preview.doorsInfo}</p>}
         </div>
       </div>
-    </div>
+    </Card>
   );
 }

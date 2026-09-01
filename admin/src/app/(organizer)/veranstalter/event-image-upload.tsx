@@ -2,5 +2,19 @@
 import { useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { addOrganizerEventImage } from "./events/actions";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/organizer/ui/card";
+import { Button } from "@/components/organizer/ui/button";
 const ACCEPTED = ["image/jpeg", "image/png", "image/webp"];
-export function EventImageUpload({ eventId, userId }: { eventId: string; userId: string }) { const ref = useRef<HTMLInputElement>(null); const [message, setMessage] = useState<string | null>(null); const [busy, setBusy] = useState(false); async function upload() { const file = ref.current?.files?.[0]; if (!file) return; if (!ACCEPTED.includes(file.type) || file.size > 5 * 1024 * 1024) { setMessage("Bitte JPEG, PNG oder WebP bis 5 MB wählen."); return; } setBusy(true); setMessage(null); try { const supabase = createClient(); const ext = file.name.split(".").pop() || "jpg"; const path = `organizer-event-images/${userId}/${crypto.randomUUID()}.${ext}`; const { error } = await supabase.storage.from("entity-photos").upload(path, file, { cacheControl: "3600", upsert: false }); if (error) throw error; const { data } = supabase.storage.from("entity-photos").getPublicUrl(path); await addOrganizerEventImage(eventId, data.publicUrl); setMessage("Bild hinzugefügt."); if (ref.current) ref.current.value = ""; } catch (error) { setMessage(error instanceof Error ? error.message : "Upload fehlgeschlagen."); } finally { setBusy(false); } } return <section className="rounded-xl border border-black/[0.06] bg-[#f5f5f7] p-4"><h2 className="font-semibold text-[#1d1d1f]">Eventbild</h2><p className="mt-1 text-sm text-[#86868b]">JPEG, PNG oder WebP, maximal 5 MB.</p><div className="mt-3 flex flex-wrap items-center gap-2"><input ref={ref} type="file" accept="image/jpeg,image/png,image/webp"/><button type="button" disabled={busy} onClick={upload} className="rounded-full bg-[#0071e3] px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Lädt hoch…" : "Bild hinzufügen"}</button></div>{message && <p className="mt-2 text-sm text-[#48484a]">{message}</p>}</section>; }
+export function EventImageUpload({ eventId, userId }: { eventId: string; userId: string }) { const ref = useRef<HTMLInputElement>(null); const [message, setMessage] = useState<string | null>(null); const [busy, setBusy] = useState(false); async function upload() { const file = ref.current?.files?.[0]; if (!file) return; if (!ACCEPTED.includes(file.type) || file.size > 5 * 1024 * 1024) { setMessage("Bitte JPEG, PNG oder WebP bis 5 MB wählen."); return; } setBusy(true); setMessage(null); try { const supabase = createClient(); const ext = file.name.split(".").pop() || "jpg"; const path = `organizer-event-images/${userId}/${crypto.randomUUID()}.${ext}`; const { error } = await supabase.storage.from("entity-photos").upload(path, file, { cacheControl: "3600", upsert: false }); if (error) throw error; const { data } = supabase.storage.from("entity-photos").getPublicUrl(path); await addOrganizerEventImage(eventId, data.publicUrl); setMessage("Bild hinzugefügt."); if (ref.current) ref.current.value = ""; } catch (error) { setMessage(error instanceof Error ? error.message : "Upload fehlgeschlagen."); } finally { setBusy(false); } } return (
+  <Card>
+    <CardHeader>
+      <CardTitle>Eventbild</CardTitle>
+      <CardDescription>JPEG, PNG oder WebP, maximal 5 MB.</CardDescription>
+    </CardHeader>
+    <CardContent className="flex flex-wrap items-center gap-2">
+      <input ref={ref} type="file" accept="image/jpeg,image/png,image/webp" className="text-sm text-[#4a4550]" />
+      <Button type="button" disabled={busy} onClick={upload} size="sm">{busy ? "Lädt hoch…" : "Bild hinzufügen"}</Button>
+      {message && <p className="w-full text-sm text-[#4a4550]">{message}</p>}
+    </CardContent>
+  </Card>
+); }

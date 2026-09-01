@@ -13,7 +13,6 @@ struct ProfileView: View {
     @AppStorage(BiometricAuth.enabledStorageKey) private var biometricProtectionEnabled = false
     @EnvironmentObject private var cityStore: CityStore
     @State private var showsLogin = false
-    @State private var showsCitySwitcher = false
     @State private var hasEditorialAccess = false
     @State private var showsMarketingShell = ProcessInfo.processInfo.environment["KLANGRADAR_MARKETING_CAPTURE"] == "1"
 
@@ -73,24 +72,24 @@ struct ProfileView: View {
                     } label: {
                         Label("Homepage anordnen", systemImage: "arrow.up.arrow.down")
                     }
-                    Button {
-                        showsCitySwitcher = true
+                    // Nutzerwunsch: unter Profil öffnet die Stadtauswahl eine
+                    // volle Seite (Push) statt eines Popups/Sheets — Home,
+                    // Suche und Kalender nutzen weiterhin CityCompactMenu mit
+                    // Sheet-Präsentation, siehe CitySwitcherView.
+                    NavigationLink {
+                        CitySwitcherView(cityStore: cityStore, embedsNavigationStack: false)
                     } label: {
                         HStack {
-                            Label("Stadt", systemImage: "building.2")
-                                .foregroundStyle(KlangradarTheme.accent)
+                            Label {
+                                Text("Stadt")
+                            } icon: {
+                                Image(systemName: "building.2").foregroundStyle(KlangradarTheme.accent)
+                            }
                             Spacer()
                             Text(cityStore.selectedCity?.name ?? "Alle Städte")
                                 .foregroundStyle(.secondary)
-                            Image(systemName: "chevron.right")
-                                .font(.footnote.weight(.semibold))
-                                .foregroundStyle(.tertiary)
                         }
                     }
-                    // Eine Button-Zeile übernimmt sonst die Accent-Farbe des
-                    // gesamten Formulars. Stadt und der ausgewählte Ort sollen
-                    // genau wie Favoriten/Listen neutral erscheinen.
-                    .buttonStyle(.plain)
                 }
 
                 if hasEditorialAccess, let editorialRepository {
@@ -157,9 +156,6 @@ struct ProfileView: View {
             }
             .sheet(isPresented: $showsLogin) {
                 PasswordLoginView(auth: auth, repository: userRepository)
-            }
-            .sheet(isPresented: $showsCitySwitcher) {
-                CitySwitcherView(cityStore: cityStore)
             }
             .fullScreenCover(isPresented: $showsMarketingShell) {
                 MarketingAppShellView(
@@ -252,9 +248,11 @@ struct KlangradarCoachView: View {
     let repository: UserRepository?
     let eventRepository: any EventRepository
     let contentRepository: any ContentRepository
+    private let showsDismissButton: Bool
     @EnvironmentObject private var favorites: FavoriteStore
+    @Environment(\.dismiss) private var dismiss
 
-    @State private var selectedSection: Section = .overview
+    @State private var selectedSection: Section
     @State private var dashboard: CoachDashboard?
     @State private var conversationID: UUID?
     @State private var messages: [ChatMessage] = [
@@ -268,6 +266,22 @@ struct KlangradarCoachView: View {
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var showsCheckin = false
+
+    init(
+        auth: AuthStore,
+        repository: UserRepository?,
+        eventRepository: any EventRepository,
+        contentRepository: any ContentRepository,
+        startsInChat: Bool = false,
+        showsDismissButton: Bool = false
+    ) {
+        self.auth = auth
+        self.repository = repository
+        self.eventRepository = eventRepository
+        self.contentRepository = contentRepository
+        self.showsDismissButton = showsDismissButton
+        _selectedSection = State(initialValue: startsInChat ? .chat : .overview)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -285,6 +299,14 @@ struct KlangradarCoachView: View {
         .background { KlangradarBackground().ignoresSafeArea() }
         .navigationTitle("Klangradar Coach")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if showsDismissButton {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Fertig") { dismiss() }
+                        .fontWeight(.semibold)
+                }
+            }
+        }
         .navigationDestination(for: ConcertEvent.self) { event in
             EventDetailView(event: event, repository: eventRepository, contentRepository: contentRepository)
         }
@@ -399,15 +421,50 @@ struct KlangradarCoachView: View {
                 }.padding()
             }
             .safeAreaInset(edge: .bottom) {
-                VStack(spacing: 8) {
+                VStack(spacing: 10) {
                     if !suggestedPrompts.isEmpty {
-                        ScrollView(.horizontal, showsIndicators: false) { HStack { ForEach(suggestedPrompts, id: \.self) { prompt in Button(prompt) { draft = prompt; Task { await send() } }.buttonStyle(.bordered).buttonBorderShape(.capsule) } }.padding(.horizontal) }
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(suggestedPrompts, id: \.self) { prompt in
+                                    Button(prompt) { draft = prompt; Task { await send() } }
+                                        .buttonStyle(.bordered)
+                                        .buttonBorderShape(.capsule)
+                                }
+                            }
+                            .padding(.horizontal, 16)
+                        }
                     }
-                    HStack(spacing: 10) {
-                        TextField("Frag deinen Coach …", text: $draft, axis: .vertical).textFieldStyle(.roundedBorder).lineLimit(1...4).submitLabel(.send).onSubmit { Task { await send() } }
-                        Button { Task { await send() } } label: { Image(systemName: "arrow.up.circle.fill").font(.title).symbolRenderingMode(.hierarchical) }.disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLoading)
-                    }.padding(.horizontal).padding(.bottom, 8)
-                }.background(.ultraThinMaterial)
+                    HStack(alignment: .bottom, spacing: 10) {
+                        TextField("Nachricht an deinen Coach", text: $draft, axis: .vertical)
+                            .font(.body)
+                            .lineLimit(1...5)
+                            .submitLabel(.send)
+                            .onSubmit { Task { await send() } }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 13)
+                            .frame(minHeight: 50)
+                            .background(Color(uiColor: .secondarySystemBackground), in: .rect(cornerRadius: 22, style: .continuous))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                                    .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                            }
+
+                        Button { Task { await send() } } label: {
+                            Image(systemName: "arrow.up")
+                                .font(.system(size: 17, weight: .bold))
+                                .foregroundStyle(.white)
+                                .frame(width: 50, height: 50)
+                                .background(KlangradarTheme.accent, in: Circle())
+                        }
+                        .buttonStyle(CoachSendButtonStyle())
+                        .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLoading)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.bottom, 10)
+                }
+                .padding(.top, 10)
+                .background(.ultraThinMaterial)
+                .overlay(alignment: .top) { Divider().opacity(0.45) }
             }
             .onChange(of: messages.count) { _, _ in withAnimation { proxy.scrollTo("coach-bottom") } }
         }
@@ -458,6 +515,17 @@ struct KlangradarCoachView: View {
     }
 
     private func insightIcon(_ kind: String) -> String { switch kind { case "ticket": "ticket.fill"; case "goal": "target"; case "trend": "chart.line.uptrend.xyaxis"; case "reflection": "quote.bubble.fill"; case "discovery": "safari.fill"; default: "calendar.badge.clock" } }
+}
+
+private struct CoachSendButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(isEnabled ? (configuration.isPressed ? 0.82 : 1) : 0.3)
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+            .animation(.easeOut(duration: 0.14), value: configuration.isPressed)
+    }
 }
 
 private struct CoachCheckinSheet: View {
