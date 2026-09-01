@@ -14,6 +14,7 @@ import '../../features/map/presentation/map_screen.dart';
 import '../../features/notifications/presentation/notification_settings_screen.dart';
 import '../../features/onboarding/presentation/onboarding_screen.dart';
 import '../../features/planning/presentation/evening_plan_screen.dart';
+import '../../features/planning/presentation/concierge_screen.dart';
 import '../../features/persons/presentation/ensemble_detail_screen.dart';
 import '../../features/persons/presentation/person_detail_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
@@ -107,6 +108,11 @@ GoRouter buildAppRouter({String initialLocation = '/home'}) => GoRouter(
       parentNavigatorKey: rootNavigatorKey,
       builder: (context, state) =>
           VenueDetailScreen(slug: state.pathParameters['slug']!),
+    ),
+    GoRoute(
+      path: '/assistant',
+      parentNavigatorKey: rootNavigatorKey,
+      builder: (context, state) => const ConciergeScreen(),
     ),
     GoRoute(
       path: '/evening-plan',

@@ -172,7 +172,7 @@ struct HomeView: View {
                 }
             }
             .navigationTitle("Klangradar")
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     CityCompactMenu(cityStore: cityStore)
@@ -188,6 +188,11 @@ struct HomeView: View {
                 EntityDetailView(route: route, repository: contentRepository)
             }
             .task {
+                // Nutzerfeedback: "Stadtfilter klappt nicht, trotz München
+                // werden Berlin-Konzerte gezeigt" -- diese Zuweisung fehlte
+                // nach einem Merge komplett, model.regionID blieb dauerhaft
+                // nil (= alle Städte), unabhängig vom Chip oben rechts.
+                model.regionID = cityStore.selectedCity?.id
                 await model.load()
                 collections = (try? await contentRepository.collections()) ?? []
                 async let persons = contentRepository.directory(kind: .person)
@@ -200,6 +205,9 @@ struct HomeView: View {
             }
             .onReceive(NotificationCenter.default.publisher(for: HomeCategoryPreferences.didChange)) { _ in
                 categoryOrder = HomeCategoryPreferences.order(for: model.currentUserID)
+            }
+            .onChange(of: cityStore.selectedCity) { _, newCity in
+                Task { await model.setRegion(newCity?.id) }
             }
             // Eine Änderung im Herz-Button wirkt sofort auch auf die
             // Startseite. Die Rail verwendet dabei die vollständige

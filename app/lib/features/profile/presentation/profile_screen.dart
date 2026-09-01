@@ -64,6 +64,11 @@ class ProfileScreen extends ConsumerWidget {
             ),
           const SizedBox(height: AppSpacing.xxl),
           _ProfileRow(
+            label: 'Assistent & Abendplaner',
+            colors: colors,
+            onTap: () => context.push('/assistant'),
+          ),
+          _ProfileRow(
             label: 'Klangradar Coach',
             colors: colors,
             onTap: () => context.push('/coach'),
