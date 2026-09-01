@@ -42,19 +42,21 @@ class HomeScreen extends ConsumerWidget {
                       l10n.homeTitle,
                       style: Theme.of(context).textTheme.headlineMedium,
                     ),
-                    Row(children: [
-                      LiquidGlassIconButton(
-                        icon: Icons.auto_awesome,
-                        semanticLabel: 'Klangradar Coach',
-                        onPressed: () => context.push('/coach'),
-                      ),
-                      const SizedBox(width: 8),
-                      LiquidGlassIconButton(
-                        icon: Icons.person_rounded,
-                        semanticLabel: l10n.navProfile,
-                        onPressed: () => context.go('/profile'),
-                      ),
-                    ]),
+                    Row(
+                      children: [
+                        LiquidGlassIconButton(
+                          icon: Icons.auto_awesome,
+                          semanticLabel: 'Klangradar Coach',
+                          onPressed: () => context.push('/coach'),
+                        ),
+                        const SizedBox(width: 8),
+                        LiquidGlassIconButton(
+                          icon: Icons.person_rounded,
+                          semanticLabel: l10n.navProfile,
+                          onPressed: () => context.go('/profile'),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
