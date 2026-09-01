@@ -249,6 +249,7 @@ struct KlangradarCoachView: View {
     let eventRepository: any EventRepository
     let contentRepository: any ContentRepository
     private let showsDismissButton: Bool
+    private let presentsChatDirectly: Bool
     @EnvironmentObject private var favorites: FavoriteStore
     @Environment(\.dismiss) private var dismiss
 
@@ -281,23 +282,27 @@ struct KlangradarCoachView: View {
         self.eventRepository = eventRepository
         self.contentRepository = contentRepository
         self.showsDismissButton = showsDismissButton
+        self.presentsChatDirectly = startsInChat
         _selectedSection = State(initialValue: startsInChat ? .chat : .overview)
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker("Bereich", selection: $selectedSection) {
-                ForEach(Section.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+            if !presentsChatDirectly {
+                Picker("Bereich", selection: $selectedSection) {
+                    ForEach(Section.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 10)
             }
-            .pickerStyle(.segmented)
-            .padding(.horizontal).padding(.bottom, 8)
 
             switch selectedSection {
             case .overview: overview
             case .chat: chat
             }
         }
-        .background { KlangradarBackground().ignoresSafeArea() }
+        .background { Color(uiColor: .systemGroupedBackground).ignoresSafeArea() }
         .navigationTitle("Klangradar KI")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -411,7 +416,7 @@ struct KlangradarCoachView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 13) {
                     ForEach(messages) { message in
-                        HStack { if message.user { Spacer(minLength: 45) }; Text(message.text).padding(.horizontal, 14).padding(.vertical, 11).background(message.user ? KlangradarTheme.accent : Color(uiColor: .secondarySystemGroupedBackground)).foregroundStyle(message.user ? .white : .primary).clipShape(.rect(cornerRadius: 18, style: .continuous)); if !message.user { Spacer(minLength: 45) } }
+                        messageBubble(message)
                     }
                     ForEach(events) { event in coachEventCard(event) }
                     if let proposal = memoryProposal { proposalCard("Soll ich mir das merken?", proposal, action: "confirm_memory") }
@@ -436,7 +441,10 @@ struct KlangradarCoachView: View {
                         .background(Color.orange.opacity(0.1), in: .rect(cornerRadius: 16, style: .continuous))
                     }
                     Color.clear.frame(height: 1).id("coach-bottom")
-                }.padding()
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, presentsChatDirectly ? 8 : 12)
+                .padding(.bottom, 12)
             }
             .safeAreaInset(edge: .bottom) {
                 VStack(spacing: 10) {
@@ -444,9 +452,15 @@ struct KlangradarCoachView: View {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 8) {
                                 ForEach(suggestedPrompts, id: \.self) { prompt in
-                                    Button(prompt) { draft = prompt; Task { await send() } }
-                                        .buttonStyle(.bordered)
-                                        .buttonBorderShape(.capsule)
+                                    Button { draft = prompt; Task { await send() } } label: {
+                                        Text(prompt)
+                                            .font(.subheadline.weight(.medium))
+                                            .padding(.horizontal, 13)
+                                            .padding(.vertical, 9)
+                                            .background(.thinMaterial, in: Capsule())
+                                            .overlay { Capsule().stroke(Color.primary.opacity(0.08), lineWidth: 1) }
+                                    }
+                                    .buttonStyle(.plain)
                                 }
                             }
                             .padding(.horizontal, 16)
@@ -481,11 +495,43 @@ struct KlangradarCoachView: View {
                     .padding(.bottom, 10)
                 }
                 .padding(.top, 10)
-                .background(.ultraThinMaterial)
+                .background(.regularMaterial)
                 .overlay(alignment: .top) { Divider().opacity(0.45) }
             }
             .onChange(of: messages.count) { _, _ in withAnimation { proxy.scrollTo("coach-bottom") } }
         }
+    }
+
+    private func messageBubble(_ message: ChatMessage) -> some View {
+        HStack(alignment: .bottom, spacing: 8) {
+            if message.user { Spacer(minLength: 52) }
+
+            if !message.user {
+                Image("KlangradarLogo")
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 30, height: 30)
+                    .clipShape(.rect(cornerRadius: 9, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 9, style: .continuous)
+                            .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                    }
+            }
+
+            Text(message.text)
+                .font(.body)
+                .textSelection(.enabled)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 11)
+                .background(
+                    message.user ? KlangradarTheme.accent : Color(uiColor: .secondarySystemGroupedBackground),
+                    in: .rect(cornerRadius: 18, style: .continuous)
+                )
+                .foregroundStyle(message.user ? .white : .primary)
+
+            if !message.user { Spacer(minLength: 38) }
+        }
+        .frame(maxWidth: .infinity)
     }
 
     private func coachEventCard(_ event: CoachEvent) -> some View {

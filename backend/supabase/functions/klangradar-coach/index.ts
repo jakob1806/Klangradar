@@ -26,7 +26,7 @@ const PLAN_FUNCTION: AiFunctionDeclaration = {
 
 const ANSWER_FUNCTION: AiFunctionDeclaration = {
   name: "write_coach_answer",
-  description: "Schreibt eine kurze persönliche Coach-Antwort ausschließlich aus dem gelieferten Kontext und den echten Treffern.",
+  description: "Schreibt eine kurze persönliche Antwort der Klangradar KI ausschließlich aus dem gelieferten Kontext und den echten Treffern.",
   parameters: {
     type: "object",
     properties: {
@@ -108,7 +108,7 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "Nur POST" }, 405);
   const db = createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_ANON_KEY") ?? "", { global: { headers: { Authorization: `Bearer ${bearer(req)}` } } });
   const { data: authData } = await db.auth.getUser();
-  if (!authData.user) return json({ error: "Bitte anmelden, damit dein Coach persönliche Daten sicher verwenden kann." }, 401);
+  if (!authData.user) return json({ error: "Bitte anmelden, damit die Klangradar KI persönliche Daten sicher verwenden kann." }, 401);
   let body: Json;
   try { body = await req.json(); } catch { return json({ error: "Ungültige Anfrage" }, 400); }
   const action = String(body.action ?? "dashboard");
@@ -142,7 +142,7 @@ Deno.serve(async (req) => {
   const dashboard = await loadDashboard(db, authData.user.id);
   let local = localPlan(message);
   const planned = await callAiFunctionPreferGemini(
-    "Du bist der Planer des Klangradar Coach. Extrahiere nur die Absicht. Erfinde keine Events, Daten oder Präferenzen. Relative Daten beziehen sich auf " + new Date().toISOString() + ". Memory nur vorschlagen, wenn der Nutzer ausdrücklich 'merk dir' o.ä. sagt; Ziele nur bei klarer Zielsetzung.",
+    "Du bist der Planer der Klangradar KI. Verwende niemals die Bezeichnung Coach. Extrahiere nur die Absicht. Erfinde keine Events, Daten oder Präferenzen. Relative Daten beziehen sich auf " + new Date().toISOString() + ". Memory nur vorschlagen, wenn der Nutzer ausdrücklich 'merk dir' o.ä. sagt; Ziele nur bei klarer Zielsetzung.",
     `Nachricht: ${message}\nBestätigter Kontext: ${JSON.stringify(dashboard.context)}`,
     PLAN_FUNCTION,
   );
@@ -164,7 +164,7 @@ Deno.serve(async (req) => {
     ...((events as Json[] | null) ?? []).map((e) => ({ type: "event", id: e.id, slug: e.slug, reasons: e.reasons })),
   ];
   const answerResult = await callAiFunctionPreferGemini(
-    `Du bist der persönliche Klangradar Coach. Antworte warm, klar und präzise in 2-3 kurzen Absätzen. Nutze ausschließlich gelieferte Daten. Nenne Verhaltenstrends nur als Zusammenhang, nie als Ursache. Bei signal_quality=low sage, dass du die Person noch kennenlernst. Eventnamen nur aus Echte Treffer. Gib eine konkrete nächste Aktion.`,
+    `Du bist die persönliche Klangradar KI. Verwende niemals die Bezeichnung Coach. Antworte warm, klar und präzise in 2-3 kurzen Absätzen. Nutze ausschließlich gelieferte Daten. Nenne Verhaltenstrends nur als Zusammenhang, nie als Ursache. Bei signal_quality=low sage, dass du die Person noch kennenlernst. Eventnamen nur aus Echte Treffer. Gib eine konkrete nächste Aktion.`,
     `Frage: ${message}\nIntent: ${local.intent}\nPersönlicher Kontext: ${JSON.stringify(dashboard.context)}\nBeobachtete Trends: ${JSON.stringify(dashboard.trends)}\nEchte Treffer: ${JSON.stringify(events ?? [])}`,
     ANSWER_FUNCTION,
   );
