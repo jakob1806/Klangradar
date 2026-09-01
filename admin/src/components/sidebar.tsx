@@ -51,10 +51,12 @@ const NAV_GROUPS = [
   {
     label: "Stammdaten & System",
     items: [
+      { href: "/knowledge-graph", label: "Knowledge Graph" },
       { href: "/venues", label: "Venues" },
       { href: "/organizers", label: "Veranstalter" },
       { href: "/persons", label: "Personen" },
       { href: "/ensembles", label: "Ensembles" },
+      { href: "/works", label: "Werke" },
       { href: "/ensemble-families", label: "Ensemblefamilien" },
       { href: "/festivals", label: "Festivals" },
       { href: "/editorial-collections", label: "Redaktionelle Sammlungen" },

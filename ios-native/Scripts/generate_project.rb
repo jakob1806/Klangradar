@@ -101,6 +101,7 @@ app_target.build_configurations.each do |config|
     "CODE_SIGN_STYLE" => "Automatic",
     "CURRENT_PROJECT_VERSION" => "1",
     "DEVELOPMENT_ASSET_PATHS" => "",
+    "DEVELOPMENT_TEAM" => "DVH3MYQ64A",
     "ENABLE_PREVIEWS" => "YES",
     "GENERATE_INFOPLIST_FILE" => "YES",
     "INFOPLIST_KEY_CFBundleDisplayName" => "Klangradar",

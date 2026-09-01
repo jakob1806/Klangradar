@@ -15,8 +15,7 @@ struct ProfileView: View {
     @State private var showsLogin = false
     @State private var showsCitySwitcher = false
     @State private var hasEditorialAccess = false
-    @State private var showsMarketingShell = false
-    @State private var startsMarketingInPresentationMode = true
+    @State private var showsMarketingShell = ProcessInfo.processInfo.environment["KLANGRADAR_MARKETING_CAPTURE"] == "1"
 
     var body: some View {
         NavigationStack {
@@ -106,21 +105,14 @@ struct ProfileView: View {
                 if hasEditorialAccess {
                     Section {
                         Button {
-                            startsMarketingInPresentationMode = true
                             showsMarketingShell = true
                         } label: {
                             Label("Marketing-Screenshots", systemImage: "camera.viewfinder")
                         }
-                        Button {
-                            startsMarketingInPresentationMode = false
-                            showsMarketingShell = true
-                        } label: {
-                            Label("Marketing-Inhalte vorbereiten", systemImage: "pencil.and.list.clipboard")
-                        }
                     } header: {
                         Text("Marketing")
                     } footer: {
-                        Text("Marketing-Screenshots startet direkt ohne Werkzeugleisten für echte Aufnahmen. Inhalte vorbereiten zeigt die Bearbeiten-Werkzeuge für Home und Suche; mit „Fertig“ wechselst du zurück in den aufnahmebereiten Modus. Aus diesem kommst du per Doppeltipp auf Home wieder heraus.")
+                        Text("Bereite Home und Suche vor und tippe anschließend auf „Fertig“. Im Aufnahmezustand verhält sich alles wie die normale App; verlassen kannst du ihn per Doppeltipp auf Home.")
                     }
                 }
 
@@ -166,8 +158,7 @@ struct ProfileView: View {
                     editorialRepository: editorialRepository,
                     eventRepository: eventRepository,
                     contentRepository: contentRepository,
-                    usesPreviewData: usesPreviewData,
-                    startsInPresentationMode: startsMarketingInPresentationMode
+                    usesPreviewData: usesPreviewData
                 )
             }
             .task(id: auth.accessToken) { await checkEditorialAccess() }

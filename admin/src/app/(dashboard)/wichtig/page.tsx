@@ -22,6 +22,8 @@ export default async function WichtigPage() {
     { count: lowConfidenceCount },
     { count: contentReportCount },
     { count: errorReportCount },
+    { count: workCount },
+    { count: graphLinkCount },
   ] = await Promise.all([
     supabase.from("entity_candidates").select("id", { count: "exact", head: true }).eq("status", "pending"),
     supabase.from("duplicate_candidates").select("id", { count: "exact", head: true }).eq("status", "pending"),
@@ -29,6 +31,8 @@ export default async function WichtigPage() {
     supabase.from("events").select("id", { count: "exact", head: true }).in("review_status", REVIEW_STATUSES_TO_SHOW),
     supabase.from("content_reports").select("id", { count: "exact", head: true }).eq("status", "pending"),
     supabase.from("error_reports").select("id", { count: "exact", head: true }),
+    supabase.from("works").select("id", { count: "exact", head: true }),
+    supabase.from("event_works").select("event_id", { count: "exact", head: true }),
   ]);
 
   const summaryCards = [
@@ -51,7 +55,7 @@ export default async function WichtigPage() {
           : "Aktuell nichts Dringendes offen."}
       </p>
 
-      <div className="mt-6 grid grid-cols-3 gap-4">
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {summaryCards.map((card) => (
           <Link
             key={card.href}
@@ -63,6 +67,11 @@ export default async function WichtigPage() {
           </Link>
         ))}
       </div>
+
+      <Link href="/knowledge-graph" className="group mt-8 grid overflow-hidden rounded-2xl bg-[#f1ede5] p-6 transition hover:bg-[#eee8dc] sm:grid-cols-[1fr_auto] sm:items-end sm:p-7">
+        <div><p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8b2635]">Klangradar Datenbank</p><h2 className="mt-2 max-w-xl text-2xl font-semibold tracking-[-0.04em] text-[#1d1d1f]">Den Knowledge Graph pflegen und erkunden</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-[#6f6a63]">{(workCount ?? 0).toLocaleString("de-DE")} Werke sind über {(graphLinkCount ?? 0).toLocaleString("de-DE")} Programme mit Aufführungen, Personen, Ensembles und Orten verbunden.</p></div>
+        <span className="mt-5 text-sm font-semibold text-[#8b2635] transition-transform group-hover:translate-x-1 sm:mt-0">Graph öffnen →</span>
+      </Link>
     </div>
   );
 }

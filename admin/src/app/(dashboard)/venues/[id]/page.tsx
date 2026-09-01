@@ -7,6 +7,7 @@ import type { GalleryImage } from "@/lib/gallery-actions";
 import { updateVenue, getCityOptions } from "../actions";
 import { VenueDeleteControl } from "../venue-delete-control";
 import { VenueForm, type VenueFormValues } from "../venue-form";
+import { EntityConnections } from "@/components/entity-connections";
 
 export default async function EditVenuePage({
   params,
@@ -55,6 +56,7 @@ export default async function EditVenuePage({
       <div className="mt-8 max-w-xl border-t border-neutral-200 pt-6">
         <GalleryEditor originType="venue" originId={id} path={`/venues/${id}`} images={images ?? []} />
       </div>
+      <EntityConnections kind="venue" id={id} />
     </div>
   );
 }

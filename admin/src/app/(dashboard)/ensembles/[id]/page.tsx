@@ -9,6 +9,7 @@ import type { GalleryImage } from "@/lib/gallery-actions";
 import { updateEnsemble } from "../actions";
 import { EnsembleDeleteControl } from "../ensemble-delete-control";
 import { EnsembleForm, type EnsembleFormValues } from "../ensemble-form";
+import { EntityConnections } from "@/components/entity-connections";
 
 export default async function EditEnsemblePage({
   params,
@@ -91,6 +92,7 @@ export default async function EditEnsemblePage({
           showEventFallbackToggle
         />
       </div>
+      <EntityConnections kind="ensemble" id={id} />
     </div>
   );
 }

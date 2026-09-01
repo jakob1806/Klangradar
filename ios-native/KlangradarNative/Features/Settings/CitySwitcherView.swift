@@ -18,15 +18,17 @@ struct CitySwitcherView: View {
                 VStack(alignment: .leading, spacing: 24) {
                     cityHeader
 
-                    ForEach(cityStore.activeCities) { city in
-                        cityRow(
-                            name: city.name,
-                            subtitle: countryLabel(for: city),
-                            isSelected: cityStore.selectedCity?.id == city.id
-                        ) { cityStore.select(city) }
+                    LazyVStack(spacing: 12) {
+                        ForEach(displayCities) { city in
+                            cityRow(
+                                name: city.name,
+                                subtitle: countryLabel(for: city),
+                                isSelected: cityStore.selectedCity?.id == city.id
+                            ) { cityStore.select(city) }
+                        }
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, 24)
                 .padding(.bottom, 36)
             }
             .background(KlangradarBackground().ignoresSafeArea())
@@ -42,7 +44,7 @@ struct CitySwitcherView: View {
 
     private var cityHeader: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Image(systemName: "house.and.flag.fill")
+            Image(systemName: "music.note.house.fill")
                 .font(.system(size: 40, weight: .semibold))
                 .foregroundStyle(KlangradarTheme.accent)
 
@@ -55,11 +57,12 @@ struct CitySwitcherView: View {
             Button {
                 Task { await recommendByLocation() }
             } label: {
-                Label(
-                    isLocating ? "Standort wird bestimmt …" : "Stadt anhand meines Standorts empfehlen",
-                    systemImage: "location.north.fill"
-                )
-                .font(.subheadline.weight(.semibold))
+                HStack(spacing: 12) {
+                    Image(systemName: "location.north.fill")
+                        .rotationEffect(.degrees(38))
+                    Text(isLocating ? "Standort wird bestimmt …" : "Stadt anhand meines Standorts empfehlen")
+                }
+                .font(.body)
                 .frame(maxWidth: .infinity)
                 .frame(height: 52)
             }
@@ -72,7 +75,7 @@ struct CitySwitcherView: View {
                 Text(locationError).font(.footnote).foregroundStyle(.red)
             }
         }
-        .padding(.top, 26)
+        .padding(.top, 38)
     }
 
     private func cityRow(name: String, subtitle: String?, isSelected: Bool, action: @escaping () -> Void) -> some View {
@@ -89,13 +92,23 @@ struct CitySwitcherView: View {
                 }
                 Spacer()
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 18)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 16)
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
-        .background(.white.opacity(0.44), in: .rect(cornerRadius: 30))
+        .background(.white.opacity(0.44), in: .rect(cornerRadius: 24))
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+    }
+
+    private var displayCities: [RegionOption] {
+        let order = ["München", "Berlin", "Hamburg", "Wien", "Frankfurt am Main"]
+        return cityStore.activeCities.sorted { left, right in
+            let leftIndex = order.firstIndex(of: left.name) ?? order.count
+            let rightIndex = order.firstIndex(of: right.name) ?? order.count
+            if leftIndex == rightIndex { return left.name.localizedStandardCompare(right.name) == .orderedAscending }
+            return leftIndex < rightIndex
+        }
     }
 
     /// Deutschland-Städte bekommen keinen Zusatz (überwiegende Mehrheit),
@@ -175,20 +188,29 @@ struct CityCompactMenu: View {
         } label: { chipLabel }
     }
 
+    @ViewBuilder
     private var chipLabel: some View {
-        HStack(spacing: 8) {
+        if #available(iOS 26.0, *) {
+            chipContent
+        } else {
+            chipContent
+                .background(.ultraThinMaterial, in: .capsule)
+                .overlay { Capsule().stroke(.white.opacity(0.7), lineWidth: 1) }
+        }
+    }
+
+    private var chipContent: some View {
+        HStack(spacing: 6) {
             Image(systemName: "location.north.fill")
                 .rotationEffect(.degrees(28))
             Text(cityStore.selectedCity?.name ?? (allowsAllCities ? "Alle Städte" : "Stadt"))
             Image(systemName: "chevron.down")
-                .font(.caption.weight(.bold))
+                .font(.caption2.weight(.bold))
         }
-        .font(.title3.weight(.semibold))
+        .font(.headline.weight(.semibold))
         .foregroundStyle(KlangradarTheme.accent)
-        .padding(.horizontal, 17)
-        .frame(height: 48)
-        .background(.ultraThinMaterial, in: .capsule)
-        .overlay { Capsule().stroke(.white.opacity(0.7), lineWidth: 1) }
+        .padding(.horizontal, 14)
+        .frame(height: 44)
     }
 
     @ViewBuilder

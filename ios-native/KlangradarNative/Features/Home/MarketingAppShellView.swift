@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Eigenständige Tab-Leiste für Marketing-Screenshots: „Home" zeigt den frei
 /// editierbaren Homescreen-Nachbau (`MarketingHomeScreenView`), die übrigen
@@ -16,15 +17,11 @@ struct MarketingAppShellView: View {
     let eventRepository: any EventRepository
     let contentRepository: any ContentRepository
     let usesPreviewData: Bool
-    /// Der normale Einstieg ist bewusst bereits aufnahmebereit: weder X noch
-    /// Stift erscheinen in einer Bildschirmaufnahme. Das Vorbereiten wird
-    /// aus dem Profil explizit gestartet.
-    let startsInPresentationMode: Bool
-
     @Environment(\.dismiss) private var dismiss
     @State private var selection: MarketingTab = .home
-    @State private var isPresentationMode: Bool
+    @State private var isPresentationMode = false
     @State private var availableEvents: [ConcertEvent] = []
+    @State private var eventsLoadError: String?
     @StateObject private var marketingContent = MarketingContentStore()
     // Von SearchView/EventCard/EntityDetailView usw. per @EnvironmentObject
     // erwartet — dieselben Stores wie in RootTabView, sonst crasht das
@@ -41,8 +38,7 @@ struct MarketingAppShellView: View {
         editorialRepository: EditorialRepository?,
         eventRepository: any EventRepository,
         contentRepository: any ContentRepository,
-        usesPreviewData: Bool,
-        startsInPresentationMode: Bool = true
+        usesPreviewData: Bool
     ) {
         self.auth = auth
         self.userRepository = userRepository
@@ -50,8 +46,6 @@ struct MarketingAppShellView: View {
         self.eventRepository = eventRepository
         self.contentRepository = contentRepository
         self.usesPreviewData = usesPreviewData
-        self.startsInPresentationMode = startsInPresentationMode
-        _isPresentationMode = State(initialValue: startsInPresentationMode)
         _favorites = StateObject(wrappedValue: FavoriteStore(auth: auth, repository: userRepository))
         _follows = StateObject(wrappedValue: FollowStore(auth: auth, repository: userRepository))
         _reportStore = StateObject(wrappedValue: ReportStore(auth: auth, repository: userRepository))
@@ -105,35 +99,10 @@ struct MarketingAppShellView: View {
             }
 
             if !isPresentationMode {
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.title2)
-                        .symbolRenderingMode(.palette)
-                        .foregroundStyle(.secondary, Color(.systemBackground).opacity(0.85))
-                }
-                .padding(12)
-                .accessibilityLabel("Marketing-Vorschau schließen")
-            }
-
-            // Im fertigen Aufnahmezustand bleibt die gesamte Oberfläche frei
-            // von Werkzeugen. Ein bewusster Doppeltipp auf Home ist der
-            // einzige Ausstieg und wird nicht versehentlich in einer Aufnahme
-            // ausgelöst.
-            if isPresentationMode {
-                VStack {
-                    Spacer()
-                    HStack {
-                        Color.clear
-                            .frame(width: 88, height: 54)
-                            .contentShape(.rect)
-                            .onTapGesture(count: 2) { dismiss() }
-                        Spacer()
-                    }
-                }
-                .ignoresSafeArea(edges: .bottom)
-                .accessibilityLabel("Marketing-Vorschau per Doppeltipp auf Home schließen")
+                preparationBar
+            } else {
+                MarketingHomeTabDoubleTapObserver { dismiss() }
+                    .allowsHitTesting(false)
             }
         }
         .environmentObject(favorites)
@@ -150,11 +119,103 @@ struct MarketingAppShellView: View {
 
     @MainActor
     private func loadAvailableEvents() async {
-        guard let events = try? await eventRepository.upcomingEvents(limit: 150) else { return }
-        availableEvents = (try? await eventRepository.enrichingImages(in: events)) ?? events
+        eventsLoadError = nil
+        do {
+            let events = try await eventRepository.allUpcomingEvents()
+            availableEvents = (try? await eventRepository.enrichingImages(in: events)) ?? events
+        } catch {
+            eventsLoadError = "Echte Veranstaltungen konnten nicht geladen werden."
+        }
+    }
+
+    private var preparationBar: some View {
+        VStack {
+            Spacer()
+            HStack(spacing: 12) {
+                Button(role: .cancel) { dismiss() } label: {
+                    Label("Schließen", systemImage: "xmark")
+                }
+                .buttonStyle(.bordered)
+
+                Spacer()
+
+                if let eventsLoadError {
+                    Text(eventsLoadError)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+
+                Button {
+                    isPresentationMode = true
+                } label: {
+                    Label("Fertig", systemImage: "checkmark")
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            .padding(12)
+            .background(.ultraThinMaterial, in: .rect(cornerRadius: 18))
+            .shadow(color: .black.opacity(0.14), radius: 16, y: 6)
+            .padding(.horizontal, 14)
+            .padding(.bottom, 58)
+        }
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+        .accessibilityElement(children: .contain)
     }
 }
 
 private enum MarketingTab: Hashable {
     case home, search, map, calendar, profile
+}
+
+/// Beobachtet einen Doppeltipp auf das echte Home-Tab-Bar-Element, ohne
+/// dessen normale Einzeltipp-Navigation zu blockieren. Ein transparentes
+/// SwiftUI-Overlay würde den Home-Tab sonst unbedienbar machen.
+private struct MarketingHomeTabDoubleTapObserver: UIViewControllerRepresentable {
+    let onDoubleTap: () -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(onDoubleTap: onDoubleTap) }
+
+    func makeUIViewController(context: Context) -> UIViewController {
+        let controller = UIViewController()
+        controller.view.isUserInteractionEnabled = false
+        DispatchQueue.main.async { context.coordinator.attach(from: controller) }
+        return controller
+    }
+
+    func updateUIViewController(_ controller: UIViewController, context: Context) {
+        context.coordinator.onDoubleTap = onDoubleTap
+        DispatchQueue.main.async { context.coordinator.attach(from: controller) }
+    }
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        var onDoubleTap: () -> Void
+        private weak var tabBar: UITabBar?
+        private var recognizer: UITapGestureRecognizer?
+
+        init(onDoubleTap: @escaping () -> Void) { self.onDoubleTap = onDoubleTap }
+
+        func attach(from controller: UIViewController) {
+            guard let tabBar = controller.tabBarController?.tabBar, self.tabBar !== tabBar else { return }
+            if let recognizer, let oldTabBar = self.tabBar { oldTabBar.removeGestureRecognizer(recognizer) }
+            let recognizer = UITapGestureRecognizer(target: self, action: #selector(didDoubleTap(_:)))
+            recognizer.numberOfTapsRequired = 2
+            recognizer.cancelsTouchesInView = false
+            recognizer.delegate = self
+            tabBar.addGestureRecognizer(recognizer)
+            self.tabBar = tabBar
+            self.recognizer = recognizer
+        }
+
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+            guard let tabBar, let itemCount = tabBar.items?.count, itemCount > 0 else { return false }
+            let location = touch.location(in: tabBar)
+            return location.x >= 0 && location.x <= tabBar.bounds.width / CGFloat(itemCount)
+        }
+
+        @objc private func didDoubleTap(_ recognizer: UITapGestureRecognizer) {
+            guard recognizer.state == .ended else { return }
+            onDoubleTap()
+        }
+    }
 }

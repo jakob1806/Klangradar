@@ -1,6 +1,7 @@
 #!/bin/bash
 
-PROJECT_DIR="/Users/jakob/Claude Projekte/ios-native"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$SCRIPT_DIR"
 SOURCE_DIR="$PROJECT_DIR/KlangradarNative"
 DEPLOY_SCRIPT="$PROJECT_DIR/deploy-iphone.sh"
 
@@ -132,4 +133,3 @@ do
     fi
 
 done
-

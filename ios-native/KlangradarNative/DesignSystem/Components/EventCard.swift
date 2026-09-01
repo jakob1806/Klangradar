@@ -13,7 +13,9 @@ struct EventCard: View {
                 .overlay(alignment: .topTrailing) {
                     GlassIconButton(
                         systemImage: favorites.ids.contains(event.id) ? "heart.fill" : "heart",
-                        accessibilityLabel: "Zu Favoriten hinzufügen"
+                        accessibilityLabel: favorites.ids.contains(event.id)
+                            ? "Aus Favoriten entfernen"
+                            : "Zu Favoriten hinzufügen"
                     ) { Task { await favorites.toggle(event.id) } }
                     .padding(8)
                 }

@@ -16,6 +16,10 @@ struct AppEnvironment {
             processInfo: processInfo,
             bundle: bundle
         ) else {
+            // Preview-Daten sind ausschließlich für Xcode-Previews und Tests
+            // gedacht. Ein Geräte-Build wird zusätzlich im Deploy-Skript
+            // blockiert, wenn Secrets.plist fehlt, damit niemals unbemerkt
+            // eine scheinbar echte App ohne Supabase installiert wird.
             return AppEnvironment(
                 events: PreviewEventRepository(),
                 content: PreviewContentRepository(),

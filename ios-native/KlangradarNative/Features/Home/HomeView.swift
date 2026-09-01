@@ -265,7 +265,12 @@ struct HomeView: View {
                 lhs.matchesPersonalization(model.personalizedEntityIDs) && !rhs.matchesPersonalization(model.personalizedEntityIDs)
             })
         case .followed:
-            EventRail(title: category.title, events: followedEvents(from: events))
+            // Auch ältere gespeicherte Startseiten-Konfigurationen können
+            // noch die frühere Sammelkategorie „Gefolgt“ enthalten. Personen
+            // und Ensembles erscheinen darin nun ebenfalls als runde Profile
+            // statt wieder in rechteckige Veranstaltungskarten zurückzufallen.
+            EntityRail(title: "Gefolgte Personen", items: followedPersonDirectoryItems)
+            EntityRail(title: "Gefolgte Ensembles", items: followedEnsembleDirectoryItems)
         case .editorialCollections:
             if !collections.isEmpty { CollectionRail(collections: collections) }
         case .followedPersons:

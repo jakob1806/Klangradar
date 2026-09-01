@@ -144,10 +144,7 @@ struct MarketingContentEditorView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Fertig") {
-                        onFinished()
-                        dismiss()
-                    }
+                    Button("Übernehmen") { onFinished(); dismiss() }
                 }
                 ToolbarItem(placement: .primaryAction) { EditButton() }
             }

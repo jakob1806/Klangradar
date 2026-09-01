@@ -16,18 +16,32 @@ final class CityStore: ObservableObject {
 
     private let auth: AuthStore
     private let repository: UserRepository?
+    private let defaults: UserDefaults
     private var didSeedFromPreference = false
+    private var hasExplicitSelection = false
 
-    init(auth: AuthStore, repository: UserRepository?) {
+    private static let selectedCityIDKey = "selectedCityID"
+
+    init(auth: AuthStore, repository: UserRepository?, defaults: UserDefaults = .standard) {
         self.auth = auth
         self.repository = repository
+        self.defaults = defaults
     }
 
     func load() async {
         isLoading = true
         defer { isLoading = false }
         activeCities = (try? await repository?.activeRegions()) ?? []
+
+        // Die zuletzt auf diesem Gerät gewählte Stadt ist beim Start sofort
+        // verfügbar und gewinnt vor einem eventuell älteren Profilwert. So
+        // fällt die App während des parallelen Auth-Bootstraps nicht auf eine
+        // andere Stadt zurück.
+        restoreLocalSelectionIfNeeded()
         await seedFromPreferredRegionIfNeeded()
+        if selectedCity == nil {
+            selectedCity = activeCities.first { $0.name == "München" }
+        }
     }
 
     /// Explizite Nutzerauswahl (z.B. aus CitySwitcherView) -- persistiert bei
@@ -36,7 +50,13 @@ final class CityStore: ObservableObject {
     /// In-Memory für die laufende Sitzung.
     func select(_ city: RegionOption?) {
         selectedCity = city
+        hasExplicitSelection = true
         didSeedFromPreference = true
+        if let city {
+            defaults.set(city.id.uuidString, forKey: Self.selectedCityIDKey)
+        } else {
+            defaults.removeObject(forKey: Self.selectedCityIDKey)
+        }
         guard let repository, let userID = auth.userID, let token = auth.accessToken, let city else { return }
         Task { try? await repository.setPreferredRegion(regionID: city.id, userID: userID, token: token) }
     }
@@ -56,10 +76,21 @@ final class CityStore: ObservableObject {
     }
 
     private func seedFromPreferredRegionIfNeeded() async {
-        guard !didSeedFromPreference, selectedCity == nil,
+        guard !didSeedFromPreference, !hasExplicitSelection,
               let repository, let userID = auth.userID, let token = auth.accessToken else { return }
         didSeedFromPreference = true
         guard let preferredID = try? await repository.preferredRegionID(userID: userID, token: token) else { return }
-        selectedCity = activeCities.first { $0.id == preferredID }
+        guard let preferredCity = activeCities.first(where: { $0.id == preferredID }) else { return }
+        selectedCity = preferredCity
+        defaults.set(preferredCity.id.uuidString, forKey: Self.selectedCityIDKey)
+    }
+
+    private func restoreLocalSelectionIfNeeded() {
+        guard selectedCity == nil,
+              let storedID = defaults.string(forKey: Self.selectedCityIDKey).flatMap(UUID.init(uuidString:)),
+              let storedCity = activeCities.first(where: { $0.id == storedID }) else { return }
+        selectedCity = storedCity
+        hasExplicitSelection = true
+        didSeedFromPreference = true
     }
 }

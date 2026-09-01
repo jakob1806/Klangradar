@@ -1,6 +1,7 @@
 #!/bin/bash
 
-PROJECT_DIR="/Users/jakob/Claude Projekte/ios-native"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$SCRIPT_DIR"
 PROJECT="KlangradarNative.xcodeproj"
 SCHEME="KlangradarNative"
 
@@ -11,6 +12,7 @@ BUNDLE_ID="de.klangradar.native"
 
 DERIVED_DATA="/tmp/KlangradarNativeDerivedData"
 APP_PATH="$DERIVED_DATA/Build/Products/Debug-iphoneos/KlangradarNative.app"
+SOURCE_SECRETS="$PROJECT_DIR/Config/Secrets.plist"
 
 cd "$PROJECT_DIR"
 
@@ -26,6 +28,34 @@ echo ""
 log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 log "🚀 Neuer Klangradar-Deploy"
 log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+
+# ------------------------------------------
+# Supabase-Konfiguration vorab prüfen
+# ------------------------------------------
+
+log "🔐 Prüfe Supabase-Konfiguration …"
+
+if [ ! -f "$SOURCE_SECRETS" ]; then
+    log "❌ Config/Secrets.plist fehlt. Es wird keine Demo-App gebaut."
+    exit 8
+fi
+
+if ! plutil -lint "$SOURCE_SECRETS" >/dev/null 2>&1; then
+    log "❌ Config/Secrets.plist ist ungültig."
+    exit 8
+fi
+
+SUPABASE_URL_VALUE=$(plutil -extract SUPABASE_URL raw "$SOURCE_SECRETS" 2>/dev/null)
+SUPABASE_KEY_VALUE=$(plutil -extract SUPABASE_ANON_KEY raw "$SOURCE_SECRETS" 2>/dev/null)
+
+if [[ "$SUPABASE_URL_VALUE" != https://* ]] || [ -z "$SUPABASE_KEY_VALUE" ]; then
+    log "❌ Supabase-URL oder Anon-Key fehlt. Es wird keine Demo-App gebaut."
+    exit 8
+fi
+
+log "✅ Supabase-Konfiguration vorhanden."
+
 echo ""
 
 # ------------------------------------------
@@ -108,6 +138,24 @@ if [ ! -d "$APP_PATH" ]; then
 
     exit 5
 fi
+
+# Niemals einen Build installieren, der wegen fehlender Secrets in die
+# Preview-Repositories von AppEnvironment zurückfallen würde.
+EMBEDDED_SECRETS="$APP_PATH/Secrets.plist"
+if [ ! -f "$EMBEDDED_SECRETS" ]; then
+    log "❌ Build enthält keine Supabase-Konfiguration und wird nicht installiert."
+    exit 8
+fi
+
+EMBEDDED_URL=$(plutil -extract SUPABASE_URL raw "$EMBEDDED_SECRETS" 2>/dev/null)
+EMBEDDED_KEY=$(plutil -extract SUPABASE_ANON_KEY raw "$EMBEDDED_SECRETS" 2>/dev/null)
+
+if [ "$EMBEDDED_URL" != "$SUPABASE_URL_VALUE" ] || [ "$EMBEDDED_KEY" != "$SUPABASE_KEY_VALUE" ]; then
+    log "❌ Eingebettete Supabase-Konfiguration stimmt nicht mit Config/Secrets.plist überein."
+    exit 8
+fi
+
+log "✅ Native App enthält die korrekte Supabase-Anbindung."
 
 echo ""
 
