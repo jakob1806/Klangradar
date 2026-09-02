@@ -12,12 +12,24 @@ final class SpeechSearchController: NSObject, ObservableObject {
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
     private var hasInstalledTap = false
+    // Zwischen Antippen und `isRecording = true` liegen zwei `await`-Punkte
+    // (Spracherkennungs- und Mikrofon-Berechtigung) — ein zweiter Tap in
+    // diesem Fenster rief bislang `start()` ein zweites Mal parallel auf und
+    // installierte einen zweiten Tap auf demselben Bus. AVAudioEngine wirft
+    // dafür KEINEN Swift-Error, sondern eine Objective-C-Exception
+    // ("required condition is false") — das `do/catch` unten fängt das
+    // nicht ab, die App stürzt hart ab. Dieser Guard verhindert die
+    // Überlappung von Anfang an.
+    private var isStarting = false
 
     func toggle(into query: Binding<String>) async {
         if isRecording { stop() } else { await start(into: query) }
     }
 
     private func start(into query: Binding<String>) async {
+        guard !isStarting, !isRecording else { return }
+        isStarting = true
+        defer { isStarting = false }
         errorMessage = nil
         guard let recognizer, recognizer.isAvailable else {
             errorMessage = "Die Spracherkennung ist momentan nicht verfügbar."
@@ -51,6 +63,12 @@ final class SpeechSearchController: NSObject, ObservableObject {
             request.shouldReportPartialResults = true
             recognitionRequest = request
             let input = audioEngine.inputNode
+            // Defensiv: falls durch einen früheren Fehlerpfad noch ein Tap
+            // hängt, würde installTap() sonst hart abstürzen statt zu werfen.
+            if hasInstalledTap {
+                input.removeTap(onBus: 0)
+                hasInstalledTap = false
+            }
             let format = input.outputFormat(forBus: 0)
             guard format.sampleRate > 0, format.channelCount > 0 else {
                 throw SpeechSearchError.invalidAudioFormat
