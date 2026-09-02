@@ -60,6 +60,7 @@ struct VerifyEmailStepView: View {
             }
         }
         .navigationTitle("E-Mail bestätigen")
+        .onboardingChrome()
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom) {
             Button { Task { await verify() } } label: {

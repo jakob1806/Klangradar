@@ -15,6 +15,7 @@ struct InterestsStepView: View {
             InterestsView(auth: auth, repository: repository)
         }
         .navigationTitle("Was interessiert dich?")
+        .onboardingChrome()
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 8) {

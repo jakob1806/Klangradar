@@ -82,6 +82,7 @@ struct OnboardingSummaryView: View {
             .authBottomActionLayout()
         }
         .task { await loadSummary() }
+        .onboardingChrome()
     }
 
     @ViewBuilder

@@ -14,7 +14,7 @@ struct ProfileView: View {
     let eventRepository: any EventRepository
     let contentRepository: any ContentRepository
 
-    @AppStorage("appearance") private var appearance = "system"
+    @AppStorage("appearance") private var appearance = "light"
     @AppStorage(BiometricAuth.enabledStorageKey) private var biometricProtectionEnabled = false
     @EnvironmentObject private var cityStore: CityStore
     @State private var showsLogin = false

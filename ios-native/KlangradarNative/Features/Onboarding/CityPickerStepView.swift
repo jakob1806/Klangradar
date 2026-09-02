@@ -92,6 +92,7 @@ struct CityPickerStepView: View {
             if isWorking { ProgressView().controlSize(.large) }
         }
         .task { await loadCities() }
+        .onboardingChrome()
     }
 
     private func loadCities() async {
