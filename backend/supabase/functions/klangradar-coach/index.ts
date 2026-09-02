@@ -58,7 +58,15 @@ function localPlan(message: string, defaultCity?: string): { intent: string; sho
   // zu durchsuchen.
   filters.city = cities.find((c) => q.includes(c.toLocaleLowerCase("de-DE"))) ?? defaultCity;
   const music = ["barock", "oper", "sinfonie", "symphonie", "kammermusik", "chor", "klavier", "mozart", "bach", "mahler", "beethoven"];
-  filters.query = music.find((word) => q.includes(word));
+  // Nutzerfeedback: "keinen Anschluss ... wenn man sie ueber echte Konzerte
+  // oder Daten fragen will" -- schlaegt der externe Planungsaufruf fehl oder
+  // liefert keinen query-Filter, kannte der lokale Fallback bislang nur eine
+  // feste Genre-Wortliste. Venue-/Kuenstlernamen (z.B. "Isarphilharmonie")
+  // gehen als Grossschreibungs-Eigennamen in den Originaltext daher als
+  // Fallback-Suchbegriff ein.
+  const stopwords = new Set(["Ich", "Wie", "Was", "Wann", "Wo", "Gibt", "Kannst", "Bitte", "Zeig", "Zeige", "Suche", "Finde", "Klangradar"]);
+  const properNoun = message.match(/[A-ZÄÖÜ][\wÀ-ÿ'-]{2,}(?:\s[A-ZÄÖÜ][\wÀ-ÿ'-]{2,})?/g)?.find((w) => !stopwords.has(w.split(" ")[0]));
+  filters.query = music.find((word) => q.includes(word)) ?? properNoun;
   const target = new Date();
   if (/übermorgen/.test(q)) target.setDate(target.getDate() + 2);
   else if (/morgen/.test(q)) target.setDate(target.getDate() + 1);
@@ -108,6 +116,12 @@ async function loadDashboard(db: any, userID: string) {
   return { context: context ?? {}, trends: trends ?? [], insights: all.sort((a, b) => Number(b.priority ?? 0) - Number(a.priority ?? 0)).slice(0, 12) };
 }
 
+// deno-lint-ignore no-explicit-any
+async function loadContext(db: any) {
+  const [{ data: context }, { data: trends }] = await Promise.all([db.rpc("coach_context_snapshot"), db.rpc("coach_behavior_trends")]);
+  return { context: context ?? {}, trends: trends ?? [] };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "Nur POST" }, 405);
@@ -150,7 +164,10 @@ Deno.serve(async (req) => {
   // ohne einen Stadtnamen im Satz auf die aktuell gewählte Stadt
   // eingegrenzt wird, statt implizit über alle Städte zu suchen.
   const defaultCity = typeof body.city_name === "string" && body.city_name.trim() ? body.city_name.trim() : undefined;
-  const dashboard = await loadDashboard(db, authData.user.id);
+  // Chat braucht nur Kontext/Trends fuer den Prompt, keine Insights/Favoriten
+  // (die macht nur die "dashboard"-Aktion) -- spart pro Chat-Nachricht mehrere
+  // DB-Roundtrips und einen Upsert, die sowieso nie in die Antwort einfliessen.
+  const dashboard = await loadContext(db);
   let local = localPlan(message, defaultCity);
   const planned = await callAiFunctionPreferGemini(
     "Du bist der Planer des Klangradar Coach. Extrahiere nur die Absicht. Erfinde keine Events, Daten oder Präferenzen. Relative Daten beziehen sich auf " + new Date().toISOString() + ". Memory nur vorschlagen, wenn der Nutzer ausdrücklich 'merk dir' o.ä. sagt; Ziele nur bei klarer Zielsetzung.",
