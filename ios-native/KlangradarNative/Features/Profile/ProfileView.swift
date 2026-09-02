@@ -58,6 +58,11 @@ struct ProfileView: View {
                         Label("Favoriten", systemImage: "heart")
                     }
                     NavigationLink {
+                        ConcertArchiveView(repository: userRepository, eventRepository: eventRepository, contentRepository: contentRepository)
+                    } label: {
+                        Label("Konzertarchiv", systemImage: "archivebox")
+                    }
+                    NavigationLink {
                         UserEventListsView(
                             auth: auth,
                             repository: userRepository,
@@ -167,9 +172,9 @@ struct ProfileView: View {
             .navigationDestination(item: $profileDestination) { destination in
                 switch destination {
                 case .visits:
-                    VisitedConcertsView(auth: auth, repository: userRepository)
+                    VisitedConcertsView(auth: auth, repository: userRepository, eventRepository: eventRepository, contentRepository: contentRepository)
                 case .follows:
-                    FollowedPeopleView(auth: auth, repository: userRepository)
+                    FollowedPeopleView(auth: auth, repository: userRepository, contentRepository: contentRepository)
                 case .level:
                     LevelDetailView(auth: auth, repository: userRepository)
                 case .edit:
@@ -800,6 +805,7 @@ private struct AccentColorSettingsView: View {
 }
 
 private struct ProfileOverview: View {
+    @EnvironmentObject private var follows: FollowStore
     @ObservedObject var auth: AuthStore
     let repository: UserRepository?
     let usesPreviewData: Bool
@@ -823,15 +829,15 @@ private struct ProfileOverview: View {
 
             HStack(spacing: 0) {
                 Button { onSelect(.visits) } label: {
-                    profileMetric(value: socialSummary.visitedConcerts, label: "Besuche", icon: "ticket.fill")
+                    profileMetric(value: socialSummary.visitedConcerts, label: "Besuche")
                 }
                 Divider().frame(height: 40)
                 Button { onSelect(.follows) } label: {
-                    profileMetric(value: socialSummary.followedPeople, label: "Gefolgt", icon: "person.2.fill")
+                    profileMetric(value: followCount, label: "Gefolgt")
                 }
                 Divider().frame(height: 40)
                 Button { onSelect(.level) } label: {
-                    profileMetric(value: socialSummary.level, label: "Level", icon: "medal.fill")
+                    profileMetric(value: socialSummary.level, label: "Level")
                 }
             }
             .buttonStyle(.plain)
@@ -854,14 +860,19 @@ private struct ProfileOverview: View {
         .onAppear { Task { await load() } }
     }
 
-    private func profileMetric(value: Int, label: String, icon: String) -> some View {
+    private func profileMetric(value: Int, label: String) -> some View {
         VStack(spacing: 3) {
             Text("\(value)").font(.title3.bold()).monospacedDigit()
-            Label(label, systemImage: icon).font(.caption).foregroundStyle(.secondary)
+            Text(label).font(.caption).foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .center)
         }
         .frame(maxWidth: .infinity)
         .contentShape(Rectangle())
         .accessibilityLabel("\(value) \(label)")
+    }
+
+    private var followCount: Int {
+        follows.personIDs.count + follows.ensembleIDs.count + follows.venueIDs.count
     }
 
     private var displayName: String {

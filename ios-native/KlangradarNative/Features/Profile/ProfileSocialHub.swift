@@ -53,6 +53,7 @@ struct VisitedConcert: Identifiable, Sendable {
     let attendedAt: Date?
     let genres: [String]
     let works: [VisitedWork]
+    let event: ConcertEvent?
 }
 
 struct KlangAchievement: Identifiable, Sendable {
@@ -72,7 +73,7 @@ struct ProfileSocialSummary: Sendable {
 
     static let empty = ProfileSocialSummary(visits: [], followed: [], savedEvents: 0)
     var visitedConcerts: Int { visits.count }
-    var followedPeople: Int { followed.filter { $0.kind == .person || $0.kind == .ensemble }.count }
+    var followedPeople: Int { followed.count }
     var uniqueWorks: Set<UUID> { Set(visits.flatMap(\.works).map(\.id)) }
     var uniqueComposers: Set<UUID> { Set(visits.flatMap(\.works).compactMap(\.composerID)) }
     var uniqueVenues: Set<UUID> { Set(visits.compactMap(\.venueID)) }
@@ -96,19 +97,73 @@ struct ProfileSocialSummary: Sendable {
         let munichVenues = Set(visits.filter { $0.city == "München" }.compactMap(\.venueID)).count
         let premieres = visits.filter { $0.title.localizedCaseInsensitiveContains("Uraufführung") || $0.title.localizedCaseInsensitiveContains("Premiere") }.count
         let operaVenues = Set(visits.filter { $0.genres.contains(where: { $0.localizedCaseInsensitiveContains("Oper") }) }.compactMap(\.venueID)).count
+        let symphonicVisits = visits.filter { $0.genres.contains(where: { $0.localizedCaseInsensitiveContains("ymph") || $0.localizedCaseInsensitiveContains("Orchester") }) }.count
+        let chamberVisits = visits.filter { $0.genres.contains(where: { $0.localizedCaseInsensitiveContains("Kammer") }) }.count
+        let baroqueVisits = visits.filter { $0.genres.contains(where: { $0.localizedCaseInsensitiveContains("Barock") || $0.localizedCaseInsensitiveContains("Alte Musik") }) }.count
+        let vocalVisits = visits.filter { $0.genres.contains(where: { $0.localizedCaseInsensitiveContains("Vokal") || $0.localizedCaseInsensitiveContains("Lied") || $0.localizedCaseInsensitiveContains("Chor") }) }.count
+        let recentYearVisits = visits.filter { Calendar.current.component(.year, from: $0.attendedAt ?? .distantPast) == Calendar.current.component(.year, from: .now) }.count
         return [
+            .init(id: "first", title: "Erster Vorhang", detail: "Das erste Konzert dokumentieren", symbol: "sparkles", progress: visitedConcerts, target: 1),
+            .init(id: "season", title: "Saisonklang", detail: "12 Konzerte in einem Kalenderjahr", symbol: "calendar", progress: recentYearVisits, target: 12),
             .init(id: "mahler", title: "Mahler-Marathon", detail: "5 verschiedene Mahler-Werke live", symbol: "waveform.path", progress: mahler, target: 5),
             .init(id: "opera", title: "Opernentdecker", detail: "5 verschiedene Opernhäuser", symbol: "theatermasks.fill", progress: operaVenues, target: 5),
             .init(id: "new", title: "Neue Klänge", detail: "10 Werke nach 2000", symbol: "sparkles", progress: newMusic, target: 10),
             .init(id: "mozart", title: "Mozart-Kenner", detail: "15 verschiedene Mozart-Werke", symbol: "music.quarternote.3", progress: mozart, target: 15),
             .init(id: "munich", title: "München komplett", detail: "10 Münchner Spielstätten", symbol: "building.columns.fill", progress: munichVenues, target: 10),
             .init(id: "cities", title: "Weltenbummler", detail: "Konzerte in 5 Städten", symbol: "globe.europe.africa.fill", progress: uniqueCities.count, target: 5),
-            .init(id: "premiere", title: "Premierenjäger", detail: "3 Premieren oder Uraufführungen", symbol: "star.fill", progress: premieres, target: 3)
+            .init(id: "premiere", title: "Premierenjäger", detail: "3 Premieren oder Uraufführungen", symbol: "star.fill", progress: premieres, target: 3),
+            .init(id: "symphonic", title: "Große Besetzung", detail: "10 sinfonische Konzerte", symbol: "person.3.fill", progress: symphonicVisits, target: 10),
+            .init(id: "chamber", title: "Nah am Klang", detail: "8 Kammermusikabende", symbol: "music.note.house.fill", progress: chamberVisits, target: 8),
+            .init(id: "baroque", title: "Zeitreisender", detail: "6 Barock- oder Alte-Musik-Konzerte", symbol: "scroll.fill", progress: baroqueVisits, target: 6),
+            .init(id: "vocal", title: "Stimmenkenner", detail: "8 Lied-, Chor- oder Vokalabende", symbol: "music.mic", progress: vocalVisits, target: 8),
+            .init(id: "works", title: "Partiturleser", detail: "25 verschiedene Werke live", symbol: "music.note.list", progress: uniqueWorks.count, target: 25),
+            .init(id: "venues", title: "Saalwanderer", detail: "15 verschiedene Spielstätten", symbol: "map.fill", progress: uniqueVenues.count, target: 15),
+            .init(id: "composers", title: "Kanonbrecher", detail: "20 verschiedene Komponist:innen", symbol: "person.2.wave.2.fill", progress: uniqueComposers.count, target: 20)
         ]
     }
 }
 
 extension UserRepository {
+    func archivedEvents(limit: Int = 500) async throws -> [ConcertEvent] {
+        let rows: [JSONObject] = try await client.get(table: "events", queryItems: [
+            URLQueryItem(name: "select", value: "id,slug,title,subtitle,start_datetime,image_urls,status,category,is_free,venues(id,name,photo_url),event_genres(genres(id,slug,label_de)),event_participants(persons(id,full_name,photo_url),ensembles(id,name,photo_url))"),
+            URLQueryItem(name: "start_datetime", value: "lt.\(ISO8601DateFormatter().string(from: .now))"),
+            URLQueryItem(name: "order", value: "start_datetime.desc"),
+            URLQueryItem(name: "limit", value: String(limit))
+        ])
+        return rows.compactMap(ConcertEvent.init(json:))
+    }
+
+    func hasAttended(eventID: UUID, userID: UUID, token: String) async throws -> Bool {
+        let rows: [JSONObject] = try await client.get(table: "event_attendance", queryItems: [
+            URLQueryItem(name: "select", value: "event_id"),
+            URLQueryItem(name: "user_id", value: "eq.\(userID.uuidString)"),
+            URLQueryItem(name: "event_id", value: "eq.\(eventID.uuidString)"),
+            URLQueryItem(name: "status", value: "eq.attended"),
+            URLQueryItem(name: "limit", value: "1")
+        ], accessToken: token)
+        return !rows.isEmpty
+    }
+
+    func setAttended(eventID: UUID, attended: Bool, attendedAt: Date?, userID: UUID, token: String) async throws {
+        if attended {
+            var values: JSONObject = [
+                "user_id": .string(userID.uuidString),
+                "event_id": .string(eventID.uuidString),
+                "status": .string("attended"),
+                "verification_type": .string("manual"),
+                "updated_at": .string(ISO8601DateFormatter().string(from: .now))
+            ]
+            values["attended_at"] = .string(ISO8601DateFormatter().string(from: attendedAt ?? .now))
+            try await client.upsert(table: "event_attendance", values: values, accessToken: token, conflictColumns: "user_id,event_id")
+        } else {
+            try await client.delete(table: "event_attendance", filters: [
+                URLQueryItem(name: "user_id", value: "eq.\(userID.uuidString)"),
+                URLQueryItem(name: "event_id", value: "eq.\(eventID.uuidString)")
+            ], accessToken: token)
+        }
+    }
+
     func socialProfileSummary(userID: UUID, token: String) async -> ProfileSocialSummary {
         async let visitsResult = try? visitedConcerts(userID: userID, token: token)
         async let followsResult = followedProfiles(userID: userID, token: token)
@@ -122,8 +177,8 @@ extension UserRepository {
     }
 
     func visitedConcerts(userID: UUID, token: String) async throws -> [VisitedConcert] {
-        let selection = "event_id,attended_at,created_at,events(title,venues(id,name,address_city),event_genres(genres(label_de)),event_works(works(id,title,composition_year,composer:persons(id,full_name))))"
-        let rows: [JSONObject] = try await client.get(table: "coach_event_reflections", queryItems: [
+        let selection = "event_id,attended_at,created_at,events(id,slug,title,subtitle,start_datetime,image_urls,status,category,is_free,venues(id,name,address_city,photo_url),event_genres(genres(id,slug,label_de)),event_participants(persons(id,full_name,photo_url),ensembles(id,name,photo_url)),event_works(works(id,title,composition_year,composer:persons(id,full_name))))"
+        let rows: [JSONObject] = try await client.get(table: "event_attendance", queryItems: [
             URLQueryItem(name: "select", value: selection), URLQueryItem(name: "user_id", value: "eq.\(userID.uuidString)"), URLQueryItem(name: "order", value: "attended_at.desc.nullslast,created_at.desc")
         ], accessToken: token)
         return rows.compactMap { row in
@@ -135,7 +190,7 @@ extension UserRepository {
                 let composer = work.object("composer")
                 return VisitedWork(id: workID, title: work.string("title") ?? "Werk", composerID: composer?.string("id").flatMap(UUID.init(uuidString:)), composerName: composer?.string("full_name"), compositionYear: work.integer("composition_year"))
             }
-            return VisitedConcert(id: id, title: event.string("title") ?? "Konzert", venueID: venue?.string("id").flatMap(UUID.init(uuidString:)), venue: venue?.string("name") ?? "Ort folgt", city: venue?.string("address_city"), attendedAt: (row.string("attended_at") ?? row.string("created_at")).flatMap(FlexibleDateParser.date(from:)), genres: genres, works: works)
+            return VisitedConcert(id: id, title: event.string("title") ?? "Konzert", venueID: venue?.string("id").flatMap(UUID.init(uuidString:)), venue: venue?.string("name") ?? "Ort folgt", city: venue?.string("address_city"), attendedAt: (row.string("attended_at") ?? row.string("created_at")).flatMap(FlexibleDateParser.date(from:)), genres: genres, works: works, event: ConcertEvent(json: event))
         }
     }
 
@@ -155,9 +210,70 @@ extension UserRepository {
     }
 }
 
+struct ConcertArchiveView: View {
+    let repository: UserRepository?
+    let eventRepository: any EventRepository
+    let contentRepository: any ContentRepository
+    @State private var events: [ConcertEvent] = []
+    @State private var query = ""
+    @State private var selectedYear: Int?
+    @State private var isLoading = true
+
+    private var years: [Int] {
+        Array(Set(events.compactMap { $0.startDate.map { Calendar.current.component(.year, from: $0) } })).sorted(by: >)
+    }
+
+    private var filteredEvents: [ConcertEvent] {
+        let term = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        return events.filter { event in
+            let matchesYear = selectedYear == nil || event.startDate.map { Calendar.current.component(.year, from: $0) == selectedYear } == true
+            guard matchesYear, !term.isEmpty else { return matchesYear }
+            let participantNames = (event.eventParticipants ?? []).flatMap { [$0.persons?.name, $0.ensembles?.name].compactMap { $0 } }
+            let searchable = ([event.title, event.subtitle, event.venues?.name, event.category].compactMap { $0 } + event.genreLabels + participantNames).joined(separator: " ")
+            return searchable.localizedCaseInsensitiveContains(term)
+        }
+    }
+
+    var body: some View {
+        Group {
+            if isLoading { ProgressView("Konzertarchiv laden …") }
+            else if filteredEvents.isEmpty { ContentUnavailableView.search(text: query) }
+            else {
+                List(filteredEvents) { event in
+                    NavigationLink {
+                        EventDetailView(event: event, repository: eventRepository, contentRepository: contentRepository)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(event.title).font(.headline).lineLimit(2)
+                            Text([event.startDate.map { KlangradarDateTime.string($0, format: "d. MMMM yyyy") }, event.venues?.name].compactMap { $0 }.joined(separator: " · "))
+                                .font(.caption).foregroundStyle(.secondary)
+                        }.padding(.vertical, 3)
+                    }
+                }
+            }
+        }
+        .navigationTitle("Konzertarchiv")
+        .searchable(text: $query, prompt: "Konzert, Person, Ensemble, Ort, Genre")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button("Alle Jahre") { selectedYear = nil }
+                    ForEach(years, id: \.self) { year in Button(String(year)) { selectedYear = year } }
+                } label: { Label(selectedYear.map(String.init) ?? "Jahr", systemImage: "line.3.horizontal.decrease.circle") }
+            }
+        }
+        .task {
+            events = (try? await repository?.archivedEvents()) ?? []
+            isLoading = false
+        }
+    }
+}
+
 struct VisitedConcertsView: View {
     @ObservedObject var auth: AuthStore
     let repository: UserRepository?
+    let eventRepository: any EventRepository
+    let contentRepository: any ContentRepository
     @State private var concerts: [VisitedConcert] = []
     @State private var isLoading = true
 
@@ -166,15 +282,24 @@ struct VisitedConcertsView: View {
             if isLoading { ProgressView("Besuche laden …") }
             else if concerts.isEmpty { ContentUnavailableView("Noch kein Konzertbesuch", systemImage: "ticket", description: Text("Markiere ein Konzert als besucht, dann wird hier deine Klanghistorie aufgebaut.")) }
             else { List(concerts) { concert in
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(concert.title).font(.headline)
-                    Text([concert.venue, concert.city].compactMap { $0 }.joined(separator: " · ")).foregroundStyle(.secondary)
-                    HStack { if let date = concert.attendedAt { Text(KlangradarDateTime.string(date, format: "d. MMMM yyyy")) }; Spacer(); Text("+\(15 + concert.works.count * 8) XP").foregroundStyle(KlangradarTheme.accent) }.font(.caption.weight(.semibold))
-                }.padding(.vertical, 4)
+                if let event = concert.event {
+                    NavigationLink {
+                        EventDetailView(event: event, repository: eventRepository, contentRepository: contentRepository)
+                    } label: { concertRow(concert) }
+                } else { concertRow(concert) }
             } }
         }
         .navigationTitle("Besuchte Konzerte")
         .task { await load() }
+        .refreshable { await load() }
+    }
+
+    private func concertRow(_ concert: VisitedConcert) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(concert.title).font(.headline)
+            Text([concert.venue, concert.city].compactMap { $0 }.joined(separator: " · ")).foregroundStyle(.secondary)
+            HStack { if let date = concert.attendedAt { Text(KlangradarDateTime.string(date, format: "d. MMMM yyyy")) }; Spacer(); Text("+\(15 + concert.works.count * 8) XP").foregroundStyle(KlangradarTheme.accent) }.font(.caption.weight(.semibold))
+        }.padding(.vertical, 4)
     }
 
     private func load() async {
@@ -187,6 +312,7 @@ struct VisitedConcertsView: View {
 struct FollowedPeopleView: View {
     @ObservedObject var auth: AuthStore
     let repository: UserRepository?
+    let contentRepository: any ContentRepository
     @State private var followed: [FollowedProfile] = []
     @State private var isLoading = true
 
@@ -203,10 +329,16 @@ struct FollowedPeopleView: View {
         }
         .navigationTitle("Gefolgt")
         .task { await load() }
+        .refreshable { await load() }
     }
 
     private func followedRow(_ profile: FollowedProfile) -> some View {
-        NavigationLink(value: EntityRoute(kind: profile.kind.entityKind, identifier: profile.slug ?? profile.id.uuidString)) {
+        NavigationLink {
+            EntityDetailView(
+                route: EntityRoute(kind: profile.kind.entityKind, identifier: profile.slug ?? profile.id.uuidString),
+                repository: contentRepository
+            )
+        } label: {
             HStack(spacing: 12) {
                 AsyncImage(url: profile.imageURL) { image in image.resizable().scaledToFill() } placeholder: { Image(systemName: profile.kind.entityKind.systemImage).foregroundStyle(KlangradarTheme.accent) }
                     .frame(width: 46, height: 46).clipShape(Circle())
@@ -286,14 +418,41 @@ struct LevelDetailView: View {
     private var achievementsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Achievements").font(.title2.bold())
-            ForEach(summary.achievements) { achievement in
-                HStack(spacing: 12) {
-                    Image(systemName: achievement.symbol).font(.title3).foregroundStyle(achievement.isUnlocked ? KlangradarTheme.accent : .secondary).frame(width: 42, height: 42).background((achievement.isUnlocked ? KlangradarTheme.accent : Color.secondary).opacity(0.1), in: Circle())
-                    VStack(alignment: .leading, spacing: 3) { Text(achievement.title).font(.headline); Text(achievement.detail).font(.caption).foregroundStyle(.secondary); ProgressView(value: min(1, Double(achievement.progress) / Double(achievement.target))).tint(KlangradarTheme.accent) }
-                    Text("\(min(achievement.progress, achievement.target))/\(achievement.target)").font(.caption.bold()).monospacedDigit().foregroundStyle(.secondary)
-                }.padding(13).background(.background, in: .rect(cornerRadius: 18, style: .continuous))
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10, alignment: .top), count: 3), spacing: 20) {
+                ForEach(summary.achievements) { achievement in
+                    achievementTile(achievement)
+                }
             }
         }
+    }
+
+    private func achievementTile(_ achievement: KlangAchievement) -> some View {
+        VStack(spacing: 8) {
+            ZStack {
+                Circle()
+                    .fill(achievement.isUnlocked ? KlangradarTheme.accent.opacity(0.14) : Color.secondary.opacity(0.07))
+                Circle()
+                    .stroke(achievement.isUnlocked ? KlangradarTheme.accent.opacity(0.7) : Color.secondary.opacity(0.2), lineWidth: 1)
+                    .padding(4)
+                Image(systemName: achievement.isUnlocked ? achievement.symbol : "lock.fill")
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(achievement.isUnlocked ? KlangradarTheme.accent : Color.secondary.opacity(0.55))
+            }
+            .frame(width: 72, height: 72)
+
+            Text(achievement.title)
+                .font(.caption.weight(.semibold))
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .frame(minHeight: 32, alignment: .top)
+            Text(achievement.isUnlocked ? "Erreicht" : "\(min(achievement.progress, achievement.target)) von \(achievement.target)")
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(achievement.isUnlocked ? KlangradarTheme.accent : .secondary)
+                .monospacedDigit()
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(achievement.title), \(achievement.detail), \(min(achievement.progress, achievement.target)) von \(achievement.target)")
     }
 
     private var landscapeSection: some View {

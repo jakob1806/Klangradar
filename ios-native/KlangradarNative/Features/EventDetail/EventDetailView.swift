@@ -12,7 +12,11 @@ struct EventDetailView: View {
     @State private var fullScreenImage: FullScreenImageReference?
     @State private var showsAllOtherDates = false
     @State private var showsAllParticipants = false
+    @State private var isAttended = false
+    @State private var isUpdatingAttendance = false
+    @State private var attendanceError: String?
     @EnvironmentObject private var favorites: FavoriteStore
+    @EnvironmentObject private var reportStore: ReportStore
     @EnvironmentObject private var genreFilter: GenreFilterRouter
     @Environment(\.dismiss) private var dismiss
 
@@ -78,10 +82,17 @@ struct EventDetailView: View {
         .toolbar(.hidden, for: .navigationBar)
         .toolbar(.hidden, for: .tabBar)
         .fullScreenCover(item: $fullScreenImage) { FullScreenImageViewer(image: $0) }
+        .alert("Besuch konnte nicht gespeichert werden", isPresented: Binding(
+            get: { attendanceError != nil },
+            set: { if !$0 { attendanceError = nil } }
+        )) { Button("OK", role: .cancel) { attendanceError = nil } } message: {
+            Text(attendanceError ?? "Bitte versuche es erneut.")
+        }
         .task {
             do { detail = try await repository.eventDetail(slug: event.slug) }
             catch { loadError = error.localizedDescription }
             isLoading = false
+            await loadAttendance()
         }
     }
 
@@ -163,6 +174,46 @@ struct EventDetailView: View {
                 )
                 .font(.headline)
             }
+            if reportStore.auth.userID != nil {
+                Button {
+                    Task { await toggleAttendance() }
+                } label: {
+                    Label(isAttended ? "Als besucht markiert" : "Als besucht markieren", systemImage: isAttended ? "checkmark.circle.fill" : "checkmark.circle")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 4)
+                }
+                .buttonStyle(.bordered)
+                .tint(isAttended ? .green : KlangradarTheme.accent)
+                .disabled(isUpdatingAttendance)
+                .accessibilityHint(isAttended ? "Entfernt diesen Besuch aus deiner Konzerthistorie" : "Fügt dieses Konzert deiner Konzerthistorie hinzu")
+            }
+        }
+    }
+
+    @MainActor
+    private func loadAttendance() async {
+        guard let repository = reportStore.repository,
+              let userID = reportStore.auth.userID,
+              let token = reportStore.auth.accessToken else { return }
+        isAttended = (try? await repository.hasAttended(eventID: event.id, userID: userID, token: token)) ?? false
+    }
+
+    @MainActor
+    private func toggleAttendance() async {
+        guard !isUpdatingAttendance,
+              let repository = reportStore.repository,
+              let userID = reportStore.auth.userID,
+              let token = reportStore.auth.accessToken else { return }
+        let newValue = !isAttended
+        isUpdatingAttendance = true
+        isAttended = newValue
+        defer { isUpdatingAttendance = false }
+        do {
+            try await repository.setAttended(eventID: event.id, attended: newValue, attendedAt: event.startDate, userID: userID, token: token)
+        } catch {
+            isAttended.toggle()
+            attendanceError = error.localizedDescription
         }
     }
 
