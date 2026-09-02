@@ -2,8 +2,11 @@ import SwiftUI
 
 /// Koordiniert den gesamten Onboarding-Ablauf: Einstieg (Anmelden/Account
 /// erstellen/Gast) → Account erstellen → E-Mail bestätigen → Persönliche
-/// Daten → Interessen → Stadt → Personen/Ensembles/Venues folgen →
-/// Benachrichtigungen → Zusammenfassung.
+/// Daten → Interessen (nur Genres) → Stadt → Personen folgen → Ensembles
+/// folgen → Venues folgen → Benachrichtigungen → Zusammenfassung. Personen/
+/// Ensembles/Venues waren früher ein einzelner Schritt mit Segmenten, sind
+/// auf Nutzerwunsch (2026-09-02) jetzt je ein eigener Schritt; Werke tauchen
+/// im Onboarding gar nicht mehr auf (siehe InterestsStepView).
 /// "Account erstellen" ist verpflichtend, sobald gewählt — nur der
 /// Einstiegs-Schritt selbst lässt sich mit "Ohne Account fortfahren"
 /// überspringen (anonyme Bootstrap-Session bleibt aktiv). `onFinished` wird
@@ -30,7 +33,9 @@ struct OnboardingView: View {
         case personalData
         case interests
         case location
-        case followProfiles
+        case followPersons
+        case followEnsembles
+        case followVenues
         case notifications
         case summary
     }
@@ -72,10 +77,18 @@ struct OnboardingView: View {
                     }
                 case .location:
                     CityPickerStepView(auth: auth, repository: repository) {
-                        path.append(.followProfiles)
+                        path.append(.followPersons)
                     }
-                case .followProfiles:
-                    FollowProfilesStepView(auth: auth, repository: repository) {
+                case .followPersons:
+                    FollowCategoryStepView(auth: auth, repository: repository, category: .person) {
+                        path.append(.followEnsembles)
+                    }
+                case .followEnsembles:
+                    FollowCategoryStepView(auth: auth, repository: repository, category: .ensemble) {
+                        path.append(.followVenues)
+                    }
+                case .followVenues:
+                    FollowCategoryStepView(auth: auth, repository: repository, category: .venue) {
                         path.append(.notifications)
                     }
                 case .notifications:
@@ -87,7 +100,7 @@ struct OnboardingView: View {
                         auth: auth,
                         repository: repository,
                         onEditCity: { editStep(matching: { if case .location = $0 { true } else { false } }) },
-                        onEditFollows: { editStep(matching: { if case .followProfiles = $0 { true } else { false } }) },
+                        onEditFollows: { editStep(matching: { if case .followPersons = $0 { true } else { false } }) },
                         onEditNotifications: { editStep(matching: { if case .notifications = $0 { true } else { false } }) }
                     ) {
                         Task { await finish() }
@@ -99,7 +112,7 @@ struct OnboardingView: View {
             if let currentProgressStep {
                 OnboardingProgressHeader(
                     current: currentProgressStep,
-                    total: 7,
+                    total: 9,
                     onBack: { if !path.isEmpty { path.removeLast() } }
                 )
             }
@@ -132,8 +145,10 @@ struct OnboardingView: View {
         case .personalData: 3
         case .interests: 4
         case .location: 5
-        case .followProfiles: 6
-        case .notifications, .summary: 7
+        case .followPersons: 6
+        case .followEnsembles: 7
+        case .followVenues: 8
+        case .notifications, .summary: 9
         case nil: nil
         }
     }

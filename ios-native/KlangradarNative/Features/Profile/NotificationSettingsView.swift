@@ -5,10 +5,34 @@ import SwiftUI
 struct NotificationSettingsView: View {
     @ObservedObject var auth: AuthStore
     let repository: UserRepository?
+    /// Nur im Onboarding-Schritt gesetzt (siehe NotificationsStepView) — als
+    /// Form-Section statt als fixer VStack-Sibling davor, damit der Titel
+    /// zuverlässig unterhalb des Fortschritts-Headers bleibt (derselbe
+    /// Grund wie bei FollowCategoryStepView: ein reiner VStack vor einem
+    /// scrollbaren Container respektiert das per NavigationStack gesetzte
+    /// safeAreaInset(top) nicht zuverlässig).
+    var introTitle: String? = nil
+    var introSubtitle: String? = nil
     @State private var preferences = NotificationPreferences()
 
     var body: some View {
         Form {
+            if let introTitle {
+                Section {
+                    VStack(spacing: 6) {
+                        Text(introTitle).font(.title2.bold())
+                        if let introSubtitle {
+                            Text(introSubtitle)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .listRowBackground(Color.clear)
+                }
+            }
             Toggle("Neue passende Veranstaltungen", isOn: binding(\.newMatchingEvents, "new_matching_events"))
             Toggle("Preisänderungen", isOn: binding(\.priceChanges, "price_changes"))
             Toggle("Fast ausverkauft", isOn: binding(\.almostSoldOut, "almost_sold_out"))

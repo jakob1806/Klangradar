@@ -1237,7 +1237,7 @@ class _CityOptionCard extends StatelessWidget {
                       ),
                     ),
                     child: Text(
-                      'bald verfügbar',
+                      'Beta',
                       style: TextStyle(
                         color: colors.warning,
                         fontSize: 11,

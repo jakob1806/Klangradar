@@ -13,7 +13,7 @@ enum InterestCategory: String, CaseIterable, Sendable {
     var title: String { switch self { case .genre: "Genres"; case .work: "Werke"; case .person: "Personen"; case .ensemble: "Ensembles"; case .venue: "Orte" } }
     var systemImage: String { switch self { case .genre: "music.quarternote.3"; case .work: "music.note.list"; case .person: "person"; case .ensemble: "person.3"; case .venue: "building.columns" } }
 }
-struct InterestOption: Identifiable, Hashable, Sendable { let id: String; let label: String }
+struct InterestOption: Identifiable, Hashable, Sendable { let id: String; let label: String; var photoURL: URL? = nil }
 
 struct UserEventList: Identifiable, Hashable, Sendable {
     let id: UUID
@@ -707,9 +707,9 @@ struct UserRepository: Sendable {
         switch category {
         case .genre: specification = ("genres", "id,label_de", "sort_order")
         case .work: specification = ("works", "id,title,composer:persons(full_name)", "title")
-        case .person: specification = ("persons", "id,full_name", "full_name")
-        case .ensemble: specification = ("ensembles", "id,name", "name")
-        case .venue: specification = ("venues", "id,name", "name")
+        case .person: specification = ("persons", "id,full_name,photo_url", "full_name")
+        case .ensemble: specification = ("ensembles", "id,name,photo_url", "name")
+        case .venue: specification = ("venues", "id,name,photo_url", "name")
         }
         var rows: [JSONObject] = []
         let pageSize = 500
@@ -733,7 +733,7 @@ struct UserRepository: Sendable {
             } else {
                 label = baseLabel
             }
-            return InterestOption(id: id, label: label)
+            return InterestOption(id: id, label: label, photoURL: row.string("photo_url").flatMap(URL.init(string:)))
         }
             .sorted { $0.label.localizedStandardCompare($1.label) == .orderedAscending }
     }
