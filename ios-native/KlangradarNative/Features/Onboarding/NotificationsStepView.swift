@@ -33,7 +33,6 @@ struct NotificationsStepView: View {
                     Text("Benachrichtigungen aktivieren").frame(maxWidth: .infinity)
                 }
                 .authPrimaryButtonStyle().controlSize(.large).disabled(isWorking)
-                Button("Nicht jetzt", action: onFinished).font(.subheadline.weight(.medium)).disabled(isWorking)
             }
             .authBottomActionLayout()
         }

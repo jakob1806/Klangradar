@@ -23,8 +23,6 @@ struct InterestsStepView: View {
                 VStack(spacing: 14) {
                     Button(action: onFinished) { Text("Weiter").frame(maxWidth: .infinity) }
                         .authPrimaryButtonStyle().controlSize(.large)
-                    Button("Jetzt überspringen", action: onFinished)
-                        .font(.subheadline.weight(.medium))
                 }
                 .authBottomActionLayout()
             }

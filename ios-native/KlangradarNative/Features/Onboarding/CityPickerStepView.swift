@@ -81,9 +81,6 @@ struct CityPickerStepView: View {
                     .frame(maxWidth: .infinity)
                     .disabled(selectedCityID == nil || isWorking)
 
-                Button("Überspringen") { onFinished() }
-                    .font(.subheadline.weight(.medium))
-                    .disabled(isWorking)
             }
             .padding(.horizontal, 28)
             .padding(.bottom, 16)
@@ -172,7 +169,8 @@ private struct CityOptionRow: View {
                 }
                 Spacer()
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .font(.title3)
+                    .font(.system(size: 28, weight: .regular))
+                    .frame(width: 44, height: 44)
                     .foregroundStyle(isSelected ? KlangradarTheme.accent : Color.secondary.opacity(0.5))
             }
             .padding(16)

@@ -99,6 +99,8 @@ struct FollowCategoryStepView: View {
                                 Text(option.label).foregroundStyle(.primary)
                                 Spacer()
                                 Image(systemName: isFollowing(option) ? "checkmark.circle.fill" : "plus.circle")
+                                    .font(.system(size: 28, weight: .regular))
+                                    .frame(width: 44, height: 44)
                                     .foregroundStyle(isFollowing(option) ? KlangradarTheme.accent : .secondary)
                             }
                         }
@@ -111,8 +113,6 @@ struct FollowCategoryStepView: View {
             VStack(spacing: 14) {
                 Button(action: onFinished) { Text("Weiter").frame(maxWidth: .infinity) }
                     .authPrimaryButtonStyle().controlSize(.large)
-                Button("Überspringen", action: onFinished)
-                    .font(.subheadline.weight(.medium))
             }
             .authBottomActionLayout()
         }
