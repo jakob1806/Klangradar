@@ -2,7 +2,8 @@ import SwiftUI
 
 /// Koordiniert den gesamten Onboarding-Ablauf: Einstieg (Anmelden/Account
 /// erstellen/Gast) → Account erstellen → E-Mail bestätigen → Persönliche
-/// Daten → Interessen → Standort → Benachrichtigungen → Zusammenfassung.
+/// Daten → Interessen → Stadt → Personen/Ensembles/Venues folgen →
+/// Benachrichtigungen → Zusammenfassung.
 /// "Account erstellen" ist verpflichtend, sobald gewählt — nur der
 /// Einstiegs-Schritt selbst lässt sich mit "Ohne Account fortfahren"
 /// überspringen (anonyme Bootstrap-Session bleibt aktiv). `onFinished` wird
@@ -19,6 +20,7 @@ struct OnboardingView: View {
         case personalData
         case interests
         case location
+        case followProfiles
         case notifications
         case summary
     }
@@ -60,6 +62,10 @@ struct OnboardingView: View {
                     }
                 case .location:
                     CityPickerStepView(auth: auth, repository: repository) {
+                        path.append(.followProfiles)
+                    }
+                case .followProfiles:
+                    FollowProfilesStepView(auth: auth, repository: repository) {
                         path.append(.notifications)
                     }
                 case .notifications:
@@ -67,7 +73,13 @@ struct OnboardingView: View {
                         path.append(.summary)
                     }
                 case .summary:
-                    OnboardingSummaryView(auth: auth, repository: repository) {
+                    OnboardingSummaryView(
+                        auth: auth,
+                        repository: repository,
+                        onEditCity: { editStep(matching: { if case .location = $0 { true } else { false } }) },
+                        onEditFollows: { editStep(matching: { if case .followProfiles = $0 { true } else { false } }) },
+                        onEditNotifications: { editStep(matching: { if case .notifications = $0 { true } else { false } }) }
+                    ) {
                         Task { await finish() }
                     }
                 }
@@ -75,7 +87,7 @@ struct OnboardingView: View {
         }
         .safeAreaInset(edge: .top, spacing: 0) {
             if let currentProgressStep {
-                OnboardingProgressHeader(current: currentProgressStep, total: 6)
+                OnboardingProgressHeader(current: currentProgressStep, total: 7)
             }
         }
         .sheet(isPresented: $showsLogin) {
@@ -99,9 +111,20 @@ struct OnboardingView: View {
         case .personalData: 3
         case .interests: 4
         case .location: 5
-        case .notifications, .summary: 6
+        case .followProfiles: 6
+        case .notifications, .summary: 7
         case nil: nil
         }
+    }
+
+    /// Springt aus der Zusammenfassung zurück zu einem bereits durchlaufenen
+    /// Schritt (z.B. "Bearbeiten" bei Stadt/Folgen/Benachrichtigungen) --
+    /// entfernt alles NACH diesem Schritt aus dem Pfad, statt ihn erneut
+    /// anzuhängen, damit "Weiter" von dort aus nicht zu doppelten Einträgen
+    /// im Stack führt.
+    private func editStep(matching predicate: (Step) -> Bool) {
+        guard let index = path.firstIndex(where: predicate), index + 1 < path.count else { return }
+        path.removeSubrange((index + 1)...)
     }
 
     private func finish() async {

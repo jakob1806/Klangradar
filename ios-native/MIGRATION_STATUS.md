@@ -332,6 +332,93 @@ google anmelden nicht richtig das echte google 'g'".
   Notification-Kategorien vor dem nativen Permission-Dialog, "Personen/
   Ensembles/Venues folgen" als eigener Schritt) steht noch aus.
 
+## Onboarding: Personen/Ensembles/Venues folgen + voller Zielstruktur-Abgleich (2026-09-02, Fortsetzung)
+
+- 🟢 Neuer Onboarding-Schritt `FollowProfilesStepView.swift` zwischen Stadt
+  (Schritt 5) und Benachrichtigungen (Schritt 7): drei Segmente (Personen,
+  Ensembles, Venues) mit Suche + Vorschlägen (erste 12 Einträge je Kategorie
+  ohne Suchtext) und "Alle überspringen". Nutzt bewusst KEINE neue
+  Datenquelle: `UserRepository.interestOptions(_:)` (dieselbe Liste wie
+  `InterestsView`) für die Suche/Vorschläge, `FollowStore.toggle`/
+  `isFollowing` (dieselbe `setInterest`-RPC/Tabelle wie der Folgen-Button
+  auf Detailseiten) für den Folgen-Zustand — ein Follow hier, auf einer
+  Detailseite oder unter Profil → Interessen ist danach konsistent derselbe
+  Zustand. Es gibt bewusst KEIN eigenes Segment "Festivals/Veranstalter":
+  `EntityKind`/`InterestCategory` kennen dafür keinen eigenen Wert, und
+  CLAUDE.md verbietet erfundene Backend-Felder — Festival-Venues und
+  -Veranstalter sind bereits unter "Venues"/"Ensembles" erfasst.
+- 🟢 `OnboardingView.swift`: neuer `.followProfiles`-Fall im Step-Enum
+  zwischen `.location` und `.notifications`, Fortschrittsanzeige jetzt
+  "Schritt X von 7" (vorher 6). Neue `editStep(matching:)`-Hilfsfunktion
+  erlaubt der Zusammenfassung, gezielt zu einem bereits durchlaufenen
+  Schritt zurückzuspringen (Pfad wird bis zu diesem Schritt gekürzt statt
+  ihn erneut anzuhängen, damit kein doppelter Stack-Eintrag entsteht).
+- 🟢 `OnboardingSummaryView.swift` überarbeitet: zeigt jetzt vier Zeilen
+  (Stadt, Interessen, Gefolgte Profile, Benachrichtigungen) mit Ist-Werten
+  aus `allCityRegions()`/`preferredRegionID()`, `selectedInterests()` und
+  `preferences()`; Stadt/Gefolgte-Profile/Benachrichtigungen sind über
+  "Bearbeiten" direkt zum jeweiligen Schritt verlinkt (Interessen bewusst
+  ohne Bearbeiten-Link, da dieser Schritt selbst schon jederzeit im Profil
+  editierbar ist und hier nur die Zahl zählt).
+- 🟢 `PersonalDataStepView.swift`: Footer ergänzt um eine kurze Erklärung,
+  wofür das (weiterhin optionale) Geburtsdatum verwendet wird
+  (Altersfreigaben/Empfehlungen) — Punkt 3 der Zielstruktur ("Geburtsjahr —
+  mit Erklärung wofür") war zuvor ohne Begründungstext.
+- 🟢 Build (`xcodebuild … build`) und Tests (`xcodebuild test`, weiterhin
+  27/27 grün) für iPhone-Simulator liefen erfolgreich. Kein neuer
+  Repository-Test nötig, da `FollowProfilesStepView` ausschließlich bereits
+  getestete/produktiv genutzte Repository-Methoden wiederverwendet
+  (`interestOptions`, `setInterest` via `FollowStore`) statt neue
+  Schnittstelle einzuführen.
+
+### Vollständiger Soll/Ist-Abgleich gegen die vom Nutzer vorgegebene Zielstruktur
+
+1. **Willkommen** (`WelcomeStepView.swift`): Nutzen-Text, Anmelden/Konto
+   erstellen/Gast, Apple/Google vorhanden. 🟡 Offen: keine "2-3 visuellen
+   Beispiele" (Screenshots/Illustrationen) — dafür fehlen Bildassets; nicht
+   erfunden, um keine Platzhalter-Screenshots einzubauen.
+2. **Registrieren/Anmelden** (`SignUpStepView.swift`,
+   `PasswordLoginView.swift`, `ForgotPasswordView.swift`,
+   `VerifyEmailStepView.swift`): E-Mail+Passwort, Apple, Google, Passwort
+   anzeigen-Toggle, Passwortregeln, "Passwort vergessen", E-Mail-
+   Bestätigung, AGB/Datenschutz (Pflicht, getrennte Toggles) und Newsletter
+   (separat, freiwillig, nicht an AGB gekoppelt) bereits vollständig
+   vorhanden — unverändert gelassen. 🟡 Offen: keine Telefonnummer-
+   Registrierung (Supabase-Telefon-/SMS-Provider ist nicht konfiguriert;
+   das anzulegen wäre eine Backend-/Auth-Konfigurationsentscheidung, keine
+   reine Client-Änderung, daher hier nicht selbst eingeführt).
+3. **Persönliche Angaben** (`PersonalDataStepView.swift`): Vorname Pflicht,
+   Nachname/Geburtsdatum/Profilbild/Telefon/Adresse optional bzw. auf
+   später verschoben — passt zur Zielstruktur. Geburtsdatum-Erklärung heute
+   ergänzt (siehe oben).
+4. **Stadt** (`CityPickerStepView.swift`): bereits in der vorherigen
+   Sitzung umgesetzt (alle 5 Städte, Badge für nicht-live, GPS-Option).
+5. **Interessen** (`InterestsStepView.swift`/`InterestsView.swift`): Chips
+   nach Kategorie (Genre/Werk/Person/Ensemble/Venue), Suche, nichts davon
+   Pflicht — passt zur Zielstruktur ("ca. 3 Auswahlen reichen").
+6. **Personen/Ensembles/Venues folgen**: neu ergänzt, siehe oben.
+7. **Benachrichtigungen** (`NotificationsStepView.swift` +
+   `NotificationSettingsView.swift`): zeigt bereits VOR dem nativen
+   Permission-Dialog fünf einzeln wählbare Kategorien (neue passende
+   Veranstaltungen, Preisänderungen, fast ausverkauft, Erinnerung am
+   Vortag, neue Termine gefolgter Personen/Ensembles/Orte) — kein
+   pauschales Opt-in, daher unverändert gelassen. 🟡 Offen: die vom Nutzer
+   genannten Kategorien "Vorverkaufsstarts" und "wöchentliche
+   Zusammenfassung" haben KEINE Entsprechung in der `notification_
+   preferences`-Tabelle (`backend/supabase/migrations/
+   20260715000011_profiles_and_personalization.sql`, Spalten:
+   `new_matching_events`, `price_changes`, `almost_sold_out`,
+   `reminder_day_before`, `followed_ensemble_new_event`). Auf CLAUDE.md-
+   Vorgabe ("keine erfundenen Backend-Felder") wurde hier bewusst KEINE
+   Migration für zwei neue Spalten (z.B. `presale_start`,
+   `weekly_digest`) plus zugehörigen Cron/Edge-Function-Versand
+   vorgenommen — das wäre ein eigenständiges Backend-Feature mit
+   Rücksprachebedarf, kein reiner UI-Nachzug.
+8. **Zusammenfassung** (`OnboardingSummaryView.swift`): zeigt jetzt Stadt,
+   Interessen-Anzahl, gefolgte Profile und aktive Benachrichtigungs-
+   kategorien, mit Bearbeiten-Links zurück zu Stadt/Folgen/
+   Benachrichtigungen — Punkt 8 der Zielstruktur ist damit erfüllt.
+
 ## Definition of feature parity
 
 A row can be marked complete only when it:
