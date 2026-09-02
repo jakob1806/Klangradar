@@ -10,8 +10,18 @@ import SwiftUI
 /// von RootTabView übergeben und kümmert sich dort um das lokale
 /// "didCompleteOnboarding"-Flag und das Schließen des FullScreenCovers.
 struct OnboardingView: View {
+    /// Erlaubt Aufrufern (z.B. "Anmelden" im Profil), direkt beim Login-
+    /// Formular bzw. beim Sign-up-Schritt einzusteigen statt beim
+    /// Willkommens-Bildschirm — der Rest des Flows (inkl. aller Folgeschritte
+    /// bei Kontoerstellung) bleibt derselbe wie beim regulären Einstieg.
+    enum InitialAction {
+        case login
+        case signUp
+    }
+
     @ObservedObject var auth: AuthStore
     let repository: UserRepository?
+    var initialAction: InitialAction? = nil
     let onFinished: () -> Void
 
     private enum Step: Hashable {
@@ -99,13 +109,20 @@ struct OnboardingView: View {
                 auth: auth,
                 repository: repository,
                 onSignedIn: onFinished,
-                onCreatedAccount: {
+                onRequestSignUp: {
                     showsLogin = false
-                    path = [.personalData]
+                    path = [.signUp]
                 }
             )
         }
         .interactiveDismissDisabled()
+        .task {
+            switch initialAction {
+            case .login: showsLogin = true
+            case .signUp: path = [.signUp]
+            case nil: break
+            }
+        }
     }
 
     private var currentProgressStep: Int? {
