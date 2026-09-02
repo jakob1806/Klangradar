@@ -1,25 +1,31 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/auth/auth_providers.dart';
 import '../../../core/auth/auth_service.dart';
+import '../../../core/interests/interests_providers.dart';
+import '../../../core/notifications/notification_preferences_providers.dart';
 import '../../../core/onboarding/onboarding_status.dart';
 import '../../../core/push/push_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/interest_picker.dart';
 import '../../../l10n/generated/app_localizations.dart';
+import '../../follows/application/follows_providers.dart';
 import '../../profile/presentation/widgets/auth_section.dart';
 
 /// Reihenfolge aus dem Onboarding-Konzept: Willkommen (Anmelden/Account
 /// erstellen/Gast) -> Account erstellen -> E-Mail bestätigen -> Persönliche
-/// Daten -> Interessen -> Standort -> Benachrichtigungen -> Zusammenfassung.
-/// "Account erstellen" ist verpflichtend, sobald gewählt — nur der
-/// Willkommens-Schritt selbst lässt sich mit "Ohne Account fortfahren"
-/// überspringen (die anonyme Bootstrap-Session aus main.dart bleibt aktiv).
+/// Daten -> Interessen -> Standort -> Personen/Ensembles/Venues folgen ->
+/// Benachrichtigungen -> Zusammenfassung. "Account erstellen" ist
+/// verpflichtend, sobald gewählt — nur der Willkommens-Schritt selbst lässt
+/// sich mit "Ohne Account fortfahren" überspringen (die anonyme
+/// Bootstrap-Session aus main.dart bleibt aktiv).
 enum _Step {
   welcome,
   signUp,
@@ -27,6 +33,7 @@ enum _Step {
   personalData,
   interests,
   location,
+  follow,
   notifications,
   summary,
 }
@@ -106,7 +113,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         child: Column(
           children: [
             if (_progressStep != null)
-              _ProgressHeader(current: _progressStep!, total: 6),
+              _ProgressHeader(current: _progressStep!, total: 7),
             Expanded(
               child: switch (_step) {
                 _Step.welcome => _WelcomeStep(
@@ -142,12 +149,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   child: const InterestPicker(),
                 ),
                 _Step.location => _LocationStep(
+                  onFinished: () => _goTo(_Step.follow),
+                ),
+                _Step.follow => _FollowStep(
                   onFinished: () => _goTo(_Step.notifications),
                 ),
                 _Step.notifications => _NotificationsStep(
                   onFinished: () => _goTo(_Step.summary),
                 ),
-                _Step.summary => _SummaryStep(onFinished: _finish),
+                _Step.summary => _SummaryStep(
+                  onFinished: _finish,
+                  onEditLocation: () => _goTo(_Step.location),
+                  onEditInterests: () => _goTo(_Step.interests),
+                  onEditFollows: () => _goTo(_Step.follow),
+                  onEditNotifications: () => _goTo(_Step.notifications),
+                ),
               },
             ),
           ],
@@ -163,7 +179,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     _Step.personalData => 3,
     _Step.interests => 4,
     _Step.location => 5,
-    _Step.notifications || _Step.summary => 6,
+    _Step.follow => 6,
+    _Step.notifications || _Step.summary => 7,
   };
 }
 
@@ -902,6 +919,14 @@ class _PersonalDataStepState extends State<_PersonalDataStep> {
               if (picked != null) setState(() => _birthDate = picked);
             },
           ),
+          Text(
+            'Optional — hilft uns bei Altersfreigaben und passenderen '
+            'Empfehlungen (z.B. Familienkonzerte).',
+            style: TextStyle(
+              color: context.appColors.textTertiary,
+              fontSize: 11.5,
+            ),
+          ),
           const SizedBox(height: AppSpacing.sm),
           Text(
             'Profilbild, Telefonnummer und Adresse sind optional und können später im Profil ergänzt werden.',
@@ -916,6 +941,46 @@ class _PersonalDataStepState extends State<_PersonalDataStep> {
   }
 }
 
+/// Eine Stadt aus der `city_regions`-View (siehe
+/// backend/supabase/migrations/20261031000001_city_model_regions_extension.sql).
+/// Alle fünf Städte werden im Onboarding fest angezeigt — unabhängig von
+/// `isActive` —, nur `editorialStatus != 'live'` bekommt ein
+/// "bald verfügbar"-Badge (Nutzervorgabe).
+class _CityRegion {
+  const _CityRegion({
+    required this.id,
+    required this.slug,
+    required this.nameDe,
+    required this.regionName,
+    required this.editorialStatus,
+    required this.sortOrder,
+  });
+
+  factory _CityRegion.fromRow(Map<String, dynamic> row) => _CityRegion(
+    id: row['id'] as String,
+    slug: row['slug'] as String,
+    nameDe: row['name_de'] as String,
+    regionName: row['region_name'] as String?,
+    editorialStatus: row['editorial_status'] as String? ?? 'live',
+    sortOrder: (row['sort_order'] as num?)?.toInt() ?? 0,
+  );
+
+  final String id;
+  final String slug;
+  final String nameDe;
+  final String? regionName;
+  final String editorialStatus;
+  final int sortOrder;
+
+  bool get isLive => editorialStatus == 'live';
+}
+
+/// Generated by Claude Code
+/// Schritt 4 aus dem Onboarding-Konzept — echter Auswahl-Screen mit allen
+/// fünf Städten aus `city_regions` statt eines reinen Ja/Nein-Fallbacks.
+/// GPS bleibt als zusätzliche Abkürzung bestehen und schreibt weiterhin über
+/// die bestehende `update_home_location`-RPC; die manuelle Auswahl schreibt
+/// direkt `profiles.preferred_region_id` (unverändertes Feld/Mechanismus).
 class _LocationStep extends StatefulWidget {
   const _LocationStep({required this.onFinished});
 
@@ -926,35 +991,75 @@ class _LocationStep extends StatefulWidget {
 }
 
 class _LocationStepState extends State<_LocationStep> {
-  bool _requesting = false;
-  String? _activeRegionName;
+  bool _requestingGps = false;
+  bool _saving = false;
+  bool _loadingCities = true;
+  List<_CityRegion> _cities = const [];
+  String? _selectedCityId;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    _loadActiveRegion();
+    _loadCities();
   }
 
-  Future<void> _loadActiveRegion() async {
+  Future<void> _loadCities() async {
     try {
       final rows = await Supabase.instance.client
-          .from('regions')
-          .select('id,name')
-          .eq('type', 'city')
-          .eq('is_active', true)
-          .order('name')
-          .limit(1);
-      if (rows.isNotEmpty && mounted) {
-        setState(() => _activeRegionName = rows.first['name'] as String);
+          .from('city_regions')
+          .select('id,slug,name_de,region_name,editorial_status,sort_order')
+          .order('sort_order');
+      final cities = rows.map(_CityRegion.fromRow).toList();
+      if (mounted) {
+        setState(() {
+          _cities = cities;
+          // München (live) ist voreingestellt — Nutzer:in kann jede der
+          // fünf Städte wählen, "Weiter" funktioniert daher sofort.
+          _selectedCityId = cities
+              .firstWhere((c) => c.isLive, orElse: () => cities.first)
+              .id;
+          _loadingCities = false;
+        });
       }
-    } catch (_) {
-      // Kein aktives Fallback-Label — der manuelle Fallback-Button bleibt
-      // trotzdem nutzbar, versucht dann einfach erneut die Region zu laden.
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _loadingCities = false;
+          _error = 'Städte konnten nicht geladen werden.';
+        });
+      }
     }
   }
 
-  Future<void> _requestLocation() async {
-    setState(() => _requesting = true);
+  Future<void> _saveSelectedCity() async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null || _selectedCityId == null) {
+      widget.onFinished();
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await Supabase.instance.client
+          .from('profiles')
+          .update({'preferred_region_id': _selectedCityId})
+          .eq('id', userId);
+      widget.onFinished();
+    } catch (e) {
+      setState(() => _error = 'Auswahl konnte nicht gespeichert werden.');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _requestGpsLocation() async {
+    setState(() {
+      _requestingGps = true;
+      _error = null;
+    });
     try {
       var permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
@@ -962,11 +1067,11 @@ class _LocationStepState extends State<_LocationStep> {
       }
       if (permission == LocationPermission.denied ||
           permission == LocationPermission.deniedForever) {
-        await _useManualFallback();
+        // Kein GPS-Zugriff — Nutzer:in bleibt bei der manuellen Auswahl
+        // unten, die Liste ist bereits sichtbar.
         return;
       }
       if (!await Geolocator.isLocationServiceEnabled()) {
-        await _useManualFallback();
         return;
       }
       final position = await Geolocator.getCurrentPosition();
@@ -976,65 +1081,628 @@ class _LocationStepState extends State<_LocationStep> {
       );
       widget.onFinished();
     } catch (_) {
-      await _useManualFallback();
+      // Best effort — bei Fehlern bleibt die manuelle Städteliste als
+      // gleichwertiger Weg bestehen.
     } finally {
-      if (mounted) setState(() => _requesting = false);
+      if (mounted) setState(() => _requestingGps = false);
     }
-  }
-
-  Future<void> _useManualFallback() async {
-    final userId = Supabase.instance.client.auth.currentUser?.id;
-    if (userId == null) {
-      widget.onFinished();
-      return;
-    }
-    try {
-      final rows = await Supabase.instance.client
-          .from('regions')
-          .select('id')
-          .eq('type', 'city')
-          .eq('is_active', true)
-          .order('name')
-          .limit(1);
-      if (rows.isNotEmpty) {
-        await Supabase.instance.client
-            .from('profiles')
-            .update({'preferred_region_id': rows.first['id']})
-            .eq('id', userId);
-      }
-    } catch (_) {
-      // Fallback-Zuordnung ist Best-effort — soll den Nutzer nicht
-      // blockieren, wenn sie fehlschlägt.
-    }
-    widget.onFinished();
   }
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.appColors;
     return _StepScaffold(
-      title: 'Konzerte in deiner Nähe entdecken',
+      title: 'Wo möchtest du Konzerte entdecken?',
       subtitle:
-          'Dein Standort hilft uns, passende Veranstaltungen in deiner '
-          'Umgebung zu zeigen. Du kannst auch nur den ungefähren Standort freigeben.',
+          'Wähle deine Stadt für passende Empfehlungen in deiner Nähe — '
+          'du kannst das jederzeit im Profil ändern.',
       icon: Icons.location_on_rounded,
-      onPrimary: _requesting ? () {} : _requestLocation,
-      isPrimaryEnabled: !_requesting,
-      primaryLabel: _requesting ? 'Wird ermittelt …' : 'Standort erlauben',
-      isWorking: _requesting,
-      secondaryLabel: _activeRegionName != null
-          ? 'Nicht jetzt — $_activeRegionName verwenden'
-          : 'Nicht jetzt',
-      onSecondary: _requesting ? null : _useManualFallback,
-      child: _activeRegionName != null
-          ? Text(
-              'Klangradar deckt aktuell nur $_activeRegionName ab.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: context.appColors.textSecondary,
-                fontSize: 12.5,
-              ),
+      isPrimaryEnabled: !_saving && !_requestingGps && _selectedCityId != null,
+      onPrimary: _saveSelectedCity,
+      primaryLabel: _saving ? 'Wird gespeichert …' : 'Weiter',
+      errorMessage: _error,
+      isWorking: _saving,
+      child: _loadingCities
+          ? const Padding(
+              padding: EdgeInsets.symmetric(vertical: AppSpacing.xl),
+              child: Center(child: CircularProgressIndicator()),
             )
-          : const SizedBox.shrink(),
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: _requestingGps ? null : _requestGpsLocation,
+                  icon: _requestingGps
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.my_location_rounded),
+                  label: Text(
+                    _requestingGps
+                        ? 'Standort wird ermittelt …'
+                        : 'Standort automatisch erkennen',
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                Row(
+                  children: [
+                    Expanded(child: Divider(color: colors.separator)),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.sm,
+                      ),
+                      child: Text(
+                        'oder wähle deine Stadt',
+                        style: TextStyle(
+                          color: colors.textTertiary,
+                          fontSize: 12.5,
+                        ),
+                      ),
+                    ),
+                    Expanded(child: Divider(color: colors.separator)),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                for (final city in _cities)
+                  _CityOptionCard(
+                    city: city,
+                    selected: city.id == _selectedCityId,
+                    onTap: () => setState(() => _selectedCityId = city.id),
+                  ),
+              ],
+            ),
+    );
+  }
+}
+
+/// Radio-artige Auswahlkarte für eine Stadt (Schritt 4). Städte mit
+/// `editorial_status != 'live'` bekommen ein "bald verfügbar"-Badge, bleiben
+/// aber auswählbar.
+class _CityOptionCard extends StatelessWidget {
+  const _CityOptionCard({
+    required this.city,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final _CityRegion city;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: Material(
+        color: selected
+            ? colors.accentPrimary.withValues(alpha: 0.08)
+            : colors.backgroundSecondary,
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppRadius.card),
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg,
+              vertical: AppSpacing.md,
+            ),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(AppRadius.card),
+              border: Border.all(
+                color: selected ? colors.accentPrimary : colors.separator,
+                width: selected ? 1.5 : 1,
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  selected
+                      ? Icons.radio_button_checked_rounded
+                      : Icons.radio_button_unchecked_rounded,
+                  color: selected ? colors.accentPrimary : colors.textTertiary,
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        city.nameDe,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      if (city.regionName != null)
+                        Text(
+                          city.regionName!,
+                          style: TextStyle(
+                            color: colors.textSecondary,
+                            fontSize: 12.5,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                if (!city.isLive)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.sm,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: colors.warning.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(
+                        AppRadius.glassCapsule,
+                      ),
+                    ),
+                    child: Text(
+                      'bald verfügbar',
+                      style: TextStyle(
+                        color: colors.warning,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Ein Festival/Veranstalter-Eintrag für den "Folgen"-Tab. Eigene, kleine
+/// Datenklasse statt Erweiterung von [InterestOption]/[InterestCategory]:
+/// Festivals werden bereits an anderer Stelle (festival_follow_button.dart)
+/// bewusst isoliert von diesem Enum gehalten, weil es an vielen Stellen
+/// exhaustiv geswitcht wird — dieselbe Begründung gilt hier.
+class _FestivalOption {
+  const _FestivalOption({required this.id, required this.name});
+
+  final String id;
+  final String name;
+}
+
+final _festivalOptionsProvider =
+    FutureProvider.autoDispose<List<_FestivalOption>>((ref) async {
+      final rows = await Supabase.instance.client
+          .from('festivals')
+          .select('id, name')
+          .order('name');
+      return (rows as List)
+          .map(
+            (r) => _FestivalOption(
+              id: r['id'] as String,
+              name: r['name'] as String,
+            ),
+          )
+          .toList();
+    });
+
+final _followedFestivalIdsProvider = FutureProvider.autoDispose<Set<String>>((
+  ref,
+) async {
+  final user = ref.watch(currentUserProvider);
+  if (user == null) return const {};
+  final rows = await Supabase.instance.client
+      .from('user_favorite_festivals')
+      .select('festival_id')
+      .eq('user_id', user.id);
+  return (rows as List).map((r) => r['festival_id'] as String).toSet();
+});
+
+/// Generated by Claude Code
+/// Schritt 6 aus dem Onboarding-Konzept — "Personen/Ensembles/Venues folgen
+/// (getrennte Bereiche, Suche, Vorschläge, 'Alle überspringen', kein
+/// Zwang)". Nutzt bewusst die schon vorhandenen Tabellen/Provider statt
+/// neuer Datenquellen: user_favorite_persons/_ensembles/_venues über
+/// [InterestsService]/[InterestCategory] (dieselbe Persistenz wie der
+/// Interessen-Picker in Schritt 5 — "Personen" zeigt hier dieselben
+/// Komponist:innen wie dort, ein Folgen in Schritt 5 taucht hier also
+/// bereits als ausgewählt auf) und user_favorite_festivals für den vierten
+/// Tab. Kein neues Backend-Schema angelegt.
+class _FollowStep extends StatefulWidget {
+  const _FollowStep({required this.onFinished});
+
+  final VoidCallback onFinished;
+
+  @override
+  State<_FollowStep> createState() => _FollowStepState();
+}
+
+class _FollowStepState extends State<_FollowStep> {
+  @override
+  Widget build(BuildContext context) {
+    return _StepScaffold(
+      title: 'Wem möchtest du folgen?',
+      subtitle:
+          'Personen, Ensembles, Venues und Festivals — du bekommst dann '
+          'Neuigkeiten zu ihnen. Ganz ohne Auswahl geht es auch.',
+      primaryLabel: 'Weiter',
+      onPrimary: widget.onFinished,
+      secondaryLabel: 'Alle überspringen',
+      onSecondary: widget.onFinished,
+      child: SizedBox(
+        // Feste Höhe nötig, weil _StepScaffold in eine
+        // SingleChildScrollView eingebettet ist und TabBarView selbst
+        // unbeschränkte Höhe verlangt.
+        height: 420,
+        child: DefaultTabController(
+          length: 4,
+          child: Column(
+            children: [
+              TabBar(
+                isScrollable: true,
+                tabAlignment: TabAlignment.start,
+                labelColor: context.appColors.accentPrimary,
+                unselectedLabelColor: context.appColors.textSecondary,
+                indicatorColor: context.appColors.accentPrimary,
+                tabs: const [
+                  Tab(text: 'Personen'),
+                  Tab(text: 'Ensembles'),
+                  Tab(text: 'Venues'),
+                  Tab(text: 'Festivals'),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              const Expanded(
+                child: TabBarView(
+                  children: [
+                    _FollowCategoryTab(category: InterestCategory.person),
+                    _FollowCategoryTab(category: InterestCategory.ensemble),
+                    _FollowCategoryTab(category: InterestCategory.venue),
+                    _FollowFestivalsTab(),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Ein Tab für Personen/Ensembles/Venues — nutzt dieselben Optionen-Provider
+/// wie [InterestPicker] (composerOptionsProvider/ensembleOptionsProvider/
+/// venueOptionsProvider) und [InterestsService.toggle] zum Folgen/Entfolgen.
+class _FollowCategoryTab extends ConsumerStatefulWidget {
+  const _FollowCategoryTab({required this.category});
+
+  final InterestCategory category;
+
+  @override
+  ConsumerState<_FollowCategoryTab> createState() => _FollowCategoryTabState();
+}
+
+class _FollowCategoryTabState extends ConsumerState<_FollowCategoryTab> {
+  final _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+    final options = switch (widget.category) {
+      InterestCategory.person =>
+        ref.watch(composerOptionsProvider).valueOrNull ?? const [],
+      InterestCategory.ensemble =>
+        ref.watch(ensembleOptionsProvider).valueOrNull ?? const [],
+      InterestCategory.venue =>
+        ref.watch(venueOptionsProvider).valueOrNull ?? const [],
+      InterestCategory.genre => const <InterestOption>[],
+    };
+    final selected = ref.watch(userInterestsProvider).valueOrNull;
+    final selectedIds = switch (widget.category) {
+      InterestCategory.person => selected?.personIds ?? const {},
+      InterestCategory.ensemble => selected?.ensembleIds ?? const {},
+      InterestCategory.venue => selected?.venueIds ?? const {},
+      InterestCategory.genre => const <String>{},
+    };
+
+    if (options.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(AppSpacing.lg),
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    // Vorschläge: bis zu drei noch nicht gefolgte Einträge — eine echte
+    // Personalisierung nach den in Schritt 5 gewählten Genres würde eine
+    // Genre<->Person/Ensemble/Venue-Zuordnungstabelle voraussetzen, die es
+    // im Schema (noch) nicht gibt (siehe PR-Beschreibung, offener Punkt).
+    // Schon in Schritt 5 gefolgte Einträge (z.B. Komponist:innen als
+    // Interesse) erscheinen hier automatisch als "bereits gefolgt", weil
+    // dieselbe Tabelle genutzt wird.
+    final suggestions = options
+        .where((o) => !selectedIds.contains(o.id))
+        .take(3)
+        .toList();
+
+    final normalizedQuery = _query.trim().toLowerCase();
+    final filtered = normalizedQuery.isEmpty
+        ? options
+        : options
+              .where((o) => o.label.toLowerCase().contains(normalizedQuery))
+              .toList();
+    final selectedFirst = [
+      ...filtered.where((o) => selectedIds.contains(o.id)),
+      ...filtered.where((o) => !selectedIds.contains(o.id)),
+    ];
+
+    return ListView(
+      children: [
+        if (suggestions.isNotEmpty) ...[
+          Text(
+            'Vorschläge',
+            style: TextStyle(
+              color: colors.textTertiary,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final option in suggestions)
+                ActionChip(
+                  avatar: Icon(
+                    Icons.add_rounded,
+                    size: 16,
+                    color: colors.accentPrimary,
+                  ),
+                  label: Text(option.label),
+                  onPressed: () => InterestsService.toggle(
+                    ref,
+                    category: widget.category,
+                    id: option.id,
+                    isSelected: false,
+                  ),
+                  backgroundColor: colors.accentPrimary.withValues(alpha: 0.08),
+                  side: BorderSide(color: colors.accentPrimary),
+                ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+        ],
+        TextField(
+          controller: _searchController,
+          onChanged: (v) => setState(() => _query = v),
+          style: const TextStyle(fontSize: 13),
+          decoration: InputDecoration(
+            isDense: true,
+            hintText: 'Suchen …',
+            hintStyle: TextStyle(color: colors.textTertiary, fontSize: 13),
+            prefixIcon: Icon(
+              Icons.search_rounded,
+              size: 18,
+              color: colors.textTertiary,
+            ),
+            prefixIconConstraints: const BoxConstraints(minWidth: 36),
+            filled: true,
+            fillColor: colors.backgroundPrimary,
+            contentPadding: const EdgeInsets.symmetric(vertical: 10),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(AppSpacing.sm),
+              borderSide: BorderSide(color: colors.separator),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(AppSpacing.sm),
+              borderSide: BorderSide(color: colors.separator),
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final option in selectedFirst)
+              FilterChip(
+                label: Text(option.label),
+                selected: selectedIds.contains(option.id),
+                onSelected: (_) => InterestsService.toggle(
+                  ref,
+                  category: widget.category,
+                  id: option.id,
+                  isSelected: selectedIds.contains(option.id),
+                ),
+                selectedColor: colors.accentPrimary.withValues(alpha: 0.16),
+                backgroundColor: colors.backgroundSecondary,
+                side: BorderSide(
+                  color: selectedIds.contains(option.id)
+                      ? colors.accentPrimary
+                      : colors.separator,
+                ),
+                labelStyle: TextStyle(
+                  color: selectedIds.contains(option.id)
+                      ? colors.accentPrimary
+                      : colors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// Vierter Tab: Festivals/Veranstalter — nutzt user_favorite_festivals
+/// direkt (analog zu FestivalFollowButton), da Festivals bewusst nicht Teil
+/// von [InterestCategory] sind.
+class _FollowFestivalsTab extends ConsumerStatefulWidget {
+  const _FollowFestivalsTab();
+
+  @override
+  ConsumerState<_FollowFestivalsTab> createState() =>
+      _FollowFestivalsTabState();
+}
+
+class _FollowFestivalsTabState extends ConsumerState<_FollowFestivalsTab> {
+  final _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _toggle(String festivalId, bool isFollowing) async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+    if (isFollowing) {
+      await Supabase.instance.client
+          .from('user_favorite_festivals')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('festival_id', festivalId);
+    } else {
+      await Supabase.instance.client
+          .from('user_favorite_festivals')
+          .upsert(
+            {'user_id': user.id, 'festival_id': festivalId},
+            onConflict: 'user_id,festival_id',
+            ignoreDuplicates: true,
+          );
+    }
+    ref.invalidate(_followedFestivalIdsProvider);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+    final festivals = ref.watch(_festivalOptionsProvider).valueOrNull ?? [];
+    final followedIds =
+        ref.watch(_followedFestivalIdsProvider).valueOrNull ?? const {};
+
+    if (festivals.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(AppSpacing.lg),
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    final suggestions = festivals
+        .where((f) => !followedIds.contains(f.id))
+        .take(3)
+        .toList();
+
+    final normalizedQuery = _query.trim().toLowerCase();
+    final filtered = normalizedQuery.isEmpty
+        ? festivals
+        : festivals
+              .where((f) => f.name.toLowerCase().contains(normalizedQuery))
+              .toList();
+    final selectedFirst = [
+      ...filtered.where((f) => followedIds.contains(f.id)),
+      ...filtered.where((f) => !followedIds.contains(f.id)),
+    ];
+
+    return ListView(
+      children: [
+        if (suggestions.isNotEmpty) ...[
+          Text(
+            'Vorschläge',
+            style: TextStyle(
+              color: colors.textTertiary,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final festival in suggestions)
+                ActionChip(
+                  avatar: Icon(
+                    Icons.add_rounded,
+                    size: 16,
+                    color: colors.accentPrimary,
+                  ),
+                  label: Text(festival.name),
+                  onPressed: () => _toggle(festival.id, false),
+                  backgroundColor: colors.accentPrimary.withValues(alpha: 0.08),
+                  side: BorderSide(color: colors.accentPrimary),
+                ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+        ],
+        TextField(
+          controller: _searchController,
+          onChanged: (v) => setState(() => _query = v),
+          style: const TextStyle(fontSize: 13),
+          decoration: InputDecoration(
+            isDense: true,
+            hintText: 'Suchen …',
+            hintStyle: TextStyle(color: colors.textTertiary, fontSize: 13),
+            prefixIcon: Icon(
+              Icons.search_rounded,
+              size: 18,
+              color: colors.textTertiary,
+            ),
+            prefixIconConstraints: const BoxConstraints(minWidth: 36),
+            filled: true,
+            fillColor: colors.backgroundPrimary,
+            contentPadding: const EdgeInsets.symmetric(vertical: 10),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(AppSpacing.sm),
+              borderSide: BorderSide(color: colors.separator),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(AppSpacing.sm),
+              borderSide: BorderSide(color: colors.separator),
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final festival in selectedFirst)
+              FilterChip(
+                label: Text(festival.name),
+                selected: followedIds.contains(festival.id),
+                onSelected: (_) =>
+                    _toggle(festival.id, followedIds.contains(festival.id)),
+                selectedColor: colors.accentPrimary.withValues(alpha: 0.16),
+                backgroundColor: colors.backgroundSecondary,
+                side: BorderSide(
+                  color: followedIds.contains(festival.id)
+                      ? colors.accentPrimary
+                      : colors.separator,
+                ),
+                labelStyle: TextStyle(
+                  color: followedIds.contains(festival.id)
+                      ? colors.accentPrimary
+                      : colors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
+              ),
+          ],
+        ),
+      ],
     );
   }
 }
@@ -1056,17 +1724,26 @@ class _NotificationsStepState extends State<_NotificationsStep> {
   bool _followedArtists = true;
   bool _savedEventReminders = true;
 
+  // Fix: die fünf echten Spalten von notification_preferences (siehe
+  // NotificationPreferenceKey in
+  // core/notifications/notification_preferences_providers.dart) heißen ohne
+  // "notify_"-Präfix — der bisherige Upsert schrieb auf nicht existierende
+  // Spalten ('notify_new_matching_events' etc.) und wäre gegen das echte
+  // Schema mit einem Postgres-Fehler fehlgeschlagen. Jetzt über denselben
+  // Service wie die Profil-Einstellungen (notification_settings_screen.dart)
+  // statt eines eigenen, abweichenden Upserts.
   Future<void> _savePreferences() async {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) return;
     await Supabase.instance.client.from('notification_preferences').upsert({
       'user_id': userId,
-      'notify_new_matching_events': _recommendations,
-      'notify_price_changes': _ticketAlerts,
-      'notify_almost_sold_out': _almostSoldOut,
-      'followed_ensemble_new_event': _followedArtists,
-      'notify_reminder_day_before': _savedEventReminders,
-    });
+      NotificationPreferenceKey.newMatchingEvents.column: _recommendations,
+      NotificationPreferenceKey.priceChanges.column: _ticketAlerts,
+      NotificationPreferenceKey.almostSoldOut.column: _almostSoldOut,
+      NotificationPreferenceKey.followedEnsembleNewEvent.column:
+          _followedArtists,
+      NotificationPreferenceKey.reminderDayBefore.column: _savedEventReminders,
+    }, onConflict: 'user_id');
   }
 
   Future<void> _requestNotifications() async {
@@ -1104,14 +1781,22 @@ class _NotificationsStepState extends State<_NotificationsStep> {
       child: Column(
         children: [
           SwitchListTile(
+            value: _followedArtists,
+            onChanged: (value) => setState(() => _followedArtists = value),
+            title: const Text('Neue Events gefolgter Profile'),
+            subtitle: const Text(
+              'Personen, Ensembles und Venues, denen du folgst.',
+            ),
+          ),
+          SwitchListTile(
             value: _recommendations,
             onChanged: (value) => setState(() => _recommendations = value),
-            title: const Text('Konzertempfehlungen'),
+            title: const Text('Empfehlungen in deiner Nähe'),
           ),
           SwitchListTile(
             value: _ticketAlerts,
             onChanged: (value) => setState(() => _ticketAlerts = value),
-            title: const Text('Ticket- und Preis-Alerts'),
+            title: const Text('Preisänderungen'),
           ),
           SwitchListTile(
             value: _almostSoldOut,
@@ -1119,14 +1804,128 @@ class _NotificationsStepState extends State<_NotificationsStep> {
             title: const Text('Bald ausverkauft'),
           ),
           SwitchListTile(
-            value: _followedArtists,
-            onChanged: (value) => setState(() => _followedArtists = value),
-            title: const Text('Neue Events favorisierter Künstler:innen'),
-          ),
-          SwitchListTile(
             value: _savedEventReminders,
             onChanged: (value) => setState(() => _savedEventReminders = value),
             title: const Text('Erinnerungen an gespeicherte Events'),
+          ),
+          // Vorverkaufsstarts und eine wöchentliche Zusammenfassung sind Teil
+          // der vom Nutzer vorgegebenen Zielstruktur, haben aber (noch)
+          // keine eigene Spalte in notification_preferences — siehe PR-
+          // Beschreibung. Bewusst kein neues Schema/keine Migration hierfür
+          // erfunden, nur als offener Punkt dokumentiert.
+        ],
+      ),
+    );
+  }
+}
+
+/// Zeigt die gewählte Stadt für die Zusammenfassung — liest
+/// profiles.preferred_region_id und löst den Namen über city_regions auf
+/// (dieselbe View wie in _LocationStep, nur schreibend statt lesend anders
+/// herum).
+final _preferredCityNameProvider = FutureProvider.autoDispose<String?>((
+  ref,
+) async {
+  final user = ref.watch(currentUserProvider);
+  if (user == null) return null;
+  final profileRow = await Supabase.instance.client
+      .from('profiles')
+      .select('preferred_region_id')
+      .eq('id', user.id)
+      .maybeSingle();
+  final regionId = profileRow?['preferred_region_id'] as String?;
+  if (regionId == null) return null;
+  final cityRow = await Supabase.instance.client
+      .from('city_regions')
+      .select('name_de')
+      .eq('id', regionId)
+      .maybeSingle();
+  return cityRow?['name_de'] as String?;
+});
+
+/// Schritt 8 aus dem Onboarding-Konzept: Zusammenfassung von Stadt,
+/// Interessen, gefolgten Profilen (inkl. Schritt 6) und
+/// Benachrichtigungseinstellungen — jede Zeile mit "Bearbeiten"-Link zurück
+/// zum jeweiligen Schritt, statt nur eines Abschluss-Bildschirms ohne
+/// Übersicht.
+class _SummaryStep extends ConsumerWidget {
+  const _SummaryStep({
+    required this.onFinished,
+    required this.onEditLocation,
+    required this.onEditInterests,
+    required this.onEditFollows,
+    required this.onEditNotifications,
+  });
+
+  final VoidCallback onFinished;
+  final VoidCallback onEditLocation;
+  final VoidCallback onEditInterests;
+  final VoidCallback onEditFollows;
+  final VoidCallback onEditNotifications;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cityName = ref.watch(_preferredCityNameProvider).valueOrNull;
+    final interests =
+        ref.watch(userInterestsProvider).valueOrNull ?? UserInterests.empty;
+    final follows = ref.watch(myFollowsProvider).valueOrNull ?? MyFollows.empty;
+    final followedFestivals =
+        ref.watch(_followedFestivalIdsProvider).valueOrNull ?? const {};
+    final notifications = ref
+        .watch(notificationPreferencesProvider)
+        .valueOrNull;
+
+    final interestsCount =
+        interests.genreIds.length +
+        interests.personIds.length +
+        interests.ensembleIds.length +
+        interests.venueIds.length;
+    final followedCount =
+        follows.persons.length +
+        follows.ensembles.length +
+        follows.venues.length +
+        followedFestivals.length;
+    final activeNotificationsCount = notifications == null
+        ? 0
+        : [
+            notifications.newMatchingEvents,
+            notifications.priceChanges,
+            notifications.almostSoldOut,
+            notifications.reminderDayBefore,
+            notifications.followedEnsembleNewEvent,
+          ].where((enabled) => enabled).length;
+
+    return _StepScaffold(
+      title: 'Dein Profil ist eingerichtet',
+      subtitle: 'Deine persönlichen Konzertempfehlungen sind jetzt bereit.',
+      icon: Icons.check_circle_rounded,
+      onPrimary: onFinished,
+      primaryLabel: 'Konzerte für dich entdecken',
+      child: Column(
+        children: [
+          _SummaryRow(
+            icon: Icons.location_on_rounded,
+            label: cityName ?? 'Keine Stadt ausgewählt',
+            onEdit: onEditLocation,
+          ),
+          _SummaryRow(
+            icon: Icons.interests_rounded,
+            label: interestsCount == 0
+                ? 'Keine Interessen ausgewählt'
+                : '$interestsCount Interessen ausgewählt',
+            onEdit: onEditInterests,
+          ),
+          _SummaryRow(
+            icon: Icons.bookmark_added_rounded,
+            label: followedCount == 0
+                ? 'Niemandem gefolgt'
+                : '$followedCount Profilen gefolgt',
+            onEdit: onEditFollows,
+          ),
+          _SummaryRow(
+            icon: Icons.notifications_active_rounded,
+            label: '$activeNotificationsCount von 5 Benachrichtigungen aktiv',
+            onEdit: onEditNotifications,
           ),
         ],
       ),
@@ -1134,20 +1933,34 @@ class _NotificationsStepState extends State<_NotificationsStep> {
   }
 }
 
-class _SummaryStep extends StatelessWidget {
-  const _SummaryStep({required this.onFinished});
+/// Eine Zeile der Zusammenfassung mit "Bearbeiten"-Link zurück zum
+/// jeweiligen Schritt.
+class _SummaryRow extends StatelessWidget {
+  const _SummaryRow({
+    required this.icon,
+    required this.label,
+    required this.onEdit,
+  });
 
-  final VoidCallback onFinished;
+  final IconData icon;
+  final String label;
+  final VoidCallback onEdit;
 
   @override
   Widget build(BuildContext context) {
-    return _StepScaffold(
-      title: 'Dein Profil ist eingerichtet',
-      subtitle: 'Deine persönlichen Konzertempfehlungen sind jetzt bereit.',
-      icon: Icons.check_circle_rounded,
-      onPrimary: onFinished,
-      primaryLabel: 'Konzerte für dich entdecken',
-      child: const SizedBox.shrink(),
+    final colors = context.appColors;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: colors.accentPrimary),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(label, style: Theme.of(context).textTheme.bodyMedium),
+          ),
+          TextButton(onPressed: onEdit, child: const Text('Bearbeiten')),
+        ],
+      ),
     );
   }
 }
