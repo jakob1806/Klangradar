@@ -16,6 +16,7 @@ struct SelectedProfileImage: Identifiable {
 struct ProfileAvatarEditor: View {
     @ObservedObject var auth: AuthStore
     let repository: UserRepository?
+    var size: CGFloat = 58
 
     @State private var avatarURL: URL?
     @State private var source: ProfileImageSource?
@@ -44,11 +45,11 @@ struct ProfileAvatarEditor: View {
                             .foregroundStyle(KlangradarTheme.accent)
                     }
                 }
-                .frame(width: 58, height: 58)
+                .frame(width: size, height: size)
                 .clipShape(Circle())
 
                 Image(systemName: "camera.fill")
-                    .font(.caption2.weight(.bold))
+                    .font(size >= 72 ? .caption.weight(.bold) : .caption2.weight(.bold))
                     .foregroundStyle(.white)
                     .padding(6)
                     .background(KlangradarTheme.accent, in: Circle())

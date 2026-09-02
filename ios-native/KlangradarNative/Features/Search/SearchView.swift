@@ -1,5 +1,4 @@
 import SwiftUI
-import Speech
 
 private extension InspirationCategory {
     var colors: [Color] {
@@ -42,6 +41,7 @@ struct SearchView: View {
     @State private var inspirationResultCache: [String: [ConcertEvent]] = [:]
     @State private var activeLoadID = UUID()
     @StateObject private var speechSearch = SpeechSearchController()
+    @FocusState private var searchFocused: Bool
 
     private var visibleHits: [SearchHit] {
         guard resultScope != .all else { return hits }
@@ -55,6 +55,7 @@ struct SearchView: View {
                 KlangradarBackground().ignoresSafeArea()
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 24) {
+                        searchBar
                         searchContent
                     }
                     .padding(.horizontal, KlangradarTheme.pagePadding)
@@ -83,24 +84,9 @@ struct SearchView: View {
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    HStack(spacing: 14) {
-                        Button {
-                            Task { await speechSearch.toggle(into: $query) }
-                        } label: {
-                            Image(systemName: speechSearch.isRecording ? "waveform.circle.fill" : "mic.circle")
-                                .symbolRenderingMode(.hierarchical)
-                                .foregroundStyle(speechSearch.isRecording ? .red : KlangradarTheme.accent)
-                        }
-                        .accessibilityLabel(speechSearch.isRecording ? "Sprachsuche beenden" : "Sprachsuche starten")
-                        CityCompactMenu(cityStore: cityStore)
-                    }
+                    CityCompactMenu(cityStore: cityStore)
                 }
             }
-            .searchable(
-                text: $query,
-                placement: .navigationBarDrawer(displayMode: .always),
-                prompt: "Konzerte, Personen, Ensembles, Orte, Werke"
-            )
             .navigationDestination(for: ConcertEvent.self) { EventDetailView(event: $0, repository: eventRepository, contentRepository: contentRepository) }
             .navigationDestination(for: EntityKind.self) { DirectoryView(kind: $0, repository: contentRepository) }
             .navigationDestination(for: EntityRoute.self) { EntityDetailView(route: $0, repository: contentRepository) }
@@ -126,6 +112,48 @@ struct SearchView: View {
                 Button("OK") { speechSearch.dismissError() }
             } message: { Text(speechSearch.errorMessage ?? "") }
         }
+    }
+
+    private var searchBar: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+            TextField("Konzerte, Personen, Ensembles, Orte, Werke", text: $query)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .focused($searchFocused)
+                .submitLabel(.search)
+            if !query.isEmpty {
+                Button {
+                    query = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.tertiary)
+                }
+                .accessibilityLabel("Suche löschen")
+            }
+            Button {
+                searchFocused = false
+                Task { await speechSearch.toggle(into: $query) }
+            } label: {
+                Image(systemName: speechSearch.isRecording ? "waveform.circle.fill" : "mic.fill")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(speechSearch.isRecording ? .red : KlangradarTheme.accent)
+                    .frame(width: 30, height: 30)
+                    .background((speechSearch.isRecording ? Color.red : KlangradarTheme.accent).opacity(0.11), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(speechSearch.isRecording ? "Sprachsuche beenden" : "Sprachsuche starten")
+        }
+        .padding(.leading, 14)
+        .padding(.trailing, 8)
+        .padding(.vertical, 8)
+        .background(.regularMaterial, in: .rect(cornerRadius: 16, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.secondary.opacity(0.16), lineWidth: 0.5)
+        }
+        .accessibilityElement(children: .contain)
     }
 
     @ViewBuilder private var searchContent: some View {

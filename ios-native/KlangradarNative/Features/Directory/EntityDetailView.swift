@@ -240,37 +240,67 @@ struct EntityDetailView: View {
     @ViewBuilder private func metadata(_ detail: EntityDetail) -> some View {
         let rows = metadataRows(detail)
         let socialLinks = detail.fields.object("social_links") ?? [:]
-        if !rows.isEmpty || detail.fields.string("website_url") != nil || !socialLinks.isEmpty {
-            section("Kontakt, Social Media & Musik") {
+        let musicPlatforms = socialLinks.keys.filter { ["spotify", "apple_music"].contains($0.lowercased()) && socialLinks.string($0)?.isEmpty == false }.sorted()
+        let socialPlatforms = socialLinks.keys.filter { !["spotify", "apple_music"].contains($0.lowercased()) && socialLinks.string($0)?.isEmpty == false }.sorted()
+
+        section("Kontakt") {
+            LiquidGlassSurface(cornerRadius: 20) {
+                VStack(spacing: 12) {
+                    ForEach(rows, id: \.0) { label, value in
+                        LabeledContent(label, value: value)
+                    }
+                    if let raw = detail.fields.string("website_url"), let url = URL(string: raw) {
+                        Link("Offizielle Website", destination: url).frame(maxWidth: .infinity, alignment: .leading)
+                    } else if rows.isEmpty {
+                        Text("Noch keine Kontaktdaten hinterlegt.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }.padding(18)
+            }
+        }
+
+        if !socialPlatforms.isEmpty {
+            section("Social Media") {
                 LiquidGlassSurface(cornerRadius: 20) {
                     VStack(spacing: 12) {
-                        ForEach(rows, id: \.0) { label, value in
-                            LabeledContent(label, value: value)
-                        }
-                        if let raw = detail.fields.string("website_url"), let url = URL(string: raw) {
-                            Link("Offizielle Website", destination: url).frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                        ForEach(socialLinks.keys.sorted(), id: \.self) { platform in
-                            if let raw = socialLinks.string(platform), let url = URL(string: raw) {
-                                Link(destination: url) {
-                                    HStack(spacing: 12) {
-                                        SocialPlatformIcon(platform: platform)
-                                        Text(socialLabel(platform))
-                                            .font(.body.weight(.semibold))
-                                        Spacer()
-                                        Image(systemName: "arrow.up.right")
-                                            .font(.caption.weight(.semibold))
-                                            .foregroundStyle(.tertiary)
-                                    }
-                                    .contentShape(.rect)
-                                }
-                                .buttonStyle(.plain)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            }
+                        ForEach(socialPlatforms, id: \.self) { platform in
+                            platformLink(platform, links: socialLinks)
                         }
                     }.padding(18)
                 }
             }
+        }
+
+        if !musicPlatforms.isEmpty {
+            section("Musik") {
+                LiquidGlassSurface(cornerRadius: 20) {
+                    VStack(spacing: 12) {
+                        ForEach(musicPlatforms, id: \.self) { platform in
+                            platformLink(platform, links: socialLinks)
+                        }
+                    }.padding(18)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private func platformLink(_ platform: String, links: JSONObject) -> some View {
+        if let raw = links.string(platform), let url = URL(string: raw) {
+            Link(destination: url) {
+                HStack(spacing: 12) {
+                    SocialPlatformIcon(platform: platform)
+                    Text(socialLabel(platform)).font(.body.weight(.semibold))
+                    Spacer()
+                    Image(systemName: "arrow.up.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                }
+                .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
