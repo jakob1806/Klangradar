@@ -43,6 +43,18 @@ function dateRange(date: Date) {
   return { date_from: from.toISOString(), date_to: to.toISOString() };
 }
 
+const KNOWN_CITIES = ["München", "Berlin", "Hamburg", "Frankfurt", "Wien"];
+
+// Einzige Quelle für "welche Stadt steht ausdrücklich im Text" -- wird sowohl
+// vom lokalen Fallback-Planer als auch danach erneut auf das Ergebnis des
+// KI-Planers angewendet (siehe unten), damit ein von der KI selbst
+// geratener Stadtname den korrekten Default niemals stillschweigend
+// überschreiben kann.
+function explicitCityIn(message: string): string | undefined {
+  const q = message.toLocaleLowerCase("de-DE");
+  return KNOWN_CITIES.find((c) => q.includes(c.toLocaleLowerCase("de-DE")));
+}
+
 function localPlan(message: string, defaultCity?: string): { intent: string; shouldSearchEvents: boolean; filters: Filters; memoryProposal?: Json; goalProposal?: Json } {
   const q = message.toLocaleLowerCase("de-DE");
   const filters: Filters = {};
@@ -50,13 +62,12 @@ function localPlan(message: string, defaultCity?: string): { intent: string; sho
   if (budget) filters.max_budget = Number(budget[1]);
   if (/kostenlos|gratis|eintritt frei/.test(q)) filters.max_budget = 0;
   if (/ohne oper|keine oper/.test(q)) filters.exclude_opera = true;
-  const cities = ["München", "Berlin", "Hamburg", "Frankfurt", "Wien"];
   // Nutzerfeedback: "Datenanbindung ... nur auf ausgewählter Stadt
   // basierend" -- ohne explizit im Text genannte Stadt fällt der Filter
   // jetzt auf die im Client gerade gewählte Stadt zurück (siehe
   // "city_id"/"city_name" im Request-Body), statt implizit alle Städte
   // zu durchsuchen.
-  filters.city = cities.find((c) => q.includes(c.toLocaleLowerCase("de-DE"))) ?? defaultCity;
+  filters.city = explicitCityIn(message) ?? defaultCity;
   const music = ["barock", "oper", "sinfonie", "symphonie", "kammermusik", "chor", "klavier", "mozart", "bach", "mahler", "beethoven"];
   // Nutzerfeedback: "keinen Anschluss ... wenn man sie ueber echte Konzerte
   // oder Daten fragen will" -- schlaegt der externe Planungsaufruf fehl oder
@@ -183,6 +194,12 @@ Deno.serve(async (req) => {
       shouldSearchEvents: Boolean(planned.args.shouldSearchEvents),
       filters: { ...local.filters, ...(safeObject(planned.args.filtersJson) as Filters | undefined ?? {}) },
     };
+    // Der externe Planungsaufruf bekommt keine Anweisung, "city" nur bei
+    // ausdrücklicher Nennung zu füllen -- ein von der KI selbst geratener
+    // Stadtname (oder ein fehlender) würde sonst den korrekten
+    // Default-auf-aktuelle-Stadt oben überschreiben. Gleiche Regel wie in
+    // localPlan() hier erzwungen, unabhängig davon, was die KI geliefert hat.
+    local.filters.city = explicitCityIn(message) ?? defaultCity;
     memoryProposal = safeObject(planned.args.memoryProposalJson);
     goalProposal = safeObject(planned.args.goalProposalJson);
   }
