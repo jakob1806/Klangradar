@@ -411,7 +411,18 @@ private struct MyKlangradarHubView: View {
 
 struct KlangradarCoachView: View {
     private enum Section: String, CaseIterable { case overview = "Heute", chat = "KI fragen" }
-    private struct ChatMessage: Identifiable { let id = UUID(); let text: String; let user: Bool }
+    // Nutzerfeedback: "Antworten sollen nicht reiner Text sein, sondern
+    // kurzer Text plus kleine Konzert-Miniaturen zum Durchscrollen" -- jede
+    // Assistenten-Nachricht trägt jetzt ihre eigenen Treffer (max. 4,
+    // horizontal), statt einer einzigen globalen Liste unter dem ganzen
+    // Verlauf.
+    private struct ChatMessage: Identifiable {
+        let id = UUID()
+        let text: String
+        let user: Bool
+        var events: [CoachEvent] = []
+        var eventsAreAlternatives = false
+    }
 
     @ObservedObject var auth: AuthStore
     let repository: UserRepository?
@@ -419,6 +430,7 @@ struct KlangradarCoachView: View {
     let contentRepository: any ContentRepository
     private let showsDismissButton: Bool
     @EnvironmentObject private var favorites: FavoriteStore
+    @EnvironmentObject private var cityStore: CityStore
     @Environment(\.dismiss) private var dismiss
 
     @State private var selectedSection: Section
@@ -427,7 +439,6 @@ struct KlangradarCoachView: View {
     @State private var messages: [ChatMessage] = [
         .init(text: "Frag mich nach deinem Geschmack, deinen Gewohnheiten oder einem konkreten Konzertabend. Ich nutze nur belegbare Klangradar-Daten und sage dir, wenn ich dich noch nicht gut genug kenne.", user: false)
     ]
-    @State private var events: [CoachEvent] = []
     @State private var suggestedPrompts = ["Was passt dieses Wochenende zu mir?", "Erkläre mein Geschmacksprofil", "Plane einen Abend unter 50 €"]
     @State private var memoryProposal: JSONObject?
     @State private var goalProposal: JSONObject?
@@ -497,7 +508,7 @@ struct KlangradarCoachView: View {
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer(); Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(.tertiary)
-                    }.padding(16).background(.thinMaterial, in: .rect(cornerRadius: 20, style: .continuous))
+                    }.padding(16).background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 20, style: .continuous))
                 }.buttonStyle(.plain)
 
                 if let dashboard {
@@ -505,7 +516,7 @@ struct KlangradarCoachView: View {
                     lensGrid(dashboard)
                     if dashboard.signalQuality == "low" {
                         Label("Ich lerne dich noch kennen. Empfehlungen basieren aktuell vor allem auf deinen bestätigten Interessen und gespeicherten Events.", systemImage: "info.circle")
-                            .font(.footnote).foregroundStyle(.secondary).padding(14).background(.thinMaterial, in: .rect(cornerRadius: 16))
+                            .font(.footnote).foregroundStyle(.secondary).padding(14).background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 16))
                     }
                     if !dashboard.insights.isEmpty {
                         Text("Für dich jetzt").font(.title2.bold()).padding(.top, 4)
@@ -565,7 +576,7 @@ struct KlangradarCoachView: View {
             Text(value).font(.subheadline.weight(.semibold))
             Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(2)
         }.frame(maxWidth: .infinity, minHeight: 118, alignment: .leading).padding(15)
-            .background(.thinMaterial, in: .rect(cornerRadius: 20, style: .continuous))
+            .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 20, style: .continuous))
     }
 
     private func insightCard(_ insight: CoachInsight) -> some View {
@@ -575,7 +586,7 @@ struct KlangradarCoachView: View {
             if let action = insight.actions.first, action.string("type") == "ask_coach", let prompt = action.string("prompt") {
                 Button("Mit KI planen") { draft = prompt; selectedSection = .chat; Task { await send() } }.buttonStyle(.bordered)
             }
-        }.padding(16).background(.thinMaterial, in: .rect(cornerRadius: 20, style: .continuous))
+        }.padding(16).background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 20, style: .continuous))
     }
 
     private func trendCard(_ trend: JSONObject) -> some View {
@@ -587,7 +598,7 @@ struct KlangradarCoachView: View {
             Text([rating.map { "Ø Bewertung \($0.formatted(.number.precision(.fractionLength(1))))/5" }, energy.map { "Energieveränderung \($0 >= 0 ? "+" : "")\($0.formatted(.number.precision(.fractionLength(1))))" }].compactMap { $0 }.joined(separator: " · "))
                 .font(.subheadline)
             Text("Zusammenhang aus \(sample) Reflexionen – keine Kausalitätsaussage.").font(.caption).foregroundStyle(.secondary)
-        }.frame(maxWidth: .infinity, alignment: .leading).padding(16).background(.thinMaterial, in: .rect(cornerRadius: 18))
+        }.frame(maxWidth: .infinity, alignment: .leading).padding(16).background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 18))
     }
 
     private var chat: some View {
@@ -595,9 +606,12 @@ struct KlangradarCoachView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 13) {
                     ForEach(messages) { message in
-                        HStack { if message.user { Spacer(minLength: 45) }; Text(message.text).padding(.horizontal, 14).padding(.vertical, 11).background(message.user ? KlangradarTheme.accent : Color(uiColor: .secondarySystemGroupedBackground)).foregroundStyle(message.user ? .white : .primary).clipShape(.rect(cornerRadius: 18, style: .continuous)); if !message.user { Spacer(minLength: 45) } }
+                        VStack(alignment: message.user ? .trailing : .leading, spacing: 8) {
+                            HStack { if message.user { Spacer(minLength: 45) }; Text(message.text).padding(.horizontal, 14).padding(.vertical, 11).background(message.user ? KlangradarTheme.accent : Color(uiColor: .secondarySystemGroupedBackground)).foregroundStyle(message.user ? .white : .primary).clipShape(.rect(cornerRadius: 18, style: .continuous)); if !message.user { Spacer(minLength: 45) } }
+                            if !message.events.isEmpty { eventCarousel(message.events, isAlternatives: message.eventsAreAlternatives) }
+                        }
+                        .frame(maxWidth: .infinity, alignment: message.user ? .trailing : .leading)
                     }
-                    ForEach(events) { event in coachEventCard(event) }
                     if let proposal = memoryProposal { proposalCard("Soll ich mir das merken?", proposal, action: "confirm_memory") }
                     if let proposal = goalProposal { proposalCard("Dieses Ziel übernehmen?", proposal, action: "confirm_goal") }
                     if isLoading { ProgressView("KI denkt mit deinen Daten …").frame(maxWidth: .infinity).padding() }
@@ -672,18 +686,74 @@ struct KlangradarCoachView: View {
         }
     }
 
-    private func coachEventCard(_ event: CoachEvent) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            NavigationLink(value: event.concertEvent) { VStack(alignment: .leading, spacing: 4) {
-                Text(event.startDate.map { KlangradarDateTime.string($0, format: "EEE, d. MMM · HH:mm") } ?? "Termin folgt").font(.caption.bold()).foregroundStyle(KlangradarTheme.accent)
-                Text(event.title).font(.headline).foregroundStyle(.primary); Text(event.venueName).font(.subheadline).foregroundStyle(.secondary)
-            }.frame(maxWidth: .infinity, alignment: .leading) }
-            if !event.reasons.isEmpty { Text(event.reasons.joined(separator: " · ")).font(.caption).foregroundStyle(.secondary) }
-            HStack {
-                Button(favorites.ids.contains(event.id) ? "Gespeichert" : "Speichern", systemImage: favorites.ids.contains(event.id) ? "heart.fill" : "heart") { Task { await favorites.toggle(event.id) } }.buttonStyle(.bordered)
-                if let url = event.ticketURL { Link(destination: url) { Label("Tickets", systemImage: "ticket") }.buttonStyle(.borderedProminent) }
+    // Nutzerfeedback: statt einer einzelnen großen, textlastigen Karte pro
+    // Event jetzt ein horizontal scrollbares Band aus kompakten Miniaturen
+    // (max. 4) direkt unter der Antwort -- jede öffnet per Tap die volle
+    // Detailansicht über dieselbe navigationDestination(for: ConcertEvent).
+    private func eventCarousel(_ events: [CoachEvent], isAlternatives: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if isAlternatives {
+                Label("Keine exakte Übereinstimmung – Alternativen", systemImage: "arrow.triangle.branch")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
             }
-        }.padding(15).background(.thinMaterial, in: .rect(cornerRadius: 20, style: .continuous))
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(alignment: .top, spacing: 10) {
+                    ForEach(events.prefix(4)) { event in
+                        NavigationLink(value: event.concertEvent) { coachEventMiniCard(event) }
+                            .buttonStyle(.plain)
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+        }
+    }
+
+    private func coachEventMiniCard(_ event: CoachEvent) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ZStack(alignment: .topTrailing) {
+                AsyncImage(url: event.imageURL) { phase in
+                    if case let .success(image) = phase {
+                        image.resizable().scaledToFill()
+                    } else {
+                        Rectangle().fill(KlangradarTheme.accent.opacity(0.16))
+                            .overlay { Image(systemName: "music.note").foregroundStyle(KlangradarTheme.accent) }
+                    }
+                }
+                .frame(width: 172, height: 92)
+                .clipped()
+
+                Button { Task { await favorites.toggle(event.id) } } label: {
+                    Image(systemName: favorites.ids.contains(event.id) ? "heart.fill" : "heart")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.white)
+                        .padding(7)
+                        .background(.black.opacity(0.32), in: .circle)
+                }
+                .padding(6)
+            }
+            VStack(alignment: .leading, spacing: 3) {
+                Text(event.startDate.map { KlangradarDateTime.string($0, format: "EEE, d. MMM · HH:mm") } ?? "Termin folgt")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(KlangradarTheme.accent)
+                Text(event.title)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(2)
+                    .foregroundStyle(.primary)
+                Text(event.venueName)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            .padding(10)
+        }
+        .frame(width: 172, alignment: .leading)
+        .background(Color(uiColor: .secondarySystemGroupedBackground))
+        .clipShape(.rect(cornerRadius: 16, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(.primary.opacity(0.06))
+        }
     }
 
     private func proposalCard(_ title: String, _ proposal: JSONObject, action: String) -> some View {
@@ -705,8 +775,9 @@ struct KlangradarCoachView: View {
         draft = ""; retryDraft = text; isLoading = true; errorMessage = nil; messages.append(.init(text: text, user: true)); memoryProposal = nil; goalProposal = nil
         defer { isLoading = false }
         do {
-            let reply = try await repository.askCoach(message: text, conversationID: conversationID, token: token)
-            conversationID = reply.conversationID; messages.append(.init(text: reply.answer, user: false)); events = reply.events
+            let reply = try await repository.askCoach(message: text, conversationID: conversationID, cityName: cityStore.selectedCity?.name, token: token)
+            conversationID = reply.conversationID
+            messages.append(ChatMessage(text: reply.answer, user: false, events: reply.events, eventsAreAlternatives: reply.eventsAreAlternatives))
             memoryProposal = reply.memoryProposal; goalProposal = reply.goalProposal; suggestedPrompts = reply.suggestedPrompts; retryDraft = nil
         } catch { errorMessage = coachErrorDescription(error) }
     }
@@ -746,6 +817,12 @@ private struct CoachSendButtonStyle: ButtonStyle {
     }
 }
 
+// Nutzerfeedback: "Überarbeitung von kurzer Check-in" -- die
+// Stimmungsauswahl war eine horizontal scrollende Reihe winziger Kapseln,
+// kaum als eigener Bereich erkennbar. Jetzt ein Raster großer Kacheln
+// (Icon über Label), ein mittlerer Sheet-Detent mit Drag-Indikator statt
+// einer vollen Seite -- näher an Apples eigenen kurzen Eingabe-Sheets
+// (z. B. "Neue Erinnerung").
 private struct CoachCheckinSheet: View {
     @ObservedObject var auth: AuthStore
     let repository: UserRepository?
@@ -758,17 +835,66 @@ private struct CoachCheckinSheet: View {
     @State private var companion = "alone"
     @State private var isSaving = false
     private let moods = [("calm","Ruhig","leaf"),("curious","Neugierig","sparkles"),("romantic","Romantisch","heart"),("social","Gesellig","person.2"),("adventurous","Abenteuerlustig","safari")]
+    private let companions = [("alone","Allein","person"),("partner","Partner:in","person.2"),("friends","Freunde","person.3"),("family","Familie","figure.2.and.child.holdinghands"),("children","Kinder","figure.child")]
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Wie ist dir heute?") { ScrollView(.horizontal, showsIndicators: false) { HStack { ForEach(moods, id: \.0) { value, label, icon in Button { mood = value } label: { Label(label, systemImage: icon).padding(.horizontal, 10).padding(.vertical, 8).background(mood == value ? KlangradarTheme.accent : Color.secondary.opacity(0.12), in: .capsule).foregroundStyle(mood == value ? .white : .primary) }.buttonStyle(.plain) } } } }
-                Section("Energie") { Picker("Energie", selection: $energy) { ForEach(1...5, id: \.self) { Text("\($0)").tag($0) } }.pickerStyle(.segmented) }
-                Section("Rahmen") { Stepper("Zeit: \(minutes) Minuten", value: $minutes, in: 30...480, step: 30); Stepper("Budget: \(Int(budget)) €", value: $budget, in: 0...500, step: 10); Picker("Begleitung", selection: $companion) { Text("Allein").tag("alone"); Text("Partner:in").tag("partner"); Text("Freunde").tag("friends"); Text("Familie").tag("family"); Text("Kinder").tag("children") } }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Wie ist dir heute?").font(.headline)
+                        LazyVGrid(columns: [.init(.adaptive(minimum: 92), spacing: 10)], spacing: 10) {
+                            ForEach(moods, id: \.0) { value, label, icon in
+                                Button { withAnimation(.snappy(duration: 0.18)) { mood = value } } label: {
+                                    VStack(spacing: 7) {
+                                        Image(systemName: icon).font(.title2)
+                                        Text(label).font(.caption.weight(.medium)).multilineTextAlignment(.center)
+                                    }
+                                    .frame(maxWidth: .infinity, minHeight: 74)
+                                    .foregroundStyle(mood == value ? .white : .primary)
+                                    .background(mood == value ? AnyShapeStyle(KlangradarTheme.accent) : AnyShapeStyle(Color(uiColor: .secondarySystemGroupedBackground)), in: .rect(cornerRadius: 16, style: .continuous))
+                                }.buttonStyle(.plain)
+                            }
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack { Text("Energie").font(.headline); Spacer(); Text("\(energy)/5").foregroundStyle(.secondary) }
+                        Picker("Energie", selection: $energy) { ForEach(1...5, id: \.self) { Text("\($0)").tag($0) } }.pickerStyle(.segmented)
+                    }
+
+                    VStack(alignment: .leading, spacing: 14) {
+                        Text("Rahmen").font(.headline)
+                        VStack(spacing: 0) {
+                            Stepper("Zeit: \(minutes) Min.", value: $minutes, in: 30...480, step: 30).padding(12)
+                            Divider().padding(.leading, 12)
+                            Stepper("Budget: \(Int(budget)) €", value: $budget, in: 0...500, step: 10).padding(12)
+                        }
+                        .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 16, style: .continuous))
+
+                        LazyVGrid(columns: [.init(.adaptive(minimum: 80), spacing: 8)], spacing: 8) {
+                            ForEach(companions, id: \.0) { value, label, icon in
+                                Button { companion = value } label: {
+                                    VStack(spacing: 5) {
+                                        Image(systemName: icon).font(.body)
+                                        Text(label).font(.caption2.weight(.medium))
+                                    }
+                                    .frame(maxWidth: .infinity, minHeight: 56)
+                                    .foregroundStyle(companion == value ? .white : .primary)
+                                    .background(companion == value ? AnyShapeStyle(KlangradarTheme.accent) : AnyShapeStyle(Color(uiColor: .secondarySystemGroupedBackground)), in: .rect(cornerRadius: 12, style: .continuous))
+                                }.buttonStyle(.plain)
+                            }
+                        }
+                    }
+                }
+                .padding(20)
             }
+            .background(Color(uiColor: .systemGroupedBackground))
             .navigationTitle("Kurzer Check-in").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }; ToolbarItem(placement: .confirmationAction) { Button(isSaving ? "Speichert …" : "Fertig") { Task { await save() } }.disabled(isSaving) } }
         }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
     }
 
     @MainActor private func save() async { guard let repository, let token = auth.accessToken else { return }; isSaving = true; defer { isSaving = false }; do { try await repository.coachCheckin(mood: mood, energy: energy, minutes: minutes, budget: budget, companion: companion, token: token); await onSaved(); dismiss() } catch { } }

@@ -130,13 +130,14 @@ struct CoachEvent: Identifiable, Hashable, Sendable {
     let priceMin: Double?
     let isFree: Bool
     let ticketURL: URL?
+    let imageURL: URL?
     let reasons: [String]
 
     var concertEvent: ConcertEvent {
         ConcertEvent(
             id: id, slug: slug, title: title, subtitle: subtitle,
             startDatetime: startDate.map { ISO8601DateFormatter().string(from: $0) } ?? ISO8601DateFormatter().string(from: .now),
-            imageUrls: nil, status: "scheduled",
+            imageUrls: imageURL.map { [$0.absoluteString] }, status: "scheduled",
             venues: venueID.map { VenueSummary(id: $0, name: venueName) },
             isFree: isFree
         )
@@ -147,6 +148,11 @@ struct CoachReply: Sendable {
     let conversationID: UUID?
     let answer: String
     let events: [CoachEvent]
+    /// true, wenn keine exakte Übereinstimmung gefunden wurde und `events`
+    /// stattdessen gelockerte Alternativen enthält (siehe klangradar-coach
+    /// Edge Function) -- die Chat-UI kennzeichnet die Karten dann als
+    /// "Alternativen" statt als Treffer.
+    let eventsAreAlternatives: Bool
     let actions: [JSONObject]
     let memoryProposal: JSONObject?
     let goalProposal: JSONObject?
@@ -243,9 +249,14 @@ struct UserRepository: Sendable {
         let _: JSONObject = try await client.edgeFunction("klangradar-coach", body: body, accessToken: token)
     }
 
-    func askCoach(message: String, conversationID: UUID?, token: String) async throws -> CoachReply {
+    // cityName: die im Stadt-Chip aktuell gewählte Stadt (siehe CityStore) --
+    // Nutzerfeedback "Datenanbindung ... nur auf ausgewählter Stadt
+    // basierend": ohne diesen Kontext kannte die KI die App-Stadtauswahl
+    // nicht und musste ohne Stadt-Eingrenzung über alle Städte suchen.
+    func askCoach(message: String, conversationID: UUID?, cityName: String?, token: String) async throws -> CoachReply {
         var body: JSONObject = ["action": .string("chat"), "message": .string(message)]
         if let conversationID { body["conversation_id"] = .string(conversationID.uuidString) }
+        if let cityName { body["city_name"] = .string(cityName) }
         let response: JSONObject = try await client.edgeFunction("klangradar-coach", body: body, accessToken: token)
         let events = response.objects("events").compactMap { row -> CoachEvent? in
             guard let id = row.string("id").flatMap(UUID.init(uuidString:)), let slug = row.string("slug"), let title = row.string("title") else { return nil }
@@ -254,13 +265,16 @@ struct UserRepository: Sendable {
                 startDate: row.string("start_datetime").flatMap(FlexibleDateParser.date(from:)),
                 venueID: row.string("venue_id").flatMap(UUID.init(uuidString:)), venueName: row.string("venue_name") ?? "Ort folgt",
                 priceMin: row.number("price_min"), isFree: row.bool("is_free") ?? false,
-                ticketURL: (row.string("ticket_url") ?? row.string("website_url")).flatMap(URL.init(string:)), reasons: row.strings("reasons")
+                ticketURL: (row.string("ticket_url") ?? row.string("website_url")).flatMap(URL.init(string:)),
+                imageURL: row.string("image_url").flatMap(URL.init(string:)),
+                reasons: row.strings("reasons")
             )
         }
         return CoachReply(
             conversationID: response.string("conversation_id").flatMap(UUID.init(uuidString:)),
             answer: response.string("answer") ?? "",
-            events: events, actions: response.objects("actions"),
+            events: events, eventsAreAlternatives: response.bool("events_are_alternatives") ?? false,
+            actions: response.objects("actions"),
             memoryProposal: response.object("memory_proposal"), goalProposal: response.object("goal_proposal"),
             suggestedPrompts: response.strings("suggested_prompts"), provider: response.string("provider") ?? "local"
         )

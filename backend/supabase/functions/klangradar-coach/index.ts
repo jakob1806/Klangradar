@@ -43,7 +43,7 @@ function dateRange(date: Date) {
   return { date_from: from.toISOString(), date_to: to.toISOString() };
 }
 
-function localPlan(message: string): { intent: string; shouldSearchEvents: boolean; filters: Filters; memoryProposal?: Json; goalProposal?: Json } {
+function localPlan(message: string, defaultCity?: string): { intent: string; shouldSearchEvents: boolean; filters: Filters; memoryProposal?: Json; goalProposal?: Json } {
   const q = message.toLocaleLowerCase("de-DE");
   const filters: Filters = {};
   const budget = q.match(/(?:unter|max(?:imal)?|bis|budget(?: von)?)\s*(\d{1,4})(?:\s*€|\s*euro)?/);
@@ -51,7 +51,12 @@ function localPlan(message: string): { intent: string; shouldSearchEvents: boole
   if (/kostenlos|gratis|eintritt frei/.test(q)) filters.max_budget = 0;
   if (/ohne oper|keine oper/.test(q)) filters.exclude_opera = true;
   const cities = ["München", "Berlin", "Hamburg", "Frankfurt", "Wien"];
-  filters.city = cities.find((c) => q.includes(c.toLocaleLowerCase("de-DE")));
+  // Nutzerfeedback: "Datenanbindung ... nur auf ausgewählter Stadt
+  // basierend" -- ohne explizit im Text genannte Stadt fällt der Filter
+  // jetzt auf die im Client gerade gewählte Stadt zurück (siehe
+  // "city_id"/"city_name" im Request-Body), statt implizit alle Städte
+  // zu durchsuchen.
+  filters.city = cities.find((c) => q.includes(c.toLocaleLowerCase("de-DE"))) ?? defaultCity;
   const music = ["barock", "oper", "sinfonie", "symphonie", "kammermusik", "chor", "klavier", "mozart", "bach", "mahler", "beethoven"];
   filters.query = music.find((word) => q.includes(word));
   const target = new Date();
@@ -139,8 +144,14 @@ Deno.serve(async (req) => {
 
   const message = String(body.message ?? "").trim().slice(0, 1400);
   if (!message) return json({ error: "Nachricht fehlt" }, 400);
+  // Nutzerfeedback: "Datenanbindung ... nur auf ausgewählter Stadt
+  // basierend" -- der Client schickt jetzt die im Stadt-Chip gewählte
+  // Stadt mit, damit "kommende Konzerte in der Isarphilharmonie" auch
+  // ohne einen Stadtnamen im Satz auf die aktuell gewählte Stadt
+  // eingegrenzt wird, statt implizit über alle Städte zu suchen.
+  const defaultCity = typeof body.city_name === "string" && body.city_name.trim() ? body.city_name.trim() : undefined;
   const dashboard = await loadDashboard(db, authData.user.id);
-  let local = localPlan(message);
+  let local = localPlan(message, defaultCity);
   const planned = await callAiFunctionPreferGemini(
     "Du bist der Planer des Klangradar Coach. Extrahiere nur die Absicht. Erfinde keine Events, Daten oder Präferenzen. Relative Daten beziehen sich auf " + new Date().toISOString() + ". Memory nur vorschlagen, wenn der Nutzer ausdrücklich 'merk dir' o.ä. sagt; Ziele nur bei klarer Zielsetzung.",
     `Nachricht: ${message}\nBestätigter Kontext: ${JSON.stringify(dashboard.context)}`,
@@ -158,20 +169,42 @@ Deno.serve(async (req) => {
     memoryProposal = safeObject(planned.args.memoryProposalJson);
     goalProposal = safeObject(planned.args.goalProposalJson);
   }
-  const { data: events } = local.shouldSearchEvents ? await db.rpc("coach_search_events", { p_filters: local.filters, p_limit: 8 }) : { data: [] };
+  let events: Json[] = local.shouldSearchEvents
+    ? ((await db.rpc("coach_search_events", { p_filters: local.filters, p_limit: 8 })).data as Json[] | null) ?? []
+    : [];
+  // Nutzerfeedback: "falls es mal kein passendes Konzert gibt, soll er
+  // immer Alternativen vorschlagen" -- statt einer leeren Antwort werden
+  // die Filter schrittweise gelockert (erst der Freitext, dann zusätzlich
+  // Budget/Genre-Ausschluss), bis etwas gefunden wird oder nur noch Stadt
+  // und Zeitraum übrig sind. usedRelaxedSearch fließt in den Antworttext.
+  let usedRelaxedSearch = false;
+  if (local.shouldSearchEvents && events.length === 0) {
+    const relaxedFilterSets: Filters[] = [
+      { city: local.filters.city, date_from: local.filters.date_from, date_to: local.filters.date_to, max_budget: local.filters.max_budget },
+      { city: local.filters.city, date_from: local.filters.date_from, date_to: local.filters.date_to },
+    ];
+    for (const relaxed of relaxedFilterSets) {
+      const { data } = await db.rpc("coach_search_events", { p_filters: relaxed, p_limit: 4 });
+      if (Array.isArray(data) && data.length > 0) { events = data as Json[]; usedRelaxedSearch = true; break; }
+    }
+  }
   const evidence = [
     { type: "context_snapshot", signal_quality: (dashboard.context as Json).signal_quality },
-    ...((events as Json[] | null) ?? []).map((e) => ({ type: "event", id: e.id, slug: e.slug, reasons: e.reasons })),
+    ...(events.map((e) => ({ type: "event", id: e.id, slug: e.slug, reasons: e.reasons }))),
   ];
   const answerResult = await callAiFunctionPreferGemini(
-    `Du bist der persönliche Klangradar Coach. Antworte warm, klar und präzise in 2-3 kurzen Absätzen. Nutze ausschließlich gelieferte Daten. Nenne Verhaltenstrends nur als Zusammenhang, nie als Ursache. Bei signal_quality=low sage, dass du die Person noch kennenlernst. Eventnamen nur aus Echte Treffer. Gib eine konkrete nächste Aktion.`,
-    `Frage: ${message}\nIntent: ${local.intent}\nPersönlicher Kontext: ${JSON.stringify(dashboard.context)}\nBeobachtete Trends: ${JSON.stringify(dashboard.trends)}\nEchte Treffer: ${JSON.stringify(events ?? [])}`,
+    `Du bist der persönliche Klangradar Coach. Antworte warm, klar und präzise in 2-3 kurzen Absätzen. Nutze ausschließlich gelieferte Daten. Nenne Verhaltenstrends nur als Zusammenhang, nie als Ursache. Bei signal_quality=low sage, dass du die Person noch kennenlernst. Eventnamen nur aus Echte Treffer. Gib eine konkrete nächste Aktion.${usedRelaxedSearch ? " Zur Anfrage selbst gab es keinen exakten Treffer -- sag das offen und biete die gelieferten Treffer ausdrücklich als Alternativen an." : ""}`,
+    `Frage: ${message}\nIntent: ${local.intent}\nPersönlicher Kontext: ${JSON.stringify(dashboard.context)}\nBeobachtete Trends: ${JSON.stringify(dashboard.trends)}\nEchte Treffer${usedRelaxedSearch ? " (Alternativen, keine exakte Übereinstimmung)" : ""}: ${JSON.stringify(events)}`,
     ANSWER_FUNCTION,
   );
   if (answerResult) provider = answerResult.provider;
-  const eventCount = Array.isArray(events) ? events.length : 0;
+  const eventCount = events.length;
   const fallbackAnswer = local.shouldSearchEvents
-    ? eventCount ? `Ich habe ${eventCount} passende Veranstaltungen gefunden. Die Reihenfolge berücksichtigt deine bestätigten Interessen, dein aktuelles Check-in und deine bisherigen Aktionen.\n\nÖffne einen Treffer für Programm, Tickets und Venue-Informationen – oder sag mir, was ich ändern soll, zum Beispiel „günstiger“, „früher“ oder „etwas Neues“.` : "Dazu finde ich gerade keine echte Veranstaltung in Klangradar. Ich kann Datum, Budget, Ort oder Musikrichtung ändern, ohne den restlichen Gesprächskontext zu verlieren."
+    ? eventCount
+      ? usedRelaxedSearch
+        ? `Genau dazu finde ich gerade keine exakte Übereinstimmung. Hier sind ${eventCount} Alternativen, die zeitlich und vom Ort her trotzdem passen könnten.\n\nÖffne einen Treffer für Details – oder sag mir, was ich anders suchen soll.`
+        : `Ich habe ${eventCount} passende Veranstaltungen gefunden. Die Reihenfolge berücksichtigt deine bestätigten Interessen, dein aktuelles Check-in und deine bisherigen Aktionen.\n\nÖffne einen Treffer für Programm, Tickets und Venue-Informationen – oder sag mir, was ich ändern soll, zum Beispiel „günstiger“, „früher“ oder „etwas Neues“.`
+      : "Dazu finde ich gerade keine echte Veranstaltung in Klangradar, auch nicht mit gelockerten Filtern. Ich kann Datum, Budget, Ort oder Musikrichtung ändern, ohne den restlichen Gesprächskontext zu verlieren."
     : "Ich lerne deinen Kulturrhythmus aus bestätigten Interessen, gespeicherten Events, Ticket- und Kalenderaktionen sowie freiwilligen Check-ins. Je mehr belastbare Signale vorliegen, desto konkreter kann ich erklären, warum etwas zu dir passt."
   const answer = String(answerResult?.args.answer ?? fallbackAnswer);
   const suggestedPrompts = Array.isArray(answerResult?.args.suggestedPrompts) ? answerResult!.args.suggestedPrompts.map(String).slice(0, 4) : ["Was passt dieses Wochenende zu mir?", "Erkläre mein Geschmacksprofil", "Plane einen Abend unter 50 €"];
@@ -181,7 +214,7 @@ Deno.serve(async (req) => {
     conversationID = data?.id;
   }
   const actions = [
-    ...((events as Json[] | null) ?? []).map((e) => ({ type: "open_event", event_id: e.id, slug: e.slug, label: "Event öffnen" })),
+    ...events.map((e) => ({ type: "open_event", event_id: e.id, slug: e.slug, label: "Event öffnen" })),
     ...(memoryProposal ? [{ type: "confirm_memory", proposal: memoryProposal, label: "Merken" }] : []),
     ...(goalProposal ? [{ type: "confirm_goal", proposal: goalProposal, label: "Ziel übernehmen" }] : []),
   ];
@@ -190,5 +223,5 @@ Deno.serve(async (req) => {
     db.from("coach_messages").insert({ conversation_id: conversationID, role: "assistant", content: answer, intent: local.intent, evidence, actions }),
     db.from("coach_conversations").update({ context: local.filters, updated_at: new Date().toISOString() }).eq("id", conversationID),
   ]);
-  return json({ conversation_id: conversationID, answer, intent: local.intent, filters: local.filters, context: dashboard.context, trends: dashboard.trends, events: events ?? [], evidence, actions, memory_proposal: memoryProposal, goal_proposal: goalProposal, suggested_prompts: suggestedPrompts, provider });
+  return json({ conversation_id: conversationID, answer, intent: local.intent, filters: local.filters, context: dashboard.context, trends: dashboard.trends, events, events_are_alternatives: usedRelaxedSearch, evidence, actions, memory_proposal: memoryProposal, goal_proposal: goalProposal, suggested_prompts: suggestedPrompts, provider });
 });
