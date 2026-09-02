@@ -167,11 +167,11 @@ final class HomeViewModel: ObservableObject {
     private func loadHomeModules() async -> (recommended: [ConcertEvent], discovery: [ConcertEvent], popular: [ConcertEvent]) {
         guard let userRepository else { return ([], [], []) }
         let token = auth?.accessToken
-        async let recommended = try? userRepository.recommendedEvents(limit: 16, token: token)
-        async let popular = try? userRepository.popularEvents(limit: 16, token: token)
+        async let recommended = try? userRepository.recommendedEvents(limit: 16, cityID: regionID, token: token)
+        async let popular = try? userRepository.popularEvents(limit: 16, cityID: regionID, token: token)
         let discovery: [ConcertEvent]
         if let token {
-            discovery = (try? await userRepository.discoveryEvents(limit: 16, token: token)) ?? []
+            discovery = (try? await userRepository.discoveryEvents(limit: 16, cityID: regionID, token: token)) ?? []
         } else {
             discovery = []
         }

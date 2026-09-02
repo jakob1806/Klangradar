@@ -14,6 +14,10 @@ export interface TicketLinkRow {
   is_primary: boolean;
   is_broken: boolean;
   last_checked_at: string | null;
+  availability_status?: string | null;
+  discount_categories?: string[];
+  discount_notes?: string | null;
+  price_updated_at?: string | null;
   ticket_providers: { name: string } | null;
 }
 
@@ -77,6 +81,11 @@ export function TicketProviderManager({ eventId, links }: { eventId: string; lin
                       : `ab ${link.price_min ?? link.price_max} ${link.currency}`}
                   </span>
                 )}
+                <div className="mt-1 flex flex-wrap gap-1 text-[10px] text-neutral-500">
+                  {link.availability_status && <span>{link.availability_status}</span>}
+                  {link.discount_categories?.map((discount) => <span key={discount} className="rounded bg-blue-50 px-1.5 py-0.5 text-blue-700">{discount}</span>)}
+                  {link.price_updated_at && <span>Preisstand {new Date(link.price_updated_at).toLocaleString("de-DE")}</span>}
+                </div>
               </div>
               {!link.is_primary && (
                 <DeleteButton
@@ -96,6 +105,14 @@ export function TicketProviderManager({ eventId, links }: { eventId: string; lin
           </div>
           <TextInput name="price_min" type="number" step="0.01" placeholder="Preis von (€)" className="w-full" />
           <TextInput name="price_max" type="number" step="0.01" placeholder="Preis bis (€)" className="w-full" />
+          <select name="availability_status" defaultValue="unknown" className="rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm">
+            <option value="unknown">Verfügbarkeit unbekannt</option><option value="available">Verfügbar</option>
+            <option value="few_left">Wenige Tickets</option><option value="sold_out">Ausverkauft</option><option value="box_office_only">Nur Abendkasse</option>
+          </select>
+          <div className="col-span-3 flex flex-wrap gap-4 text-sm">
+            {[['u30','U30'],['student','Studierende'],['schueler','Schüler:innen']].map(([value,label]) => <label key={value} className="flex items-center gap-1"><input type="checkbox" name="discount_categories" value={value}/>{label}</label>)}
+          </div>
+          <div className="col-span-3"><TextInput name="discount_notes" placeholder="Hinweise/Nachweis für Ermäßigungen" className="w-full" /></div>
         </div>
         {error && <p className="text-sm text-red-600">{error}</p>}
         <div>

@@ -9,6 +9,7 @@ import {
   Users,
   Megaphone,
   BarChart3,
+  Wallet,
   Library,
   BadgeCheck,
   type LucideIcon,
@@ -56,14 +57,11 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/veranstalter/marketing", label: "Marketing-Tools" },
     ],
   },
-  {
-    label: "Auswertung",
-    icon: BarChart3,
-    items: [
-      { href: "/veranstalter/analytics", label: "Analytics" },
-      { href: "/veranstalter/finanzen", label: "Finanzen" },
-    ],
-  },
+  // Nutzerfeedback: "Auswertung" bündelte Analytics + Finanzen -- unter-
+  // schiedliche Nutzungsrhythmen (Analytics eher täglich, Finanzen eher
+  // monatlich), getrennte Gruppen sind klarer als eine gemeinsame.
+  { label: "Analytics", icon: BarChart3, items: [{ href: "/veranstalter/analytics", label: "Analytics" }] },
+  { label: "Finanzen", icon: Wallet, items: [{ href: "/veranstalter/finanzen", label: "Finanzen" }] },
   { label: "Bibliothek", icon: Library, items: [{ href: "/veranstalter/bibliothek", label: "Bibliothek" }] },
   { label: "Beanspruchen", icon: BadgeCheck, items: [{ href: "/veranstalter/claim", label: "Neue Entität beanspruchen" }] },
 ];

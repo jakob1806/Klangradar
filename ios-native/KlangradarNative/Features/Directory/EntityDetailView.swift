@@ -27,6 +27,7 @@ struct EntityDetailView: View {
                             venueLocationMap(detail)
                             if !detail.events.isEmpty { linkedEvents(detail.events, kind: detail.kind) }
                             metadata(detail)
+                            venueGuide(detail)
                             if let biography = biography(in: detail) {
                                 section("Über \(detail.title)") { Text(biography).lineSpacing(4) }
                             }
@@ -304,6 +305,41 @@ struct EntityDetailView: View {
         }
     }
 
+    @ViewBuilder private func venueGuide(_ detail: EntityDetail) -> some View {
+        let fields = detail.fields
+        let rows: [(String, String, String)] = [
+            ("Anreise & ÖPNV", "tram.fill", [fields.string("mvv_stops"), fields.string("arrival_info_de")].compactMap { $0 }.joined(separator: "\n\n")),
+            ("Parken", "parkingsign.circle.fill", fields.string("parking_info_de") ?? ""),
+            ("Barrierefreiheit", "figure.roll", accessibilitySummary(fields.object("accessibility"))),
+            ("Einlass & Garderobe", "door.left.hand.open", fields.string("doors_info_de") ?? ""),
+            ("Gastronomie", "fork.knife", fields.string("catering_info_de") ?? "")
+        ].filter { !$0.2.isEmpty }
+        if !rows.isEmpty {
+            section("Dein Besuch") {
+                VStack(spacing: 10) {
+                    ForEach(rows, id: \.0) { title, icon, text in
+                        LiquidGlassSurface(cornerRadius: 18) {
+                            HStack(alignment: .top, spacing: 12) {
+                                Image(systemName: icon).foregroundStyle(KlangradarTheme.accent).frame(width: 24)
+                                VStack(alignment: .leading, spacing: 4) { Text(title).font(.headline); Text(text).font(.subheadline).foregroundStyle(.secondary) }
+                                Spacer(minLength: 0)
+                            }.padding(16)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func accessibilitySummary(_ value: JSONObject?) -> String {
+        guard let value else { return "" }
+        return value.keys.sorted().compactMap { key in
+            if let text = value.string(key), !text.isEmpty { return "\(key.replacingOccurrences(of: "_", with: " ").capitalized): \(text)" }
+            if let flag = value.bool(key), flag { return key.replacingOccurrences(of: "_", with: " ").capitalized }
+            return nil
+        }.joined(separator: "\n")
+    }
+
     private func socialLabel(_ platform: String) -> String {
         switch platform.lowercased() {
         case "instagram": return "Instagram"
@@ -383,7 +419,7 @@ private extension EntityDetailView {
             return [("Gegründet", fields.integer("founded_year").map(String.init)), ("Herkunft", fields.string("city") ?? fields.string("country"))].compactMap { label, value in value.map { (label, $0) } }
         case .venue:
             let address = [fields.string("address_street"), [fields.string("address_zip"), fields.string("address_city")].compactMap { $0 }.joined(separator: " ")].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", ")
-            return [("Adresse", address.isEmpty ? nil : address), ("Telefon", fields.string("phone")), ("ÖPNV", fields.string("public_transport"))].compactMap { label, value in value.map { (label, $0) } }
+            return [("Adresse", address.isEmpty ? nil : address), ("Telefon", fields.string("phone")), ("E-Mail", fields.string("email"))].compactMap { label, value in value.map { (label, $0) } }
         case .work:
             return [("Komponist:in", fields.object("composer")?.string("full_name")), ("Komposition", fields.integer("composition_year").map(String.init)), ("Dauer", fields.integer("duration_minutes").map { "\($0) Minuten" }), ("Werkverzeichnis", fields.string("catalog_number")), ("Tonart", fields.string("key_signature")), ("Gattung", fields.string("genre")), ("Besetzung", fields.string("instrumentation")), ("Sätze", fields.strings("movements").isEmpty ? nil : fields.strings("movements").joined(separator: " · "))].compactMap { label, value in value.map { (label, $0) } }
         }

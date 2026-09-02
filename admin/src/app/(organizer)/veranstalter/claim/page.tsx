@@ -1,104 +1,28 @@
-import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
 import { SubmitButton } from "@/components/organizer/submit-button";
-import { requestOrganizerClaim, createOwnOrganizer } from "./actions";
+import { createOwnOrganizer } from "./actions";
+import { ClaimSearch } from "./claim-search";
 import { PageHeader, PageBody } from "@/components/organizer/page-header";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/organizer/ui/card";
 import { Input, Textarea } from "@/components/organizer/ui/input";
 import { Label } from "@/components/organizer/ui/label";
-import { Button } from "@/components/organizer/ui/button";
 
 export const dynamic = "force-dynamic";
 
-interface OrganizerMatch {
-  id: string;
-  name: string;
-}
-
-export default async function ClaimOrganizerPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
-  const { q } = await searchParams;
-  const query = (q ?? "").trim();
-  const supabase = await createClient();
-
-  let results: OrganizerMatch[] = [];
-  if (query) {
-    const { data } = await supabase.rpc("find_matching_organizer", {
-      p_name: query,
-      p_similarity_threshold: 0.3,
-      p_result_limit: 10,
-    });
-    results = ((data ?? []) as { id: string; name: string }[]).map((r) => ({ id: r.id, name: r.name }));
-  }
-
+// Nutzerfeedback: getrennte Links zu venue/person/ensemble/claim plus eine
+// Suche, die NUR Institutionen fand und erst nach "Suchen" reagierte,
+// zwangen zu Rätselraten. ClaimSearch bietet jetzt Live-Vorschläge (Debounce
+// statt Button) über alle vier find_matching_*-RPCs, inkl. Miniaturbild
+// (Venue/Ensemble eckig, Person rund -- siehe Thumbnail in claim-search.tsx).
+export default function ClaimOrganizerPage() {
   return (
     <div>
       <PageHeader
         eyebrow="Beanspruchen"
-        title="Institution beanspruchen"
-        description="Suche nach deiner Institution/deinem Veranstalter. Findest du sie nicht, kannst du sie unten neu anlegen. Jede Anfrage wird mit Nachweis von der Redaktion geprüft, bevor Verwaltungsrechte entstehen."
+        title="Institution, Venue, Person oder Ensemble beanspruchen"
+        description="Suche nach deiner Institution, deinem Veranstaltungsort oder dir/deinem Ensemble. Findest du deine Institution nicht, kannst du sie unten neu anlegen. Jede Anfrage wird mit Nachweis von der Redaktion geprüft, bevor Verwaltungsrechte entstehen."
       />
       <PageBody className="mx-auto flex max-w-2xl flex-col gap-8">
-        <div className="flex gap-4 text-sm">
-          <Link href="/veranstalter/claim/venue" className="font-semibold text-[#2D2A6E] hover:underline">
-            Venue beanspruchen →
-          </Link>
-          <Link href="/veranstalter/claim/person" className="font-semibold text-[#2D2A6E] hover:underline">
-            Person beanspruchen →
-          </Link>
-          <Link href="/veranstalter/claim/ensemble" className="font-semibold text-[#2D2A6E] hover:underline">
-            Ensemble beanspruchen →
-          </Link>
-        </div>
-
-        <form method="get" className="flex gap-2">
-          <Input type="search" name="q" defaultValue={query} placeholder="Name der Institution…" className="flex-1" />
-          <Button type="submit" variant="outline">
-            Suchen
-          </Button>
-        </form>
-
-        {query && (
-          <div>
-            {results.length > 0 ? (
-              <div className="flex flex-col gap-4">
-                {results.map((r) => (
-                  <Card key={r.id}>
-                    <CardHeader>
-                      <CardTitle>{r.name}</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <form action={requestOrganizerClaim.bind(null, r.id)} className="grid gap-3 sm:grid-cols-2">
-                        <div className="flex flex-col gap-1.5">
-                          <Label>
-                            Geschäftliche E-Mail <span className="text-[#a91551]">*</span>
-                          </Label>
-                          <Input name="verification_email" type="email" required placeholder="name@institution.de" />
-                        </div>
-                        <div className="flex flex-col gap-1.5">
-                          <Label>
-                            Nachweis-Link <span className="text-[#a91551]">*</span>
-                          </Label>
-                          <Input name="evidence_url" type="url" required placeholder="https://www.beispiel.de/impressum" />
-                        </div>
-                        <div className="flex flex-col gap-1.5 sm:col-span-2">
-                          <Label>
-                            Warum bist du berechtigt? <span className="text-[#a91551]">*</span>
-                          </Label>
-                          <Textarea name="justification" rows={2} required placeholder="Funktion bei der Institution und Bezug zum Nachweis" />
-                        </div>
-                        <div className="sm:col-span-2">
-                          <SubmitButton pendingLabel="Sende…">Mit Nachweis beantragen</SubmitButton>
-                        </div>
-                      </form>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-[#726c78]">Keine Treffer für „{query}“.</p>
-            )}
-          </div>
-        )}
+        <ClaimSearch />
 
         <Card>
           <CardHeader>
@@ -111,7 +35,7 @@ export default async function ClaimOrganizerPage({ searchParams }: { searchParam
                 <Label>
                   Name <span className="text-[#a91551]">*</span>
                 </Label>
-                <Input type="text" name="name" required defaultValue={query} />
+                <Input type="text" name="name" required />
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label>Kontakt-E-Mail</Label>
