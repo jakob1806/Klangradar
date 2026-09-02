@@ -205,9 +205,13 @@ struct CityCompactMenu: View {
         if #available(iOS 26.0, *) {
             chipContent
         } else {
+            // Nutzerfeedback: Auf der Karte wirkte der Städte-Chip neben dem
+            // "Filter"-Chip zu durchsichtig (ultraThinMaterial statt dessen
+            // regularMaterial) — gleiches, blickdichteres Material wie
+            // "Filter" und der Standort-Button auf VenueMapView, damit beide
+            // gleich hell/opak über der Karte stehen.
             chipContent
-                .background(.ultraThinMaterial, in: .capsule)
-                .overlay { Capsule().stroke(.white.opacity(0.7), lineWidth: 1) }
+                .background(.regularMaterial, in: .capsule)
         }
     }
 

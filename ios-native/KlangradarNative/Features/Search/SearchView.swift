@@ -148,11 +148,11 @@ struct SearchView: View {
         .padding(.leading, 14)
         .padding(.trailing, 8)
         .padding(.vertical, 8)
-        .background(.regularMaterial, in: .rect(cornerRadius: 16, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color.secondary.opacity(0.16), lineWidth: 0.5)
-        }
+        // Vorher .regularMaterial (durchscheinend) — das native .searchable()
+        // hatte vor der Mikrofon-Erweiterung ein blickdichtes, helles Feld
+        // (systemGray6, kein Rand). Gleiche Optik jetzt hier nachgebaut, da
+        // das Mikrofon ein eigenes HStack statt des nativen Modifiers braucht.
+        .background(Color(.systemGray6), in: .rect(cornerRadius: 16, style: .continuous))
         .accessibilityElement(children: .contain)
     }
 
