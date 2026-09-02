@@ -74,7 +74,10 @@ struct InterestsView: View {
                             if showsThumbnails { InterestOptionThumbnail(option: option, kind: entityKind) }
                             Text(option.label).foregroundStyle(.primary)
                             Spacer()
-                            Image(systemName: selected.contains(option.id) ? "checkmark.circle.fill" : "circle").foregroundStyle(selected.contains(option.id) ? KlangradarTheme.accent : .secondary)
+                            Image(systemName: selected.contains(option.id) ? "checkmark.circle.fill" : "circle")
+                                .font(.system(size: 28, weight: .regular))
+                                .frame(width: 44, height: 44)
+                                .foregroundStyle(selected.contains(option.id) ? KlangradarTheme.accent : .secondary)
                         }
                     }
                 }

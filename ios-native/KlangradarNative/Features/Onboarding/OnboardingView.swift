@@ -110,11 +110,7 @@ struct OnboardingView: View {
         }
         .safeAreaInset(edge: .top, spacing: 0) {
             if let currentProgressStep {
-                OnboardingProgressHeader(
-                    current: currentProgressStep,
-                    total: 9,
-                    onBack: { if !path.isEmpty { path.removeLast() } }
-                )
+                progressHeader(for: currentProgressStep)
             }
         }
         .sheet(isPresented: $showsLogin) {
@@ -150,6 +146,34 @@ struct OnboardingView: View {
         case .followVenues: 8
         case .notifications, .summary: 9
         case nil: nil
+        }
+    }
+
+    private func progressHeader(for step: Int) -> some View {
+        OnboardingProgressHeader(
+            current: step,
+            total: 9,
+            onBack: { if !path.isEmpty { path.removeLast() } },
+            onSkip: canSkipCurrentStep ? { skipCurrentStep() } : nil
+        )
+    }
+
+    private var canSkipCurrentStep: Bool {
+        switch path.last {
+        case .interests, .location, .followPersons, .followEnsembles, .followVenues, .notifications: true
+        default: false
+        }
+    }
+
+    private func skipCurrentStep() {
+        switch path.last {
+        case .interests: path.append(.location)
+        case .location: path.append(.followPersons)
+        case .followPersons: path.append(.followEnsembles)
+        case .followEnsembles: path.append(.followVenues)
+        case .followVenues: path.append(.notifications)
+        case .notifications: path.append(.summary)
+        default: break
         }
     }
 

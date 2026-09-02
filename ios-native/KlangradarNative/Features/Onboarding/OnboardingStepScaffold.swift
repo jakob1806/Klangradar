@@ -86,30 +86,41 @@ struct OnboardingProgressHeader: View {
     let current: Int
     let total: Int
     var onBack: (() -> Void)? = nil
+    var onSkip: (() -> Void)? = nil
 
     var body: some View {
-        HStack(spacing: 14) {
-            if let onBack {
-                Button(action: onBack) {
-                    Image(systemName: "chevron.left")
-                        .font(.footnote.weight(.semibold))
-                        .frame(width: 32, height: 32)
+        VStack(spacing: 10) {
+            HStack(spacing: 14) {
+                if let onBack {
+                    Button(action: onBack) {
+                        Image(systemName: "chevron.left")
+                            .font(.footnote.weight(.semibold))
+                            .frame(width: 32, height: 32)
+                    }
+                    .buttonStyle(.plain)
+                    .background(.thinMaterial, in: .circle)
+                    .accessibilityLabel("Zurück")
                 }
-                .buttonStyle(.plain)
-                .background(.thinMaterial, in: .circle)
-                .accessibilityLabel("Zurück")
+                HStack(spacing: 5) {
+                    ForEach(0..<total, id: \.self) { index in
+                        Capsule()
+                            .fill(index < current ? KlangradarTheme.accent : Color(.systemGray5))
+                            .frame(height: 3)
+                    }
+                }
             }
-            HStack(spacing: 5) {
-                ForEach(0..<total, id: \.self) { index in
-                    Capsule()
-                        .fill(index < current ? KlangradarTheme.accent : Color(.systemGray5))
-                        .frame(height: 3)
+            if let onSkip {
+                HStack {
+                    Spacer()
+                    Button("Überspringen", action: onSkip)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(KlangradarTheme.accent)
                 }
             }
         }
         .padding(.horizontal, 20)
         .padding(.top, 8)
-        .padding(.bottom, 16)
+        .padding(.bottom, 12)
         // Undurchsichtiger Hintergrund ist Pflicht, kein Kosmetik-Detail:
         // Form-Sektionsköpfe (z.B. "Zugangsdaten") pinnen beim Scrollen an
         // die Oberkante und blieben bei .clear sichtbar hinter diesem
@@ -117,7 +128,7 @@ struct OnboardingProgressHeader: View {
         // ausgeblendet ist. Der zusätzliche Bottom-Padding (16 statt 12)
         // verhindert, dass der erste Inhalts-/Segment-Reiter direkt
         // darunter optisch in den Header hineinragt.
-        .background(.bar)
+        .background { KlangradarBackground().ignoresSafeArea(edges: .top) }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Schritt \(current) von \(total)")
     }
@@ -205,6 +216,8 @@ extension View {
         self
             .navigationBarTitleDisplayMode(.inline)
             .toolbar(.hidden, for: .navigationBar)
+            .safeAreaPadding(.top, 14)
+            .background { KlangradarBackground().ignoresSafeArea() }
     }
 }
 
