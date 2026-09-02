@@ -286,6 +286,52 @@ google anmelden nicht richtig das echte google 'g'".
   getestet werden. Muss auf einem echten Gerät/Simulator verifiziert
   werden.
 
+## Onboarding city-picker rebuild (2026-09-02)
+
+- 🟢 `LocationStepView.swift` (GPS-Anfrage + einzeiliger "Klangradar deckt
+  aktuell nur München ab"-Fallback, basierend auf `activeRegions()`
+  gefiltert nach `regions.is_active`) wurde durch `CityPickerStepView.swift`
+  ersetzt. Neuer Onboarding-Schritt 4 ("Stadt/Region") zeigt jetzt echte
+  Auswahlkarten für ALLE fünf Städte aus der View `city_regions`
+  (München/Berlin/Hamburg/Frankfurt/Wien), sortiert nach `sort_order`,
+  unabhängig von `is_active`. Die vier noch nicht `editorial_status ==
+  "live"` geschalteten Städte (aktuell Berlin/Hamburg/Frankfurt/Wien,
+  `soft_launch`) tragen ein "Bald verfügbar"-Badge, bleiben aber
+  auswählbar. Automatischer Standortzugriff bleibt als zusätzliche Option
+  ("Meinen Standort verwenden") bestehen und wählt per Luftlinien-Distanz
+  die nächstgelegene der fünf Städte vor, statt zu blockieren.
+- 🟢 Neue Repository-Methode `UserRepository.allCityRegions()` liest
+  bewusst ungefiltert gegen `city_regions` (id, slug, name_de,
+  short_name_de, region_name, is_active, editorial_status, sort_order,
+  latitude, longitude). `activeRegions()`/`CityStore`/`CitySwitcherView`
+  bleiben unverändert (weiterhin nur `is_active = true`, aktuell nur
+  München) — beide Methoden koexistieren bewusst für unterschiedliche
+  Zwecke (Onboarding-Erstauswahl vs. laufender Sitzungsfilter).
+- 🟢 Setzen der gewählten Stadt läuft weiterhin über den bestehenden
+  `setPreferredRegion`/`profiles.preferred_region_id`-Mechanismus, keine
+  Schemaänderung.
+- 🟢 Neues Modell `CityRegionOption` (`UserRepository.swift`) plus
+  Repository-Test `CityRegionOptionTests.swift`, der belegt, dass
+  `soft_launch`/`is_active = false`-Städte NICHT herausgefiltert werden
+  und die Query keinen `is_active`-Filter setzt.
+- 🟢 `OnboardingView.swift` verweist Schritt `.location` jetzt auf
+  `CityPickerStepView` statt `LocationStepView`.
+- 🟢 Build (`xcodebuild … build`) und Tests (`xcodebuild test`, 27/27
+  grün, davon neu `CityRegionOptionTests`) für iPhone-Simulator liefen
+  erfolgreich in dieser Sitzung.
+- ⬜ Keine visuelle iPad-/Dynamic-Type-/VoiceOver-Prüfung des neuen
+  `CityPickerStepView` in dieser Sitzung durchgeführt — nur Build/Unit-
+  Tests. Noch offen aus dem übrigen Ziel-Struktur-Auftrag (Willkommen,
+  Registrieren, Persönliche Angaben, Interessen, Personen/Ensembles/
+  Venues folgen, Benachrichtigungen, Zusammenfassung): diese Schritte
+  existierten bereits weitgehend in der Zielstruktur entsprechender Form
+  (siehe bestehende `*StepView.swift`-Dateien) und wurden in dieser
+  Sitzung bewusst NICHT angetastet, da der Auftrag den Schwerpunkt
+  ausdrücklich auf die Stadtauswahl (Punkt 4) legte; ein Soll/Ist-Abgleich
+  jedes einzelnen übrigen Schritts gegen die volle Ziel-Struktur (u.a.
+  Notification-Kategorien vor dem nativen Permission-Dialog, "Personen/
+  Ensembles/Venues folgen" als eigener Schritt) steht noch aus.
+
 ## Definition of feature parity
 
 A row can be marked complete only when it:

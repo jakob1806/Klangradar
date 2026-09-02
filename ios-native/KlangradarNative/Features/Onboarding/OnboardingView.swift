@@ -59,7 +59,7 @@ struct OnboardingView: View {
                         path.append(.location)
                     }
                 case .location:
-                    LocationStepView(auth: auth, repository: repository) {
+                    CityPickerStepView(auth: auth, repository: repository) {
                         path.append(.notifications)
                     }
                 case .notifications:
