@@ -57,17 +57,8 @@ struct SignUpStepView: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .keyboardType(.emailAddress)
-                    Group {
-                        if showsPassword {
-                            TextField("Passwort", text: $password)
-                            TextField("Passwort wiederholen", text: $passwordConfirmation)
-                        } else {
-                            SecureField("Passwort", text: $password)
-                            SecureField("Passwort wiederholen", text: $passwordConfirmation)
-                        }
-                    }
-                    .textContentType(.newPassword)
-                    Toggle("Passwörter anzeigen", isOn: $showsPassword)
+                    RevealablePasswordField(title: "Passwort", text: $password, isRevealed: $showsPassword, textContentType: .newPassword)
+                    RevealablePasswordField(title: "Passwort wiederholen", text: $passwordConfirmation, isRevealed: $showsPassword, textContentType: .newPassword)
             } header: {
                 Text("Zugangsdaten")
             } footer: {

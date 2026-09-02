@@ -29,6 +29,38 @@ struct KlangradarAppIcon: View {
     }
 }
 
+/// Passwortfeld mit Klar-/Verbergen-Auge in der Zeile selbst statt einem
+/// separaten "Passwörter anzeigen"-Schalter darunter — ein Auge pro Feld ist
+/// der iOS-übliche Ort für diese Aktion, ein zusätzlicher Toggle wirkt wie
+/// eine dauerhafte Einstellung statt einer kurzen Sichtbarkeits-Aktion.
+struct RevealablePasswordField: View {
+    let title: String
+    @Binding var text: String
+    @Binding var isRevealed: Bool
+    var textContentType: UITextContentType? = .password
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Group {
+                if isRevealed {
+                    TextField(title, text: $text)
+                } else {
+                    SecureField(title, text: $text)
+                }
+            }
+            .textContentType(textContentType)
+            Button {
+                isRevealed.toggle()
+            } label: {
+                Image(systemName: isRevealed ? "eye.slash" : "eye")
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(isRevealed ? "Passwort verbergen" : "Passwort anzeigen")
+        }
+    }
+}
+
 struct GoogleSignInLabel: View {
     var body: some View {
         Label {
