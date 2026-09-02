@@ -111,6 +111,7 @@ struct FollowProfilesStepView: View {
             .searchable(text: $searchText, prompt: "\(segment.title) durchsuchen")
         }
         .navigationTitle("Folgen")
+        .onboardingChrome()
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 8) {

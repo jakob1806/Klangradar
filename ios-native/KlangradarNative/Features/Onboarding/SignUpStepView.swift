@@ -89,9 +89,11 @@ struct SignUpStepView: View {
                 Toggle(isOn: $acceptedTerms) {
                     Text("Ich akzeptiere die AGB.")
                 }
+                .toggleStyle(.checkbox)
                 Toggle(isOn: $acceptedPrivacy) {
                     Text("Ich habe die Datenschutzerklärung gelesen.")
                 }
+                .toggleStyle(.checkbox)
                 Toggle(isOn: $marketingEmailOptIn) {
                     VStack(alignment: .leading) {
                         Text("Neuigkeiten per E-Mail")
@@ -110,6 +112,7 @@ struct SignUpStepView: View {
             }
         }
         .navigationTitle("Account erstellen")
+        .onboardingChrome()
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom) {
             Button { Task { await signUp() } } label: {

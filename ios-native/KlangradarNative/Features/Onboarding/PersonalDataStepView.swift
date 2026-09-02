@@ -38,6 +38,7 @@ struct PersonalDataStepView: View {
             }
         }
         .navigationTitle("Über dich")
+        .onboardingChrome()
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom) {
             Button { Task { await save() } } label: { Text("Weiter").frame(maxWidth: .infinity) }

@@ -87,7 +87,11 @@ struct OnboardingView: View {
         }
         .safeAreaInset(edge: .top, spacing: 0) {
             if let currentProgressStep {
-                OnboardingProgressHeader(current: currentProgressStep, total: 7)
+                OnboardingProgressHeader(
+                    current: currentProgressStep,
+                    total: 7,
+                    onBack: { if !path.isEmpty { path.removeLast() } }
+                )
             }
         }
         .sheet(isPresented: $showsLogin) {

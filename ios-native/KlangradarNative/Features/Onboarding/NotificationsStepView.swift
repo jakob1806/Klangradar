@@ -26,6 +26,7 @@ struct NotificationsStepView: View {
             NotificationSettingsView(auth: auth, repository: repository)
         }
         .navigationTitle("Benachrichtigungen")
+        .onboardingChrome()
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 8) {
