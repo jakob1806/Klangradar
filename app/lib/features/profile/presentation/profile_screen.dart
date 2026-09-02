@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/auth/auth_service.dart';
@@ -15,6 +16,41 @@ import 'widgets/auth_section.dart';
 import 'widgets/language_sheet.dart';
 import 'widgets/profile_avatar_editor.dart';
 import 'widgets/theme_mode_sheet.dart';
+
+class _ProfileStats {
+  const _ProfileStats({required this.visits, required this.followedPeople});
+  final int visits;
+  final int followedPeople;
+  int get level => (1 + visits ~/ 3 + followedPeople ~/ 12).clamp(1, 50);
+}
+
+final _profileStatsProvider = FutureProvider.autoDispose<_ProfileStats>((
+  ref,
+) async {
+  final user = ref.watch(currentUserProvider);
+  if (user == null || user.isAnonymous) {
+    return const _ProfileStats(visits: 0, followedPeople: 0);
+  }
+  final client = Supabase.instance.client;
+  final results = await Future.wait<List<dynamic>>([
+    client
+        .from('coach_event_reflections')
+        .select('event_id')
+        .eq('user_id', user.id)
+        .then((value) => value as List)
+        .catchError((_) => <dynamic>[]),
+    client
+        .from('user_favorite_persons')
+        .select('person_id')
+        .eq('user_id', user.id)
+        .then((value) => value as List)
+        .catchError((_) => <dynamic>[]),
+  ]);
+  return _ProfileStats(
+    visits: results[0].length,
+    followedPeople: results[1].length,
+  );
+});
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -128,7 +164,7 @@ class ProfileScreen extends ConsumerWidget {
   }
 }
 
-class _SignedInHeader extends StatelessWidget {
+class _SignedInHeader extends ConsumerWidget {
   const _SignedInHeader({
     required this.userId,
     required this.email,
@@ -139,7 +175,10 @@ class _SignedInHeader extends StatelessWidget {
   final AppColorsExtension colors;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final stats =
+        ref.watch(_profileStatsProvider).valueOrNull ??
+        const _ProfileStats(visits: 0, followedPeople: 0);
     return Column(
       children: [
         ProfileAvatarEditor(userId: userId),
@@ -148,6 +187,48 @@ class _SignedInHeader extends StatelessWidget {
           email,
           style: Theme.of(context).textTheme.headlineSmall,
           textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        Row(
+          children: [
+            Expanded(
+              child: _ProfileMetric(
+                value: stats.visits,
+                label: 'Besuche',
+                icon: Icons.confirmation_num_rounded,
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => _VisitsDetailScreen(userId: userId),
+                  ),
+                ),
+              ),
+            ),
+            Expanded(
+              child: _ProfileMetric(
+                value: stats.followedPeople,
+                label: 'Gefolgt',
+                icon: Icons.people_alt_rounded,
+                onTap: () => context.push('/follows'),
+              ),
+            ),
+            Expanded(
+              child: _ProfileMetric(
+                value: stats.level,
+                label: 'Level',
+                icon: Icons.workspace_premium_rounded,
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => _LevelDetailScreen(stats: stats),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.md),
+        OutlinedButton(
+          onPressed: () => _showEditProfile(context),
+          child: const Text('Profil bearbeiten'),
         ),
         const SizedBox(height: AppSpacing.sm),
         const _FaceIdToggle(),
@@ -161,6 +242,121 @@ class _SignedInHeader extends StatelessWidget {
       ],
     );
   }
+
+  void _showEditProfile(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Profilbild kannst du direkt oben bearbeiten.'),
+      ),
+    );
+  }
+}
+
+class _ProfileMetric extends StatelessWidget {
+  const _ProfileMetric({
+    required this.value,
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
+  final int value;
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) => InkWell(
+    borderRadius: BorderRadius.circular(14),
+    onTap: onTap,
+    child: Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        children: [
+          Text(
+            '$value',
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 2),
+          Icon(icon, size: 16, color: context.appColors.accentPrimary),
+          const SizedBox(height: 2),
+          Text(label, style: Theme.of(context).textTheme.labelSmall),
+        ],
+      ),
+    ),
+  );
+}
+
+class _VisitsDetailScreen extends StatelessWidget {
+  const _VisitsDetailScreen({required this.userId});
+  final String userId;
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Besuchte Konzerte')),
+    body: FutureBuilder<List<dynamic>>(
+      future: Supabase.instance.client
+          .from('coach_event_reflections')
+          .select('attended_at, events(title, venues(name))')
+          .eq('user_id', userId)
+          .order('attended_at', ascending: false),
+      builder: (context, snapshot) {
+        final rows = snapshot.data ?? const <dynamic>[];
+        if (snapshot.connectionState != ConnectionState.done)
+          return const Center(child: CircularProgressIndicator());
+        if (rows.isEmpty)
+          return const Center(child: Text('Noch keine besuchten Konzerte.'));
+        return ListView.separated(
+          itemCount: rows.length,
+          separatorBuilder: (_, _) => const Divider(height: 1),
+          itemBuilder: (_, index) {
+            final row = rows[index] as Map<String, dynamic>;
+            final event = row['events'] as Map<String, dynamic>?;
+            final venue = event?['venues'] as Map<String, dynamic>?;
+            return ListTile(
+              title: Text(event?['title'] as String? ?? 'Konzert'),
+              subtitle: Text(venue?['name'] as String? ?? 'Ort folgt'),
+            );
+          },
+        );
+      },
+    ),
+  );
+}
+
+class _LevelDetailScreen extends StatelessWidget {
+  const _LevelDetailScreen({required this.stats});
+  final _ProfileStats stats;
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Dein Level')),
+    body: Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.workspace_premium_rounded,
+              size: 64,
+              color: context.appColors.accentPrimary,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Level ${stats.level}',
+              style: Theme.of(
+                context,
+              ).textTheme.displaySmall?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Dein Level wächst mit besuchten Konzerten und den Künstler:innen, denen du folgst.',
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 /// Face ID/Touch ID zum optionalen Schutz des Accounts (Nutzerwunsch) — nur
