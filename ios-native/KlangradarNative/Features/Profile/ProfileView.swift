@@ -782,12 +782,15 @@ private struct ProfileOverview: View {
     let repository: UserRepository?
     let usesPreviewData: Bool
     @State private var profile: KlangradarUserProfile?
+    @State private var socialSummary = ProfileSocialSummary(visitedConcerts: 0, followedPeople: 0)
 
     var body: some View {
-        HStack(spacing: 14) {
+        VStack(spacing: 14) {
             ProfileAvatarEditor(auth: auth, repository: repository)
+                .scaleEffect(1.45)
+                .padding(.vertical, 18)
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(spacing: 3) {
                 Text(displayName)
                     .font(.headline)
                 Text(accountLine)
@@ -796,20 +799,53 @@ private struct ProfileOverview: View {
                     .lineLimit(1)
             }
 
-            Spacer()
+            HStack(spacing: 0) {
+                NavigationLink {
+                    VisitedConcertsView(auth: auth, repository: repository)
+                } label: {
+                    profileMetric(value: socialSummary.visitedConcerts, label: "Besuche", icon: "ticket.fill")
+                }
+                Divider().frame(height: 40)
+                NavigationLink {
+                    FollowedPeopleView(auth: auth, repository: repository)
+                } label: {
+                    profileMetric(value: socialSummary.followedPeople, label: "Gefolgt", icon: "person.2.fill")
+                }
+                Divider().frame(height: 40)
+                NavigationLink {
+                    LevelDetailView(summary: socialSummary)
+                } label: {
+                    profileMetric(value: socialSummary.level, label: "Level", icon: "medal.fill")
+                }
+            }
+            .buttonStyle(.plain)
 
             if auth.userID != nil {
                 NavigationLink {
                     AccountProfileEditView(auth: auth, repository: repository)
                 } label: {
-                    Text("Bearbeiten")
+                    Text("Profil bearbeiten")
                         .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
                 }
+                .buttonStyle(.bordered)
+                .tint(KlangradarTheme.accent)
             }
         }
-        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
         .task(id: auth.userID) { await load() }
         .onAppear { Task { await load() } }
+    }
+
+    private func profileMetric(value: Int, label: String, icon: String) -> some View {
+        VStack(spacing: 3) {
+            Text("\(value)").font(.title3.bold()).monospacedDigit()
+            Label(label, systemImage: icon).font(.caption).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .contentShape(Rectangle())
+        .accessibilityLabel("\(value) \(label)")
     }
 
     private var displayName: String {
@@ -828,6 +864,7 @@ private struct ProfileOverview: View {
             return
         }
         profile = try? await repository.profile(userID: userID, token: token)
+        socialSummary = await repository.socialProfileSummary(userID: userID, token: token)
     }
 }
 
