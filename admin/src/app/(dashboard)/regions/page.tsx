@@ -14,7 +14,7 @@ const TYPE_LABEL: Record<string, string> = {
 const EDITORIAL_STATUS_LABEL: Record<string, string> = {
   planned: "Geplant",
   soft_launch: "Im Aufbau",
-  live: "Live",
+  live: "Öffentlich",
 };
 
 interface RegionRow {
