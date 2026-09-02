@@ -1,4 +1,5 @@
 import SwiftUI
+import Speech
 
 private extension InspirationCategory {
     var colors: [Color] {
@@ -40,6 +41,7 @@ struct SearchView: View {
     @State private var genreResultCache: [UUID: [ConcertEvent]] = [:]
     @State private var inspirationResultCache: [String: [ConcertEvent]] = [:]
     @State private var activeLoadID = UUID()
+    @StateObject private var speechSearch = SpeechSearchController()
 
     private var visibleHits: [SearchHit] {
         guard resultScope != .all else { return hits }
@@ -81,7 +83,17 @@ struct SearchView: View {
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    CityCompactMenu(cityStore: cityStore)
+                    HStack(spacing: 14) {
+                        Button {
+                            Task { await speechSearch.toggle(into: $query) }
+                        } label: {
+                            Image(systemName: speechSearch.isRecording ? "waveform.circle.fill" : "mic.circle")
+                                .symbolRenderingMode(.hierarchical)
+                                .foregroundStyle(speechSearch.isRecording ? .red : KlangradarTheme.accent)
+                        }
+                        .accessibilityLabel(speechSearch.isRecording ? "Sprachsuche beenden" : "Sprachsuche starten")
+                        CityCompactMenu(cityStore: cityStore)
+                    }
                 }
             }
             .searchable(
@@ -101,6 +113,7 @@ struct SearchView: View {
             .task { await loadDirectory(.venue) }
             .task { await loadDirectory(.work) }
             .task(id: query) { await search() }
+            .onDisappear { speechSearch.stop() }
             // TabView baut den Suche-Tab erst beim ersten Betreten auf — wird
             // genau dieser Tab-Wechsel durch einen Genre-Chip-Tap ausgelöst,
             // existiert SearchView beim Setzen von genreFilter.pending noch
@@ -109,6 +122,9 @@ struct SearchView: View {
             .onChange(of: genreFilter.pending) { _, _ in applyPendingGenreFilter() }
             .onAppear { applyPendingGenreFilter() }
             .overlay { if let errorMessage, events.isEmpty { ContentUnavailableView("Suche nicht verfügbar", systemImage: "wifi.exclamationmark", description: Text(errorMessage)) } }
+            .alert("Sprachsuche", isPresented: Binding(get: { speechSearch.errorMessage != nil }, set: { if !$0 { speechSearch.dismissError() } })) {
+                Button("OK") { speechSearch.dismissError() }
+            } message: { Text(speechSearch.errorMessage ?? "") }
         }
     }
 

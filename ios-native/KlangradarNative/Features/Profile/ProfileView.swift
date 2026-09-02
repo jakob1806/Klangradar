@@ -50,7 +50,7 @@ struct ProfileView: View {
                             contentRepository: contentRepository
                         )
                     } label: {
-                        Label("Klangradar KI", systemImage: "wand.and.stars")
+                        Label("Klangradar KI", systemImage: "sparkles")
                     }
                     NavigationLink {
                         FavoriteEventsView(auth: auth, repository: userRepository, eventRepository: eventRepository, contentRepository: contentRepository)
@@ -429,6 +429,7 @@ struct KlangradarCoachView: View {
     let eventRepository: any EventRepository
     let contentRepository: any ContentRepository
     private let showsDismissButton: Bool
+    private let presentsChatDirectly: Bool
     @EnvironmentObject private var favorites: FavoriteStore
     @EnvironmentObject private var cityStore: CityStore
     @Environment(\.dismiss) private var dismiss
@@ -461,23 +462,27 @@ struct KlangradarCoachView: View {
         self.eventRepository = eventRepository
         self.contentRepository = contentRepository
         self.showsDismissButton = showsDismissButton
+        self.presentsChatDirectly = startsInChat
         _selectedSection = State(initialValue: startsInChat ? .chat : .overview)
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker("Bereich", selection: $selectedSection) {
-                ForEach(Section.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+            if !presentsChatDirectly {
+                Picker("Bereich", selection: $selectedSection) {
+                    ForEach(Section.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 10)
             }
-            .pickerStyle(.segmented)
-            .padding(.horizontal).padding(.bottom, 8)
 
             switch selectedSection {
             case .overview: overview
             case .chat: chat
             }
         }
-        .background { KlangradarBackground().ignoresSafeArea() }
+        .background { Color(uiColor: .systemGroupedBackground).ignoresSafeArea() }
         .navigationTitle("Klangradar KI")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -512,7 +517,7 @@ struct KlangradarCoachView: View {
                 }.buttonStyle(.plain)
 
                 if let dashboard {
-                    Text("Deine KI-Linsen").font(.title2.bold())
+                    Text("Deine KI-Einblicke").font(.title2.bold())
                     lensGrid(dashboard)
                     if dashboard.signalQuality == "low" {
                         Label("Ich lerne dich noch kennen. Empfehlungen basieren aktuell vor allem auf deinen bestätigten Interessen und gespeicherten Events.", systemImage: "info.circle")
@@ -526,7 +531,7 @@ struct KlangradarCoachView: View {
                         Text("Beobachtete Zusammenhänge").font(.title2.bold()).padding(.top, 4)
                         ForEach(Array(dashboard.trends.enumerated()), id: \.offset) { _, trend in trendCard(trend) }
                     }
-                } else if isLoading { ProgressView("KI-Daten werden ausgewertet …").frame(maxWidth: .infinity).padding(40) }
+                } else if isLoading { ProgressView("Deine Daten werden ausgewertet …").frame(maxWidth: .infinity).padding(40) }
                 if let errorMessage { Text(errorMessage).font(.footnote).foregroundStyle(.red) }
             }.padding().padding(.bottom, 80)
         }
@@ -584,7 +589,7 @@ struct KlangradarCoachView: View {
             HStack { Image(systemName: insightIcon(insight.kind)).foregroundStyle(insight.priority >= 3 ? .orange : KlangradarTheme.accent); Text(insight.title).font(.headline); Spacer() }
             Text(insight.body).font(.subheadline).foregroundStyle(.secondary)
             if let action = insight.actions.first, action.string("type") == "ask_coach", let prompt = action.string("prompt") {
-                Button("Mit KI planen") { draft = prompt; selectedSection = .chat; Task { await send() } }.buttonStyle(.bordered)
+                Button("Mit der KI planen") { draft = prompt; selectedSection = .chat; Task { await send() } }.buttonStyle(.bordered)
             }
         }.padding(16).background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 20, style: .continuous))
     }
@@ -614,7 +619,7 @@ struct KlangradarCoachView: View {
                     }
                     if let proposal = memoryProposal { proposalCard("Soll ich mir das merken?", proposal, action: "confirm_memory") }
                     if let proposal = goalProposal { proposalCard("Dieses Ziel übernehmen?", proposal, action: "confirm_goal") }
-                    if isLoading { ProgressView("KI denkt mit deinen Daten …").frame(maxWidth: .infinity).padding() }
+                    if isLoading { ProgressView("Klangradar KI denkt nach …").frame(maxWidth: .infinity).padding() }
                     if let errorMessage {
                         HStack(alignment: .top, spacing: 10) {
                             Image(systemName: "exclamationmark.circle.fill").foregroundStyle(.orange)
@@ -634,7 +639,10 @@ struct KlangradarCoachView: View {
                         .background(Color.orange.opacity(0.1), in: .rect(cornerRadius: 16, style: .continuous))
                     }
                     Color.clear.frame(height: 1).id("coach-bottom")
-                }.padding()
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, presentsChatDirectly ? 8 : 12)
+                .padding(.bottom, 12)
             }
             .safeAreaInset(edge: .bottom) {
                 VStack(spacing: 10) {
@@ -642,16 +650,22 @@ struct KlangradarCoachView: View {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 8) {
                                 ForEach(suggestedPrompts, id: \.self) { prompt in
-                                    Button(prompt) { draft = prompt; Task { await send() } }
-                                        .buttonStyle(.bordered)
-                                        .buttonBorderShape(.capsule)
+                                    Button { draft = prompt; Task { await send() } } label: {
+                                        Text(prompt)
+                                            .font(.subheadline.weight(.medium))
+                                            .padding(.horizontal, 13)
+                                            .padding(.vertical, 9)
+                                            .background(.thinMaterial, in: Capsule())
+                                            .overlay { Capsule().stroke(Color.primary.opacity(0.08), lineWidth: 1) }
+                                    }
+                                    .buttonStyle(.plain)
                                 }
                             }
                             .padding(.horizontal, 16)
                         }
                     }
                     HStack(alignment: .bottom, spacing: 10) {
-                        TextField("Nachricht an deine KI", text: $draft, axis: .vertical)
+                        TextField("Nachricht an Klangradar KI", text: $draft, axis: .vertical)
                             .font(.body)
                             .lineLimit(1...5)
                             .submitLabel(.send)
@@ -679,7 +693,7 @@ struct KlangradarCoachView: View {
                     .padding(.bottom, 10)
                 }
                 .padding(.top, 10)
-                .background(.ultraThinMaterial)
+                .background(.regularMaterial)
                 .overlay(alignment: .top) { Divider().opacity(0.45) }
             }
             .onChange(of: messages.count) { _, _ in withAnimation { proxy.scrollTo("coach-bottom") } }
@@ -764,7 +778,7 @@ struct KlangradarCoachView: View {
     }
 
     @MainActor private func loadDashboard() async {
-        guard let repository, let token = auth.accessToken else { errorMessage = "Bitte melde dich an, damit die KI deine Daten sicher verwenden kann."; return }
+        guard let repository, let token = auth.accessToken else { errorMessage = "Bitte melde dich an, damit die Klangradar KI deine Daten sicher verwenden kann."; return }
         isLoading = true; defer { isLoading = false }
         do { dashboard = try await repository.coachDashboard(token: token); errorMessage = nil } catch { errorMessage = coachErrorDescription(error) }
     }
@@ -791,15 +805,15 @@ struct KlangradarCoachView: View {
 
     private func coachErrorDescription(_ error: Error) -> String {
         guard let apiError = error as? APIError else {
-            return "Die KI ist gerade nicht erreichbar. Prüfe deine Verbindung und versuche es erneut."
+            return "Die Klangradar KI ist gerade nicht erreichbar. Prüfe deine Verbindung und versuche es erneut."
         }
         switch apiError {
         case .httpStatus(401, _):
             return "Deine Anmeldung ist abgelaufen. Melde dich bitte erneut an."
         case .httpStatus(404, _):
-            return "Die KI wird gerade aktualisiert. Bitte versuche es gleich noch einmal."
+            return "Die Klangradar KI wird gerade aktualisiert. Bitte versuche es gleich noch einmal."
         case .httpStatus(let status, _) where status >= 500:
-            return "Die KI braucht gerade etwas länger. Bitte versuche es gleich noch einmal."
+            return "Die Klangradar KI braucht gerade etwas länger. Bitte versuche es gleich noch einmal."
         default:
             return apiError.localizedDescription
         }
@@ -1047,12 +1061,15 @@ private struct ProfileOverview: View {
     let repository: UserRepository?
     let usesPreviewData: Bool
     @State private var profile: KlangradarUserProfile?
+    @State private var socialSummary = ProfileSocialSummary(visitedConcerts: 0, followedPeople: 0)
 
     var body: some View {
-        HStack(spacing: 14) {
+        VStack(spacing: 14) {
             ProfileAvatarEditor(auth: auth, repository: repository)
+                .scaleEffect(1.45)
+                .padding(.vertical, 18)
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(spacing: 3) {
                 Text(displayName)
                     .font(.headline)
                 Text(accountLine)
@@ -1061,20 +1078,53 @@ private struct ProfileOverview: View {
                     .lineLimit(1)
             }
 
-            Spacer()
+            HStack(spacing: 0) {
+                NavigationLink {
+                    VisitedConcertsView(auth: auth, repository: repository)
+                } label: {
+                    profileMetric(value: socialSummary.visitedConcerts, label: "Besuche", icon: "ticket.fill")
+                }
+                Divider().frame(height: 40)
+                NavigationLink {
+                    FollowedPeopleView(auth: auth, repository: repository)
+                } label: {
+                    profileMetric(value: socialSummary.followedPeople, label: "Gefolgt", icon: "person.2.fill")
+                }
+                Divider().frame(height: 40)
+                NavigationLink {
+                    LevelDetailView(summary: socialSummary)
+                } label: {
+                    profileMetric(value: socialSummary.level, label: "Level", icon: "medal.fill")
+                }
+            }
+            .buttonStyle(.plain)
 
             if auth.userID != nil {
                 NavigationLink {
                     AccountProfileEditView(auth: auth, repository: repository)
                 } label: {
-                    Text("Bearbeiten")
+                    Text("Profil bearbeiten")
                         .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
                 }
+                .buttonStyle(.bordered)
+                .tint(KlangradarTheme.accent)
             }
         }
-        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
         .task(id: auth.userID) { await load() }
         .onAppear { Task { await load() } }
+    }
+
+    private func profileMetric(value: Int, label: String, icon: String) -> some View {
+        VStack(spacing: 3) {
+            Text("\(value)").font(.title3.bold()).monospacedDigit()
+            Label(label, systemImage: icon).font(.caption).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .contentShape(Rectangle())
+        .accessibilityLabel("\(value) \(label)")
     }
 
     private var displayName: String {
@@ -1093,6 +1143,7 @@ private struct ProfileOverview: View {
             return
         }
         profile = try? await repository.profile(userID: userID, token: token)
+        socialSummary = await repository.socialProfileSummary(userID: userID, token: token)
     }
 }
 
