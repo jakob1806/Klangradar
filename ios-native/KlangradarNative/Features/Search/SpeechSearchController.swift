@@ -11,6 +11,7 @@ final class SpeechSearchController: NSObject, ObservableObject {
     private let audioEngine = AVAudioEngine()
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
+    private var hasInstalledTap = false
 
     func toggle(into query: Binding<String>) async {
         if isRecording { stop() } else { await start(into: query) }
@@ -50,8 +51,12 @@ final class SpeechSearchController: NSObject, ObservableObject {
             request.shouldReportPartialResults = true
             recognitionRequest = request
             let input = audioEngine.inputNode
-            input.removeTap(onBus: 0)
-            input.installTap(onBus: 0, bufferSize: 1024, format: input.outputFormat(forBus: 0)) { buffer, _ in request.append(buffer) }
+            let format = input.outputFormat(forBus: 0)
+            guard format.sampleRate > 0, format.channelCount > 0 else {
+                throw SpeechSearchError.invalidAudioFormat
+            }
+            input.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in request.append(buffer) }
+            hasInstalledTap = true
             audioEngine.prepare()
             try audioEngine.start()
             isRecording = true
@@ -70,7 +75,10 @@ final class SpeechSearchController: NSObject, ObservableObject {
     func stop() {
         guard isRecording || recognitionRequest != nil else { return }
         audioEngine.stop()
-        audioEngine.inputNode.removeTap(onBus: 0)
+        if hasInstalledTap {
+            audioEngine.inputNode.removeTap(onBus: 0)
+            hasInstalledTap = false
+        }
         recognitionRequest?.endAudio()
         recognitionTask?.cancel()
         recognitionTask = nil
@@ -80,4 +88,8 @@ final class SpeechSearchController: NSObject, ObservableObject {
     }
 
     func dismissError() { errorMessage = nil }
+}
+
+private enum SpeechSearchError: Error {
+    case invalidAudioFormat
 }

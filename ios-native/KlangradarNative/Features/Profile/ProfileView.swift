@@ -1,6 +1,11 @@
 import SwiftUI
 import UIKit
 
+private enum ProfileDestination: String, Identifiable {
+    case visits, follows, level, edit
+    var id: String { rawValue }
+}
+
 struct ProfileView: View {
     let usesPreviewData: Bool
     @ObservedObject var auth: AuthStore
@@ -15,6 +20,7 @@ struct ProfileView: View {
     @State private var showsLogin = false
     @State private var hasEditorialAccess = false
     @State private var showsMarketingShell = ProcessInfo.processInfo.environment["KLANGRADAR_MARKETING_CAPTURE"] == "1"
+    @State private var profileDestination: ProfileDestination?
 
     var body: some View {
         NavigationStack {
@@ -23,9 +29,13 @@ struct ProfileView: View {
                     ProfileOverview(
                         auth: auth,
                         repository: userRepository,
-                        usesPreviewData: usesPreviewData
+                        usesPreviewData: usesPreviewData,
+                        onSelect: { profileDestination = $0 }
                     )
                 }
+                .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 6, trailing: 0))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
 
                 Section("Account") {
                     accountContent
@@ -56,6 +66,11 @@ struct ProfileView: View {
                         FavoriteEventsView(auth: auth, repository: userRepository, eventRepository: eventRepository, contentRepository: contentRepository)
                     } label: {
                         Label("Favoriten", systemImage: "heart")
+                    }
+                    NavigationLink {
+                        ConcertArchiveView(repository: userRepository, eventRepository: eventRepository, contentRepository: contentRepository)
+                    } label: {
+                        Label("Konzertarchiv", systemImage: "archivebox")
                     }
                     NavigationLink {
                         UserEventListsView(
@@ -155,6 +170,11 @@ struct ProfileView: View {
                     } label: {
                         Text("Impressum")
                     }
+                    HStack {
+                        Text("Version")
+                        Spacer()
+                        Text(appVersion).foregroundStyle(.secondary)
+                    }
                 }
             }
             .navigationTitle("Profil")
@@ -167,6 +187,18 @@ struct ProfileView: View {
             }
             .navigationDestination(for: EntityRoute.self) { route in
                 EntityDetailView(route: route, repository: contentRepository)
+            }
+            .navigationDestination(item: $profileDestination) { destination in
+                switch destination {
+                case .visits:
+                    VisitedConcertsView(auth: auth, repository: userRepository, eventRepository: eventRepository, contentRepository: contentRepository)
+                case .follows:
+                    FollowedPeopleView(auth: auth, repository: userRepository, contentRepository: contentRepository)
+                case .level:
+                    LevelDetailView(auth: auth, repository: userRepository)
+                case .edit:
+                    AccountProfileEditView(auth: auth, repository: userRepository)
+                }
             }
             .sheet(isPresented: $showsLogin) {
                 PasswordLoginView(auth: auth, repository: userRepository)
@@ -183,6 +215,12 @@ struct ProfileView: View {
             }
             .task(id: auth.accessToken) { await checkEditorialAccess() }
         }
+    }
+
+    private var appVersion: String {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "–"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "–"
+        return "\(version) (\(build))"
     }
 
     @MainActor
@@ -1057,17 +1095,18 @@ private struct AccentColorSettingsView: View {
 }
 
 private struct ProfileOverview: View {
+    @EnvironmentObject private var follows: FollowStore
     @ObservedObject var auth: AuthStore
     let repository: UserRepository?
     let usesPreviewData: Bool
+    let onSelect: (ProfileDestination) -> Void
     @State private var profile: KlangradarUserProfile?
-    @State private var socialSummary = ProfileSocialSummary(visitedConcerts: 0, followedPeople: 0)
+    @State private var socialSummary: ProfileSocialSummary = .empty
 
     var body: some View {
-        VStack(spacing: 14) {
-            ProfileAvatarEditor(auth: auth, repository: repository)
-                .scaleEffect(1.45)
-                .padding(.vertical, 18)
+        VStack(spacing: 12) {
+            ProfileAvatarEditor(auth: auth, repository: repository, size: 78)
+                .padding(.top, 4)
 
             VStack(spacing: 3) {
                 Text(displayName)
@@ -1079,52 +1118,51 @@ private struct ProfileOverview: View {
             }
 
             HStack(spacing: 0) {
-                NavigationLink {
-                    VisitedConcertsView(auth: auth, repository: repository)
-                } label: {
-                    profileMetric(value: socialSummary.visitedConcerts, label: "Besuche", icon: "ticket.fill")
+                Button { onSelect(.visits) } label: {
+                    profileMetric(value: socialSummary.visitedConcerts, label: "Besuche")
                 }
                 Divider().frame(height: 40)
-                NavigationLink {
-                    FollowedPeopleView(auth: auth, repository: repository)
-                } label: {
-                    profileMetric(value: socialSummary.followedPeople, label: "Gefolgt", icon: "person.2.fill")
+                Button { onSelect(.follows) } label: {
+                    profileMetric(value: followCount, label: "Gefolgt")
                 }
                 Divider().frame(height: 40)
-                NavigationLink {
-                    LevelDetailView(summary: socialSummary)
-                } label: {
-                    profileMetric(value: socialSummary.level, label: "Level", icon: "medal.fill")
+                Button { onSelect(.level) } label: {
+                    profileMetric(value: socialSummary.level, label: "Level")
                 }
             }
             .buttonStyle(.plain)
 
             if auth.userID != nil {
-                NavigationLink {
-                    AccountProfileEditView(auth: auth, repository: repository)
-                } label: {
+                Button { onSelect(.edit) } label: {
                     Text("Profil bearbeiten")
                         .font(.subheadline.weight(.semibold))
                         .frame(maxWidth: .infinity)
+                        .padding(.vertical, 5)
                 }
                 .buttonStyle(.bordered)
                 .tint(KlangradarTheme.accent)
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 6)
         .task(id: auth.userID) { await load() }
         .onAppear { Task { await load() } }
     }
 
-    private func profileMetric(value: Int, label: String, icon: String) -> some View {
+    private func profileMetric(value: Int, label: String) -> some View {
         VStack(spacing: 3) {
             Text("\(value)").font(.title3.bold()).monospacedDigit()
-            Label(label, systemImage: icon).font(.caption).foregroundStyle(.secondary)
+            Text(label).font(.caption).foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .center)
         }
         .frame(maxWidth: .infinity)
         .contentShape(Rectangle())
         .accessibilityLabel("\(value) \(label)")
+    }
+
+    private var followCount: Int {
+        follows.personIDs.count + follows.ensembleIDs.count + follows.venueIDs.count
     }
 
     private var displayName: String {

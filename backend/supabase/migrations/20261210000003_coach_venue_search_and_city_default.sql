@@ -35,5 +35,4 @@ with candidates as (
 select coalesce(jsonb_agg(to_jsonb(x) order by x.personal_score desc,x.start_datetime),'[]'::jsonb)
 from (select c.*,cardinality(reasons) personal_score from candidates c order by personal_score desc,start_datetime limit greatest(1,least(p_limit,20))) x;
 $$;
-
 grant execute on function coach_search_events(jsonb,int) to authenticated;
