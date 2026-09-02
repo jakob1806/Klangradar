@@ -39,6 +39,63 @@ struct RegionOption: Identifiable, Hashable, Sendable {
     var longitude: Double? = nil
 }
 
+// Zwei unabhängig entstandene, nicht überlappende Assistenz-Features
+// (unterschiedliche Edge Functions "personal-concierge" vs.
+// "klangradar-coach") -- beide behalten, da sie unterschiedliche Zwecke
+// verfolgen (Orts-/Ticket-Chat vs. Stimmungs-Check-in-Coaching).
+struct PersonalConciergeResult: Sendable {
+    let conversationID: UUID
+    let message: String
+    let events: [PersonalConciergeEvent]
+    let places: [PersonalConciergePlace]
+    let languageProvider: String
+    let placesProvider: String
+}
+
+struct PersonalConciergeEvent: Identifiable, Hashable, Sendable {
+    let id: UUID
+    let slug: String
+    let title: String
+    let subtitle: String?
+    let startDate: Date?
+    let venueID: UUID?
+    let venueName: String
+    let priceMin: Double?
+    let priceMax: Double?
+    let currency: String
+    let isFree: Bool
+    let ticketURL: URL?
+    let reasons: [String]
+
+    var concertEvent: ConcertEvent {
+        ConcertEvent(
+            id: id, slug: slug, title: title, subtitle: subtitle,
+            startDatetime: startDate.map { ISO8601DateFormatter().string(from: $0) } ?? ISO8601DateFormatter().string(from: .now),
+            imageUrls: nil, status: "scheduled",
+            venues: venueID.map { VenueSummary(id: $0, name: venueName) },
+            isFree: isFree
+        )
+    }
+}
+
+struct PersonalConciergePlace: Identifiable, Hashable, Sendable {
+    let id: String
+    let name: String
+    let address: String?
+    let mapsURL: URL?
+    let rating: Double?
+}
+
+struct KlangradarStats: Sendable {
+    let savedEvents: Int
+    let plannedEvents: Int
+    let visitedEvents: Int
+    let followedPersons: Int
+    let followedEnsembles: Int
+    let followedVenues: Int
+    let followedWorks: Int
+}
+
 struct CoachInsight: Identifiable, Hashable, Sendable {
     let id: String
     let kind: String
@@ -73,13 +130,14 @@ struct CoachEvent: Identifiable, Hashable, Sendable {
     let priceMin: Double?
     let isFree: Bool
     let ticketURL: URL?
+    let imageURL: URL?
     let reasons: [String]
 
     var concertEvent: ConcertEvent {
         ConcertEvent(
             id: id, slug: slug, title: title, subtitle: subtitle,
             startDatetime: startDate.map { ISO8601DateFormatter().string(from: $0) } ?? ISO8601DateFormatter().string(from: .now),
-            imageUrls: nil, status: "scheduled",
+            imageUrls: imageURL.map { [$0.absoluteString] }, status: "scheduled",
             venues: venueID.map { VenueSummary(id: $0, name: venueName) },
             isFree: isFree
         )
@@ -90,6 +148,11 @@ struct CoachReply: Sendable {
     let conversationID: UUID?
     let answer: String
     let events: [CoachEvent]
+    /// true, wenn keine exakte Übereinstimmung gefunden wurde und `events`
+    /// stattdessen gelockerte Alternativen enthält (siehe klangradar-coach
+    /// Edge Function) -- die Chat-UI kennzeichnet die Karten dann als
+    /// "Alternativen" statt als Treffer.
+    let eventsAreAlternatives: Bool
     let actions: [JSONObject]
     let memoryProposal: JSONObject?
     let goalProposal: JSONObject?
@@ -99,6 +162,58 @@ struct CoachReply: Sendable {
 
 struct UserRepository: Sendable {
     let client: SupabaseRESTClient
+
+    func askConcierge(message: String, conversationID: UUID?, token: String) async throws -> PersonalConciergeResult {
+        var body: JSONObject = ["message": .string(message)]
+        if let conversationID { body["conversation_id"] = .string(conversationID.uuidString) }
+        let response: JSONObject = try await client.edgeFunction("personal-concierge", body: body, accessToken: token)
+        guard let id = response.string("conversation_id").flatMap(UUID.init(uuidString:)) else {
+            throw APIError.invalidResponse
+        }
+        let events = response.objects("events").compactMap { row -> PersonalConciergeEvent? in
+            guard let eventID = row.string("id").flatMap(UUID.init(uuidString:)),
+                  let slug = row.string("slug"), let title = row.string("title") else { return nil }
+            let ticketRows = row.objects("tickets")
+            let bestTicket = ticketRows.first { $0.bool("is_broken") != true }
+            return PersonalConciergeEvent(
+                id: eventID, slug: slug, title: title, subtitle: row.string("subtitle"),
+                startDate: row.string("start_datetime").flatMap(FlexibleDateParser.date(from:)),
+                venueID: row.string("venue_id").flatMap(UUID.init(uuidString:)),
+                venueName: row.string("venue_name") ?? "Ort folgt",
+                priceMin: row.number("price_min"), priceMax: row.number("price_max"),
+                currency: row.string("price_currency") ?? "EUR", isFree: row.bool("is_free") ?? false,
+                ticketURL: (bestTicket?.string("url") ?? row.string("ticket_url") ?? row.string("website_url")).flatMap(URL.init(string:)),
+                reasons: row.strings("reasons")
+            )
+        }
+        let places = response.objects("places").compactMap { row -> PersonalConciergePlace? in
+            let displayName = row.object("displayName")?.string("text")
+            guard let name = displayName else { return nil }
+            return PersonalConciergePlace(
+                id: row.string("id") ?? name, name: name,
+                address: row.string("formattedAddress"),
+                mapsURL: row.string("googleMapsUri").flatMap(URL.init(string:)),
+                rating: row.number("rating")
+            )
+        }
+        let providers = response.object("providers") ?? [:]
+        return PersonalConciergeResult(
+            conversationID: id, message: response.string("message") ?? "",
+            events: events, places: places,
+            languageProvider: providers.string("language") ?? "local-parser",
+            placesProvider: providers.string("places") ?? "not-configured"
+        )
+    }
+
+    func klangradarStats(token: String) async throws -> KlangradarStats {
+        let row: JSONObject = try await client.rpc("my_klangradar_stats", accessToken: token)
+        return KlangradarStats(
+            savedEvents: Int(row.number("saved_events") ?? 0), plannedEvents: Int(row.number("planned_events") ?? 0),
+            visitedEvents: Int(row.number("visited_events") ?? 0), followedPersons: Int(row.number("followed_persons") ?? 0),
+            followedEnsembles: Int(row.number("followed_ensembles") ?? 0), followedVenues: Int(row.number("followed_venues") ?? 0),
+            followedWorks: Int(row.number("followed_works") ?? 0)
+        )
+    }
 
     func coachDashboard(token: String) async throws -> CoachDashboard {
         let response: JSONObject = try await client.edgeFunction("klangradar-coach", body: ["action": .string("dashboard")], accessToken: token)
@@ -134,9 +249,14 @@ struct UserRepository: Sendable {
         let _: JSONObject = try await client.edgeFunction("klangradar-coach", body: body, accessToken: token)
     }
 
-    func askCoach(message: String, conversationID: UUID?, token: String) async throws -> CoachReply {
+    // cityName: die im Stadt-Chip aktuell gewählte Stadt (siehe CityStore) --
+    // Nutzerfeedback "Datenanbindung ... nur auf ausgewählter Stadt
+    // basierend": ohne diesen Kontext kannte die KI die App-Stadtauswahl
+    // nicht und musste ohne Stadt-Eingrenzung über alle Städte suchen.
+    func askCoach(message: String, conversationID: UUID?, cityName: String?, token: String) async throws -> CoachReply {
         var body: JSONObject = ["action": .string("chat"), "message": .string(message)]
         if let conversationID { body["conversation_id"] = .string(conversationID.uuidString) }
+        if let cityName { body["city_name"] = .string(cityName) }
         let response: JSONObject = try await client.edgeFunction("klangradar-coach", body: body, accessToken: token)
         let events = response.objects("events").compactMap { row -> CoachEvent? in
             guard let id = row.string("id").flatMap(UUID.init(uuidString:)), let slug = row.string("slug"), let title = row.string("title") else { return nil }
@@ -145,13 +265,16 @@ struct UserRepository: Sendable {
                 startDate: row.string("start_datetime").flatMap(FlexibleDateParser.date(from:)),
                 venueID: row.string("venue_id").flatMap(UUID.init(uuidString:)), venueName: row.string("venue_name") ?? "Ort folgt",
                 priceMin: row.number("price_min"), isFree: row.bool("is_free") ?? false,
-                ticketURL: (row.string("ticket_url") ?? row.string("website_url")).flatMap(URL.init(string:)), reasons: row.strings("reasons")
+                ticketURL: (row.string("ticket_url") ?? row.string("website_url")).flatMap(URL.init(string:)),
+                imageURL: row.string("image_url").flatMap(URL.init(string:)),
+                reasons: row.strings("reasons")
             )
         }
         return CoachReply(
             conversationID: response.string("conversation_id").flatMap(UUID.init(uuidString:)),
             answer: response.string("answer") ?? "",
-            events: events, actions: response.objects("actions"),
+            events: events, eventsAreAlternatives: response.bool("events_are_alternatives") ?? false,
+            actions: response.objects("actions"),
             memoryProposal: response.object("memory_proposal"), goalProposal: response.object("goal_proposal"),
             suggestedPrompts: response.strings("suggested_prompts"), provider: response.string("provider") ?? "local"
         )
@@ -571,22 +694,35 @@ struct UserRepository: Sendable {
         else { try await client.delete(table: table, filters: [URLQueryItem(name: "user_id", value: "eq.\(userID.uuidString)"), URLQueryItem(name: column, value: "eq.\(id)")], accessToken: token) }
     }
 
-    func recommendedEvents(limit: Int = 16, token: String? = nil) async throws -> [ConcertEvent] {
-        try await homeEvents(function: "recommended_events", limit: limit, token: token)
+    // recommended_events/discovery_events/popular_events haben alle drei
+    // `p_city_id uuid default munich_city_id()` (siehe
+    // 20261031000011_recommended_discovery_city_filter.sql und
+    // 20261031000005_city_scoped_rpcs.sql) -- ein weggelassener Parameter
+    // lässt den Default (München) greifen statt der tatsächlich in
+    // CityStore gewählten Stadt. Das ließ Home-Rails wie "Für dich" und
+    // "Beliebt" unabhängig vom Stadt-Filter immer Münchner Termine zeigen,
+    // während die übrige Home-Abfrage (upcomingEvents(regionID:)) korrekt
+    // filterte. cityID == nil ("Alle Städte") muss explizit `.null` senden,
+    // sonst greift wieder der München-Default.
+    func recommendedEvents(limit: Int = 16, cityID: UUID?, token: String? = nil) async throws -> [ConcertEvent] {
+        try await homeEvents(function: "recommended_events", limit: limit, cityID: cityID, token: token)
     }
 
-    func discoveryEvents(limit: Int = 16, token: String) async throws -> [ConcertEvent] {
-        try await homeEvents(function: "discovery_events", limit: limit, token: token)
+    func discoveryEvents(limit: Int = 16, cityID: UUID?, token: String) async throws -> [ConcertEvent] {
+        try await homeEvents(function: "discovery_events", limit: limit, cityID: cityID, token: token)
     }
 
-    func popularEvents(limit: Int = 16, token: String? = nil) async throws -> [ConcertEvent] {
-        try await homeEvents(function: "popular_events", limit: limit, token: token)
+    func popularEvents(limit: Int = 16, cityID: UUID?, token: String? = nil) async throws -> [ConcertEvent] {
+        try await homeEvents(function: "popular_events", limit: limit, cityID: cityID, token: token)
     }
 
-    private func homeEvents(function: String, limit: Int, token: String?) async throws -> [ConcertEvent] {
+    private func homeEvents(function: String, limit: Int, cityID: UUID?, token: String?) async throws -> [ConcertEvent] {
         let rows: [JSONObject] = try await client.rpc(
             function,
-            parameters: ["p_result_limit": .number(Double(limit))],
+            parameters: [
+                "p_result_limit": .number(Double(limit)),
+                "p_city_id": cityID.map { .string($0.uuidString) } ?? .null
+            ],
             accessToken: token
         )
         return rows.compactMap { original in

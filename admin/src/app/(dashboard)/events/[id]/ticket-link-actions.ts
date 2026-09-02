@@ -24,6 +24,17 @@ export async function addTicketLink(eventId: string, formData: FormData) {
   });
   if (error) return { error: error.message };
 
+  const discounts = formData.getAll("discount_categories").map(String);
+  const availability = String(formData.get("availability_status") ?? "unknown");
+  const { error: detailError } = await supabase.from("event_ticket_links").update({
+    availability_status: availability,
+    discount_categories: discounts,
+    discount_notes: String(formData.get("discount_notes") ?? "").trim() || null,
+    price_updated_at: new Date().toISOString(),
+    availability_updated_at: new Date().toISOString(),
+  }).eq("event_id", eventId).eq("url", url);
+  if (detailError) return { error: detailError.message };
+
   revalidatePath(`/events/${eventId}`);
   return {};
 }

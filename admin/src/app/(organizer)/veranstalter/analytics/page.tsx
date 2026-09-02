@@ -52,10 +52,14 @@ export default async function AnalyticsPage() {
           <p className="text-sm text-[#8a5a0c]">Die Analytics sind nach der nächsten Datenbank-Aktualisierung verfügbar.</p>
         ) : (
           <>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            {/* Nutzerfeedback: "Shares" wird bislang von keiner App-Version
+                geschrieben und stand deshalb immer bei 0 -- las sich wie ein
+                echtes, aber schlechtes Ergebnis statt wie fehlende Daten.
+                Karte entfernt, Spalte unten bleibt mit Hinweis statt
+                irreführender Null. */}
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <MetricCard label="Event-Aufrufe" value={totals.views} />
               <MetricCard label="Gespeichert" value={totals.saves} />
-              <MetricCard label="Geteilt" value={totals.shares} />
               <MetricCard label="Ticketlink-Klicks" value={totals.ticketClicks} />
               <Card>
                 <CardContent className="pt-5">
@@ -66,7 +70,10 @@ export default async function AnalyticsPage() {
               </Card>
             </div>
             <section className="mt-10 flex flex-col gap-3">
-              <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#726c78]">Nach Veranstaltung</h2>
+              <div className="flex items-baseline justify-between">
+                <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#726c78]">Nach Veranstaltung</h2>
+                {metrics.length > 0 && <p className="text-xs text-[#726c78]">* Shares werden aktuell noch nicht erfasst.</p>}
+              </div>
               {metrics.length === 0 ? (
                 <Card>
                   <CardContent className="pt-5 text-sm text-[#726c78]">Sobald deine Events aufgerufen werden, erscheinen die Kennzahlen hier.</CardContent>
@@ -78,7 +85,7 @@ export default async function AnalyticsPage() {
                       <TableHead>Event</TableHead>
                       <TableHead>Aufrufe</TableHead>
                       <TableHead>Saves</TableHead>
-                      <TableHead>Shares</TableHead>
+                      <TableHead title="Wird noch von keiner Klangradar-App-Version erfasst">Shares*</TableHead>
                       <TableHead>Tickets</TableHead>
                       <TableHead>Conversion</TableHead>
                     </TableRow>
@@ -94,7 +101,7 @@ export default async function AnalyticsPage() {
                         </TableCell>
                         <TableCell className="tabular-nums">{item.views}</TableCell>
                         <TableCell className="tabular-nums">{item.saves}</TableCell>
-                        <TableCell className="tabular-nums">{item.shares}</TableCell>
+                        <TableCell className="tabular-nums text-[#a1a1aa]">–</TableCell>
                         <TableCell className="tabular-nums">{item.ticket_clicks}</TableCell>
                         <TableCell className="tabular-nums">{percentage(item.ticket_clicks, item.views)}</TableCell>
                       </TableRow>

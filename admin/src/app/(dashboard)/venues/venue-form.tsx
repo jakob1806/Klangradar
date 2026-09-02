@@ -31,6 +31,14 @@ export interface VenueFormValues {
   social_links: Record<string, string> | null;
   photo_url: string | null;
   city_id: string | null;
+  history_de?: string | null;
+  mvv_stops?: unknown[] | null;
+  parking_info_de?: string | null;
+  arrival_info_de?: string | null;
+  doors_info_de?: string | null;
+  catering_info_de?: string | null;
+  accessibility?: Record<string, unknown> | null;
+  halls?: unknown[] | null;
 }
 
 export interface CityOption {
@@ -84,6 +92,7 @@ export function VenueForm({
       <Field label="Beschreibung">
         <TextArea name="description_de" rows={3} defaultValue={initial?.description_de ?? ""} />
       </Field>
+      <Field label="Geschichte und künstlerisches Profil"><TextArea name="history_de" rows={4} defaultValue={initial?.history_de ?? ""} /></Field>
 
       <div className="grid grid-cols-2 gap-4">
         <Field label="Straße & Hausnummer" required>
@@ -159,6 +168,15 @@ export function VenueForm({
       </div>
 
       <ImageUploadField name="photo_url" initialUrl={initial?.photo_url} entityType="venues" shape="rounded" label="Foto" />
+
+      <h2 className="pt-3 text-base font-semibold">Besuch & Anreise</h2>
+      <Field label="ÖPNV / Haltestellen (JSON-Liste)"><TextArea name="mvv_stops" rows={3} defaultValue={JSON.stringify(initial?.mvv_stops ?? [], null, 2)} /></Field>
+      <Field label="Weitere Anreisehinweise"><TextArea name="arrival_info_de" rows={2} defaultValue={initial?.arrival_info_de ?? ""} /></Field>
+      <Field label="Parken"><TextArea name="parking_info_de" rows={2} defaultValue={initial?.parking_info_de ?? ""} /></Field>
+      <Field label="Einlass, Garderobe, Sicherheit"><TextArea name="doors_info_de" rows={2} defaultValue={initial?.doors_info_de ?? ""} /></Field>
+      <Field label="Gastronomie"><TextArea name="catering_info_de" rows={2} defaultValue={initial?.catering_info_de ?? ""} /></Field>
+      <Field label="Barrierefreiheit (JSON)"><TextArea name="accessibility" rows={4} defaultValue={JSON.stringify(initial?.accessibility ?? {}, null, 2)} /></Field>
+      <Field label="Säle (JSON-Liste)"><TextArea name="halls" rows={4} defaultValue={JSON.stringify(initial?.halls ?? [], null, 2)} /></Field>
 
       <SocialLinksFields initial={initial?.social_links} />
 

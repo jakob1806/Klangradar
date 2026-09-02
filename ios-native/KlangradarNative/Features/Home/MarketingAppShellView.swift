@@ -1,15 +1,22 @@
 import SwiftUI
 import UIKit
 
-/// Eigenständige Tab-Leiste für Marketing-Screenshots: „Home" zeigt den frei
-/// editierbaren Homescreen-Nachbau (`MarketingHomeScreenView`), die übrigen
-/// vier Tabs sind exakt dieselben Live-Screens wie in `RootTabView` — echte
-/// Daten, echtes Redaktionsmodus-Editing für Personen/Ensembles/Venues und
-/// Veranstaltungen über die vorhandene Suche/Karte/Kalender-Navigation.
-/// Als eigene `TabView`, per `.fullScreenCover` präsentiert (statt per
-/// `NavigationLink` aus Profil heraus), damit die Tab-Leiste unten wirklich
-/// „Home" statt „Profil" als aktiv zeigt — für authentische Screenshots.
-/// Nur in Debug-Builds erreichbar (siehe ProfileView).
+/// Eigenständige Tab-Leiste für Marketing-Screenshots: „Home" und „Suche"
+/// zeigen die frei editierbaren Nachbauten (`MarketingHomeScreenView`,
+/// `MarketingSearchScreenView`), die übrigen drei Tabs sind exakt dieselben
+/// Live-Screens wie in `RootTabView` — überall normale Navigation, auch auf
+/// einzelne Veranstaltungen. Als eigene `TabView`, per `.fullScreenCover`
+/// präsentiert (statt per `NavigationLink` aus Profil heraus), damit die
+/// Tab-Leiste unten wirklich „Home" statt „Profil" als aktiv zeigt — für
+/// authentische Screenshots. Nur in Debug-Builds erreichbar (siehe
+/// ProfileView).
+///
+/// Ein einziger Modus statt zweier getrennter Einstiege: die Ansicht startet
+/// bearbeitbar (Stift in Home/Suche sichtbar, X oben links zum Abbrechen).
+/// „Fertig" im Bearbeiten-Sheet blendet beides aus — ab dann ist die
+/// Oberfläche unverändert aufnahmebereit. Heraus kommt man nur noch per
+/// Doppeltipp auf den Home-Tab, damit eine Aufnahme nie versehentlich das
+/// Werkzeug zeigt.
 struct MarketingAppShellView: View {
     let auth: AuthStore
     let userRepository: UserRepository?
@@ -81,7 +88,8 @@ struct MarketingAppShellView: View {
                     repository: eventRepository,
                     contentRepository: contentRepository,
                     auth: auth,
-                    userRepository: userRepository
+                    userRepository: userRepository,
+                    hidesSelectionUI: true
                 )
                     .tag(MarketingTab.calendar)
                     .tabItem { Label("Kalender", systemImage: "calendar") }
@@ -117,6 +125,13 @@ struct MarketingAppShellView: View {
         .task { await loadAvailableEvents() }
     }
 
+    // Nutzerfeedback: "man kann nicht alle Konzerte unter 'Echtes Event
+    // auswählen' auswählen" -- upcomingEvents(limit: 150) deckelte die Liste
+    // auf die ersten 150 chronologisch nächsten Termine über alle Städte
+    // hinweg; alles Weitere in der Zukunft fehlte im Picker komplett.
+    // allUpcomingEvents() paginiert stattdessen durch den vollständigen
+    // Bestand -- vertretbar hier, weil der Bereich nur in der
+    // Redaktions-Vorschau geladen wird, nicht im echten Nutzerfluss.
     @MainActor
     private func loadAvailableEvents() async {
         eventsLoadError = nil

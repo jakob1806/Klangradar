@@ -211,18 +211,24 @@ struct CityCompactMenu: View {
         }
     }
 
+    // Nutzerfeedback: Button (Home/Suche/Kalender) und vor allem der
+    // Richtungspfeil wirkten im Verhältnis zum Stadtnamen zu groß --
+    // Icons jetzt eigens verkleinert statt am Text-Schriftgrad hängend,
+    // Innenabstand/Höhe leicht reduziert, Design (Farbe, Kapselform,
+    // Glas-Hintergrund) unverändert.
     private var chipContent: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 5) {
             Image(systemName: "location.north.fill")
+                .font(.caption)
                 .rotationEffect(.degrees(28))
             Text(cityStore.selectedCity?.name ?? (allowsAllCities ? "Alle Städte" : "Stadt"))
             Image(systemName: "chevron.down")
                 .font(.caption2.weight(.bold))
         }
-        .font(.headline.weight(.semibold))
+        .font(.subheadline.weight(.semibold))
         .foregroundStyle(KlangradarTheme.accent)
-        .padding(.horizontal, 14)
-        .frame(height: 44)
+        .padding(.horizontal, 12)
+        .frame(height: 38)
     }
 
     @ViewBuilder

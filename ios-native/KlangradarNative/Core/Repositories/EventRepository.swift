@@ -99,7 +99,7 @@ struct LiveEventRepository: EventRepository {
     /// app/lib/core/regions/calendar_providers.dart), sonst wird die
     /// eingebettete Tabelle nur mitgeliefert statt gefiltert.
     private func fetchEvents(limit: Int, offset: Int, regionID: UUID? = nil) async throws -> [ConcertEvent] {
-        let venuesEmbed = regionID == nil ? "venues(id,name,photo_url)" : "venues!inner(id,name,photo_url)"
+        let venuesEmbed = regionID == nil ? "venues(id,name,photo_url,city_id)" : "venues!inner(id,name,photo_url,city_id)"
         var queryItems = [
             URLQueryItem(
                 name: "select",
@@ -297,9 +297,11 @@ struct LiveEventRepository: EventRepository {
             city: venueCity
         )
         async let groupContent = optionalGroupContent(programID: programID, excluding: eventID)
+        async let ticketLinks = optionalTicketLinks(eventID: eventID)
 
         enriched["_other_dates"] = .array(await otherDates.map { .object($0) })
         enriched["_similar_events"] = .array(await similarEvents.map { .object($0) })
+        enriched["_ticket_links"] = .array(await ticketLinks.map { .object($0) })
 
         if let sibling = await groupContent {
             if enriched.objects("event_works").isEmpty, !sibling.objects("event_works").isEmpty {
@@ -317,6 +319,16 @@ struct LiveEventRepository: EventRepository {
             }
         }
         return await enrichingEntityImages(await enrichingParentEnsembles(enriched))
+    }
+
+    private func optionalTicketLinks(eventID: String) async -> [JSONObject] {
+        guard !eventID.isEmpty else { return [] }
+        return (try? await client.get(table: "event_ticket_links", queryItems: [
+            URLQueryItem(name: "select", value: "url,price_min,price_max,currency,is_primary,is_broken,last_checked_at,availability_status,discount_categories,discount_notes,price_updated_at,ticket_providers(name,booking_fee_notes)"),
+            URLQueryItem(name: "event_id", value: "eq.\(eventID)"),
+            URLQueryItem(name: "is_broken", value: "eq.false"),
+            URLQueryItem(name: "order", value: "price_min.asc.nullslast")
+        ])) ?? []
     }
 
     /// ensembles.parent_ensemble_id ist ein Self-Join (Ensemble->Ensemble) —

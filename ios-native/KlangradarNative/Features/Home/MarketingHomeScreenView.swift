@@ -16,6 +16,12 @@ struct MarketingHomeScreenView: View {
     let eventRepository: any EventRepository
     let contentRepository: any ContentRepository
     @State private var showsEditor = false
+    // Nutzerfeedback: der Umweg Stift → großes Formular → richtige Karte
+    // suchen war zu umständlich. Solange bearbeitet wird, öffnet ein Tap auf
+    // eine sichtbare Karte direkt deren Schnell-Editor statt zu navigieren;
+    // im aufnahmebereiten Modus verhält sich jede Karte unverändert wie im
+    // echten Nutzerfluss (Navigation zur Detailansicht).
+    @State private var quickEditCardID: UUID?
 
     var body: some View {
         NavigationStack {
@@ -28,11 +34,23 @@ struct MarketingHomeScreenView: View {
                         heroLink
 
                         ForEach(store.content.modules) { module in
+                            if module.isEntityRail {
+                                MarketingEntityRail(
+                                    title: module.title,
+                                    events: module.events,
+                                    availableEvents: availableEvents,
+                                    isEditing: !isPresentationMode,
+                                    onEditCard: { quickEditCardID = $0 }
+                                )
+                            } else {
                             MarketingEventRail(
                                 title: module.title,
                                 events: module.events,
-                                availableEvents: availableEvents
+                                availableEvents: availableEvents,
+                                isEditing: !isPresentationMode,
+                                onEditCard: { quickEditCardID = $0 }
                             )
+                            }
                         }
                     }
                     .padding(.top, 8)
@@ -61,6 +79,11 @@ struct MarketingHomeScreenView: View {
                 }
                 .environmentObject(store)
             }
+            .sheet(isPresented: quickEditPresented) {
+                if let id = quickEditCardID, let binding = store.binding(forCardID: id) {
+                    MarketingQuickEditSheet(event: binding, availableEvents: availableEvents, onDelete: nil)
+                }
+            }
             .navigationDestination(for: MarketingEventData.self) { event in
                 MarketingEventDetailView(event: event)
             }
@@ -70,13 +93,22 @@ struct MarketingHomeScreenView: View {
         }
     }
 
+    private var quickEditPresented: Binding<Bool> {
+        Binding(get: { quickEditCardID != nil }, set: { if !$0 { quickEditCardID = nil } })
+    }
+
     @ViewBuilder
     private var heroLink: some View {
-        if let event = linkedEvent(for: store.content.hero.sourceEventID) {
-            NavigationLink(value: event) { heroView }
-                .buttonStyle(.plain)
+        if isPresentationMode {
+            if let event = linkedEvent(for: store.content.hero.sourceEventID) {
+                NavigationLink(value: event) { heroView }
+                    .buttonStyle(.plain)
+            } else {
+                NavigationLink(value: heroEvent) { heroView }
+                    .buttonStyle(.plain)
+            }
         } else {
-            NavigationLink(value: heroEvent) { heroView }
+            Button { showsEditor = true } label: { heroView }
                 .buttonStyle(.plain)
         }
     }
@@ -217,11 +249,16 @@ private struct MarketingEventCard: View {
     }
 }
 
-/// Exakter Nachbau von `EventRail` aus `HomeView.swift`.
-private struct MarketingEventRail: View {
+/// Exakter Nachbau von `EntityRail` aus `HomeView.swift` -- runde
+/// Avatar-Kacheln für "Gefolgte Personen"/"Gefolgte Ensembles" statt
+/// rechteckiger Event-Karten. Nutzt dieselben `MarketingEventData`-Felder
+/// (Bild + Titel), zeigt aber nur den Namen darunter statt Titel/Untertitel.
+private struct MarketingEntityRail: View {
     let title: String
     let events: [MarketingEventData]
     let availableEvents: [ConcertEvent]
+    let isEditing: Bool
+    let onEditCard: (UUID) -> Void
 
     var body: some View {
         if !events.isEmpty {
@@ -233,7 +270,74 @@ private struct MarketingEventRail: View {
                 ScrollView(.horizontal) {
                     LazyHStack(alignment: .top, spacing: 16) {
                         ForEach(events) { event in
-                            if let liveEvent = linkedEvent(for: event) {
+                            if isEditing {
+                                Button { onEditCard(event.id) } label: { MarketingEntityAvatar(event: event) }
+                                    .buttonStyle(.plain)
+                            } else if let liveEvent = linkedEvent(for: event) {
+                                NavigationLink(value: liveEvent) { MarketingEntityAvatar(event: event) }
+                                    .buttonStyle(.plain)
+                            } else {
+                                NavigationLink(value: event) { MarketingEntityAvatar(event: event) }
+                                    .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, KlangradarTheme.pagePadding)
+                }
+                .scrollIndicators(.hidden)
+            }
+        }
+    }
+
+    private func linkedEvent(for marketingEvent: MarketingEventData) -> ConcertEvent? {
+        guard let id = marketingEvent.sourceEventID else { return nil }
+        return availableEvents.first(where: { $0.id == id })
+    }
+}
+
+private struct MarketingEntityAvatar: View {
+    let event: MarketingEventData
+
+    var body: some View {
+        VStack(spacing: 8) {
+            MarketingArtwork(imagePath: event.imagePath)
+                .frame(width: 92, height: 92)
+                .clipShape(Circle())
+            Text(event.title)
+                .font(.subheadline.weight(.medium))
+                .lineLimit(2)
+                .multilineTextAlignment(.center)
+                .frame(width: 100)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// Exakter Nachbau von `EventRail` aus `HomeView.swift`. Während des
+/// Vorbereitens (`isEditing`) öffnet ein Tap den Schnell-Editor der Karte
+/// statt zu navigieren -- im aufnahmebereiten Modus unverändert echte
+/// Navigation.
+private struct MarketingEventRail: View {
+    let title: String
+    let events: [MarketingEventData]
+    let availableEvents: [ConcertEvent]
+    let isEditing: Bool
+    let onEditCard: (UUID) -> Void
+
+    var body: some View {
+        if !events.isEmpty {
+            VStack(alignment: .leading, spacing: 16) {
+                Text(title)
+                    .font(.title2.bold())
+                    .padding(.horizontal, KlangradarTheme.pagePadding)
+
+                ScrollView(.horizontal) {
+                    LazyHStack(alignment: .top, spacing: 16) {
+                        ForEach(events) { event in
+                            if isEditing {
+                                Button { onEditCard(event.id) } label: { MarketingEventCard(event: event) }
+                                    .buttonStyle(.plain)
+                            } else if let liveEvent = linkedEvent(for: event) {
                                 NavigationLink(value: liveEvent) { MarketingEventCard(event: event) }
                                     .buttonStyle(.plain)
                             } else {
@@ -267,6 +371,7 @@ struct MarketingSearchScreenView: View {
     let contentRepository: any ContentRepository
     @State private var query = ""
     @State private var showsEditor = false
+    @State private var quickEditCardID: UUID?
 
     private var visibleEvents: [MarketingEventData] {
         let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -337,6 +442,11 @@ struct MarketingSearchScreenView: View {
                 }
                 .environmentObject(store)
             }
+            .sheet(isPresented: quickEditPresented) {
+                if let id = quickEditCardID, let binding = store.binding(forCardID: id) {
+                    MarketingQuickEditSheet(event: binding, availableEvents: availableEvents, onDelete: nil)
+                }
+            }
             .navigationDestination(for: MarketingEventData.self) { event in
                 MarketingEventDetailView(event: event)
             }
@@ -347,6 +457,10 @@ struct MarketingSearchScreenView: View {
                 DirectoryView(kind: kind, repository: contentRepository)
             }
         }
+    }
+
+    private var quickEditPresented: Binding<Bool> {
+        Binding(get: { quickEditCardID != nil }, set: { if !$0 { quickEditCardID = nil } })
     }
 
     private var discoveryContent: some View {
@@ -393,7 +507,10 @@ struct MarketingSearchScreenView: View {
         _ event: MarketingEventData,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        if let liveEvent = linkedEvent(for: event) {
+        if !isPresentationMode {
+            Button(action: { quickEditCardID = event.id }, label: content)
+                .buttonStyle(.plain)
+        } else if let liveEvent = linkedEvent(for: event) {
             NavigationLink(value: liveEvent, label: content)
         } else {
             NavigationLink(value: event, label: content)
@@ -426,8 +543,11 @@ private struct MarketingSearchEventRow: View {
     }
 }
 
-/// Die vier Entdecken-Einstiege folgen dem Aufbau der echten Suche. Sie
-/// bleiben im Aufnahmemodus voll bedienbar und öffnen die normalen Verzeichnisse.
+/// Die vier Entdecken-Einstiege folgen dem Aufbau der echten Suche -- inkl.
+/// derselben kuratierten Bilder (Bach für Personen, BRSO für Ensembles,
+/// Isarphilharmonie für Orte, dasselbe Werke-Stockbild), statt der reinen
+/// Farbverlauf-Kacheln von vorher. Sie bleiben im Aufnahmemodus voll
+/// bedienbar und öffnen die normalen Verzeichnisse.
 private struct MarketingDiscoveryTile: View {
     let kind: EntityKind
 
@@ -440,14 +560,24 @@ private struct MarketingDiscoveryTile: View {
         }
     }
 
+    private var artworkURL: URL? {
+        switch kind {
+        case .person: URL(string: "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/Johann_Sebastian_Bach.jpg/330px-Johann_Sebastian_Bach.jpg")
+        case .ensemble: URL(string: "https://zqgzcspeqllrihfwmayn.supabase.co/storage/v1/object/public/entity-photos/ensemble/d03d4a2f-d3f9-470b-8e08-1d8c7e552eaa/f28788b7-b906-49fe-acf7-85b745ff222a.jpg")
+        case .venue: URL(string: "https://zqgzcspeqllrihfwmayn.supabase.co/storage/v1/object/public/entity-photos/venues/9660dd7c-7616-45e0-bc4e-02f8041a6984.jpg")
+        case .work: nil
+        }
+    }
+
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
             LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
-            Image(systemName: kind.systemImage)
-                .font(.system(size: 52, weight: .bold))
-                .foregroundStyle(.white.opacity(0.24))
-                .rotationEffect(.degrees(-9))
-                .offset(x: 12, y: 12)
+            artwork
+                .frame(width: 104, height: 104)
+                .clipShape(.rect(cornerRadius: 12))
+                .rotationEffect(.degrees(9))
+                .shadow(color: .black.opacity(0.25), radius: 8, y: 4)
+                .offset(x: 17, y: 19)
             Text(kind.title)
                 .font(.headline.bold())
                 .foregroundStyle(.white)
@@ -457,6 +587,32 @@ private struct MarketingDiscoveryTile: View {
         .frame(height: 132)
         .clipShape(.rect(cornerRadius: 20))
         .accessibilityElement(children: .combine)
+    }
+
+    @ViewBuilder private var artwork: some View {
+        if kind == .work {
+            Image("WorkDiscovery")
+                .resizable()
+                .scaledToFill()
+        } else {
+            AsyncImage(url: artworkURL) { phase in
+                if case let .success(image) = phase {
+                    image.resizable().scaledToFill()
+                } else {
+                    artworkPlaceholder
+                }
+            }
+        }
+    }
+
+    private var artworkPlaceholder: some View {
+        Rectangle()
+            .fill(.white.opacity(0.16))
+            .overlay {
+                Image(systemName: kind.systemImage)
+                    .font(.system(size: 32, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.9))
+            }
     }
 }
 
@@ -474,7 +630,7 @@ private struct MarketingSearchDiscoveryEventCard: View {
                 endPoint: .bottom
             )
             VStack(alignment: .leading, spacing: 6) {
-                Text("KONZERT")
+                Text(event.categoryLabel)
                     .font(.caption2.bold())
                     .tracking(0.8)
                     .foregroundStyle(.white.opacity(0.78))

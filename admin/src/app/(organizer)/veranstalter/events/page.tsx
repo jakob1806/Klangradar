@@ -1,19 +1,13 @@
 import Link from "next/link";
-import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
 import { resolveEntityNames, type ClaimableEntityType } from "@/lib/entity-tables";
-import { formatMunichDateTime } from "@/lib/munich-time";
 import { getEventOrganizerOptions } from "../event-organizer-context";
+import { PageHeader, PageBody } from "@/components/organizer/page-header";
+import { Card, CardContent } from "@/components/organizer/ui/card";
+import { Button } from "@/components/organizer/ui/button";
+import { EventsTable, type ListedEventRow } from "./events-table";
 
 export const dynamic = "force-dynamic";
-
-const STATUS_LABEL: Record<string, string> = {
-  scheduled: "Geplant",
-  sold_out: "Ausverkauft",
-  cancelled: "Abgesagt",
-  postponed: "Verschoben",
-  draft: "Entwurf",
-};
 
 interface EventRow {
   id: string;
@@ -101,81 +95,53 @@ export default async function VeranstalterEventsPage() {
   const events = [...listedEvents.values()].sort((a, b) => a.start_datetime.localeCompare(b.start_datetime));
   const error = ownResult.error ?? venueResult.error ?? personParticipantsResult.error ?? ensembleParticipantsResult.error ?? participantEventsResult.error;
 
-  // Imports und redaktionelle Uploads landen häufig in der zentralen
-  // images-Galerie statt direkt in events.image_urls. Für die Portal-Liste
-  // beide Quellen zusammenführen, identisch zur Redaktions-Eventliste.
-  const galleryThumbByEventId = new Map<string, string>();
-  const idsWithoutInlineImage = events.filter((event) => !event.image_urls?.[0]).map((event) => event.id);
-  if (idsWithoutInlineImage.length > 0) {
-    const { data: galleryRows } = await supabase
-      .from("images")
-      .select("origin_id, thumbnail_path, storage_path, source_url, sort_order")
-      .eq("origin_type", "event")
-      .in("origin_id", idsWithoutInlineImage)
-      .in("license_status", ["confirmed_free", "confirmed_licensed"])
-      .order("sort_order", { ascending: true });
-    for (const row of galleryRows ?? []) {
-      if (galleryThumbByEventId.has(row.origin_id as string)) continue;
-      const path = row.thumbnail_path ?? row.storage_path;
-      const url = path ? supabase.storage.from("ingested-images").getPublicUrl(path).data.publicUrl : row.source_url;
-      if (url) galleryThumbByEventId.set(row.origin_id as string, url);
-    }
-  }
-
   return (
-    <div className="mx-auto max-w-4xl px-6 py-10">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="type-heading text-2xl text-[#1d1d1f]">Meine Events</h1>
-        {organizerIds.length > 0 && <Link href="/veranstalter/events/new" className="rounded-full bg-[#0071e3] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#0077ed]">Neu anlegen</Link>}
-      </div>
-
-      <p className="-mt-3 mb-6 text-sm text-[#86868b]">Kommende eigene Events und Termine deiner beanspruchten Profile, chronologisch ab heute.</p>
-      {error && (
-        <p className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          Deine Events konnten gerade nicht geladen werden. Bitte lade die Seite erneut; die Events selbst sind nicht verloren.
-        </p>
-      )}
-      {events.length === 0 ? (
-        organizerIds.length === 0 && profileClaims.length === 0 ? <p className="text-sm text-[#86868b]">Noch keine Events. Beanspruche zuerst ein Profil unter <Link href="/veranstalter/claim" className="font-medium text-[#0071e3] hover:underline">Beanspruchen</Link>.</p>
-        : <p className="text-sm text-[#86868b]">Noch keine kommenden Events. Lege dein erstes Event an.</p>
-      ) : (
-        <div className="overflow-hidden rounded-xl border border-black/[0.06] bg-white">
-          <table className="w-full text-sm">
-            <thead className="border-b border-black/[0.06] text-left">
-              <tr>
-                <th className="px-4 py-3 text-xs font-semibold text-[#86868b]">Bild</th>
-                <th className="px-4 py-3 text-xs font-semibold text-[#86868b]">Titel</th>
-                <th className="px-4 py-3 text-xs font-semibold text-[#86868b]">Ort</th>
-                <th className="px-4 py-3 text-xs font-semibold text-[#86868b]">Termin</th>
-                <th className="px-4 py-3 text-xs font-semibold text-[#86868b]">Status</th>
-                <th className="px-4 py-3 text-xs font-semibold text-[#86868b]">Zuordnung</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-neutral-200">
-              {events.map((event) => (
-                <tr key={event.id} className="transition-colors hover:bg-black/[0.018]">
-                  <td className="px-4 py-3"><div className="relative h-14 w-20 overflow-hidden rounded-lg bg-[#eeeae2]">{(event.image_urls?.[0] ?? galleryThumbByEventId.get(event.id)) ? <Image src={event.image_urls?.[0] ?? galleryThumbByEventId.get(event.id)!} alt={`Vorschaubild für ${event.title}`} fill className="object-cover" sizes="80px" unoptimized /> : <div className="flex h-full items-end p-2 text-[9px] font-semibold uppercase tracking-[0.08em] text-[#9a948b]">Klangradar</div>}</div></td>
-                  <td className="px-4 py-3 font-medium text-[#1d1d1f]">{event.title}</td>
-                  <td className="px-4 py-3 text-[#48484a]">{event.venues?.name ?? "—"}</td>
-                  <td className="px-4 py-3 tabular-nums text-[#48484a]">{formatMunichDateTime(event.start_datetime)}</td>
-                  <td className="px-4 py-3">
-                    <span className="rounded-full border border-black/10 bg-black/[0.03] px-2.5 py-1 text-xs font-medium text-[#48484a]">
-                      {STATUS_LABEL[event.status] ?? event.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-xs text-[#86868b]">
-                    {event.source === "own" ? "Eigenes Event" : event.sourceLabel}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <Link href={`/veranstalter/events/${event.id}`} className="font-semibold text-[#8b2635] hover:underline">Bearbeiten</Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+    <div>
+      <PageHeader
+        eyebrow="Events"
+        title="Meine Events"
+        description="Kommende eigene Events und Termine deiner beanspruchten Profile, chronologisch ab heute."
+        actions={
+          organizerIds.length > 0 && (
+            <Button asChild>
+              <Link href="/veranstalter/events/new">Neu anlegen</Link>
+            </Button>
+          )
+        }
+      />
+      <PageBody className="flex flex-col gap-6">
+        {error && (
+          <p className="rounded-xl border border-[#a9700f]/20 bg-[#a9700f]/10 px-4 py-3 text-sm text-[#8a5a0c]">
+            Deine Events konnten gerade nicht geladen werden. Bitte lade die Seite erneut; die Events selbst sind nicht verloren.
+          </p>
+        )}
+        {events.length === 0 ? (
+          <Card>
+            <CardContent className="pt-5 text-sm text-[#726c78]">
+              {organizerIds.length === 0 && profileClaims.length === 0 ? (
+                <>Noch keine Events. Beanspruche zuerst ein Profil unter <Link href="/veranstalter/claim" className="font-semibold text-[#2D2A6E] hover:underline">Beanspruchen</Link>.</>
+              ) : (
+                "Noch keine kommenden Events. Lege dein erstes Event an."
+              )}
+            </CardContent>
+          </Card>
+        ) : (
+          <EventsTable
+            events={events.map(
+              (event): ListedEventRow => ({
+                id: event.id,
+                title: event.title,
+                start_datetime: event.start_datetime,
+                status: event.status,
+                venueName: event.venues?.name ?? null,
+                imageUrl: event.image_urls?.[0] ?? null,
+                source: event.source,
+                sourceLabel: event.sourceLabel,
+              })
+            )}
+          />
+        )}
+      </PageBody>
     </div>
   );
 }

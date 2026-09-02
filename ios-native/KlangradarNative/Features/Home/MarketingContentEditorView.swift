@@ -72,41 +72,31 @@ struct MarketingContentEditorView: View {
                         TextField("Veranstaltungsort", text: $store.content.hero.venue)
                     }
 
-                    ForEach($store.content.modules) { $module in
-                        Section {
-                            TextField("Kategoriename", text: $module.title)
-
-                            ForEach($module.events) { $event in
-                                MarketingEditableEventFields(event: $event, availableEvents: availableEvents)
-                            }
-                            .onDelete { offsets in module.events.remove(atOffsets: offsets) }
-                            .onMove { from, to in module.events.move(fromOffsets: from, toOffset: to) }
-
-                            Button {
-                                module.events.append(MarketingEventData(title: "Neue Veranstaltung", subtitle: "Datum, Uhrzeit · Ort"))
+                    // Nutzerfeedback: "Verschieben der Kategorien ist noch zu
+                    // schwer" — die Chevron-Tasten pro Sektion brauchten bei
+                    // vielen Kategorien (jetzt alle echten Home-Reihen, siehe
+                    // MarketingContentStore) viele Taps für eine weite
+                    // Verschiebung. Jede Kategorie ist jetzt eine eigene
+                    // Zeile mit echtem Drag-Griff (über "Bearbeiten" oben
+                    // rechts einblendbar) statt eines aufgeklappten
+                    // Formulars; Titel/Veranstaltungen werden beim Antippen
+                    // in einem eigenen Bildschirm bearbeitet.
+                    Section("Kategorien") {
+                        ForEach($store.content.modules) { $module in
+                            NavigationLink {
+                                MarketingModuleEditorView(module: $module, availableEvents: availableEvents)
                             } label: {
-                                Label("Veranstaltung hinzufügen", systemImage: "plus")
-                            }
-                        } header: {
-                            HStack {
-                                Text("Kategorie")
-                                Spacer()
-                                Button { moveModule(module.id, by: -1) } label: { Image(systemName: "chevron.up") }
-                                    .disabled(!canMoveModule(module.id, by: -1))
-                                Button { moveModule(module.id, by: 1) } label: { Image(systemName: "chevron.down") }
-                                    .disabled(!canMoveModule(module.id, by: 1))
-                            }
-                            .buttonStyle(.plain)
-                            .font(.caption.weight(.semibold))
-                        }
-                        .swipeActions(edge: .trailing) {
-                            Button(role: .destructive) { store.content.modules.removeAll { $0.id == module.id } } label: {
-                                Label("Kategorie löschen", systemImage: "trash")
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(module.title.isEmpty ? "Unbenannte Kategorie" : module.title)
+                                    Text("\(module.events.count) Veranstaltung\(module.events.count == 1 ? "" : "en")")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
                             }
                         }
-                    }
+                        .onDelete { offsets in store.content.modules.remove(atOffsets: offsets) }
+                        .onMove { from, to in store.content.modules.move(fromOffsets: from, toOffset: to) }
 
-                    Section {
                         Button {
                             store.content.modules.append(MarketingModuleData(
                                 title: "Neue Kategorie",
@@ -168,17 +158,40 @@ struct MarketingContentEditorView: View {
         }
     }
 
-    private func canMoveModule(_ id: UUID, by offset: Int) -> Bool {
-        guard let index = store.content.modules.firstIndex(where: { $0.id == id }) else { return false }
-        let target = index + offset
-        return target >= 0 && target < store.content.modules.count
-    }
+}
 
-    private func moveModule(_ id: UUID, by offset: Int) {
-        guard let index = store.content.modules.firstIndex(where: { $0.id == id }) else { return }
-        let target = index + offset
-        guard target >= 0 && target < store.content.modules.count else { return }
-        store.content.modules.swapAt(index, target)
+/// Eigener Bildschirm für eine Kategorie -- Titel und ihre Veranstaltungen,
+/// aus der Kategorienliste per Tap erreichbar (siehe deren
+/// Nutzerfeedback-Kommentar). Events bleiben innerhalb der Kategorie per
+/// Drag-Griff sortierbar.
+private struct MarketingModuleEditorView: View {
+    @Binding var module: MarketingModuleData
+    let availableEvents: [ConcertEvent]
+
+    var body: some View {
+        Form {
+            Section("Kategoriename") {
+                TextField("Kategoriename", text: $module.title)
+            }
+            Section("Veranstaltungen") {
+                ForEach($module.events) { $event in
+                    MarketingEditableEventFields(event: $event, availableEvents: availableEvents)
+                }
+                .onDelete { offsets in module.events.remove(atOffsets: offsets) }
+                .onMove { from, to in module.events.move(fromOffsets: from, toOffset: to) }
+
+                Button {
+                    module.events.append(MarketingEventData(title: "Neue Veranstaltung", subtitle: "Datum, Uhrzeit · Ort"))
+                } label: {
+                    Label("Veranstaltung hinzufügen", systemImage: "plus")
+                }
+            }
+        }
+        .navigationTitle(module.title.isEmpty ? "Kategorie" : module.title)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) { EditButton() }
+        }
     }
 }
 
@@ -186,13 +199,18 @@ struct MarketingContentEditorView: View {
 /// nehmen: Bild, Titel und Unterzeile können anschließend weiter angepasst
 /// werden. Der Bezug sorgt zugleich dafür, dass ein Tippen in der Aufnahme
 /// zur echten Event-Detailansicht führt.
-private struct MarketingEditableEventFields: View {
+struct MarketingEditableEventFields: View {
     @Binding var event: MarketingEventData
     let availableEvents: [ConcertEvent]
     @State private var showsPicker = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 14) {
+            // Nutzerfeedback: ein Tap hier landete öfter versehentlich auf
+            // "Aus Fotos wählen" direkt darunter -- beide saßen mit nur 8pt
+            // Abstand in derselben Zeile, ohne eigene Tapfläche. Jetzt mehr
+            // Abstand plus explizit begrenzte, nicht per Zufall
+            // überlappende Tapfläche für den Button.
             Button {
                 showsPicker = true
             } label: {
@@ -201,10 +219,19 @@ private struct MarketingEditableEventFields: View {
                     systemImage: "calendar.badge.plus"
                 )
                 .font(.subheadline.weight(.medium))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
             MarketingImageField(imagePath: $event.imagePath)
             TextField("Veranstaltungstitel", text: $event.title)
             TextField("Datum, Uhrzeit · Ort", text: $event.subtitle)
+            // Nur auf der Entdecken-Kachel in der Suche sichtbar (siehe
+            // MarketingSearchDiscoveryEventCard) -- auf den übrigen Karten
+            // wirkungslos, bleibt aber überall editierbar, falls eine Karte
+            // später dorthin verschoben wird.
+            TextField("Kategorie-Label (z. B. KONZERT, OPER)", text: $event.categoryLabel)
+                .textInputAutocapitalization(.characters)
         }
         .padding(.vertical, 4)
         .sheet(isPresented: $showsPicker) {
@@ -220,14 +247,26 @@ private struct MarketingEditableEventFields: View {
 
 private struct MarketingEventPicker: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var cityStore: CityStore
     let events: [ConcertEvent]
     let onSelect: (ConcertEvent) -> Void
     @State private var query = ""
+    // Nutzerfeedback: die Suche über alle Städte hinweg (~1.800 Events) war
+    // spürbar laggy und ein Stadt-Filter fehlte ganz. Der Filter grenzt die
+    // Kandidatenliste VOR der Textsuche ein -- startet mit der in Home/Suche
+    // aktuell gewählten Stadt, da das meistens auch die Stadt ist, für die
+    // gerade Screenshots vorbereitet werden.
+    @State private var cityFilter: UUID?
+
+    private var cityScopedEvents: [ConcertEvent] {
+        guard let cityFilter else { return events }
+        return events.filter { $0.venues?.cityId == cityFilter }
+    }
 
     private var filteredEvents: [ConcertEvent] {
         let normalized = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !normalized.isEmpty else { return events }
-        return events.filter {
+        guard !normalized.isEmpty else { return cityScopedEvents }
+        return cityScopedEvents.filter {
             $0.title.localizedCaseInsensitiveContains(normalized)
                 || $0.venueName.localizedCaseInsensitiveContains(normalized)
                 || $0.dateLine.localizedCaseInsensitiveContains(normalized)
@@ -276,12 +315,63 @@ private struct MarketingEventPicker: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Abbrechen") { dismiss() }
                 }
+                ToolbarItem(placement: .primaryAction) {
+                    Menu {
+                        Button("Alle Städte") { cityFilter = nil }
+                        ForEach(cityStore.activeCities) { city in
+                            Button(city.name) { cityFilter = city.id }
+                        }
+                    } label: {
+                        Label(cityStore.activeCities.first { $0.id == cityFilter }?.name ?? "Alle Städte", systemImage: "line.3.horizontal.decrease.circle")
+                    }
+                }
+            }
+            .onAppear {
+                if cityFilter == nil { cityFilter = cityStore.selectedCity?.id }
             }
         }
     }
 }
 
+/// Nutzerfeedback: der Umweg über den Stift → großes Formular → richtige
+/// Karte suchen war zu umständlich. Im Vorbereiten-Modus öffnet ein Tap auf
+/// eine Karte direkt diesen kompakten Editor für genau diese eine
+/// Veranstaltung — Home/Suche bleiben dabei sichtbar im Hintergrund.
+struct MarketingQuickEditSheet: View {
+    @Binding var event: MarketingEventData
+    let availableEvents: [ConcertEvent]
+    let onDelete: (() -> Void)?
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Diese Karte") {
+                    MarketingEditableEventFields(event: $event, availableEvents: availableEvents)
+                }
+                if let onDelete {
+                    Section {
+                        Button("Karte entfernen", role: .destructive) {
+                            onDelete()
+                            dismiss()
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Karte bearbeiten")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Fertig") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+}
+
 private func marketingHeroDateLabel(for event: ConcertEvent) -> String {
     guard let date = event.startDate else { return "TERMIN FOLGT" }
-    return KlangradarDateTime.string(date, format: "EEE., d. MMM · HH:mm").uppercased()
+    return KlangradarDateTime.string(date, format: "EEE, d. MMM · HH:mm").uppercased()
 }

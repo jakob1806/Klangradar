@@ -10,6 +10,7 @@ import type { GalleryImage } from "@/lib/gallery-actions";
 import { deleteEvent, updateEvent } from "../actions";
 import { EventForm, type EventFormValues } from "../event-form";
 import { loadEventFormOptions } from "../form-options";
+import { TicketProviderManager, type TicketLinkRow } from "./ticket-provider-manager";
 
 interface EventDetailRow {
   id: string;
@@ -51,7 +52,7 @@ export default async function EditEventPage({
   const { id } = await params;
   const supabase = await createClient();
 
-  const [{ data: event, error }, { venues, organizers, genres }, { data: images }] = await Promise.all([
+  const [{ data: event, error }, { venues, organizers, genres }, { data: images }, { data: ticketLinks }] = await Promise.all([
     supabase
       .from("events")
       .select(
@@ -69,6 +70,9 @@ export default async function EditEventPage({
       .in("license_status", ["confirmed_free", "confirmed_licensed"])
       .order("sort_order", { ascending: true })
       .returns<GalleryImage[]>(),
+    supabase.from("event_ticket_links")
+      .select("url,price_min,price_max,currency,is_primary,is_broken,last_checked_at,availability_status,discount_categories,discount_notes,price_updated_at,ticket_providers(name)")
+      .eq("event_id", id).order("price_min", { ascending: true, nullsFirst: false }).returns<TicketLinkRow[]>(),
   ]);
 
   if (error || !event) notFound();
@@ -141,6 +145,10 @@ export default async function EditEventPage({
           organizers={organizers}
           genres={genres}
         />
+      </div>
+
+      <div className="mt-8 max-w-xl border-t border-neutral-200 pt-6">
+        <TicketProviderManager eventId={id} links={ticketLinks ?? []} />
       </div>
 
       <div className="mt-8 max-w-xl border-t border-neutral-200 pt-6">
