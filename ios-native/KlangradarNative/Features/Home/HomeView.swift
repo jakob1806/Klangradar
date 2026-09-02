@@ -146,27 +146,29 @@ struct HomeView: View {
             }
             .overlay(alignment: .bottomTrailing) {
                 if auth != nil, userRepository != nil {
+                    // Nutzerfeedback: ein reines "K" in einem Farbverlauf-Kreis
+                    // wirkte beliebig -- jetzt das echte App-Icon-Mark
+                    // (KlangradarMark.imageset, aus demselben 1024er-PNG wie
+                    // AppIcon.appiconset), als Squircle statt Kreis geclippt,
+                    // damit es sich wie ein echtes iOS-App-Icon anfühlt statt
+                    // wie ein Custom-Badge.
                     Button {
                         showsCoach = true
                     } label: {
-                        Text("K")
-                            .font(.system(size: 24, weight: .black, design: .rounded))
-                            .foregroundStyle(.white)
+                        Image("KlangradarMark")
+                            .resizable()
+                            .scaledToFill()
                             .frame(width: 58, height: 58)
-                            .background(
-                                LinearGradient(
-                                    colors: [KlangradarTheme.accent, KlangradarTheme.accent.opacity(0.72)],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                ),
-                                in: Circle()
-                            )
-                            .overlay { Circle().stroke(.white.opacity(0.34), lineWidth: 1) }
-                            .shadow(color: KlangradarTheme.accent.opacity(0.32), radius: 14, y: 7)
+                            .clipShape(.rect(cornerRadius: 16, style: .continuous))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .strokeBorder(.white.opacity(0.5), lineWidth: 1)
+                            }
+                            .shadow(color: .black.opacity(0.22), radius: 12, y: 6)
                     }
                     .buttonStyle(CoachFloatingButtonStyle())
-                    .accessibilityLabel("Klangradar Coach öffnen")
-                    .accessibilityHint("Öffnet den persönlichen Coach in einer halbhohen Ansicht")
+                    .accessibilityLabel("Klangradar KI öffnen")
+                    .accessibilityHint("Öffnet die persönliche KI in einer halbhohen Ansicht")
                     .padding(.trailing, 18)
                     .padding(.bottom, 18)
                 }

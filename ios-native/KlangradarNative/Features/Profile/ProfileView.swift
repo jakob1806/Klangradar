@@ -50,7 +50,7 @@ struct ProfileView: View {
                             contentRepository: contentRepository
                         )
                     } label: {
-                        Label("Klangradar Coach", systemImage: "wand.and.stars")
+                        Label("Klangradar KI", systemImage: "wand.and.stars")
                     }
                     NavigationLink {
                         FavoriteEventsView(auth: auth, repository: userRepository, eventRepository: eventRepository, contentRepository: contentRepository)
@@ -410,7 +410,7 @@ private struct MyKlangradarHubView: View {
 
 
 struct KlangradarCoachView: View {
-    private enum Section: String, CaseIterable { case overview = "Heute", chat = "Coach fragen" }
+    private enum Section: String, CaseIterable { case overview = "Heute", chat = "KI fragen" }
     private struct ChatMessage: Identifiable { let id = UUID(); let text: String; let user: Bool }
 
     @ObservedObject var auth: AuthStore
@@ -467,7 +467,7 @@ struct KlangradarCoachView: View {
             }
         }
         .background { KlangradarBackground().ignoresSafeArea() }
-        .navigationTitle("Klangradar Coach")
+        .navigationTitle("Klangradar KI")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if showsDismissButton {
@@ -501,7 +501,7 @@ struct KlangradarCoachView: View {
                 }.buttonStyle(.plain)
 
                 if let dashboard {
-                    Text("Deine Coach-Linsen").font(.title2.bold())
+                    Text("Deine KI-Linsen").font(.title2.bold())
                     lensGrid(dashboard)
                     if dashboard.signalQuality == "low" {
                         Label("Ich lerne dich noch kennen. Empfehlungen basieren aktuell vor allem auf deinen bestätigten Interessen und gespeicherten Events.", systemImage: "info.circle")
@@ -515,23 +515,38 @@ struct KlangradarCoachView: View {
                         Text("Beobachtete Zusammenhänge").font(.title2.bold()).padding(.top, 4)
                         ForEach(Array(dashboard.trends.enumerated()), id: \.offset) { _, trend in trendCard(trend) }
                     }
-                } else if isLoading { ProgressView("Coach-Daten werden ausgewertet …").frame(maxWidth: .infinity).padding(40) }
+                } else if isLoading { ProgressView("KI-Daten werden ausgewertet …").frame(maxWidth: .infinity).padding(40) }
                 if let errorMessage { Text(errorMessage).font(.footnote).foregroundStyle(.red) }
             }.padding().padding(.bottom, 80)
         }
         .refreshable { await loadDashboard() }
     }
 
+    // Nutzerfeedback: "Design der KI in der nativen App mehr nach iOS,
+    // aktuell sieht es noch etwas komisch aus" -- die violette
+    // Farbverlauf-Karte mit weißem Text wirkte wie ein generisches
+    // Chat-App-Template statt einem Klangradar-eigenen Bereich. Jetzt
+    // Systemmaterial/-farben wie im Rest der App (siehe coachLens/
+    // insightCard direkt darunter), Akzentfarbe nur noch fürs Icon.
     private var coachHeader: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack { Image(systemName: "sparkles").font(.title2); Spacer(); Text("PERSÖNLICHER KULTUR-COACH").font(.caption2.bold()).tracking(1) }
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: "sparkles")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(KlangradarTheme.accent)
+                Text("Persönliche Kultur-KI")
+                    .font(.caption.weight(.semibold))
+                    .tracking(0.6)
+                    .foregroundStyle(.secondary)
+            }
             Text("Was passt heute zu dir?").font(.largeTitle.bold())
             Text("Ich verbinde deinen Geschmack, deine Planung und deinen aktuellen Check-in – mit echten Veranstaltungen aus Klangradar.")
-                .font(.subheadline).foregroundStyle(.white.opacity(0.86))
-            Button("Coach fragen", systemImage: "bubble.left.and.bubble.right.fill") { withAnimation { selectedSection = .chat } }
-                .buttonStyle(.borderedProminent).tint(.white).foregroundStyle(KlangradarTheme.accent)
-        }.foregroundStyle(.white).padding(20)
-            .background(LinearGradient(colors: [KlangradarTheme.accent, KlangradarTheme.accent.opacity(0.68), .purple.opacity(0.72)], startPoint: .topLeading, endPoint: .bottomTrailing), in: .rect(cornerRadius: 26, style: .continuous))
+                .font(.subheadline).foregroundStyle(.secondary)
+            Button("KI fragen", systemImage: "bubble.left.and.bubble.right.fill") { withAnimation { selectedSection = .chat } }
+                .buttonStyle(.borderedProminent)
+                .tint(KlangradarTheme.accent)
+        }.padding(20)
+            .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 22, style: .continuous))
     }
 
     private func lensGrid(_ value: CoachDashboard) -> some View {
@@ -558,7 +573,7 @@ struct KlangradarCoachView: View {
             HStack { Image(systemName: insightIcon(insight.kind)).foregroundStyle(insight.priority >= 3 ? .orange : KlangradarTheme.accent); Text(insight.title).font(.headline); Spacer() }
             Text(insight.body).font(.subheadline).foregroundStyle(.secondary)
             if let action = insight.actions.first, action.string("type") == "ask_coach", let prompt = action.string("prompt") {
-                Button("Mit Coach planen") { draft = prompt; selectedSection = .chat; Task { await send() } }.buttonStyle(.bordered)
+                Button("Mit KI planen") { draft = prompt; selectedSection = .chat; Task { await send() } }.buttonStyle(.bordered)
             }
         }.padding(16).background(.thinMaterial, in: .rect(cornerRadius: 20, style: .continuous))
     }
@@ -585,7 +600,7 @@ struct KlangradarCoachView: View {
                     ForEach(events) { event in coachEventCard(event) }
                     if let proposal = memoryProposal { proposalCard("Soll ich mir das merken?", proposal, action: "confirm_memory") }
                     if let proposal = goalProposal { proposalCard("Dieses Ziel übernehmen?", proposal, action: "confirm_goal") }
-                    if isLoading { ProgressView("Coach denkt mit deinen Daten …").frame(maxWidth: .infinity).padding() }
+                    if isLoading { ProgressView("KI denkt mit deinen Daten …").frame(maxWidth: .infinity).padding() }
                     if let errorMessage {
                         HStack(alignment: .top, spacing: 10) {
                             Image(systemName: "exclamationmark.circle.fill").foregroundStyle(.orange)
@@ -622,7 +637,7 @@ struct KlangradarCoachView: View {
                         }
                     }
                     HStack(alignment: .bottom, spacing: 10) {
-                        TextField("Nachricht an deinen Coach", text: $draft, axis: .vertical)
+                        TextField("Nachricht an deine KI", text: $draft, axis: .vertical)
                             .font(.body)
                             .lineLimit(1...5)
                             .submitLabel(.send)
@@ -679,7 +694,7 @@ struct KlangradarCoachView: View {
     }
 
     @MainActor private func loadDashboard() async {
-        guard let repository, let token = auth.accessToken else { errorMessage = "Bitte melde dich an, damit der Coach deine Daten sicher verwenden kann."; return }
+        guard let repository, let token = auth.accessToken else { errorMessage = "Bitte melde dich an, damit die KI deine Daten sicher verwenden kann."; return }
         isLoading = true; defer { isLoading = false }
         do { dashboard = try await repository.coachDashboard(token: token); errorMessage = nil } catch { errorMessage = coachErrorDescription(error) }
     }
@@ -705,15 +720,15 @@ struct KlangradarCoachView: View {
 
     private func coachErrorDescription(_ error: Error) -> String {
         guard let apiError = error as? APIError else {
-            return "Der Coach ist gerade nicht erreichbar. Prüfe deine Verbindung und versuche es erneut."
+            return "Die KI ist gerade nicht erreichbar. Prüfe deine Verbindung und versuche es erneut."
         }
         switch apiError {
         case .httpStatus(401, _):
             return "Deine Anmeldung ist abgelaufen. Melde dich bitte erneut an."
         case .httpStatus(404, _):
-            return "Der Coach wird gerade aktualisiert. Bitte versuche es gleich noch einmal."
+            return "Die KI wird gerade aktualisiert. Bitte versuche es gleich noch einmal."
         case .httpStatus(let status, _) where status >= 500:
-            return "Der Coach braucht gerade etwas länger. Bitte versuche es gleich noch einmal."
+            return "Die KI braucht gerade etwas länger. Bitte versuche es gleich noch einmal."
         default:
             return apiError.localizedDescription
         }
