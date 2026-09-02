@@ -156,6 +156,11 @@ struct ProfileView: View {
                     } label: {
                         Text("Impressum")
                     }
+                    HStack {
+                        Text("Version")
+                        Spacer()
+                        Text(appVersion).foregroundStyle(.secondary)
+                    }
                 }
             }
             .navigationTitle("Profil")
@@ -196,6 +201,12 @@ struct ProfileView: View {
             }
             .task(id: auth.accessToken) { await checkEditorialAccess() }
         }
+    }
+
+    private var appVersion: String {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "–"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "–"
+        return "\(version) (\(build))"
     }
 
     @MainActor
