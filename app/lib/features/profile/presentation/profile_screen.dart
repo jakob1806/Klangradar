@@ -306,10 +306,12 @@ class _VisitsDetailScreen extends StatelessWidget {
           .order('attended_at', ascending: false),
       builder: (context, snapshot) {
         final rows = snapshot.data ?? const <dynamic>[];
-        if (snapshot.connectionState != ConnectionState.done)
+        if (snapshot.connectionState != ConnectionState.done) {
           return const Center(child: CircularProgressIndicator());
-        if (rows.isEmpty)
+        }
+        if (rows.isEmpty) {
           return const Center(child: Text('Noch keine besuchten Konzerte.'));
+        }
         return ListView.separated(
           itemCount: rows.length,
           separatorBuilder: (_, _) => const Divider(height: 1),
