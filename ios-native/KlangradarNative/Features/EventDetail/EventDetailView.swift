@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import CoreLocation
 
 struct EventDetailView: View {
     let event: ConcertEvent
@@ -15,6 +16,8 @@ struct EventDetailView: View {
     @State private var isAttended = false
     @State private var isUpdatingAttendance = false
     @State private var attendanceError: String?
+    @State private var locationRequester = LocationRequester()
+    @State private var showsLocationConfirmation = false
     @EnvironmentObject private var favorites: FavoriteStore
     @EnvironmentObject private var reportStore: ReportStore
     @EnvironmentObject private var genreFilter: GenreFilterRouter
@@ -82,6 +85,12 @@ struct EventDetailView: View {
         .toolbar(.hidden, for: .navigationBar)
         .toolbar(.hidden, for: .tabBar)
         .fullScreenCover(item: $fullScreenImage) { FullScreenImageViewer(image: $0) }
+        .confirmationDialog("Standort stimmt mit der Spielstätte überein", isPresented: $showsLocationConfirmation, titleVisibility: .visible) {
+            Button("Ja, als besucht markieren") { Task { await confirmLocationAttendance() } }
+            Button("Abbrechen", role: .cancel) {}
+        } message: {
+            Text("Warst du bei diesem Konzert? Der Standort allein bestätigt keinen Besuch.")
+        }
         .alert("Besuch konnte nicht gespeichert werden", isPresented: Binding(
             get: { attendanceError != nil },
             set: { if !$0 { attendanceError = nil } }
@@ -175,18 +184,29 @@ struct EventDetailView: View {
                 .font(.headline)
             }
             if reportStore.auth.userID != nil {
-                Button {
-                    Task { await toggleAttendance() }
-                } label: {
-                    Label(isAttended ? "Als besucht markiert" : "Als besucht markieren", systemImage: isAttended ? "checkmark.circle.fill" : "checkmark.circle")
-                        .font(.subheadline.weight(.semibold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 4)
+                HStack(spacing: 10) {
+                    Button {
+                        Task { await toggleAttendance() }
+                    } label: {
+                        Label(isAttended ? "Besucht" : "Als besucht markieren", systemImage: isAttended ? "checkmark.circle.fill" : "checkmark.circle")
+                            .font(.subheadline.weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 4)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(isAttended ? .green : KlangradarTheme.accent)
+
+                    if !isAttended, event.venues?.id != nil {
+                        Button { Task { await checkLocation() } } label: {
+                            Image(systemName: "location.circle")
+                                .font(.title3)
+                                .frame(width: 34, height: 34)
+                        }
+                        .buttonStyle(.bordered)
+                        .accessibilityLabel("Standort an der Spielstätte prüfen")
+                    }
                 }
-                .buttonStyle(.bordered)
-                .tint(isAttended ? .green : KlangradarTheme.accent)
                 .disabled(isUpdatingAttendance)
-                .accessibilityHint(isAttended ? "Entfernt diesen Besuch aus deiner Konzerthistorie" : "Fügt dieses Konzert deiner Konzerthistorie hinzu")
             }
         }
     }
@@ -215,6 +235,39 @@ struct EventDetailView: View {
             isAttended.toggle()
             attendanceError = error.localizedDescription
         }
+    }
+
+    @MainActor
+    private func checkLocation() async {
+        guard let venueID = event.venues?.id, let repository = reportStore.repository else { return }
+        isUpdatingAttendance = true
+        defer { isUpdatingAttendance = false }
+        do {
+            async let venueTask = repository.venueLocation(id: venueID)
+            let coordinate = try await locationRequester.requestOnce()
+            guard let venue = try await venueTask else { throw LocationRequestError.unavailable }
+            let current = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+            let destination = CLLocation(latitude: venue.latitude, longitude: venue.longitude)
+            let distance = current.distance(from: destination)
+            guard distance <= 500 else {
+                attendanceError = "Du bist ungefähr \(Int(distance.rounded())) Meter von der Spielstätte entfernt. Manuell markieren ist weiterhin möglich."
+                return
+            }
+            showsLocationConfirmation = true
+        } catch { attendanceError = error.localizedDescription }
+    }
+
+    @MainActor
+    private func confirmLocationAttendance() async {
+        guard let repository = reportStore.repository,
+              let userID = reportStore.auth.userID,
+              let token = reportStore.auth.accessToken else { return }
+        isUpdatingAttendance = true
+        defer { isUpdatingAttendance = false }
+        do {
+            try await repository.setAttended(eventID: event.id, attended: true, attendedAt: event.startDate, verificationType: "location", userID: userID, token: token)
+            isAttended = true
+        } catch { attendanceError = error.localizedDescription }
     }
 
     /// Nutzeranfrage: Genre-Chips sollen antippbar sein — ein Tap filtert die

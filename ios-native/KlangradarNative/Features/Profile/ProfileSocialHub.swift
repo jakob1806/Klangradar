@@ -1,5 +1,20 @@
 import SwiftUI
 
+private struct VenueLocationDTO: Decodable, Sendable {
+    let id: UUID
+    let name: String
+    let city: String?
+    let lat: Double
+    let lng: Double
+}
+
+struct ArchivedConcert: Identifiable, Sendable {
+    let event: ConcertEvent
+    let city: String?
+    let searchableText: String
+    var id: UUID { event.id }
+}
+
 struct KlangLevel: Sendable {
     let number: Int
     let title: String
@@ -124,14 +139,26 @@ struct ProfileSocialSummary: Sendable {
 }
 
 extension UserRepository {
-    func archivedEvents(limit: Int = 500) async throws -> [ConcertEvent] {
+    func archivedEvents(limit: Int = 500) async throws -> [ArchivedConcert] {
         let rows: [JSONObject] = try await client.get(table: "events", queryItems: [
-            URLQueryItem(name: "select", value: "id,slug,title,subtitle,start_datetime,image_urls,status,category,is_free,venues(id,name,photo_url),event_genres(genres(id,slug,label_de)),event_participants(persons(id,full_name,photo_url),ensembles(id,name,photo_url))"),
+            URLQueryItem(name: "select", value: "id,slug,title,subtitle,start_datetime,image_urls,status,category,is_free,venues(id,name,address_city,photo_url),event_genres(genres(id,slug,label_de)),event_participants(persons(id,full_name,photo_url),ensembles(id,name,photo_url)),event_works(works(title,composer:persons(full_name)))"),
             URLQueryItem(name: "start_datetime", value: "lt.\(ISO8601DateFormatter().string(from: .now))"),
             URLQueryItem(name: "order", value: "start_datetime.desc"),
             URLQueryItem(name: "limit", value: String(limit))
         ])
-        return rows.compactMap(ConcertEvent.init(json:))
+        return rows.compactMap { row in
+            guard let event = ConcertEvent(json: row) else { return nil }
+            let city = row.object("venues")?.string("address_city")
+            let workTerms = row.objects("event_works").flatMap { relation -> [String] in
+                guard let work = relation.object("works") else { return [] }
+                return [work.string("title"), work.object("composer")?.string("full_name")].compactMap { $0 }
+            }
+            let participantTerms = row.objects("event_participants").flatMap { relation in
+                [relation.object("persons")?.string("full_name"), relation.object("ensembles")?.string("name")].compactMap { $0 }
+            }
+            let terms = [event.title, event.subtitle, event.venues?.name, city, event.category].compactMap { $0 } + event.genreLabels + participantTerms + workTerms
+            return ArchivedConcert(event: event, city: city, searchableText: terms.joined(separator: " "))
+        }
     }
 
     func hasAttended(eventID: UUID, userID: UUID, token: String) async throws -> Bool {
@@ -145,13 +172,20 @@ extension UserRepository {
         return !rows.isEmpty
     }
 
-    func setAttended(eventID: UUID, attended: Bool, attendedAt: Date?, userID: UUID, token: String) async throws {
+    func venueLocation(id: UUID) async throws -> VenueLocation? {
+        let rows: [VenueLocationDTO] = try await client.rpc("venues_with_latlng")
+        return rows.first(where: { $0.id == id }).map {
+            VenueLocation(id: $0.id, name: $0.name, city: $0.city, latitude: $0.lat, longitude: $0.lng)
+        }
+    }
+
+    func setAttended(eventID: UUID, attended: Bool, attendedAt: Date?, verificationType: String = "manual", userID: UUID, token: String) async throws {
         if attended {
             var values: JSONObject = [
                 "user_id": .string(userID.uuidString),
                 "event_id": .string(eventID.uuidString),
                 "status": .string("attended"),
-                "verification_type": .string("manual"),
+                "verification_type": .string(verificationType),
                 "updated_at": .string(ISO8601DateFormatter().string(from: .now))
             ]
             values["attended_at"] = .string(ISO8601DateFormatter().string(from: attendedAt ?? .now))
@@ -214,23 +248,25 @@ struct ConcertArchiveView: View {
     let repository: UserRepository?
     let eventRepository: any EventRepository
     let contentRepository: any ContentRepository
-    @State private var events: [ConcertEvent] = []
+    @State private var events: [ArchivedConcert] = []
     @State private var query = ""
     @State private var selectedYear: Int?
+    @State private var selectedCity: String?
     @State private var isLoading = true
 
     private var years: [Int] {
-        Array(Set(events.compactMap { $0.startDate.map { Calendar.current.component(.year, from: $0) } })).sorted(by: >)
+        Array(Set(events.compactMap { $0.event.startDate.map { Calendar.current.component(.year, from: $0) } })).sorted(by: >)
     }
 
-    private var filteredEvents: [ConcertEvent] {
+    private var cities: [String] { Array(Set(events.compactMap(\.city))).sorted() }
+
+    private var filteredEvents: [ArchivedConcert] {
         let term = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        return events.filter { event in
-            let matchesYear = selectedYear == nil || event.startDate.map { Calendar.current.component(.year, from: $0) == selectedYear } == true
-            guard matchesYear, !term.isEmpty else { return matchesYear }
-            let participantNames = (event.eventParticipants ?? []).flatMap { [$0.persons?.name, $0.ensembles?.name].compactMap { $0 } }
-            let searchable = ([event.title, event.subtitle, event.venues?.name, event.category].compactMap { $0 } + event.genreLabels + participantNames).joined(separator: " ")
-            return searchable.localizedCaseInsensitiveContains(term)
+        return events.filter { archived in
+            let matchesYear = selectedYear == nil || archived.event.startDate.map { Calendar.current.component(.year, from: $0) == selectedYear } == true
+            let matchesCity = selectedCity == nil || archived.city == selectedCity
+            guard matchesYear, matchesCity, !term.isEmpty else { return matchesYear && matchesCity }
+            return archived.searchableText.localizedCaseInsensitiveContains(term)
         }
     }
 
@@ -239,13 +275,13 @@ struct ConcertArchiveView: View {
             if isLoading { ProgressView("Konzertarchiv laden …") }
             else if filteredEvents.isEmpty { ContentUnavailableView.search(text: query) }
             else {
-                List(filteredEvents) { event in
+                List(filteredEvents) { archived in
                     NavigationLink {
-                        EventDetailView(event: event, repository: eventRepository, contentRepository: contentRepository)
+                        EventDetailView(event: archived.event, repository: eventRepository, contentRepository: contentRepository)
                     } label: {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(event.title).font(.headline).lineLimit(2)
-                            Text([event.startDate.map { KlangradarDateTime.string($0, format: "d. MMMM yyyy") }, event.venues?.name].compactMap { $0 }.joined(separator: " · "))
+                            Text(archived.event.title).font(.headline).lineLimit(2)
+                            Text([archived.event.startDate.map { KlangradarDateTime.string($0, format: "d. MMMM yyyy") }, archived.event.venues?.name].compactMap { $0 }.joined(separator: " · "))
                                 .font(.caption).foregroundStyle(.secondary)
                         }.padding(.vertical, 3)
                     }
@@ -260,6 +296,12 @@ struct ConcertArchiveView: View {
                     Button("Alle Jahre") { selectedYear = nil }
                     ForEach(years, id: \.self) { year in Button(String(year)) { selectedYear = year } }
                 } label: { Label(selectedYear.map(String.init) ?? "Jahr", systemImage: "line.3.horizontal.decrease.circle") }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button("Alle Städte") { selectedCity = nil }
+                    ForEach(cities, id: \.self) { city in Button(city) { selectedCity = city } }
+                } label: { Text(selectedCity ?? "Stadt") }
             }
         }
         .task {
