@@ -8,6 +8,11 @@ import SwiftUI
 struct InterestsView: View {
     @ObservedObject var auth: AuthStore
     let repository: UserRepository?
+    /// Onboarding-Schritt "Interessen" zeigt bewusst nur Genres — Werke
+    /// entfallen dort komplett, Personen/Ensembles/Venues bekommen eigene
+    /// Folgen-Schritte (siehe FollowCategoryStepView). Ohne Vorgabe (Profil
+    /// → Interessen) bleibt der volle Kategorie-Umschalter wie bisher.
+    var fixedCategory: InterestCategory? = nil
     @State private var category: InterestCategory = .genre
     @State private var options: [InterestOption] = []
     @State private var selected: Set<String> = []
@@ -17,32 +22,71 @@ struct InterestsView: View {
         searchText.isEmpty ? options : options.filter { $0.label.localizedStandardContains(searchText) }
     }
 
+    /// Als Onboarding-Schritt (fixedCategory gesetzt) gibt es keinen
+    /// umgebenden NavigationStack, also kein valides Andockziel für
+    /// `.searchable()` — dort ein eigenes, inline gerendertes Suchfeld
+    /// statt des System-Modifiers (siehe OnboardingSearchField).
+    private var usesInlineSearch: Bool { fixedCategory != nil }
+
+    private var showsThumbnails: Bool {
+        category == .person || category == .ensemble || category == .venue
+    }
+
+    private var entityKind: EntityKind {
+        switch category {
+        case .person: .person
+        case .ensemble: .ensemble
+        case .venue: .venue
+        case .genre, .work: .work
+        }
+    }
+
     var body: some View {
         List {
-            Section {
-                ScrollView(.horizontal) {
-                    HStack(spacing: 10) {
-                        ForEach(InterestCategory.allCases, id: \.self) { item in
-                            Button { category = item } label: {
-                                Label(item.title, systemImage: item.systemImage)
-                                    .padding(.horizontal, 12).padding(.vertical, 8)
-                                    .background(category == item ? KlangradarTheme.accent : Color.secondary.opacity(0.12), in: .capsule)
-                                    .foregroundStyle(category == item ? .white : .primary)
-                            }.buttonStyle(.plain)
+            if fixedCategory == nil {
+                Section {
+                    ScrollView(.horizontal) {
+                        HStack(spacing: 10) {
+                            ForEach(InterestCategory.allCases, id: \.self) { item in
+                                Button { category = item } label: {
+                                    Label(item.title, systemImage: item.systemImage)
+                                        .padding(.horizontal, 12).padding(.vertical, 8)
+                                        .background(category == item ? KlangradarTheme.accent : Color.secondary.opacity(0.12), in: .capsule)
+                                        .foregroundStyle(category == item ? .white : .primary)
+                                }.buttonStyle(.plain)
+                            }
                         }
-                    }
-                }.scrollIndicators(.hidden)
+                    }.scrollIndicators(.hidden)
+                }
+            }
+            if usesInlineSearch {
+                Section {
+                    OnboardingSearchField(prompt: "\(category.title) durchsuchen", text: $searchText)
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                        .padding(.vertical, 4)
+                }
             }
             Section("\(category.title) · \(selected.count) ausgewählt") {
                 ForEach(filteredOptions) { option in
                     Button { toggle(option.id) } label: {
-                        HStack { Text(option.label).foregroundStyle(.primary); Spacer(); Image(systemName: selected.contains(option.id) ? "checkmark.circle.fill" : "circle").foregroundStyle(selected.contains(option.id) ? KlangradarTheme.accent : .secondary) }
+                        HStack(spacing: 12) {
+                            if showsThumbnails { InterestOptionThumbnail(option: option, kind: entityKind) }
+                            Text(option.label).foregroundStyle(.primary)
+                            Spacer()
+                            Image(systemName: selected.contains(option.id) ? "checkmark.circle.fill" : "circle").foregroundStyle(selected.contains(option.id) ? KlangradarTheme.accent : .secondary)
+                        }
                     }
                 }
             }
         }
         .navigationTitle("Interessen")
-        .searchable(text: $searchText, prompt: "\(category.title) durchsuchen")
+        .if(!usesInlineSearch) { view in
+            view.searchable(text: $searchText, prompt: "\(category.title) durchsuchen")
+        }
+        .onAppear {
+            if let fixedCategory { category = fixedCategory }
+        }
         .task(id: category) { searchText = ""; await load() }
     }
 

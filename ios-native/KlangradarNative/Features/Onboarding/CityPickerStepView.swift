@@ -74,7 +74,7 @@ struct CityPickerStepView: View {
             }
             .scrollDismissesKeyboard(.interactively)
 
-            VStack(spacing: 10) {
+            VStack(spacing: 14) {
                 Button("Weiter") { Task { await confirmSelection() } }
                     .authPrimaryButtonStyle()
                     .controlSize(.large)
@@ -82,7 +82,7 @@ struct CityPickerStepView: View {
                     .disabled(selectedCityID == nil || isWorking)
 
                 Button("Überspringen") { onFinished() }
-                    .font(.footnote)
+                    .font(.subheadline.weight(.medium))
                     .disabled(isWorking)
             }
             .padding(.horizontal, 28)
@@ -156,7 +156,7 @@ private struct CityOptionRow: View {
                             .font(.headline)
                             .foregroundStyle(.primary)
                         if !city.isLive {
-                            Text("Bald verfügbar")
+                            Text("Beta")
                                 .font(.caption2.weight(.semibold))
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 3)
