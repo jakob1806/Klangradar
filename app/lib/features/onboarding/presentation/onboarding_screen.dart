@@ -1017,10 +1017,7 @@ class _LocationStepState extends State<_LocationStep> {
           // München (live) ist voreingestellt — Nutzer:in kann jede der
           // fünf Städte wählen, "Weiter" funktioniert daher sofort.
           _selectedCityId = cities
-              .firstWhere(
-                (c) => c.isLive,
-                orElse: () => cities.first,
-              )
+              .firstWhere((c) => c.isLive, orElse: () => cities.first)
               .id;
           _loadingCities = false;
         });
@@ -1378,8 +1375,7 @@ class _FollowCategoryTab extends ConsumerStatefulWidget {
   final InterestCategory category;
 
   @override
-  ConsumerState<_FollowCategoryTab> createState() =>
-      _FollowCategoryTabState();
+  ConsumerState<_FollowCategoryTab> createState() => _FollowCategoryTabState();
 }
 
 class _FollowCategoryTabState extends ConsumerState<_FollowCategoryTab> {
@@ -1474,9 +1470,7 @@ class _FollowCategoryTabState extends ConsumerState<_FollowCategoryTab> {
                     id: option.id,
                     isSelected: false,
                   ),
-                  backgroundColor: colors.accentPrimary.withValues(
-                    alpha: 0.08,
-                  ),
+                  backgroundColor: colors.accentPrimary.withValues(alpha: 0.08),
                   side: BorderSide(color: colors.accentPrimary),
                 ),
             ],
@@ -1646,9 +1640,7 @@ class _FollowFestivalsTabState extends ConsumerState<_FollowFestivalsTab> {
                   ),
                   label: Text(festival.name),
                   onPressed: () => _toggle(festival.id, false),
-                  backgroundColor: colors.accentPrimary.withValues(
-                    alpha: 0.08,
-                  ),
+                  backgroundColor: colors.accentPrimary.withValues(alpha: 0.08),
                   side: BorderSide(color: colors.accentPrimary),
                 ),
             ],
@@ -1750,8 +1742,7 @@ class _NotificationsStepState extends State<_NotificationsStep> {
       NotificationPreferenceKey.almostSoldOut.column: _almostSoldOut,
       NotificationPreferenceKey.followedEnsembleNewEvent.column:
           _followedArtists,
-      NotificationPreferenceKey.reminderDayBefore.column:
-          _savedEventReminders,
+      NotificationPreferenceKey.reminderDayBefore.column: _savedEventReminders,
     }, onConflict: 'user_id');
   }
 
@@ -1880,7 +1871,9 @@ class _SummaryStep extends ConsumerWidget {
     final follows = ref.watch(myFollowsProvider).valueOrNull ?? MyFollows.empty;
     final followedFestivals =
         ref.watch(_followedFestivalIdsProvider).valueOrNull ?? const {};
-    final notifications = ref.watch(notificationPreferencesProvider).valueOrNull;
+    final notifications = ref
+        .watch(notificationPreferencesProvider)
+        .valueOrNull;
 
     final interestsCount =
         interests.genreIds.length +
