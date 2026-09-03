@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../l10n/generated/app_localizations.dart';
 import '../auth/auth_providers.dart';
+import '../haptics.dart';
 import '../theme/app_colors.dart';
 
 /// Folgen-Button für Festivals — Empfehlungssystem-Anfrage (Punkt 25,
@@ -48,13 +49,16 @@ class FestivalFollowButton extends ConsumerWidget {
         ).showSnackBar(SnackBar(content: Text(l10n.followSignInPrompt)));
         return;
       }
+      // Folgen = Bestätigung, Entfolgen bewusst weicher (Nutzer-Vorgabe).
       if (isFollowing) {
+        Haptics.soft();
         await Supabase.instance.client
             .from('user_favorite_festivals')
             .delete()
             .eq('user_id', user.id)
             .eq('festival_id', festivalId);
       } else {
+        Haptics.confirm();
         await Supabase.instance.client
             .from('user_favorite_festivals')
             .upsert(

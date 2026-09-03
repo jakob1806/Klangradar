@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../l10n/generated/app_localizations.dart';
 import '../events/event_filters.dart';
 import '../events/filtered_events_providers.dart';
+import '../haptics.dart';
 import '../interests/interests_providers.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
@@ -75,6 +76,8 @@ class _EventFilterSheetState extends ConsumerState<_EventFilterSheet> {
   }
 
   void _apply() {
+    // Nur beim Anwenden/Zurücksetzen der Filter, nicht bei jedem Chip-Tap.
+    Haptics.confirm();
     ref.read(eventFiltersProvider.notifier).state = EventFilters(
       dateRange: _dateRange,
       genreIds: _genreIds,
@@ -87,6 +90,7 @@ class _EventFilterSheetState extends ConsumerState<_EventFilterSheet> {
   }
 
   void _reset() {
+    Haptics.light();
     setState(() {
       _dateRange = null;
       _genreIds = {};

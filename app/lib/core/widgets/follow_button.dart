@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/generated/app_localizations.dart';
 import '../auth/auth_providers.dart';
+import '../haptics.dart';
 import '../interests/interests_providers.dart';
 import '../theme/app_colors.dart';
 
@@ -43,6 +44,8 @@ class FollowButton extends ConsumerWidget {
         ).showSnackBar(SnackBar(content: Text(l10n.followSignInPrompt)));
         return;
       }
+      // Folgen = Bestätigung, Entfolgen bewusst weicher (Nutzer-Vorgabe).
+      isFollowing ? Haptics.soft() : Haptics.confirm();
       await InterestsService.toggle(
         ref,
         category: category,
