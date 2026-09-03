@@ -76,6 +76,7 @@ struct WelcomeStepView: View {
         .padding(.vertical, 32)
         .navigationBarBackButtonHidden()
         .onboardingChrome()
+        .background { KlangradarBackground().ignoresSafeArea() }
         .overlay { if isWorking { ProgressView().controlSize(.large) } }
     }
 

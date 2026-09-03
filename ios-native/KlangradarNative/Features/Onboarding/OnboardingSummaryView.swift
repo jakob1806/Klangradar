@@ -7,6 +7,7 @@ import SwiftUI
 struct OnboardingSummaryView: View {
     @ObservedObject var auth: AuthStore
     let repository: UserRepository?
+    let header: OnboardingProgressHeader
     var onEditCity: () -> Void = {}
     var onEditFollows: () -> Void = {}
     var onEditNotifications: () -> Void = {}
@@ -25,9 +26,10 @@ struct OnboardingSummaryView: View {
         // dessen graue Gruppen-Hintergrundfarbe füllte sichtbar die gesamte
         // Resthöhe bis zum Button und wirkte wie ungenutzter Leerraum.
         // Jetzt eigene Karten in einem ScrollView, das sich am Inhalt
-        // orientiert statt am Bildschirm. Zusätzlicher Top-Abstand (28 statt
-        // 16) verhindert, dass das Checkmark-Icon in den Fortschritts-Header
-        // hineinragt.
+        // orientiert statt am Bildschirm. Header hängt direkt am ScrollView
+        // (safeAreaInset top) statt am NavigationStack, damit das
+        // Checkmark-Icon zuverlässig unterhalb des Fortschritts-Headers
+        // bleibt.
         ScrollView {
             VStack(spacing: 28) {
                 VStack(spacing: 8) {
@@ -75,9 +77,11 @@ struct OnboardingSummaryView: View {
                 }
             }
             .padding(.horizontal, 20)
-            .padding(.top, 44)
+            .padding(.top, 20)
             .padding(.bottom, 12)
         }
+        .safeAreaInset(edge: .top, spacing: 0) { header }
+        .onboardingBackground()
         .safeAreaInset(edge: .bottom) {
             Button(action: onFinished) {
                 Text("Konzerte für dich entdecken").frame(maxWidth: .infinity)
