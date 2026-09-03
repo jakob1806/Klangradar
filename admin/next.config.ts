@@ -1,6 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Created by ChatGPT Codex: öffentliche, personenbezugsfreie Seiten dürfen
+  // am CDN liegen; Login-, Veranstalter- und Redaktionsrouten bleiben privat.
+  async headers() {
+    const cacheHeaders = [{ key: "Cache-Control", value: "public, s-maxage=3600, stale-while-revalidate=86400" }];
+    return ["/", "/impressum", "/datenschutz"].map((source) => ({ source, headers: cacheHeaders }));
+  },
   experimental: {
     serverActions: {
       // Default ist 1MB — der manuelle Bild-Upload (image-research/actions.ts

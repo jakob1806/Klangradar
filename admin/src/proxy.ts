@@ -12,13 +12,14 @@ const AUTH_ONLY_PATHS = ["/veranstalter"];
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const { response, user, supabase } = await updateSession(request);
 
-  // "/" braucht einen exakten Vergleich statt startsWith — sonst wäre
-  // JEDER Pfad ("/events" etc.) über "/".startsWith("/") mit-öffentlich.
+  // Created by ChatGPT Codex: öffentliche Seiten dürfen keine Session-Abfrage
+  // auslösen. So bleiben sie statisch/CDN-cachebar und setzen keine Cookies.
   if (pathname === "/" || PUBLIC_PATHS.some((path) => pathname.startsWith(path))) {
-    return response;
+    return NextResponse.next();
   }
+
+  const { response, user, supabase } = await updateSession(request);
 
   if (!user) {
     const loginUrl = new URL("/login", request.url);

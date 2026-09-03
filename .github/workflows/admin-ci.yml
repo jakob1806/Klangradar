@@ -1,5 +1,8 @@
 name: Admin Dashboard CI
 
+# Created by ChatGPT Codex: prüft neben Build und Lint auch die öffentlich
+# erreichbaren Links sowie Tastatur- und Navigationspfade im echten Browser.
+
 # Kein `paths:`-Filter mehr auf dem Trigger selbst: der Job muss auf JEDEM PR
 # laufen (auch nur skippen), damit er als Required Status Check taugt — ein
 # per `paths:` komplett unterdrückter Workflow-Run hinterlässt gar keinen
@@ -44,8 +47,15 @@ jobs:
 
       - run: npm ci
       - run: npm run lint
+      - run: npm run test
       - name: Build (ohne echte Supabase-Zugangsdaten — Datenrouten sind force-dynamic)
         run: npm run build
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder
+      - name: Chromium für Browser-Tests installieren
+        run: npx playwright install --with-deps chromium
+      - name: Öffentliche Links prüfen
+        run: npm run check:links
+      - name: Öffentliche Browser- und Accessibility-Tests
+        run: npm run test:e2e

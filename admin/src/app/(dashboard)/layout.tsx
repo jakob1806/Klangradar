@@ -23,6 +23,7 @@ export default async function DashboardLayout({
 
   return (
     <div className="dashboard-shell flex min-h-full">
+      <a href="#dashboard-content" className="skip-link">Zum Hauptinhalt springen</a>
       <MobileTableAdapter />
       <div className="hidden shrink-0 md:flex">
         <Sidebar userEmail={user?.email} />
@@ -33,7 +34,7 @@ export default async function DashboardLayout({
         </MobileNavigation>
         <SignOutButton />
       </div>
-      <main className="dashboard-main min-w-0 flex-1">
+      <main id="dashboard-content" tabIndex={-1} className="dashboard-main min-w-0 flex-1">
         <div className="dashboard-topbar sticky top-0 z-30 hidden items-center justify-between px-8 md:flex">
           <div>
             <p className="text-[13px] font-semibold tracking-tight text-[#1d1d1f]">Klangradar Redaktion</p>

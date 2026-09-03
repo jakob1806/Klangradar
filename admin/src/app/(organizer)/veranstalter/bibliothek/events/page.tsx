@@ -41,7 +41,7 @@ export default async function LibraryEventsPage({ searchParams }: { searchParams
               <Card className="overflow-hidden transition hover:shadow-md">
                 <div className="relative aspect-[16/9] bg-[#15131a]/[0.03]">
                   {event.image_urls?.[0] && (
-                    <Image src={event.image_urls[0]} alt="" fill className="object-cover" sizes="33vw" unoptimized />
+                    <Image src={event.image_urls[0]} alt={`Vorschaubild für ${event.title}`} fill className="object-cover" sizes="33vw" unoptimized />
                   )}
                 </div>
                 <div className="p-4">

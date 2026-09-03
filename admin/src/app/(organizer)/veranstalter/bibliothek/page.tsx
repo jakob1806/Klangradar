@@ -89,7 +89,7 @@ export default async function LibraryPage() {
                   <span className="absolute left-4 top-9 text-[13px] font-medium text-white/75">{counts[index] ?? 0} Einträge</span>
                   {covers[index] ? (
                     <div className="absolute -bottom-3 -right-3 size-24 rotate-[9deg] overflow-hidden rounded-xl shadow-lg ring-1 ring-black/10">
-                      <Image src={covers[index]!} alt="" fill sizes="96px" className="object-cover" unoptimized />
+                      <Image src={covers[index]!} alt={`Vorschaubild für ${item.name}`} fill sizes="96px" className="object-cover" unoptimized />
                     </div>
                   ) : (
                     <div className="absolute -bottom-3 -right-3 flex size-24 rotate-[9deg] items-center justify-center rounded-xl bg-white/15 shadow-lg" />

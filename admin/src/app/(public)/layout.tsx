@@ -1,37 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
 
-// Eine einzige Server-seitige Auth-Prüfung für alle öffentlichen Seiten
-// (/, /impressum, /datenschutz) statt in jeder Page erneut — entscheidet
-// nur, ob der Button oben rechts "Anmelden als Admin" oder "Zum
-// Adminportal" zeigt. Die eigentliche Zugriffskontrolle bleibt weiterhin
-// proxy.ts (redirect nach /no-access), hier geht es nur um die Beschriftung.
-async function resolveAdminCta() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return { href: "/login?redirectTo=/events", label: "Anmelden als Admin" };
-  }
-
-  const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", user.id);
-  const isAuthorized = roles?.some((r) => r.role === "admin" || r.role === "editor");
-
-  return isAuthorized
-    ? { href: "/events", label: "Zum Adminportal" }
-    : { href: "/login?redirectTo=/events", label: "Anmelden als Admin" };
-}
-
-export default async function PublicLayout({ children }: { children: React.ReactNode }) {
-  const cta = await resolveAdminCta();
-
+export default function PublicLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="apple-font flex min-h-screen flex-col">
+      <a href="#main-content" className="skip-link">Zum Inhalt springen</a>
       <header className="sticky top-0 z-10 flex items-center justify-between border-b border-black/5 bg-white/70 px-6 py-3.5 backdrop-blur-xl">
-        <Link href="/" className="flex items-center gap-2.5">
+        <Link href="/" aria-label="Klangradar Startseite" className="flex items-center gap-2.5 rounded-lg">
           <span className="dashboard-brand-mark" aria-hidden="true">
             <Image src="/app-logo.svg" alt="" width={34} height={34} />
           </span>
@@ -45,15 +20,15 @@ export default async function PublicLayout({ children }: { children: React.React
             Veranstalterportal
           </Link>
           <Link
-            href={cta.href}
+            href="/login?redirectTo=/events"
             className="rounded-full bg-[#0071e3] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#0077ed] active:scale-[0.985]"
           >
-            {cta.label}
+            Anmelden als Admin
           </Link>
         </div>
       </header>
 
-      <main className="flex-1">{children}</main>
+      <main id="main-content" tabIndex={-1} className="flex-1">{children}</main>
 
       <footer className="flex items-center justify-center gap-6 px-6 py-8 text-xs text-[#86868b]">
         <Link href="/impressum" className="hover:text-[#1d1d1f]">
