@@ -6,9 +6,10 @@ import { enrichEntityImages, type EnrichImagesResult } from "./actions";
 const KIND_LABEL: Record<string, string> = {
   persons: "Personen",
   ensembles: "Ensembles",
+  venues: "Venues",
 };
 
-/** Startet einen gezielten Batch für fehlende Personen- und Ensemblebilder. */
+/** Created by ChatGPT Codex: startet parallele Batches für die wichtigsten Bildlücken. */
 export function EnrichImagesButton() {
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<EnrichImagesResult | null>(null);
@@ -38,7 +39,7 @@ export function EnrichImagesButton() {
         onClick={run}
         className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700 disabled:opacity-50"
       >
-        {pending ? "Personen-/Ensemble-/Eventbilder werden gesucht…" : "Nächste Personen-/Ensemble-/Eventbilder automatisch suchen"}
+        {pending ? "Bilder werden parallel gesucht…" : "Bis zu 34 neue Bilder automatisch suchen"}
       </button>
       {result?.status === "failed" && (
         <p className="max-w-xs text-right text-xs text-red-600">{result.error}</p>

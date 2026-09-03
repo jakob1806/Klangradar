@@ -64,7 +64,10 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { searchCommonsImage } from "../_shared/wikimediaCommons.ts";
-import { searchWikidataImage, searchWikidataOfficialWebsite } from "../_shared/wikidataImage.ts";
+import {
+  searchWikidataImage,
+  searchWikidataOfficialWebsite,
+} from "../_shared/wikidataImage.ts";
 import { fetchWikipediaPortrait } from "../_shared/wikipediaPortrait.ts";
 import { detectEventCoverImage } from "../_shared/coverImageDetection.ts";
 import { extractImageNearName } from "../_shared/imageNearName.ts";
@@ -79,9 +82,16 @@ import { logSystemAction } from "../_shared/systemLog.ts";
 import { nameSearchVariants } from "../_shared/nameVariants.ts";
 import { findLikelySubpages } from "../_shared/subpageDiscovery.ts";
 import { searchOfficialSiteForImages } from "../_shared/officialSiteImageSearch.ts";
-import { ensureCoverImage, ensureCoverImageWithReason, type ImageOriginType } from "../_shared/imagePipeline.ts";
+import {
+  ensureCoverImage,
+  ensureCoverImageWithReason,
+  type ImageOriginType,
+} from "../_shared/imagePipeline.ts";
 
+// Created by ChatGPT Codex: interaktive Läufe verarbeiten ihre ausdrücklich
+// angeforderte Menge; nur der unbeaufsichtigte "all"-Cron bleibt konservativ.
 const DEFAULT_LIMIT = 8;
+const ENTITY_CONCURRENCY = 2;
 const HEALTH_CHECK_LIMIT = 15;
 const EVENT_URL_DISCOVERY_LIMIT = 5;
 const ENTITY_URL_DISCOVERY_LIMIT = 5;
@@ -130,7 +140,9 @@ async function persistCandidate(
       .eq("source_url", candidate.imageUrl)
       .neq("license_status", "rejected")
       .maybeSingle();
-    if (existing?.id) return { imageId: existing.id, publicUrl: candidate.imageUrl };
+    if (existing?.id) {
+      return { imageId: existing.id, publicUrl: candidate.imageUrl };
+    }
 
     const { data, error } = await supabase.from("images").insert({
       source_url: candidate.imageUrl,
@@ -178,7 +190,9 @@ async function persistCandidate(
   });
   if (!imageId) {
     if (reason) {
-      console.error(`persistCandidate: ${kind.originType} ${id} rejected (${candidate.imageUrl}): ${reason}`);
+      console.error(
+        `persistCandidate: ${kind.originType} ${id} rejected (${candidate.imageUrl}): ${reason}`,
+      );
     }
     return null;
   }
@@ -255,7 +269,10 @@ async function resolveCityName(
 ): Promise<string | undefined> {
   if (!cityId) return undefined;
   if (cityNameCache.has(cityId)) return cityNameCache.get(cityId) ?? undefined;
-  const { data } = await supabase.from("regions").select("name").eq("id", cityId).maybeSingle();
+  const { data } = await supabase.from("regions").select("name").eq(
+    "id",
+    cityId,
+  ).maybeSingle();
   const name = (data?.name as string | undefined) ?? null;
   cityNameCache.set(cityId, name);
   return name ?? undefined;
@@ -376,7 +393,10 @@ Deno.serve(async (req) => {
   // "event" ist bewusst kein ENTITY_KINDS-Eintrag (eigene Tabellenform,
   // image_urls statt photo_url) — selectedKinds bleibt dafür leer, das ist
   // kein Fehler: der Event-Zweig weiter unten läuft unabhängig davon.
-  if (requestedType !== "all" && requestedType !== "event" && selectedKinds.length === 0) {
+  if (
+    requestedType !== "all" && requestedType !== "event" &&
+    selectedKinds.length === 0
+  ) {
     return jsonResponse({ error: `Ungültiger Typ: ${requestedType}` }, 400);
   }
 
@@ -459,7 +479,7 @@ Deno.serve(async (req) => {
     // Kleinere, dafür häufiger laufende Portionen liefern verlässlich
     // Fortschritt. Gezielte Admin-Nachläufe mit entityIds behalten ihr
     // explizites Limit.
-    const effectiveLimit = entityIds.length > 0
+    const effectiveLimit = entityIds.length > 0 || requestedType !== "all"
       ? limit
       : kind.originType === "venue"
       ? Math.min(limit, 2)
@@ -638,13 +658,9 @@ function parseManualCandidate(raw: unknown): ManualCandidateInput | null {
     photographer: typeof r.photographer === "string"
       ? r.photographer
       : undefined,
-    licenseName: typeof r.licenseName === "string"
-      ? r.licenseName
-      : undefined,
+    licenseName: typeof r.licenseName === "string" ? r.licenseName : undefined,
     licenseUrl: typeof r.licenseUrl === "string" ? r.licenseUrl : undefined,
-    matchReason: typeof r.matchReason === "string"
-      ? r.matchReason
-      : undefined,
+    matchReason: typeof r.matchReason === "string" ? r.matchReason : undefined,
     confidenceScore: typeof r.confidenceScore === "number"
       ? r.confidenceScore
       : undefined,
@@ -665,7 +681,9 @@ async function applyManualCandidates(
   const errors: string[] = [];
 
   for (const candidate of candidates) {
-    const kind = ENTITY_KINDS.find((k) => k.originType === candidate.originType);
+    const kind = ENTITY_KINDS.find((k) =>
+      k.originType === candidate.originType
+    );
     if (!kind) {
       errors.push(`${candidate.originId}: unbekannter originType`);
       continue;
@@ -707,11 +725,15 @@ async function applyManualCandidates(
       confidenceScore: candidate.confidenceScore ?? 0.7,
       matchReason: candidate.matchReason ??
         `Bildpaket-Import, Namens-Match auf „${candidate.originId}“.`,
-      warnings: ["Externe Bildquelle vor Veröffentlichung prüfen (Lizenz/Namensnennung)."],
+      warnings: [
+        "Externe Bildquelle vor Veröffentlichung prüfen (Lizenz/Namensnennung).",
+      ],
       needsReview: true,
     });
     if (!stored) {
-      errors.push(`${candidate.originType} ${candidate.originId}: Download/Storage fehlgeschlagen (${candidate.imageUrl})`);
+      errors.push(
+        `${candidate.originType} ${candidate.originId}: Download/Storage fehlgeschlagen (${candidate.imageUrl})`,
+      );
       continue;
     }
     applied++;
@@ -766,11 +788,16 @@ async function setPrimaryAndSortOrder(
 
   const rows = (images ?? []) as Array<{ id: string; sort_order: number }>;
   const target = rows.find((r) => r.id === imageId);
-  const reordered = target ? [target, ...rows.filter((r) => r.id !== imageId)] : rows;
+  const reordered = target
+    ? [target, ...rows.filter((r) => r.id !== imageId)]
+    : rows;
 
   for (let i = 0; i < reordered.length; i++) {
     if (reordered[i].sort_order === i) continue;
-    await supabase.from("images").update({ sort_order: i }).eq("id", reordered[i].id);
+    await supabase.from("images").update({ sort_order: i }).eq(
+      "id",
+      reordered[i].id,
+    );
   }
 
   await supabase.from("images").update({ is_primary: false })
@@ -790,7 +817,9 @@ async function applyRehostCandidates(
   const errors: string[] = [];
 
   for (const candidate of candidates) {
-    const kind = ENTITY_KINDS.find((k) => k.originType === candidate.originType);
+    const kind = ENTITY_KINDS.find((k) =>
+      k.originType === candidate.originType
+    );
     if (!kind) {
       errors.push(`${candidate.originId}: unbekannter originType`);
       continue;
@@ -813,7 +842,9 @@ async function applyRehostCandidates(
     // statt sie durch generische Werte zu ersetzen.
     const { data: existingMeta } = await supabase
       .from("images")
-      .select("photographer, license_name, license_url, source_page_url, source_name, confidence_score, match_reason")
+      .select(
+        "photographer, license_name, license_url, source_page_url, source_name, confidence_score, match_reason",
+      )
       .eq("origin_type", candidate.originType)
       .eq("origin_id", candidate.originId)
       .eq("source_url", candidate.currentPhotoUrl)
@@ -836,14 +867,18 @@ async function applyRehostCandidates(
       needsReview: false,
     });
     if (!imageId) {
-      errors.push(`${candidate.originType} ${candidate.originId}: Rehost fehlgeschlagen (${candidate.currentPhotoUrl})`);
+      errors.push(
+        `${candidate.originType} ${candidate.originId}: Rehost fehlgeschlagen (${candidate.currentPhotoUrl})`,
+      );
       continue;
     }
 
     const { data: image } = await supabase.from("images").select("storage_path")
       .eq("id", imageId).maybeSingle();
     if (!image?.storage_path) {
-      errors.push(`${candidate.originType} ${candidate.originId}: kein storage_path nach Rehost`);
+      errors.push(
+        `${candidate.originType} ${candidate.originId}: kein storage_path nach Rehost`,
+      );
       continue;
     }
     const { data: publicUrlData } = supabase.storage.from("ingested-images")
@@ -855,11 +890,18 @@ async function applyRehostCandidates(
       .eq("id", candidate.originId)
       .eq("photo_url", candidate.currentPhotoUrl);
     if (updateError) {
-      errors.push(`${candidate.originType} ${candidate.originId}: ${updateError.message}`);
+      errors.push(
+        `${candidate.originType} ${candidate.originId}: ${updateError.message}`,
+      );
       continue;
     }
 
-    await setPrimaryAndSortOrder(supabase, candidate.originType, candidate.originId, imageId);
+    await setPrimaryAndSortOrder(
+      supabase,
+      candidate.originType,
+      candidate.originId,
+      imageId,
+    );
 
     rehosted++;
   }
@@ -942,7 +984,9 @@ async function isUrlUsedElsewhere(
   for (const image of queuedImages ?? []) {
     const imageOriginType = String(image.origin_type ?? "");
     const imageOriginId = String(image.origin_id ?? "");
-    const currentKind = ENTITY_KINDS.find((kind) => kind.table === excludeTable);
+    const currentKind = ENTITY_KINDS.find((kind) =>
+      kind.table === excludeTable
+    );
     const currentOriginType = currentKind?.originType ??
       (excludeTable === "events" ? "event" : "");
     if (imageOriginType === currentOriginType && imageOriginId === excludeId) {
@@ -1032,13 +1076,29 @@ async function tryWikidataFallback(
  * redaktionelle Bildprüfung gestellt. */
 function imagePageScore(url: string, originType: ImageOriginType): number {
   const value = url.toLowerCase();
-  if (/facebook|instagram|linkedin|pinterest|youtube|tiktok|x\.com/.test(value)) return -100;
+  if (
+    /facebook|instagram|linkedin|pinterest|youtube|tiktok|x\.com/.test(value)
+  ) return -100;
   let score = 0;
   if (/operabase\.com/.test(value)) score += 35;
-  if (/agency|agentur|management|artists|artist|biograph|biograf|press|presse|media/.test(value)) score += 22;
-  if (/opera|oper\b|orchester|orchestra|philharm|symphon|festival|theater|concert/.test(value)) score += 16;
-  if (originType === "venue" && /venue|spielstaette|konzerthaus|concert-hall|theatre|architecture/.test(value)) score += 20;
-  if (originType === "ensemble" && /ensemble|choir|chor|quartet|quartett|band/.test(value)) score += 20;
+  if (
+    /agency|agentur|management|artists|artist|biograph|biograf|press|presse|media/
+      .test(value)
+  ) score += 22;
+  if (
+    /opera|oper\b|orchester|orchestra|philharm|symphon|festival|theater|concert/
+      .test(value)
+  ) score += 16;
+  if (
+    originType === "venue" &&
+    /venue|spielstaette|konzerthaus|concert-hall|theatre|architecture/.test(
+      value,
+    )
+  ) score += 20;
+  if (
+    originType === "ensemble" &&
+    /ensemble|choir|chor|quartet|quartett|band/.test(value)
+  ) score += 20;
   if (/ticket|shop|calendar|kalender/.test(value)) score -= 15;
   return score;
 }
@@ -1076,33 +1136,52 @@ async function tryMultiSourceWebImageFallback(
     // und bewertet schema.org-, Meta-, Hero- und Inhaltsbilder. Im Cron
     // bewusst auf vier Seiten begrenzen, damit mehrere Personen pro Lauf
     // innerhalb der Edge-Ressourcen bleiben.
-    const crawl = await searchOfficialSiteForImages(name, officialWebsite, { maxPages: 4 });
+    const crawl = await searchOfficialSiteForImages(name, officialWebsite, {
+      maxPages: 4,
+    });
     for (const candidate of crawl.candidates.slice(0, 3)) {
       if (isLikelyGenericImage(candidate.url)) continue;
       const { reachable } = await checkImageUrl(candidate.url);
-      if (!reachable || await isUrlUsedElsewhere(supabase, candidate.url, kind.table, id)) continue;
+      if (
+        !reachable ||
+        await isUrlUsedElsewhere(supabase, candidate.url, kind.table, id)
+      ) continue;
       const stored = await persistCandidate(supabase, kind, id, {
         imageUrl: candidate.url,
         sourcePageUrl: candidate.pageUrl,
         sourceName: new URL(candidate.pageUrl).hostname,
         licenseStatus: "permission_required",
-        confidenceScore: candidate.confidence === "high" ? 0.9 : candidate.confidence === "medium" ? 0.8 : 0.68,
-        matchReason: `Porträt auf der offiziellen Website von „${name}“: ${candidate.reasons.join(" ")}`,
-        warnings: ["Bildcredit und Nutzungserlaubnis vor Veröffentlichung prüfen."],
+        confidenceScore: candidate.confidence === "high"
+          ? 0.9
+          : candidate.confidence === "medium"
+          ? 0.8
+          : 0.68,
+        matchReason: `Porträt auf der offiziellen Website von „${name}“: ${
+          candidate.reasons.join(" ")
+        }`,
+        warnings: [
+          "Bildcredit und Nutzungserlaubnis vor Veröffentlichung prüfen.",
+        ],
         needsReview: true,
       });
       if (!stored) continue;
       await supabase.from("persons").update({
-        last_image_search_note: "Kandidat von der offiziellen Website gefunden, wartet auf Bilderfreigabe (/media).",
+        last_image_search_note:
+          "Kandidat von der offiziellen Website gefunden, wartet auf Bilderfreigabe (/media).",
         image_search_checked_at: new Date().toISOString(),
       }).eq("id", id);
       return true;
     }
-    pages.push({ url: officialWebsite, title: "Offizielle Website (Wikidata)" });
+    pages.push({
+      url: officialWebsite,
+      title: "Offizielle Website (Wikidata)",
+    });
   }
   for (const query of queries) {
     for (const result of await searchDuckDuckGo(query, 4) ?? []) {
-      if (!pages.some((page) => page.url === result.url)) pages.push({ url: result.url, title: null });
+      if (!pages.some((page) => page.url === result.url)) {
+        pages.push({ url: result.url, title: null });
+      }
     }
     if (pages.length >= 9) break;
   }
@@ -1110,11 +1189,19 @@ async function tryMultiSourceWebImageFallback(
   // Hochwertige Fach-/Primärquellen zuerst prüfen. So verbraucht ein Lauf
   // nicht seine knappe Zeit mit sozialen Netzwerken oder Ticketshops.
   pages.sort((a, b) => {
-    const aScore = a.title === "Offizielle Website (Wikidata)" ? 100 : imagePageScore(a.url, kind.originType);
-    const bScore = b.title === "Offizielle Website (Wikidata)" ? 100 : imagePageScore(b.url, kind.originType);
+    const aScore = a.title === "Offizielle Website (Wikidata)"
+      ? 100
+      : imagePageScore(a.url, kind.originType);
+    const bScore = b.title === "Offizielle Website (Wikidata)"
+      ? 100
+      : imagePageScore(b.url, kind.originType);
     return bScore - aScore;
   });
-  for (const page of pages.filter((page) => imagePageScore(page.url, kind.originType) > -100).slice(0, 8)) {
+  for (
+    const page of pages.filter((page) =>
+      imagePageScore(page.url, kind.originType) > -100
+    ).slice(0, 8)
+  ) {
     try {
       const detected = await detectEventCoverImage(page.url);
       // Viele Agentur-/Künstlerseiten pflegen kein og:image. Dort gezielt
@@ -1130,24 +1217,37 @@ async function tryMultiSourceWebImageFallback(
       }
       if (!imageUrl || isLikelyGenericImage(imageUrl)) continue;
       const { reachable } = await checkImageUrl(imageUrl);
-      if (!reachable || await isUrlUsedElsewhere(supabase, imageUrl, kind.table, id)) continue;
+      if (
+        !reachable ||
+        await isUrlUsedElsewhere(supabase, imageUrl, kind.table, id)
+      ) continue;
       const stored = await persistCandidate(supabase, kind, id, {
         imageUrl,
         sourcePageUrl: page.url,
         sourceName: new URL(page.url).hostname,
         photographer: detected?.credits ?? null,
-        licenseStatus: detected?.credits ? "official_press_image" : "permission_required",
+        licenseStatus: detected?.credits
+          ? "official_press_image"
+          : "permission_required",
         confidenceScore: 0.72,
-        matchReason: `Kostenfreie Websuche nach „${name}“${page.title ? ` — Treffer „${page.title}“` : ""}.`,
-        warnings: ["Identität, Bildcredit und Nutzungserlaubnis vor Veröffentlichung prüfen."],
+        matchReason: `Kostenfreie Websuche nach „${name}“${
+          page.title ? ` — Treffer „${page.title}“` : ""
+        }.`,
+        warnings: [
+          "Identität, Bildcredit und Nutzungserlaubnis vor Veröffentlichung prüfen.",
+        ],
         needsReview: true,
       });
       if (!stored) {
-        errors.push(`persons "${name}": Webbild konnte nicht gespeichert werden`);
+        errors.push(
+          `persons "${name}": Webbild konnte nicht gespeichert werden`,
+        );
         continue;
       }
       await supabase.from(kind.table).update({
-        last_image_search_note: `Kandidat aus erweiterter Mehrquellen-Suche (${new URL(page.url).hostname}) gefunden, wartet auf Bilderfreigabe (/media).`,
+        last_image_search_note: `Kandidat aus erweiterter Mehrquellen-Suche (${
+          new URL(page.url).hostname
+        }) gefunden, wartet auf Bilderfreigabe (/media).`,
         image_search_checked_at: new Date().toISOString(),
       }).eq("id", id);
       return true;
@@ -1181,7 +1281,11 @@ async function enrichEntityKind(
   // Entitäten kommen nun zuverlässig zuerst.
   let rowQuery = supabase
     .from(kind.table)
-    .select(`id, ${kind.nameColumn}, website_url${kind.usesCityContext ? ", city_id" : ""}`)
+    .select(
+      `id, ${kind.nameColumn}, website_url${
+        kind.usesCityContext ? ", city_id" : ""
+      }`,
+    )
     .is("photo_url", null)
     .order("image_search_checked_at", { ascending: true, nullsFirst: true })
     // Innerhalb desselben Queue-Alters zuerst Datensätze mit offizieller
@@ -1214,416 +1318,475 @@ async function enrichEntityKind(
       id,
     );
 
-  for (const row of list) {
-    const id = row.id as string;
-    const name = row[kind.nameColumn] as string;
-    const websiteUrl = row.website_url as string | null;
-    if (!name?.trim()) continue;
-    // Bug-Fund (siehe EntityKind.usesCityContext-Kommentar): pro Zeile die
-    // tatsächliche Stadt auflösen statt eines für die ganze Entitäts-Art
-    // fest hinterlegten Namens — sonst bekam z.B. eine Berliner Venue bei
-    // jeder Fallback-Suche "München" als Suchkontext mitgegeben.
-    const queryContext = kind.usesCityContext
-      ? await resolveCityName(supabase, row.city_id as string | null | undefined)
-      : undefined;
+  let nextIndex = 0;
+  async function worker() {
+    while (nextIndex < list.length) {
+      const row = list[nextIndex++];
+      const id = row.id as string;
+      const name = row[kind.nameColumn] as string;
+      const websiteUrl = row.website_url as string | null;
+      if (!name?.trim()) continue;
+      // Bug-Fund (siehe EntityKind.usesCityContext-Kommentar): pro Zeile die
+      // tatsächliche Stadt auflösen statt eines für die ganze Entitäts-Art
+      // fest hinterlegten Namens — sonst bekam z.B. eine Berliner Venue bei
+      // jeder Fallback-Suche "München" als Suchkontext mitgegeben.
+      const queryContext = kind.usesCityContext
+        ? await resolveCityName(
+          supabase,
+          row.city_id as string | null | undefined,
+        )
+        : undefined;
 
-    try {
-      // Ein gezielter manueller Nachlauf ist idempotent: Existiert bereits
-      // ein nicht abgelehnter Kandidat, wird weder die Quellseite erneut
-      // geladen noch ein zweites Bild angelegt.
-      if (entityIds.length > 0) {
-        const { data: existingTargetedCandidate } = await supabase
+      try {
+        // Ein gezielter manueller Nachlauf ist idempotent: Existiert bereits
+        // ein nicht abgelehnter Kandidat, wird weder die Quellseite erneut
+        // geladen noch ein zweites Bild angelegt.
+        if (entityIds.length > 0) {
+          const { data: existingTargetedCandidate } = await supabase
+            .from("images")
+            .select("id")
+            .eq("origin_type", kind.originType)
+            .eq("origin_id", id)
+            .neq("license_status", "rejected")
+            .limit(1)
+            .maybeSingle();
+          if (existingTargetedCandidate) {
+            await setNote(
+              id,
+              "Kandidat gefunden, wartet auf redaktionelle Lizenzprüfung (/media).",
+            );
+            continue;
+          }
+        }
+
+        // Priorität 2: eigene offizielle Website. Direkt übernommen, kein
+        // Review — es ist die Entität selbst, die dieses Bild von sich
+        // öffentlich zeigt, kein Fremdbild eines Dritten.
+        // `fastFallback` darf nur Health-Checks und URL-Discovery abkürzen,
+        // nicht die bereits bekannte offizielle Website überspringen. Genau
+        // das tat der Cron bisher und schloss hunderte Personen trotz
+        // vorhandener Primärquelle als „kein Bild gefunden“ ab.
+        if (websiteUrl) {
+          if (!(await isAllowedByRobots(websiteUrl))) {
+            await setNote(
+              id,
+              "Eigene Website durch robots.txt gesperrt — Zugriff verweigert.",
+            );
+          } else {
+            // Entitätsspezifischer Tiefencrawler: anders als der einfache
+            // Event-Cover-Parser versteht er auch data-image/data-src/srcset,
+            // schema.org Person/MusicGroup sowie Presse-, Portrait-, Galerie-,
+            // Bio- und Team-Unterseiten. Das schließt insbesondere
+            // Squarespace-/Agenturseiten, auf denen das sichtbare Porträt
+            // nicht als og:image hinterlegt ist.
+            const officialCrawl = await searchOfficialSiteForImages(
+              name,
+              websiteUrl,
+              {
+                maxPages: fastFallback ? 4 : 8,
+              },
+            );
+            let officialCandidateQueued = false;
+            for (const candidate of officialCrawl.candidates.slice(0, 5)) {
+              if (
+                candidate.confidence === "low" ||
+                isLikelyGenericImage(candidate.url)
+              ) continue;
+              const { reachable } = await checkImageUrl(candidate.url);
+              if (
+                !reachable ||
+                await isUrlUsedElsewhere(
+                  supabase,
+                  candidate.url,
+                  kind.table,
+                  id,
+                )
+              ) continue;
+              const stored = await persistCandidate(supabase, kind, id, {
+                imageUrl: candidate.url,
+                sourcePageUrl: candidate.pageUrl,
+                sourceName: new URL(candidate.pageUrl).hostname,
+                licenseStatus: "permission_required",
+                confidenceScore: candidate.confidence === "high" ? 0.92 : 0.8,
+                matchReason: `Offizielle Website von „${name}“: ${
+                  candidate.reasons.join(" ")
+                }`,
+                warnings: [
+                  "Bildcredit und Nutzungserlaubnis vor Veröffentlichung prüfen.",
+                ],
+                needsReview: true,
+              });
+              if (!stored) continue;
+              queuedForReview++;
+              await setNote(
+                id,
+                "Porträt auf offizieller Website gefunden, wartet auf Bilderfreigabe (/media).",
+              );
+              officialCandidateQueued = true;
+              break;
+            }
+            if (officialCandidateQueued) continue;
+
+            // Volle Kaskade (schema.org -> og:image -> twitter:image -> Hero/
+            // Banner -> Bild im Content-Container) statt nur og:image/
+            // twitter:image — dieselbe Erkennung, die der Ingestion-Importer
+            // seit PR #92 für neue Events nutzt (coverImageDetection.ts), war
+            // hier bisher nicht verdrahtet, obwohl die meisten bildlosen
+            // Entities durchaus eine website_url hinterlegt haben.
+            let detected = await detectEventCoverImage(websiteUrl);
+            let ownImageSourcePage = websiteUrl;
+            if (!detected) {
+              // Startseite liefert nichts — 1-2 wahrscheinliche Unterseiten
+              // (Presse/Über uns/Kontakt) derselben Domain versuchen, bevor
+              // aufgegeben wird. Viele Vereine/Ensembles haben eine
+              // text-lastige Startseite ohne Foto, aber ein Foto auf einer
+              // "Über uns"-Unterseite.
+              const subpages = await findLikelySubpages(websiteUrl);
+              for (const subpageUrl of subpages) {
+                const subDetected = await detectEventCoverImage(subpageUrl);
+                if (subDetected) {
+                  detected = subDetected;
+                  ownImageSourcePage = subpageUrl;
+                  break;
+                }
+              }
+            }
+            const ownImage = detected?.url ?? null;
+            if (!ownImage) {
+              await setNote(
+                id,
+                "Eigene Website liefert kein nutzbares Bild (og:image/Hero/Content-Bereich/Unterseiten geprüft).",
+              );
+            } else {
+              const { reachable } = await checkImageUrl(ownImage);
+              if (!reachable) {
+                await setNote(
+                  id,
+                  "Bild von der eigenen Website nicht erreichbar/kein gültiges Bildformat.",
+                );
+              } else if (
+                await isUrlUsedElsewhere(supabase, ownImage, kind.table, id)
+              ) {
+                await setNote(
+                  id,
+                  "Bild von der eigenen Website ist bereits einer anderen Entität zugeordnet (Duplikat).",
+                );
+              } else {
+                let requiresReview = !detected?.credits || 0.96 < minConfidence;
+                const metadata: CandidateMetadata = {
+                  imageUrl: ownImage,
+                  sourcePageUrl: ownImageSourcePage,
+                  sourceName: new URL(ownImageSourcePage).hostname,
+                  photographer: detected?.credits ?? null,
+                  licenseStatus: detected?.credits
+                    ? "official_press_image"
+                    : "permission_required",
+                  confidenceScore: 0.96,
+                  matchReason:
+                    `Bild stammt von der hinterlegten offiziellen Website von „${name}“.`,
+                  warnings: detected?.credits ? [] : [
+                    "Kein vollständiger Bildcredit auf der Quellseite erkannt.",
+                  ],
+                  needsReview: requiresReview,
+                };
+                let stored = await persistCandidate(
+                  supabase,
+                  kind,
+                  id,
+                  metadata,
+                );
+                // Große Originale können die WebP/pHash-Verarbeitung der Edge-
+                // Runtime sprengen. Der Fund darf dann nicht verloren gehen:
+                // als externer, review-pflichtiger Kandidat speichern; nach
+                // Freigabe kann er separat rehosted werden.
+                if (!stored && !requiresReview) {
+                  requiresReview = true;
+                  stored = await persistCandidate(supabase, kind, id, {
+                    ...metadata,
+                    needsReview: true,
+                    warnings: [
+                      ...(metadata.warnings ?? []),
+                      "Automatische Bildverarbeitung fehlgeschlagen; Originalquelle vor Freigabe prüfen.",
+                    ],
+                  });
+                }
+                if (!stored) {
+                  errors.push(
+                    `${kind.table} "${name}": Bilddownload/Storage fehlgeschlagen`,
+                  );
+                  continue;
+                }
+                // Nur bei vollständigem Credit automatisch veröffentlichen.
+                // Sonst bleibt der Storage-Kandidat ausschließlich in /media.
+                if (requiresReview) {
+                  queuedForReview++;
+                  await setNote(
+                    id,
+                    "Offizieller Bildkandidat ohne vollständigen Credit wartet auf Prüfung (/media).",
+                  );
+                  continue;
+                }
+                const now = new Date().toISOString();
+                const { error: updateError } = await supabase
+                  .from(kind.table)
+                  .update({
+                    photo_url: stored.publicUrl,
+                    photo_checked_at: now,
+                    image_search_checked_at: now,
+                    last_image_search_note: null,
+                  })
+                  .eq("id", id);
+                if (updateError) {
+                  errors.push(
+                    `${kind.table} "${name}": Update fehlgeschlagen — ${updateError.message}`,
+                  );
+                  continue;
+                }
+                autoApplied++;
+                continue;
+              }
+            }
+          }
+        } else if (!websiteUrl) {
+          await setNote(id, "Keine Website-URL hinterlegt.");
+        }
+
+        // Schon eine images-Zeile (egal welchen Status außer 'rejected') für
+        // diese Entität? Dann läuft schon eine Prüfung/Entscheidung — weder
+        // 2b noch 3 sollen einen zweiten Kandidaten obendrauf stellen.
+        const { data: existing } = await supabase
           .from("images")
           .select("id")
           .eq("origin_type", kind.originType)
           .eq("origin_id", id)
           .neq("license_status", "rejected")
-          .limit(1)
           .maybeSingle();
-        if (existingTargetedCandidate) {
+        if (existing) {
           await setNote(
             id,
             "Kandidat gefunden, wartet auf redaktionelle Lizenzprüfung (/media).",
           );
           continue;
         }
-      }
 
-      // Priorität 2: eigene offizielle Website. Direkt übernommen, kein
-      // Review — es ist die Entität selbst, die dieses Bild von sich
-      // öffentlich zeigt, kein Fremdbild eines Dritten.
-      // `fastFallback` darf nur Health-Checks und URL-Discovery abkürzen,
-      // nicht die bereits bekannte offizielle Website überspringen. Genau
-      // das tat der Cron bisher und schloss hunderte Personen trotz
-      // vorhandener Primärquelle als „kein Bild gefunden“ ab.
-      if (websiteUrl) {
-        if (!(await isAllowedByRobots(websiteUrl))) {
-          await setNote(
+        // Priorität 2b: Bild von der Seite einer konkreten bevorstehenden
+        // Veranstaltung, bei der diese Person/dieses Ensemble mitwirkt —
+        // präziser als eine blinde Namenssuche, aber Seite eines Dritten
+        // ohne bekannte Lizenz, daher immer review-pflichtig.
+        // Auch im regulären Cron-Lauf ausführen: `fastFallback` hatte diesen
+        // wichtigsten kostenlosen Rückfall komplett deaktiviert. Damit
+        // blieben gerade neue Künstler:innen ohne Wikipedia und ohne bereits
+        // hinterlegte Website dauerhaft ohne jeden Kandidaten, obwohl ihre
+        // Veranstaltungs-/Besetzungsseite häufig ein Porträt enthält. Die
+        // Cron-Batches sind klein genug, dass ein einzelner zielgerichteter
+        // Seitenabruf pro Entität vertretbar bleibt.
+        if (kind.participantColumn) {
+          const eventPageUrl = await findUpcomingEventPageUrl(
+            supabase,
+            kind.participantColumn,
             id,
-            "Eigene Website durch robots.txt gesperrt — Zugriff verweigert.",
           );
-        } else {
-          // Entitätsspezifischer Tiefencrawler: anders als der einfache
-          // Event-Cover-Parser versteht er auch data-image/data-src/srcset,
-          // schema.org Person/MusicGroup sowie Presse-, Portrait-, Galerie-,
-          // Bio- und Team-Unterseiten. Das schließt insbesondere
-          // Squarespace-/Agenturseiten, auf denen das sichtbare Porträt
-          // nicht als og:image hinterlegt ist.
-          const officialCrawl = await searchOfficialSiteForImages(name, websiteUrl, {
-            maxPages: fastFallback ? 4 : 8,
-          });
-          let officialCandidateQueued = false;
-          for (const candidate of officialCrawl.candidates.slice(0, 5)) {
-            if (candidate.confidence === "low" || isLikelyGenericImage(candidate.url)) continue;
-            const { reachable } = await checkImageUrl(candidate.url);
-            if (!reachable || await isUrlUsedElsewhere(supabase, candidate.url, kind.table, id)) continue;
-            const stored = await persistCandidate(supabase, kind, id, {
-              imageUrl: candidate.url,
-              sourcePageUrl: candidate.pageUrl,
-              sourceName: new URL(candidate.pageUrl).hostname,
-              licenseStatus: "permission_required",
-              confidenceScore: candidate.confidence === "high" ? 0.92 : 0.8,
-              matchReason: `Offizielle Website von „${name}“: ${candidate.reasons.join(" ")}`,
-              warnings: ["Bildcredit und Nutzungserlaubnis vor Veröffentlichung prüfen."],
-              needsReview: true,
-            });
-            if (!stored) continue;
-            queuedForReview++;
-            await setNote(id, "Porträt auf offizieller Website gefunden, wartet auf Bilderfreigabe (/media).");
-            officialCandidateQueued = true;
-            break;
-          }
-          if (officialCandidateQueued) continue;
-
-          // Volle Kaskade (schema.org -> og:image -> twitter:image -> Hero/
-          // Banner -> Bild im Content-Container) statt nur og:image/
-          // twitter:image — dieselbe Erkennung, die der Ingestion-Importer
-          // seit PR #92 für neue Events nutzt (coverImageDetection.ts), war
-          // hier bisher nicht verdrahtet, obwohl die meisten bildlosen
-          // Entities durchaus eine website_url hinterlegt haben.
-          let detected = await detectEventCoverImage(websiteUrl);
-          let ownImageSourcePage = websiteUrl;
-          if (!detected) {
-            // Startseite liefert nichts — 1-2 wahrscheinliche Unterseiten
-            // (Presse/Über uns/Kontakt) derselben Domain versuchen, bevor
-            // aufgegeben wird. Viele Vereine/Ensembles haben eine
-            // text-lastige Startseite ohne Foto, aber ein Foto auf einer
-            // "Über uns"-Unterseite.
-            const subpages = await findLikelySubpages(websiteUrl);
-            for (const subpageUrl of subpages) {
-              const subDetected = await detectEventCoverImage(subpageUrl);
-              if (subDetected) {
-                detected = subDetected;
-                ownImageSourcePage = subpageUrl;
-                break;
-              }
-            }
-          }
-          const ownImage = detected?.url ?? null;
-          if (!ownImage) {
-            await setNote(
-              id,
-              "Eigene Website liefert kein nutzbares Bild (og:image/Hero/Content-Bereich/Unterseiten geprüft).",
-            );
-          } else {
-            const { reachable } = await checkImageUrl(ownImage);
-            if (!reachable) {
-              await setNote(
-                id,
-                "Bild von der eigenen Website nicht erreichbar/kein gültiges Bildformat.",
-              );
-            } else if (
-              await isUrlUsedElsewhere(supabase, ownImage, kind.table, id)
-            ) {
-              await setNote(
-                id,
-                "Bild von der eigenen Website ist bereits einer anderen Entität zugeordnet (Duplikat).",
-              );
-            } else {
-              let requiresReview = !detected?.credits || 0.96 < minConfidence;
-              const metadata: CandidateMetadata = {
-                imageUrl: ownImage,
-                sourcePageUrl: ownImageSourcePage,
-                sourceName: new URL(ownImageSourcePage).hostname,
-                photographer: detected?.credits ?? null,
-                licenseStatus: detected?.credits
-                  ? "official_press_image"
-                  : "permission_required",
-                confidenceScore: 0.96,
-                matchReason:
-                  `Bild stammt von der hinterlegten offiziellen Website von „${name}“.`,
-                warnings: detected?.credits ? [] : [
-                  "Kein vollständiger Bildcredit auf der Quellseite erkannt.",
-                ],
-                needsReview: requiresReview,
-              };
-              let stored = await persistCandidate(supabase, kind, id, metadata);
-              // Große Originale können die WebP/pHash-Verarbeitung der Edge-
-              // Runtime sprengen. Der Fund darf dann nicht verloren gehen:
-              // als externer, review-pflichtiger Kandidat speichern; nach
-              // Freigabe kann er separat rehosted werden.
-              if (!stored && !requiresReview) {
-                requiresReview = true;
-                stored = await persistCandidate(supabase, kind, id, {
-                  ...metadata,
+          if (eventPageUrl) {
+            const nearImage = await extractImageNearName(eventPageUrl, name);
+            if (nearImage && !isLikelyGenericImage(nearImage)) {
+              const { reachable } = await checkImageUrl(nearImage);
+              if (
+                reachable &&
+                !(await isUrlUsedElsewhere(supabase, nearImage, kind.table, id))
+              ) {
+                const stored = await persistCandidate(supabase, kind, id, {
+                  imageUrl: nearImage,
+                  sourcePageUrl: eventPageUrl,
+                  sourceName: new URL(eventPageUrl).hostname,
+                  licenseStatus: "permission_required",
+                  confidenceScore: 0.78,
+                  matchReason:
+                    `Bild steht auf einer konkreten Veranstaltungsseite in unmittelbarer Nähe zum Namen „${name}“.`,
+                  warnings: [
+                    "Drittquelle; Nutzungserlaubnis und Credit müssen manuell geklärt werden.",
+                  ],
                   needsReview: true,
-                  warnings: [...(metadata.warnings ?? []), "Automatische Bildverarbeitung fehlgeschlagen; Originalquelle vor Freigabe prüfen."],
                 });
-              }
-              if (!stored) {
-                errors.push(
-                  `${kind.table} "${name}": Bilddownload/Storage fehlgeschlagen`,
-                );
+                if (!stored) {
+                  errors.push(
+                    `${kind.table} "${name}": Download/Storage fehlgeschlagen`,
+                  );
+                } else {
+                  queuedForReview++;
+                  await setNote(
+                    id,
+                    "Kandidat von einer Veranstaltungsseite gefunden, wartet auf Lizenzprüfung (/media).",
+                  );
+                }
                 continue;
               }
-              // Nur bei vollständigem Credit automatisch veröffentlichen.
-              // Sonst bleibt der Storage-Kandidat ausschließlich in /media.
-              if (requiresReview) {
-                queuedForReview++;
-                await setNote(
-                  id,
-                  "Offizieller Bildkandidat ohne vollständigen Credit wartet auf Prüfung (/media).",
-                );
-                continue;
-              }
-              const now = new Date().toISOString();
-              const { error: updateError } = await supabase
-                .from(kind.table)
-                .update({
-                  photo_url: stored.publicUrl,
-                  photo_checked_at: now,
-                  image_search_checked_at: now,
-                  last_image_search_note: null,
-                })
-                .eq("id", id);
-              if (updateError) {
-                errors.push(
-                  `${kind.table} "${name}": Update fehlgeschlagen — ${updateError.message}`,
-                );
-                continue;
-              }
-              autoApplied++;
-              continue;
             }
           }
         }
-      } else if (!websiteUrl) {
-        await setNote(id, "Keine Website-URL hinterlegt.");
-      }
 
-      // Schon eine images-Zeile (egal welchen Status außer 'rejected') für
-      // diese Entität? Dann läuft schon eine Prüfung/Entscheidung — weder
-      // 2b noch 3 sollen einen zweiten Kandidaten obendrauf stellen.
-      const { data: existing } = await supabase
-        .from("images")
-        .select("id")
-        .eq("origin_type", kind.originType)
-        .eq("origin_id", id)
-        .neq("license_status", "rejected")
-        .maybeSingle();
-      if (existing) {
-        await setNote(
-          id,
-          "Kandidat gefunden, wartet auf redaktionelle Lizenzprüfung (/media).",
-        );
-        continue;
-      }
-
-      // Priorität 2b: Bild von der Seite einer konkreten bevorstehenden
-      // Veranstaltung, bei der diese Person/dieses Ensemble mitwirkt —
-      // präziser als eine blinde Namenssuche, aber Seite eines Dritten
-      // ohne bekannte Lizenz, daher immer review-pflichtig.
-      // Auch im regulären Cron-Lauf ausführen: `fastFallback` hatte diesen
-      // wichtigsten kostenlosen Rückfall komplett deaktiviert. Damit
-      // blieben gerade neue Künstler:innen ohne Wikipedia und ohne bereits
-      // hinterlegte Website dauerhaft ohne jeden Kandidaten, obwohl ihre
-      // Veranstaltungs-/Besetzungsseite häufig ein Porträt enthält. Die
-      // Cron-Batches sind klein genug, dass ein einzelner zielgerichteter
-      // Seitenabruf pro Entität vertretbar bleibt.
-      if (kind.participantColumn) {
-        const eventPageUrl = await findUpcomingEventPageUrl(
-          supabase,
-          kind.participantColumn,
-          id,
-        );
-        if (eventPageUrl) {
-          const nearImage = await extractImageNearName(eventPageUrl, name);
-          if (nearImage && !isLikelyGenericImage(nearImage)) {
-            const { reachable } = await checkImageUrl(nearImage);
-            if (
-              reachable &&
-              !(await isUrlUsedElsewhere(supabase, nearImage, kind.table, id))
-            ) {
-              const stored = await persistCandidate(supabase, kind, id, {
-                imageUrl: nearImage,
-                sourcePageUrl: eventPageUrl,
-                sourceName: new URL(eventPageUrl).hostname,
-                licenseStatus: "permission_required",
-                confidenceScore: 0.78,
-                matchReason:
-                  `Bild steht auf einer konkreten Veranstaltungsseite in unmittelbarer Nähe zum Namen „${name}“.`,
-                warnings: [
-                  "Drittquelle; Nutzungserlaubnis und Credit müssen manuell geklärt werden.",
-                ],
-                needsReview: true,
-              });
-              if (!stored) {
-                errors.push(
-                  `${kind.table} "${name}": Download/Storage fehlgeschlagen`,
-                );
-              } else {
-                queuedForReview++;
-                await setNote(
-                  id,
-                  "Kandidat von einer Veranstaltungsseite gefunden, wartet auf Lizenzprüfung (/media).",
-                );
-              }
-              continue;
-            }
-          }
-        }
-      }
-
-      // Priorität 3: Wikipedia-Infobox-Bild — jetzt für ALLE Entity-Kinds
-      // versucht (vorher nur Personen), da bekannte Ensembles/Festivals und
-      // historische Venues genauso oft einen eigenen Artikel mit kuratiertem
-      // Infobox-Bild haben (z. B. "Bayerisches Staatsorchester",
-      // "Prinzregententheater") — ein einzelnes, redaktionell gepflegtes
-      // Bild pro Artikel ist zuverlässiger als das Ranking einer
-      // Commons-Volltextsuche.
-      let portrait: Awaited<ReturnType<typeof fetchWikipediaPortrait>> = null;
-      for (const variant of nameSearchVariants(name)) {
-        portrait = await fetchWikipediaPortrait(variant);
-        if (portrait) break;
-      }
-      if (portrait) {
-        const { reachable } = await checkImageUrl(portrait.imageUrl);
-        if (!reachable) {
-          await setNote(
-            id,
-            "Wikipedia-Bild nicht erreichbar/kein gültiges Bildformat.",
-          );
-        } else if (
-          await isUrlUsedElsewhere(supabase, portrait.imageUrl, kind.table, id)
-        ) {
-          await setNote(
-            id,
-            "Wikipedia-Bild ist bereits einer anderen Entität zugeordnet (Duplikat).",
-          );
-        } else {
-          const stored = await persistCandidate(supabase, kind, id, {
-            imageUrl: portrait.imageUrl,
-            sourcePageUrl: portrait.pageUrl,
-            sourceName: "Wikipedia",
-            licenseStatus: "unknown",
-            confidenceScore: 0.86,
-            matchReason:
-              `Infobox-Bild des eindeutig aufgelösten Wikipedia-Artikels „${name}“.`,
-            warnings: [
-              "Wikipedia dient nur der Identifikation; Lizenz auf der verknüpften Bildseite prüfen.",
-            ],
-            needsReview: true,
-          });
-          if (stored) {
-            queuedForReview++;
-            await setNote(
-              id,
-              "Wikipedia-Kandidat gefunden, wartet auf Lizenzprüfung (/media).",
-            );
-            continue;
-          }
-          errors.push(`${kind.table} "${name}": Wikipedia-Kandidat konnte nicht gespeichert werden`);
-        }
-      }
-
-      // Priorität 4: Personen nutzen bewusst KEINE Commons-Volltextsuche
-      // (siehe wikimediaCommons.ts-Datei-Kommentar: zu viele Fehltreffer bei
-      // Namensgleichheiten), gehen direkt zu Wikidata. Venues/Ensembles/
-      // Festivals versuchen zuerst Commons.
-      if (!kind.useWikipediaFallback) {
-        let candidate: Awaited<ReturnType<typeof searchCommonsImage>> = null;
+        // Priorität 3: Wikipedia-Infobox-Bild — jetzt für ALLE Entity-Kinds
+        // versucht (vorher nur Personen), da bekannte Ensembles/Festivals und
+        // historische Venues genauso oft einen eigenen Artikel mit kuratiertem
+        // Infobox-Bild haben (z. B. "Bayerisches Staatsorchester",
+        // "Prinzregententheater") — ein einzelnes, redaktionell gepflegtes
+        // Bild pro Artikel ist zuverlässiger als das Ranking einer
+        // Commons-Volltextsuche.
+        let portrait: Awaited<ReturnType<typeof fetchWikipediaPortrait>> = null;
         for (const variant of nameSearchVariants(name)) {
-          const query = queryContext ? `${variant} ${queryContext}` : variant;
-          candidate = await searchCommonsImage(query);
-          if (candidate) break;
+          portrait = await fetchWikipediaPortrait(variant);
+          if (portrait) break;
         }
-        if (candidate) {
-          const { reachable } = await checkImageUrl(candidate.url);
+        if (portrait) {
+          const { reachable } = await checkImageUrl(portrait.imageUrl);
           if (!reachable) {
             await setNote(
               id,
-              "Wikimedia-Bild nicht erreichbar/kein gültiges Bildformat.",
+              "Wikipedia-Bild nicht erreichbar/kein gültiges Bildformat.",
             );
-            continue;
-          }
-          if (
-            await isUrlUsedElsewhere(supabase, candidate.url, kind.table, id)
+          } else if (
+            await isUrlUsedElsewhere(
+              supabase,
+              portrait.imageUrl,
+              kind.table,
+              id,
+            )
           ) {
             await setNote(
               id,
-              "Wikimedia-Bild ist bereits einer anderen Entität zugeordnet (Duplikat).",
+              "Wikipedia-Bild ist bereits einer anderen Entität zugeordnet (Duplikat).",
             );
-            continue;
-          }
-          const stored = await persistCandidate(supabase, kind, id, {
-            imageUrl: candidate.url,
-            sourcePageUrl: candidate.pageUrl,
-            sourceName: "Wikimedia Commons",
-            photographer: candidate.artist,
-            licenseName: candidate.license,
-            licenseStatus: "confirmed_free",
-            confidenceScore: 0.72,
-            matchReason:
-              `Namens- und Kontextsuche nach „${name}“ auf Wikimedia Commons.`,
-            warnings: [
-              "Treffer stammt aus Volltextsuche; Identität redaktionell bestätigen.",
-            ],
-            needsReview: true,
-          });
-          if (!stored) {
+          } else {
+            const stored = await persistCandidate(supabase, kind, id, {
+              imageUrl: portrait.imageUrl,
+              sourcePageUrl: portrait.pageUrl,
+              sourceName: "Wikipedia",
+              licenseStatus: "unknown",
+              confidenceScore: 0.86,
+              matchReason:
+                `Infobox-Bild des eindeutig aufgelösten Wikipedia-Artikels „${name}“.`,
+              warnings: [
+                "Wikipedia dient nur der Identifikation; Lizenz auf der verknüpften Bildseite prüfen.",
+              ],
+              needsReview: true,
+            });
+            if (stored) {
+              queuedForReview++;
+              await setNote(
+                id,
+                "Wikipedia-Kandidat gefunden, wartet auf Lizenzprüfung (/media).",
+              );
+              continue;
+            }
             errors.push(
-              `${kind.table} "${name}": Download/Storage fehlgeschlagen`,
+              `${kind.table} "${name}": Wikipedia-Kandidat konnte nicht gespeichert werden`,
+            );
+          }
+        }
+
+        // Priorität 4: Personen nutzen bewusst KEINE Commons-Volltextsuche
+        // (siehe wikimediaCommons.ts-Datei-Kommentar: zu viele Fehltreffer bei
+        // Namensgleichheiten), gehen direkt zu Wikidata. Venues/Ensembles/
+        // Festivals versuchen zuerst Commons.
+        if (!kind.useWikipediaFallback) {
+          let candidate: Awaited<ReturnType<typeof searchCommonsImage>> = null;
+          for (const variant of nameSearchVariants(name)) {
+            const query = queryContext ? `${variant} ${queryContext}` : variant;
+            candidate = await searchCommonsImage(query);
+            if (candidate) break;
+          }
+          if (candidate) {
+            const { reachable } = await checkImageUrl(candidate.url);
+            if (!reachable) {
+              await setNote(
+                id,
+                "Wikimedia-Bild nicht erreichbar/kein gültiges Bildformat.",
+              );
+              continue;
+            }
+            if (
+              await isUrlUsedElsewhere(supabase, candidate.url, kind.table, id)
+            ) {
+              await setNote(
+                id,
+                "Wikimedia-Bild ist bereits einer anderen Entität zugeordnet (Duplikat).",
+              );
+              continue;
+            }
+            const stored = await persistCandidate(supabase, kind, id, {
+              imageUrl: candidate.url,
+              sourcePageUrl: candidate.pageUrl,
+              sourceName: "Wikimedia Commons",
+              photographer: candidate.artist,
+              licenseName: candidate.license,
+              licenseStatus: "confirmed_free",
+              confidenceScore: 0.72,
+              matchReason:
+                `Namens- und Kontextsuche nach „${name}“ auf Wikimedia Commons.`,
+              warnings: [
+                "Treffer stammt aus Volltextsuche; Identität redaktionell bestätigen.",
+              ],
+              needsReview: true,
+            });
+            if (!stored) {
+              errors.push(
+                `${kind.table} "${name}": Download/Storage fehlgeschlagen`,
+              );
+              continue;
+            }
+            queuedForReview++;
+            await setNote(
+              id,
+              "Wikimedia-Kandidat gefunden, wartet auf Lizenzprüfung (/media).",
             );
             continue;
           }
+        }
+
+        // Priorität 5: Wikidata (P18) — letzter kostenloser Fallback für alle
+        // Kinds, bevor endgültig aufgegeben wird.
+        const wikidataOutcome = await tryWikidataFallback(
+          supabase,
+          kind,
+          id,
+          name,
+          errors,
+          queryContext,
+        );
+        if (wikidataOutcome === "queued") queuedForReview++;
+        if (wikidataOutcome !== "not_found") continue;
+        const webQueued = await tryMultiSourceWebImageFallback(
+          supabase,
+          kind,
+          id,
+          name,
+          errors,
+          queryContext,
+        );
+        if (webQueued) {
           queuedForReview++;
-          await setNote(
-            id,
-            "Wikimedia-Kandidat gefunden, wartet auf Lizenzprüfung (/media).",
-          );
           continue;
         }
+        await setNote(
+          id,
+          kind.useWikipediaFallback
+            ? "Kein eindeutiges Porträt in Wikipedia, Wikidata oder der erweiterten Websuche gefunden."
+            : "Keine passende Wikimedia-Commons-Datei gefunden.",
+        );
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        errors.push(`${kind.table} "${name}": ${message}`);
+        await setNote(
+          id,
+          `Bildrecherche vorübergehend fehlgeschlagen: ${
+            message.slice(0, 180)
+          }. Automatischer neuer Versuch eingeplant.`,
+        );
       }
-
-      // Priorität 5: Wikidata (P18) — letzter kostenloser Fallback für alle
-      // Kinds, bevor endgültig aufgegeben wird.
-      const wikidataOutcome = await tryWikidataFallback(
-        supabase,
-        kind,
-        id,
-        name,
-        errors,
-        queryContext,
-      );
-      if (wikidataOutcome === "queued") queuedForReview++;
-      if (wikidataOutcome !== "not_found") continue;
-      const webQueued = await tryMultiSourceWebImageFallback(supabase, kind, id, name, errors, queryContext);
-      if (webQueued) {
-        queuedForReview++;
-        continue;
-      }
-      await setNote(
-        id,
-        kind.useWikipediaFallback
-          ? "Kein eindeutiges Porträt in Wikipedia, Wikidata oder der erweiterten Websuche gefunden."
-          : "Keine passende Wikimedia-Commons-Datei gefunden.",
-      );
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      errors.push(`${kind.table} "${name}": ${message}`);
-      await setNote(id, `Bildrecherche vorübergehend fehlgeschlagen: ${message.slice(0, 180)}. Automatischer neuer Versuch eingeplant.`);
     }
   }
+
+  const workerCount = Math.min(ENTITY_CONCURRENCY, list.length);
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
 
   return {
     found: list.length,
@@ -1658,7 +1821,9 @@ async function discoverMissingEntityWebsites(
     .is("photo_url", null);
   if (entityIds.length > 0) discoveryQuery = discoveryQuery.in("id", entityIds);
   const { data: rows } = await discoveryQuery.limit(
-    entityIds.length > 0 ? Math.min(entityIds.length, 500) : ENTITY_URL_DISCOVERY_LIMIT,
+    entityIds.length > 0
+      ? Math.min(entityIds.length, 500)
+      : ENTITY_URL_DISCOVERY_LIMIT,
   );
 
   const list = (rows ?? []) as Array<Record<string, unknown>>;
@@ -1669,7 +1834,10 @@ async function discoverMissingEntityWebsites(
     const name = row[kind.nameColumn] as string;
     if (!name?.trim()) continue;
     const queryContext = kind.usesCityContext
-      ? await resolveCityName(supabase, row.city_id as string | null | undefined)
+      ? await resolveCityName(
+        supabase,
+        row.city_id as string | null | undefined,
+      )
       : undefined;
 
     const query = queryContext
@@ -1754,7 +1922,11 @@ async function discoverMissingEventUrls(
     .limit(EVENT_URL_DISCOVERY_LIMIT);
 
   const rows = (events ?? []) as Array<
-    { id: string; title: string; venues: { name: string; city_id: string | null } | null }
+    {
+      id: string;
+      title: string;
+      venues: { name: string; city_id: string | null } | null;
+    }
   >;
   let found = 0;
 
@@ -1764,7 +1936,9 @@ async function discoverMissingEventUrls(
     // hier fest im Suchtext verdrahtet, unabhängig von der tatsächlichen
     // Stadt des Venues — betraf jede Veranstaltung außerhalb Münchens.
     const cityName = await resolveCityName(supabase, event.venues?.city_id);
-    const query = `${event.title} ${venueName}${cityName ? ` ${cityName}` : ""} Tickets`;
+    const query = `${event.title} ${venueName}${
+      cityName ? ` ${cityName}` : ""
+    } Tickets`;
 
     let topResultUrl: string | null = null;
     let searchFailed = false;
@@ -1837,29 +2011,48 @@ async function tryEventWebSearchImageFallback(
   const pages: Array<{ url: string }> = [];
   for (const query of queries) {
     for (const result of await searchDuckDuckGo(query, 5) ?? []) {
-      if (!pages.some((p) => p.url === result.url)) pages.push({ url: result.url });
+      if (!pages.some((p) => p.url === result.url)) {
+        pages.push({ url: result.url });
+      }
     }
     if (pages.length >= 8) break;
   }
-  pages.sort((a, b) => imagePageScore(b.url, "event") - imagePageScore(a.url, "event"));
+  pages.sort((a, b) =>
+    imagePageScore(b.url, "event") - imagePageScore(a.url, "event")
+  );
 
-  for (const page of pages.filter((p) => imagePageScore(p.url, "event") > -100).slice(0, 5)) {
+  for (
+    const page of pages.filter((p) => imagePageScore(p.url, "event") > -100)
+      .slice(0, 5)
+  ) {
     try {
       const detected = await detectEventCoverImage(page.url);
       if (!detected?.url || isLikelyGenericImage(detected.url)) continue;
       const { reachable } = await checkImageUrl(detected.url);
-      if (!reachable || await isUrlUsedElsewhere(supabase, detected.url, "events", event.id)) continue;
-      const stored = await persistCandidate(supabase, { table: "events", originType: "event" }, event.id, {
-        imageUrl: detected.url,
-        sourcePageUrl: page.url,
-        sourceName: new URL(page.url).hostname,
-        photographer: detected.credits,
-        licenseStatus: "permission_required",
-        confidenceScore: 0.68,
-        matchReason: `Websuche nach „${event.title}“${context ? ` (${context})` : ""} — Treffer auf ${new URL(page.url).hostname}.`,
-        warnings: ["Motiv, Bildcredit und Nutzungserlaubnis vor Veröffentlichung prüfen."],
-        needsReview: true,
-      });
+      if (
+        !reachable ||
+        await isUrlUsedElsewhere(supabase, detected.url, "events", event.id)
+      ) continue;
+      const stored = await persistCandidate(
+        supabase,
+        { table: "events", originType: "event" },
+        event.id,
+        {
+          imageUrl: detected.url,
+          sourcePageUrl: page.url,
+          sourceName: new URL(page.url).hostname,
+          photographer: detected.credits,
+          licenseStatus: "permission_required",
+          confidenceScore: 0.68,
+          matchReason: `Websuche nach „${event.title}“${
+            context ? ` (${context})` : ""
+          } — Treffer auf ${new URL(page.url).hostname}.`,
+          warnings: [
+            "Motiv, Bildcredit und Nutzungserlaubnis vor Veröffentlichung prüfen.",
+          ],
+          needsReview: true,
+        },
+      );
       if (!stored) continue;
       const now = new Date().toISOString();
       const { error: updateError } = await supabase
@@ -1903,7 +2096,9 @@ async function enrichEventCovers(
   // näher das Event, desto eher lohnt sich ein (erneuter) Versuch.
   const { data: events, error } = await supabase
     .from("events")
-    .select("id, title, image_urls, website_url, ticket_url, venues(name, city_id)")
+    .select(
+      "id, title, image_urls, website_url, ticket_url, venues(name, city_id)",
+    )
     .in("status", ["scheduled", "sold_out", "postponed"])
     .gte("start_datetime", new Date().toISOString())
     .order("last_image_search_note", { ascending: true, nullsFirst: true })
@@ -1973,7 +2168,10 @@ async function enrichEventCovers(
         }
         if (!coverImage) {
           const venueName = event.venues?.name ?? null;
-          const cityName = await resolveCityName(supabase, event.venues?.city_id);
+          const cityName = await resolveCityName(
+            supabase,
+            event.venues?.city_id,
+          );
           const viaSearch = await tryEventWebSearchImageFallback(
             supabase,
             { id: event.id, title: event.title },
@@ -1997,19 +2195,30 @@ async function enrichEventCovers(
         // Event. So bleiben Quellseite, Anbieter, Original-URL, Credits,
         // Lizenzstatus und Abrufzeit bei JEDEM automatischen Eventbild
         // dauerhaft nachvollziehbar.
-        const stored = await persistCandidate(supabase, { table: "events", originType: "event" }, event.id, {
-          imageUrl: coverImage,
-          sourcePageUrl: coverSourcePage!,
-          sourceName: new URL(coverSourcePage!).hostname,
-          photographer: coverCredits,
-          licenseStatus: coverCredits ? "official_press_image" : "permission_required",
-          confidenceScore: 0.94,
-          matchReason: "Titel-/Hero-Bild der konkreten Veranstaltungsseite.",
-          warnings: coverCredits ? [] : ["Bildcredit und Nutzungserlaubnis vor Veröffentlichung prüfen."],
-          needsReview: !coverCredits,
-        });
+        const stored = await persistCandidate(
+          supabase,
+          { table: "events", originType: "event" },
+          event.id,
+          {
+            imageUrl: coverImage,
+            sourcePageUrl: coverSourcePage!,
+            sourceName: new URL(coverSourcePage!).hostname,
+            photographer: coverCredits,
+            licenseStatus: coverCredits
+              ? "official_press_image"
+              : "permission_required",
+            confidenceScore: 0.94,
+            matchReason: "Titel-/Hero-Bild der konkreten Veranstaltungsseite.",
+            warnings: coverCredits ? [] : [
+              "Bildcredit und Nutzungserlaubnis vor Veröffentlichung prüfen.",
+            ],
+            needsReview: !coverCredits,
+          },
+        );
         if (!stored) {
-          errors.push(`event ${event.id}: Bild oder Quellenmetadaten konnten nicht zentral gespeichert werden`);
+          errors.push(
+            `event ${event.id}: Bild oder Quellenmetadaten konnten nicht zentral gespeichert werden`,
+          );
           continue;
         }
 
