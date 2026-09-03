@@ -66,6 +66,7 @@ struct CityPickerStepView: View {
                     VStack(spacing: 12) {
                         ForEach(cities) { city in
                             CityOptionRow(city: city, isSelected: selectedCityID == city.id) {
+                                Haptics.light()
                                 selectedCityID = city.id
                             }
                         }
@@ -145,6 +146,7 @@ struct CityPickerStepView: View {
         if let repository, let userID = auth.userID, let token = auth.accessToken {
             try? await repository.setPreferredRegion(regionID: selectedCityID, userID: userID, token: token)
         }
+        Haptics.confirm()
         onFinished()
     }
 }
