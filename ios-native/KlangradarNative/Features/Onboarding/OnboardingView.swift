@@ -132,6 +132,7 @@ struct OnboardingView: View {
                         repository: repository,
                         header: header,
                         onEditCity: { editStep(matching: { if case .location = $0 { true } else { false } }) },
+                        onEditInterests: { editStep(matching: { if case .interests = $0 { true } else { false } }) },
                         onEditFollows: { editStep(matching: { if case .followPersons = $0 { true } else { false } }) },
                         onEditNotifications: { editStep(matching: { if case .notifications = $0 { true } else { false } }) }
                     ) {
