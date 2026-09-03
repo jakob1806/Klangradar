@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/haptics.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/time/munich_time.dart';
@@ -61,6 +62,8 @@ class _EventPickerScreenState extends ConsumerState<EventPickerScreen> {
 
   Future<void> _save() async {
     setState(() => _saving = true);
+    // Finales Speichern der Listen-Auswahl = Bestätigung.
+    Haptics.confirm();
     await EventListsService.replaceEvents(
       ref,
       listId: widget.listId,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/auth/auth_providers.dart';
+import '../../../core/haptics.dart';
 import '../../../core/notifications/notification_preferences_providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -91,12 +92,21 @@ class NotificationSettingsScreen extends ConsumerWidget {
                 ),
                 value: prefs[row.key],
                 activeThumbColor: colors.accentPrimary,
-                onChanged: (value) =>
-                    NotificationPreferencesService.setPreference(
-                      ref,
-                      key: row.key,
-                      value: value,
-                    ),
+                onChanged: (value) {
+                  // Erinnerung/Benachrichtigung aktivieren = Bestätigung
+                  // (Nutzer-Vorgabe); übrige Einstellungs-Toggles nur leicht.
+                  if (row.key == NotificationPreferenceKey.reminderDayBefore &&
+                      value) {
+                    Haptics.confirm();
+                  } else {
+                    Haptics.light();
+                  }
+                  NotificationPreferencesService.setPreference(
+                    ref,
+                    key: row.key,
+                    value: value,
+                  );
+                },
               ),
           ],
         ),

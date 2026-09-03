@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/events/filtered_events_providers.dart';
+import '../../../core/haptics.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/time/munich_time.dart';
@@ -906,7 +907,10 @@ class _DirectoryList extends StatelessWidget {
                     ),
                   )
                 : null,
-            onTap: () => context.push(_resultRoute(type, r)),
+            onTap: () {
+              Haptics.light();
+              context.push(_resultRoute(type, r));
+            },
           ),
       ],
     );
@@ -986,7 +990,10 @@ class _ResultsList extends StatelessWidget {
                         ),
                       )
                     : null,
-                onTap: () => context.push(_resultRoute(type, r)),
+                onTap: () {
+                  Haptics.light();
+                  context.push(_resultRoute(type, r));
+                },
               ),
             const SizedBox(height: AppSpacing.lg),
           ],

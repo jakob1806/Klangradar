@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart';
 
+import '../../../core/haptics.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/time/munich_time.dart';
@@ -132,10 +133,13 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                     : CalendarFormat.month,
                 selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
                 eventLoader: (day) => eventsByDay[_dayKey(day)] ?? const [],
-                onDaySelected: (selected, focused) => setState(() {
-                  _selectedDay = selected;
-                  _focusedDay = focused;
-                }),
+                onDaySelected: (selected, focused) {
+                  Haptics.light();
+                  setState(() {
+                    _selectedDay = selected;
+                    _focusedDay = focused;
+                  });
+                },
                 onPageChanged: (focused) =>
                     setState(() => _focusedDay = focused),
                 daysOfWeekHeight: 20,
