@@ -6,6 +6,7 @@ import SwiftUI
 struct PersonalDataStepView: View {
     @ObservedObject var auth: AuthStore
     let repository: UserRepository?
+    let header: OnboardingProgressHeader
     let onSaved: () -> Void
 
     @State private var firstName = ""
@@ -40,6 +41,8 @@ struct PersonalDataStepView: View {
         .navigationTitle("Über dich")
         .onboardingChrome()
         .navigationBarTitleDisplayMode(.inline)
+        .safeAreaInset(edge: .top, spacing: 0) { header }
+        .onboardingBackground()
         .safeAreaInset(edge: .bottom) {
             Button { Task { await save() } } label: { Text("Weiter").frame(maxWidth: .infinity) }
                 .authPrimaryButtonStyle()

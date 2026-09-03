@@ -11,6 +11,7 @@ import UserNotifications
 struct NotificationsStepView: View {
     @ObservedObject var auth: AuthStore
     let repository: UserRepository?
+    let header: OnboardingProgressHeader
     let onFinished: () -> Void
 
     @State private var isWorking = false
@@ -20,13 +21,16 @@ struct NotificationsStepView: View {
         // der Form platziert und respektierte das per NavigationStack
         // gesetzte safeAreaInset(top) nicht zuverlässig (lag teils hinter
         // dem Header, siehe FollowCategoryStepView). Jetzt als erste
-        // Form-Section über NotificationSettingsView.introTitle.
+        // Form-Section über NotificationSettingsView.introTitle, Header
+        // direkt an der Form.
         NotificationSettingsView(
             auth: auth,
             repository: repository,
             introTitle: "Verpasse keine interessanten Konzerte",
             introSubtitle: "Wähle zuerst aus, was dich interessiert. Den iOS-Systemdialog öffnen wir erst danach."
         )
+        .safeAreaInset(edge: .top, spacing: 0) { header }
+        .onboardingBackground()
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 14) {
                 Button { Task { await requestPermission() } } label: {

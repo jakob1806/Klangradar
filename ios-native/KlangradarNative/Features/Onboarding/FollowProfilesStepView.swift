@@ -23,6 +23,7 @@ struct FollowCategoryStepView: View {
     @ObservedObject var auth: AuthStore
     let repository: UserRepository?
     let category: InterestCategory
+    let header: OnboardingProgressHeader
     let onFinished: () -> Void
 
     @EnvironmentObject private var follows: FollowStore
@@ -116,6 +117,8 @@ struct FollowCategoryStepView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .safeAreaInset(edge: .top, spacing: 0) { header }
+        .onboardingBackground()
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 14) {
                 Button(action: onFinished) { Text("Weiter").frame(maxWidth: .infinity) }

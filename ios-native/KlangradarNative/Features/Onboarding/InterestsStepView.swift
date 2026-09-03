@@ -8,6 +8,7 @@ import SwiftUI
 struct InterestsStepView: View {
     @ObservedObject var auth: AuthStore
     let repository: UserRepository?
+    let header: OnboardingProgressHeader
     let onFinished: () -> Void
 
     var body: some View {
@@ -19,6 +20,8 @@ struct InterestsStepView: View {
             .navigationTitle("Was interessiert dich?")
             .onboardingChrome()
             .navigationBarTitleDisplayMode(.inline)
+            .safeAreaInset(edge: .top, spacing: 0) { header }
+            .onboardingBackground()
             .safeAreaInset(edge: .bottom) {
                 VStack(spacing: 14) {
                     Button(action: onFinished) { Text("Weiter").frame(maxWidth: .infinity) }
