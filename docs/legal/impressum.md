@@ -1,31 +1,38 @@
 # Impressum
 
-> **ENTWURF — nicht rechtsverbindlich.** Vor Veröffentlichung von einer Kanzlei
-> prüfen und mit den echten Unternehmensdaten vervollständigen (§5 TMG/DDG).
+> **ENTWURF — nicht rechtsverbindlich.** Anbieterangaben unten sind mit den
+> Daten aus der bereits im Code hinterlegten Anbieterkennzeichnung
+> (`ios-native/KlangradarNative/Features/Profile/ImpressumView.swift`)
+> abgeglichen. Vor Veröffentlichung trotzdem von einer Kanzlei prüfen lassen —
+> insbesondere Registereintrag/USt-ID (aktuell als Einzelperson ohne
+> Handelsregistereintrag angenommen; **[ANWALT/GESCHÄFTSFÜHRUNG]** bestätigen)
+> und Telefonnummer (nach BGH-Rechtsprechung kann eine schnell erreichbare
+> E-Mail-Adresse für die "unmittelbare Kommunikation" ausreichen, ist aber
+> anwaltlich zu bestätigen).
 
 Angaben gemäß § 5 Telemediengesetz (TMG) / Digitale-Dienste-Gesetz (DDG):
 
 **Anbieter:**
-[FIRMENNAME / VOR- UND NACHNAME]
-[STRASSE UND HAUSNUMMER]
-[PLZ ORT]
+Jakob Liess
+Gabelsbergerstraße 6
+80333 München
 Deutschland
 
 **Kontakt:**
-Telefon: [TELEFONNUMMER]
-E-Mail: [KONTAKT-E-MAIL]
+E-Mail: jakob@klangradar.com
 
-**Vertretungsberechtigt:** [NAME DER GESCHÄFTSFÜHRUNG / INHABER:IN]
+**Vertretungsberechtigt:** Jakob Liess
 
-**Registereintrag** (falls zutreffend):
-Handelsregister: [REGISTERGERICHT]
-Registernummer: [HRB-NUMMER]
+**Registereintrag:**
+Einzelperson, kein Handelsregistereintrag. **[ANWALT/GESCHÄFTSFÜHRUNG]** bestätigen,
+ob sich das vor Launch ändert (z. B. Gewerbeanmeldung, Rechtsformwechsel).
 
-**Umsatzsteuer-ID** (falls zutreffend):
-Umsatzsteuer-Identifikationsnummer gemäß §27a UStG: [USt-IdNr.]
+**Umsatzsteuer-ID:**
+Noch keine Umsatzsteuer-Identifikationsnummer vorhanden. **[GESCHÄFTSFÜHRUNG]**
+ergänzen, sobald erteilt.
 
 **Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV:**
-[NAME, ANSCHRIFT]
+Jakob Liess, Gabelsbergerstraße 6, 80333 München
 
 **Streitschlichtung:**
 Die Europäische Kommission stellt eine Plattform zur Online-Streitbeilegung (OS)

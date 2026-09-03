@@ -5,7 +5,7 @@
 > AVV-Abschlüsse, ohne die diese Erklärung nicht final ist.
 
 ## 1. Verantwortlicher
-[FIRMENNAME], [ANSCHRIFT], [KONTAKT-E-MAIL] (siehe Impressum).
+Jakob Liess, Gabelsbergerstraße 6, 80333 München, jakob@klangradar.com (siehe Impressum).
 
 ## 2. Welche Daten wir verarbeiten
 
@@ -37,14 +37,33 @@ ob und welche Daten dabei an den Tile-Server/Hoster übertragen werden, und
 entsprechenden Passus ergänzen — abhängig vom verwendeten Tile-Provider.]
 
 ## 5. Speicherdauer
-[ANWALT/PRODUKT: konkrete Löschfristen je Datenkategorie festlegen, z. B. Konto-
-löschung auf Nutzerwunsch, automatische Löschung inaktiver Konten nach X Monaten.]
+
+> Vorschlag (Produktentscheidung, noch nicht anwaltlich final): folgende Fristen
+> spiegeln den aktuellen technischen Stand wider und sind vor Launch vom Team zu
+> bestätigen bzw. von einer Kanzlei freizugeben.
+
+| Datenkategorie | Speicherdauer |
+|---|---|
+| Konto (E-Mail, Passwort-Hash) | Bis zur Löschung durch Nutzer:in; auf Antrag sofortige Löschung, spätestens nach 30 Tagen |
+| Inaktive Konten | Löschung nach 24 Monaten ohne Login, mit vorheriger Hinweis-E-Mail |
+| Suchhistorie | Rollierend, älter als 12 Monate wird automatisch gelöscht |
+| Standortdaten | Werden nicht dauerhaft gespeichert — die Standortprüfung beim Besuchs-Check-in berechnet die Distanz zur Spielstätte nur im Moment der Anfrage; gespeichert wird lediglich das Ergebnis ("besucht: ja/verifiziert per Standort"), keine Koordinate |
+| Push-Token | Gelöscht bei Logout bzw. wenn die Zustellung dauerhaft fehlschlägt (ungültiges Token) |
+| Interessen/Präferenzen | Bis zur Löschung durch Nutzer:in oder Kontolöschung |
+
+**Technischer Umsetzungsstand:** Aktuell existiert noch **keine automatisierte
+Löschung** für inaktive Konten oder alte Suchhistorie (kein `pg_cron`-Job dafür).
+Diese Tabelle beschreibt die Zielvorgabe — vor Veröffentlichung dieser Erklärung
+muss entweder die Automatisierung ergänzt werden, oder die Fristen müssen bis
+dahin als "manuell auf Anfrage" statt automatisch formuliert werden. Nicht
+umgesetzte Löschfristen in der Datenschutzerklärung zu behaupten wäre selbst
+ein Compliance-Risiko.
 
 ## 6. Betroffenenrechte
 Nutzer:innen haben das Recht auf Auskunft (Art. 15 DSGVO), Berichtigung (Art. 16),
 Löschung (Art. 17), Einschränkung der Verarbeitung (Art. 18), Datenübertragbarkeit
 (Art. 20) und Widerspruch (Art. 21) sowie das Recht auf Beschwerde bei einer
-Aufsichtsbehörde. Anfragen an: [KONTAKT-E-MAIL].
+Aufsichtsbehörde. Anfragen an: jakob@klangradar.com.
 
 ## 7. Widerruf von Einwilligungen
 Standortfreigabe und Push-Benachrichtigungen können jederzeit in den Geräte- bzw.
