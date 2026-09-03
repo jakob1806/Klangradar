@@ -4,8 +4,9 @@
 > prüfen. Diese Fassung ist ein Ausgangspunkt, kein fertiger Vertragstext.
 
 ## 1. Geltungsbereich
-Diese AGB gelten für die Nutzung der App "Klassik München" (im Folgenden "die App"),
-angeboten von [FIRMENNAME], [ANSCHRIFT] (im Folgenden "wir"/"Anbieter").
+Diese AGB gelten für die Nutzung der App "Klangradar" (im Folgenden "die App"),
+angeboten von Jakob Liess, Gabelsbergerstraße 6, 80333 München (im Folgenden
+"wir"/"Anbieter").
 
 ## 2. Leistungsbeschreibung
 Die App aggregiert Informationen zu Veranstaltungen der klassischen Musik, Chor-,
