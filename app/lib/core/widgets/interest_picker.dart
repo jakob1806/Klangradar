@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/generated/app_localizations.dart';
+import '../haptics.dart';
 import '../interests/interests_providers.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
@@ -205,12 +206,16 @@ class _InterestSectionState extends ConsumerState<InterestSection> {
                       FilterChip(
                         label: Text(option.label),
                         selected: widget.selectedIds.contains(option.id),
-                        onSelected: (_) => InterestsService.toggle(
-                          ref,
-                          category: widget.category,
-                          id: option.id,
-                          isSelected: widget.selectedIds.contains(option.id),
-                        ),
+                        onSelected: (_) {
+                          // Interessen-Chip-Auswahl = "sehr leicht".
+                          Haptics.light();
+                          InterestsService.toggle(
+                            ref,
+                            category: widget.category,
+                            id: option.id,
+                            isSelected: widget.selectedIds.contains(option.id),
+                          );
+                        },
                         // Checkmark bewusst NICHT unterdrückt (siehe
                         // Barrierefreiheits-Audit): sonst wird "ausgewählt" nur
                         // über Hintergrund-/Rahmen-/Textfarbe signalisiert — für

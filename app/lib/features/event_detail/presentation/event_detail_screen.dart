@@ -12,6 +12,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/events/event_filters.dart';
 import '../../../core/events/filtered_events_providers.dart';
 import '../../../core/gallery/entity_gallery_providers.dart';
+import '../../../core/haptics.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/time/munich_time.dart';
@@ -58,6 +59,10 @@ Future<void> _addEventToDeviceCalendar({
       iosParams: add2cal.IOSParams(url: url),
     ),
   );
+  if (added) {
+    // Termin erfolgreich im Kalender übernommen = "deutlich" (Nutzer-Vorgabe).
+    Haptics.strong();
+  }
   if (!context.mounted || added) return;
   messenger.showSnackBar(SnackBar(content: Text(l10n.eventCalendarAddFailed)));
 }

@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/auth/auth_service.dart';
+import '../../../core/haptics.dart';
 import '../../../core/interests/interests_providers.dart';
 import '../../../core/notifications/notification_preferences_providers.dart';
 import '../../../core/onboarding/onboarding_status.dart';
@@ -61,6 +62,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   void _goTo(_Step step) => setState(() => _step = step);
 
   Future<void> _finish() async {
+    // Registrierung/Onboarding abgeschlossen = "deutlich".
+    Haptics.strong();
     await OnboardingStatus.markCompleted();
 
     final user = Supabase.instance.client.auth.currentUser;
@@ -1038,6 +1041,9 @@ class _LocationStepState extends State<_LocationStep> {
       widget.onFinished();
       return;
     }
+    // Stadt bestätigen = Bestätigung (Antippen zum Vorschauen war schon
+    // "sehr leicht", siehe onTap unten).
+    Haptics.confirm();
     setState(() {
       _saving = true;
       _error = null;
@@ -1079,6 +1085,8 @@ class _LocationStepState extends State<_LocationStep> {
         'update_home_location',
         params: {'p_lat': position.latitude, 'p_lng': position.longitude},
       );
+      // GPS-Erkennung wählt UND bestätigt die Stadt in einem Schritt.
+      Haptics.confirm();
       widget.onFinished();
     } catch (_) {
       // Best effort — bei Fehlern bleibt die manuelle Städteliste als
@@ -1149,7 +1157,10 @@ class _LocationStepState extends State<_LocationStep> {
                   _CityOptionCard(
                     city: city,
                     selected: city.id == _selectedCityId,
-                    onTap: () => setState(() => _selectedCityId = city.id),
+                    onTap: () {
+                      Haptics.light();
+                      setState(() => _selectedCityId = city.id);
+                    },
                   ),
               ],
             ),
