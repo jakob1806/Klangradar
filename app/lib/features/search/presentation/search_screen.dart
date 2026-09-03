@@ -45,6 +45,14 @@ final _searchResultsProvider =
       final rawQuery = ref.watch(_queryProvider).trim();
       if (rawQuery.length < 2) return [];
 
+      final completer = Completer<void>();
+      final debounce = Timer(
+        const Duration(milliseconds: 350),
+        completer.complete,
+      );
+      ref.onDispose(debounce.cancel);
+      await completer.future;
+
       final parsed = ref.watch(_parsedQueryProvider);
       // Leerer Rest nach dem Herausfiltern von Preis-/Datumsphrasen (z.B.
       // Suchtext war nur "dieses Wochenende") — fällt auf den rohen
