@@ -257,12 +257,9 @@ async function authHeaders() {
   };
 }
 
-// Der manuelle Lauf auf der Medienseite arbeitet bewusst nur die großen
-// Profilbild-Lücken ab (Personen, Ensembles) sowie Titelbilder für
-// anstehende Events. Die übrigen Bildarten (Venues, Festivals) behalten
-// ihre eigenen Recherchewege; so verbraucht ein Klick nicht wieder fast
-// sein gesamtes Zeitbudget dafür, während Personen/Ensembles/Events liegen
-// bleiben. Alle drei Edge-Aufrufe laufen innerhalb dieser einen Server
+// Created by ChatGPT Codex: Der manuelle Lauf arbeitet die wichtigsten
+// Bildlücken für Personen, Ensembles, Venues und Events gemeinsam ab.
+// Alle vier Edge-Aufrufe laufen innerhalb dieser einen Server
 // Action parallel (Next dispatcht mehrere Client-Actions dagegen
 // sequenziell).
 export async function enrichEntityImages(): Promise<EnrichImagesResult> {
@@ -279,11 +276,14 @@ export async function enrichEntityImages(): Promise<EnrichImagesResult> {
     return { status: "failed", error: err instanceof Error ? err.message : String(err) };
   }
 
-  async function runKind(type: "person" | "ensemble", table: "persons" | "ensembles") {
+  async function runKind(
+    type: "person" | "ensemble" | "venue",
+    table: "persons" | "ensembles" | "venues",
+  ) {
     const res = await fetch(functionUrl, {
       method: "POST",
       headers,
-      body: JSON.stringify({ type, limit: 8 }),
+      body: JSON.stringify({ type, limit: 10, fastFallback: true }),
       signal: AbortSignal.timeout(90_000),
     });
     const body = await res.json() as Record<string, unknown>;
@@ -333,6 +333,7 @@ export async function enrichEntityImages(): Promise<EnrichImagesResult> {
     Promise.all([
       runKind("person", "persons"),
       runKind("ensemble", "ensembles"),
+      runKind("venue", "venues"),
     ]),
     runEvents(),
   ]);

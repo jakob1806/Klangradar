@@ -289,7 +289,14 @@ export default async function MediaPage() {
               return (
               <MediaSelectableCard key={image.id} id={image.id}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={thumbnailSrc(supabase, image)} alt="" className="h-52 w-full bg-neutral-100 object-cover transition-transform duration-300 group-hover:scale-[1.015]" />
+                <img
+                  src={thumbnailSrc(supabase, image)}
+                  alt={entityName ? `Bildvorschlag für ${entityName}` : "Bildvorschlag zur Freigabe"}
+                  loading="lazy"
+                  decoding="async"
+                  referrerPolicy="no-referrer"
+                  className="h-52 w-full bg-neutral-100 object-cover transition-transform duration-300 group-hover:scale-[1.015]"
+                />
                 <div className="p-4">
                   <div className="flex items-center gap-2 pr-1">
                     <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-medium text-neutral-600">
