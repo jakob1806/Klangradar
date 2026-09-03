@@ -41,7 +41,8 @@ class MyFollows {
   static const empty = MyFollows(persons: [], ensembles: [], venues: []);
 }
 
-final myFollowsProvider = FutureProvider.autoDispose<MyFollows>((ref) async {
+/// Wird in Home und Profil gebraucht und bleibt deshalb tabübergreifend warm.
+final myFollowsProvider = FutureProvider<MyFollows>((ref) async {
   final user = ref.watch(currentUserProvider);
   if (user == null) return MyFollows.empty;
 

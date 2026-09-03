@@ -90,7 +90,7 @@ List<Map<String, dynamic>> applyDirectoryCoverGalleryFirst(
 }
 
 /// Alle Personen alphabetisch nach Name.
-final allPersonsProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((
+final allPersonsProvider = FutureProvider<List<Map<String, dynamic>>>((
   ref,
 ) async {
   final rawRows = await Supabase.instance.client
@@ -107,33 +107,35 @@ final allPersonsProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>
 });
 
 /// Alle Ensembles alphabetisch nach Name.
-final allEnsemblesProvider =
-    FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
-      final rawRows = await Supabase.instance.client
-          .from('ensembles')
-          .select(
-            'id, slug, name, type, photo_url, avatar_crop_x, avatar_crop_y, avatar_crop_width, avatar_crop_height',
-          )
-          .eq('is_resolution_placeholder', false)
-          .eq('is_family_root', false)
-          .order('name', ascending: true);
-      final covers = await _coverImagesByOriginId('ensemble');
-      return applyDirectoryCoverGalleryFirst(
-        (rawRows as List).cast<Map<String, dynamic>>(),
-        covers,
-      );
-    });
+final allEnsemblesProvider = FutureProvider<List<Map<String, dynamic>>>((
+  ref,
+) async {
+  final rawRows = await Supabase.instance.client
+      .from('ensembles')
+      .select(
+        'id, slug, name, type, photo_url, avatar_crop_x, avatar_crop_y, avatar_crop_width, avatar_crop_height',
+      )
+      .eq('is_resolution_placeholder', false)
+      .eq('is_family_root', false)
+      .order('name', ascending: true);
+  final covers = await _coverImagesByOriginId('ensemble');
+  return applyDirectoryCoverGalleryFirst(
+    (rawRows as List).cast<Map<String, dynamic>>(),
+    covers,
+  );
+});
 
 /// Alle Orte alphabetisch nach Name.
-final allVenuesProvider =
-    FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
-      final rawRows = await Supabase.instance.client
-          .from('venues')
-          .select('id, slug, name, address_city, photo_url')
-          .order('name', ascending: true);
-      final covers = await _coverImagesByOriginId('venue');
-      return applyDirectoryCoverGalleryFirst(
-        (rawRows as List).cast<Map<String, dynamic>>(),
-        covers,
-      );
-    });
+final allVenuesProvider = FutureProvider<List<Map<String, dynamic>>>((
+  ref,
+) async {
+  final rawRows = await Supabase.instance.client
+      .from('venues')
+      .select('id, slug, name, address_city, photo_url')
+      .order('name', ascending: true);
+  final covers = await _coverImagesByOriginId('venue');
+  return applyDirectoryCoverGalleryFirst(
+    (rawRows as List).cast<Map<String, dynamic>>(),
+    covers,
+  );
+});
