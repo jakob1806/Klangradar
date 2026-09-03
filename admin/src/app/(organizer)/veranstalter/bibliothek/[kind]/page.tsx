@@ -54,7 +54,7 @@ export default async function LibraryEntitiesPage({
               <Card className="overflow-hidden transition hover:shadow-md">
                 <div className="relative aspect-[4/3] bg-[#15131a]/[0.03]">
                   {row[config.image] ? (
-                    <Image src={row[config.image]!} alt="" fill className="object-cover" sizes="33vw" unoptimized />
+                    <Image src={row[config.image]!} alt={`Vorschaubild für ${row.name}`} fill className="object-cover" sizes="33vw" unoptimized />
                   ) : (
                     <span className="absolute inset-0 flex items-center justify-center text-3xl font-semibold text-[#726c78]">
                       {row[config.name]?.slice(0, 1)}

@@ -22,6 +22,7 @@ export default async function LibraryEntityDetailPage({ params }: { params: Prom
   const { data } = await supabase.from(config.table).select(fields).eq("id", id).maybeSingle();
   if (!data) notFound();
   const row = data as unknown as Record<string, unknown>;
+  const entityName = String(row[config.name]);
   const gallery = [row[config.image], ...(((row.gallery_urls as string[] | null) ?? []))].filter(
     (value): value is string => typeof value === "string"
   );
@@ -34,7 +35,7 @@ export default async function LibraryEntityDetailPage({ params }: { params: Prom
       <Card className="mt-5 overflow-hidden">
         <div className="relative aspect-[16/8] bg-[#15131a]/[0.03]">
           {gallery[0] ? (
-            <Image src={gallery[0]} alt="" fill priority className="object-cover" sizes="896px" unoptimized />
+            <Image src={gallery[0]} alt={`Titelbild für ${entityName}`} fill priority className="object-cover" sizes="(max-width: 896px) 100vw, 896px" unoptimized />
           ) : (
             <span className="absolute inset-0 flex items-center justify-center text-6xl font-semibold text-[#726c78]">
               {String(row[config.name]).slice(0, 1)}
@@ -70,7 +71,7 @@ export default async function LibraryEntityDetailPage({ params }: { params: Prom
               <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
                 {gallery.slice(1).map((src, index) => (
                   <div key={`${src}-${index}`} className="relative aspect-square overflow-hidden rounded-lg">
-                    <Image src={src} alt="" fill className="object-cover" sizes="200px" unoptimized />
+                    <Image src={src} alt={`${entityName}, Bild ${index + 1}`} fill className="object-cover" sizes="(max-width: 640px) 50vw, 200px" unoptimized />
                   </div>
                 ))}
               </div>
