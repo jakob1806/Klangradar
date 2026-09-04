@@ -163,7 +163,7 @@ struct CityCompactMenu: View {
             if isMapMenu {
                 mapMenu
             } else {
-                Button { showsCitySwitcher = true } label: { chipLabel }
+                Button { showsCitySwitcher = true } label: { toolbarChipLabel }
                     .buttonStyle(.plain)
             }
         }
@@ -179,37 +179,41 @@ struct CityCompactMenu: View {
                 Button {
                     cityStore.select(nil)
                 } label: {
-                    menuLabel(
-                        "Alle Städte",
-                        selected: cityStore.selectedCity == nil,
-                        showsSelectionIndicator: true
-                    )
+                    menuLabel("Alle Städte", selected: cityStore.selectedCity == nil)
                 }
             }
             ForEach(cityStore.activeCities) { city in
                 Button {
                     cityStore.select(city)
                 } label: {
-                    menuLabel(
-                        city.name,
-                        selected: cityStore.selectedCity?.id == city.id,
-                        showsSelectionIndicator: true
-                    )
+                    menuLabel(city.name, selected: cityStore.selectedCity?.id == city.id)
                 }
             }
-        } label: { chipLabel }
+        } label: { mapChipLabel }
     }
 
+    // Nutzerfeedback: Städte-Chip auf der Karte soll denselben Glas-Stil wie
+    // "Filter" und der Standort-Button auf VenueMapView zeigen — beide
+    // stehen frei über der Karte (kein Toolbar-Kontext) und bekommen deshalb
+    // KEIN automatisches System-Glas, anders als unten bei toolbarChipLabel.
+    private var mapChipLabel: some View {
+        chipContent
+            .background { LiquidGlassSurface(cornerRadius: 19, isInteractive: true) { Color.clear } }
+    }
+
+    // Nutzerfeedback: "doppelter Liquid-Glass-Effekt" auf Home/Suche/Kalender
+    // — dieser Chip steckt dort in einem ToolbarItem, das iOS 26 bereits
+    // automatisch mit eigenem Liquid Glass umgibt (siehe RootTabView/
+    // SearchView). Ein zusätzliches, manuelles LiquidGlassSurface hier
+    // legte eine zweite Glasschicht darüber. Auf iOS 26 deshalb bewusst KEIN
+    // eigener Hintergrund — das System-Glas des Toolbars reicht; nur der
+    // Material-Fallback für iOS 17–25 (kein automatisches Toolbar-Glas dort)
+    // bekommt weiterhin einen manuellen Hintergrund.
     @ViewBuilder
-    private var chipLabel: some View {
+    private var toolbarChipLabel: some View {
         if #available(iOS 26.0, *) {
             chipContent
         } else {
-            // Nutzerfeedback: Auf der Karte wirkte der Städte-Chip neben dem
-            // "Filter"-Chip zu durchsichtig (ultraThinMaterial statt dessen
-            // regularMaterial) — gleiches, blickdichteres Material wie
-            // "Filter" und der Standort-Button auf VenueMapView, damit beide
-            // gleich hell/opak über der Karte stehen.
             chipContent
                 .background(.regularMaterial, in: .capsule)
         }
@@ -219,12 +223,13 @@ struct CityCompactMenu: View {
     // Richtungspfeil wirkten im Verhältnis zum Stadtnamen zu groß --
     // Icons jetzt eigens verkleinert statt am Text-Schriftgrad hängend,
     // Innenabstand/Höhe leicht reduziert, Design (Farbe, Kapselform,
-    // Glas-Hintergrund) unverändert.
+    // Glas-Hintergrund) unverändert. Rotation auf 45° vereinheitlicht (siehe
+    // Standort-Button in VenueMapView) statt der vorherigen 28°.
     private var chipContent: some View {
         HStack(spacing: 5) {
             Image(systemName: "location.north.fill")
                 .font(.caption)
-                .rotationEffect(.degrees(28))
+                .rotationEffect(.degrees(45))
             Text(cityStore.selectedCity?.name ?? (allowsAllCities ? "Alle Städte" : "Stadt"))
             Image(systemName: "chevron.down")
                 .font(.caption2.weight(.bold))
@@ -236,18 +241,21 @@ struct CityCompactMenu: View {
     }
 
     @ViewBuilder
-    private func menuLabel(
-        _ title: String,
-        selected: Bool,
-        showsSelectionIndicator: Bool
-    ) -> some View {
+    private func menuLabel(_ title: String, selected: Bool) -> some View {
         HStack(spacing: 10) {
-            // Einen festen Platz reservieren: Der Haken steht in der Karte
-            // wirklich links vom Text und lässt die Zeilen beim Wechsel nicht
-            // hin- und herspringen.
-            Image(systemName: "checkmark")
-                .font(.body.weight(.bold))
-                .opacity(showsSelectionIndicator && selected ? 1 : 0)
+            // Nutzerfeedback: Die ausgewählte Zeile war zusätzlich eingerückt
+            // ("München" stand weiter rechts als die anderen Städte). Grund:
+            // SwiftUIs Menu behandelt ein Image(systemName: "checkmark") als
+            // eigenes Auswahl-Symbol und reserviert dafür ZUSÄTZLICH zu
+            // unserem manuellen HStack-Eintrag eigenen Platz — nur bei der
+            // Zeile, die dieses SF-Symbol tatsächlich enthält. Ein reines
+            // Text-Glyph statt des Systemsymbols umgeht diese Sonderbehandlung
+            // vollständig, sieht aber identisch aus.
+            if selected {
+                Text("✓").font(.body.weight(.bold))
+            } else {
+                Color.clear.frame(width: 17, height: 17)
+            }
             Text(title)
         }
     }
