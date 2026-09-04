@@ -65,8 +65,18 @@ export function createGeminiProvider(): AiProvider {
 
       const geminiFn = { name: fn.name, description: fn.description, parameters: toGeminiSchema(fn.parameters) };
 
+      // Nutzerfeedback: "KI braucht sehr lange, um zu antworten" —
+      // callAiFunctionPreferGemini probiert Gemini für JEDEN der zwei
+      // Aufrufe pro Chat-Nachricht (Planung, dann Antwort) zuerst, bevor
+      // Cerebras/NVIDIA drankommen. Bei einer der wiederholt dokumentierten
+      // Gemini-Kontingentsperren (siehe Datei-Kopfkommentar) verbrannte das
+      // bislang bis zu 2× 20s, bevor überhaupt ein funktionierender
+      // Provider gefragt wurde. Anders als NVIDIA (dokumentiert 10-13s
+      // normale Erfolgslatenz, siehe openai-compatible.ts) hat Gemini keine
+      // bekannte reguläre Latenz nahe 20s — ein kürzeres Timeout betrifft
+      // also nur den Fehlerfall, nicht normale erfolgreiche Aufrufe.
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 20000);
+      const timeout = setTimeout(() => controller.abort(), 8000);
 
       let res: Response;
       try {
