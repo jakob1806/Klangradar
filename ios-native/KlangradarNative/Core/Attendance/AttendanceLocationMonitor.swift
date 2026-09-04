@@ -45,8 +45,14 @@ final class AttendanceLocationMonitor: NSObject, CLLocationManagerDelegate, Obse
     private override init() {
         super.init()
         manager.delegate = self
-        manager.allowsBackgroundLocationUpdates = true
-        manager.pausesLocationUpdatesAutomatically = true
+        // WICHTIG: `allowsBackgroundLocationUpdates = true` NICHT setzen —
+        // das ist nur für fortlaufende Standort-Updates (startUpdatingLocation)
+        // im Hintergrund nötig und stürzt ohne den Background-Mode
+        // "location" im Info.plist sofort ab (NSInternalInconsistencyException,
+        // bereits einmal live reproduziert). Geofencing per
+        // startMonitoring(for:) braucht das NICHT — laut Apple weckt
+        // CoreLocation die App beim Betreten einer überwachten Region auch
+        // im Hintergrund/nach Terminierung, unabhängig von diesem Flag.
     }
 
     func configure(repository: UserRepository?, auth: AuthStore) {
