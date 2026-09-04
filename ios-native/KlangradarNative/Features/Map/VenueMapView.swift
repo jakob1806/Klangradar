@@ -284,9 +284,13 @@ private struct VenuePreviewSheet: View {
                     }
 
                     HStack {
-                        Button("Route", systemImage: "arrow.triangle.turn.up.right.diamond") { openRoute() }
+                        // Nutzerfeedback: Buttons etwas größer, dazu dasselbe
+                        // gefüllte Symbol, das Apple Maps selbst für seinen
+                        // "Route"/Directions-Button verwendet (.diamond.fill
+                        // statt der Outline-Variante).
+                        Button("Route", systemImage: "arrow.triangle.turn.up.right.diamond.fill") { openRoute() }
                             .buttonStyle(.borderedProminent)
-                            .controlSize(.regular)
+                            .controlSize(.large)
                         Spacer()
                         if let slug = venue.slug {
                             NavigationLink {
@@ -295,7 +299,7 @@ private struct VenuePreviewSheet: View {
                                 Text("Details ansehen").lineLimit(1)
                             }
                                 .buttonStyle(.borderedProminent)
-                                .controlSize(.regular)
+                                .controlSize(.large)
                         }
                     }
                 }
