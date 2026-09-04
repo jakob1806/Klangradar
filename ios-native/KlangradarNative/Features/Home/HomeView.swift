@@ -145,6 +145,7 @@ struct HomeView: View {
             }
             .navigationTitle("Klangradar")
             .navigationBarTitleDisplayMode(.large)
+            .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar {
                 if #available(iOS 26.0, *) {
                     ToolbarItem(placement: .topBarTrailing) {
