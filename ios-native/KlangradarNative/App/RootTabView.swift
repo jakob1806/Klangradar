@@ -45,7 +45,16 @@ struct RootTabView: View {
                 auth: environment.auth,
                 userRepository: environment.restClient.map(UserRepository.init(client:))
             )
-            .id(auth.userID)
+            // Vorher .id(auth.userID) — zerstört und baut HomeViews komplette
+            // NavigationStack neu auf, sobald sich die User-ID ändert (z. B.
+            // Session-Wiederherstellung kurz nach dem Start). Genau dieser
+            // Rebuild mitten im ersten Layout-Durchlauf verursacht einen
+            // reproduzierbaren Absturz: "Layout requested for visible
+            // navigation bar ... top item belongs to a different navigation
+            // bar" (zwei UINavigationBar-Instanzen kurzzeitig gleichzeitig
+            // aktiv). HomeViewModel reagiert bereits selbst per Combine auf
+            // auth?.$state (siehe authCancellable in HomeViewModel.init) und
+            // lädt bei Bedarf in-place neu — kein View-Rebuild nötig.
             .tag(AppTab.home)
             .tabItem {
                 Label("Home", systemImage: "house")
@@ -172,11 +181,27 @@ struct RootTabView: View {
                         showsDismissButton: true
                     )
                 }
+                // KlangradarCoachView liest @EnvironmentObject CityStore (für
+                // die Stadt-Vorgabe an die KI) — .sheet()-Inhalte erben die
+                // Environment-Objects der präsentierenden View NICHT
+                // zuverlässig (gleiches Muster wie FollowStore beim
+                // fullScreenCover oben). Ohne dieses Reattach stürzt die
+                // App beim Öffnen der Klangradar KI zuverlässig mit
+                // "No ObservableObject of type CityStore found" ab.
                 .environmentObject(favorites)
+                .environmentObject(cityStore)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
                 .presentationCornerRadius(28)
                 .presentationBackgroundInteraction(.enabled(upThrough: .medium))
+                // Nutzerfeedback: "am Rand ist noch Platz rechts und links
+                // und unten" — auf iPad (regulärer horizontalSizeClass)
+                // stellt SwiftUI ein .sheet() standardmäßig als
+                // freischwebende Karte mit Rand auf allen vier Seiten dar
+                // (".form"-Sizing). .page erzwingt randlose, kantenbündige
+                // Darstellung wie auf iPhone. Nur ab iOS 18 verfügbar; ohne
+                // das bleibt iPad beim bisherigen (Apple-Standard-)Verhalten.
+                .modifier(EdgeToEdgeSheetSizing())
             }
         }
         .alert("Link konnte nicht geöffnet werden", isPresented: callbackErrorBinding) {
@@ -273,6 +298,21 @@ struct RootTabView: View {
         // lokal bereits abgeschlossenes (auch als Gast übersprungenes)
         // Onboarding hat Vorrang.
         showsOnboarding = !didCompleteOnboarding && !completed
+    }
+}
+
+// Erzwingt kantenbündiges Sheet-Sizing (kein "Form"-Rand auf iPad) ab iOS 18,
+// unverändertes Verhalten darunter — .presentationSizing(_:) existiert erst
+// ab iOS 18, ein reiner `if #available`-Ausdruck als ViewModifier-Body lässt
+// sich nicht direkt inline in eine Modifier-Kette schreiben, deshalb als
+// eigener Typ.
+private struct EdgeToEdgeSheetSizing: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content.presentationSizing(.page)
+        } else {
+            content
+        }
     }
 }
 
