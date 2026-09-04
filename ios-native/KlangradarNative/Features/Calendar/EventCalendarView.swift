@@ -108,6 +108,7 @@ struct EventCalendarView: View {
             .navigationTitle("Kalender")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.hidden, for: .navigationBar)
+            .modifier(HiddenScrollEdgeNavigationBar())
             .toolbar {
                 if #available(iOS 26.0, *) {
                     ToolbarItem(placement: .topBarTrailing) {
