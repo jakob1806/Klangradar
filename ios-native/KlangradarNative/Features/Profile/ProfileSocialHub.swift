@@ -172,6 +172,30 @@ extension UserRepository {
         return !rows.isEmpty
     }
 
+    /// Für AttendanceLocationMonitor: gemerkte, bevorstehende Events mit
+    /// bekannter Spielstätte, als Kandidaten für die passive, standort-
+    /// basierte Besuchs-Erkennung im Hintergrund (siehe dort). Filtert
+    /// client-seitig statt über einen PostgREST-Embed-Filter, da ein Filter
+    /// auf `events.start_datetime` ohne `!inner`-Join nicht ausschließt,
+    /// sondern nur `events: null` liefert.
+    func upcomingFavoritesWithVenue(userID: UUID, token: String, within: TimeInterval = 24 * 3600) async throws -> [AttendanceCandidate] {
+        let rows: [JSONObject] = try await client.get(table: "favorites", queryItems: [
+            URLQueryItem(name: "select", value: "events(id,title,start_datetime,venues(id))"),
+            URLQueryItem(name: "user_id", value: "eq.\(userID.uuidString)")
+        ], accessToken: token)
+        let now = Date()
+        return rows.compactMap { row -> AttendanceCandidate? in
+            guard let event = row.object("events"),
+                  let idString = event.string("id"), let id = UUID(uuidString: idString),
+                  let title = event.string("title"),
+                  let startString = event.string("start_datetime"), let start = FlexibleDateParser.date(from: startString),
+                  let venue = event.object("venues"), let venueIDString = venue.string("id"), let venueID = UUID(uuidString: venueIDString)
+            else { return nil }
+            guard start >= now.addingTimeInterval(-2 * 3600), start <= now.addingTimeInterval(within) else { return nil }
+            return AttendanceCandidate(eventID: id, title: title, startDate: start, venueID: venueID)
+        }
+    }
+
     func venueLocation(id: UUID) async throws -> VenueLocation? {
         let rows: [VenueLocationDTO] = try await client.rpc("venues_with_latlng")
         return rows.first(where: { $0.id == id }).map {

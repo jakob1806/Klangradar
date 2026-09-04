@@ -3,6 +3,7 @@ import SwiftUI
 @main
 @MainActor
 struct KlangradarNativeApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     private let environment = AppEnvironment.make()
     @AppStorage(KlangradarTheme.accentStorageKey) private var accentColorHex = KlangradarTheme.defaultAccentHex
 

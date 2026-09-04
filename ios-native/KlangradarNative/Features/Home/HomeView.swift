@@ -143,10 +143,32 @@ struct HomeView: View {
                 content
                     .frame(maxWidth: KlangradarTheme.contentMaxWidth)
             }
-            .navigationTitle("Klangradar")
-            .navigationBarTitleDisplayMode(.large)
+            // Nutzerwunsch: "Klangradar" soll linksbündig stehen (nicht als
+            // UIKit-Standard-.large-Titel) — derselbe eigene .topBarLeading-
+            // Titel wie in SearchView ("Suche"). Nutzerfeedback zusätzlich:
+            // ein sichtbarer Rand/breiter Blur-Streifen blieb zwischen
+            // Hintergrund und Titelleiste bestehen, obwohl der Chip selbst
+            // kein doppeltes Glas mehr zeigte — das ist iOS 26s automatischer
+            // "Scroll Edge Effect" der Titelleiste selbst, ein GESONDERTER
+            // Mechanismus von .sharedBackgroundVisibility (das nur einzelne
+            // ToolbarItems betrifft). .toolbarBackgroundVisibility(.hidden)
+            // ist die iOS-26-Entsprechung, die genau diesen Streifen
+            // unterdrückt; .toolbarBackground(.hidden) bleibt als Fallback
+            // für iOS 17–25 (kein automatisches Scroll-Glas dort).
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar {
+                if #available(iOS 26.0, *) {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Text("Klangradar").font(.headline.bold()).fixedSize()
+                    }
+                    .sharedBackgroundVisibility(.hidden)
+                } else {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Text("Klangradar").font(.headline.bold()).fixedSize()
+                    }
+                }
                 if #available(iOS 26.0, *) {
                     ToolbarItem(placement: .topBarTrailing) {
                         CityCompactMenu(cityStore: cityStore)
@@ -158,6 +180,7 @@ struct HomeView: View {
                     }
                 }
             }
+            .modifier(HiddenScrollEdgeNavigationBar())
             .navigationDestination(for: ConcertEvent.self) { event in
                 EventDetailView(event: event, repository: model.repository, contentRepository: contentRepository)
             }

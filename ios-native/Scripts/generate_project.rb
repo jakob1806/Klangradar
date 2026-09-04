@@ -107,6 +107,12 @@ app_target.build_configurations.each do |config|
     "INFOPLIST_KEY_CFBundleDisplayName" => "Klangradar",
     "INFOPLIST_KEY_LSApplicationCategoryType" => "public.app-category.music",
     "INFOPLIST_KEY_NSLocationWhenInUseUsageDescription" => "Klangradar nutzt deinen Standort, um Konzerte in deiner Nähe zu zeigen.",
+    # Nutzerwunsch: passive Erkennung "warst du bei diesem gemerkten Konzert?"
+    # per Geofencing, auch wenn die App im Hintergrund ist (siehe
+    # AttendanceLocationMonitor) — braucht laut Apple sowohl die When-In-Use-
+    # als auch diese Always-Beschreibung, plus den Background-Mode unten.
+    "INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription" => "Klangradar erkennt automatisch, wenn du bei einem gemerkten Konzert bist, und fragt dich dann per Benachrichtigung, ob du es als besucht markieren möchtest.",
+    "INFOPLIST_KEY_UIBackgroundModes" => "location",
     "INFOPLIST_KEY_NSCameraUsageDescription" => "Klangradar nutzt die Kamera, um ein Profilbild aufzunehmen.",
     "INFOPLIST_KEY_NSPhotoLibraryUsageDescription" => "Klangradar nutzt deine Fotomediathek, um ein Profilbild auszuwählen.",
     "INFOPLIST_KEY_NSFaceIDUsageDescription" => "Klangradar nutzt Face ID, um deinen Account zu schützen.",
