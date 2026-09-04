@@ -65,7 +65,7 @@ const _privacyPolicyText = '''
 ENTWURF — nicht rechtsverbindlich. Vollständiger Text: docs/legal/datenschutzerklaerung.md
 
 1. Verantwortlicher
-[FIRMENNAME], [ANSCHRIFT], [KONTAKT-E-MAIL] (siehe Impressum).
+Jakob Liess, Gabelsbergerstraße 6, 80333 München, jakob@klangradar.com (siehe Impressum).
 
 2. Welche Daten wir verarbeiten
 - E-Mail-Adresse, Passwort-Hash: Konto/Login (Art. 6 Abs. 1 lit. b DSGVO)
@@ -85,7 +85,7 @@ Nutzt OpenStreetMap-Kartenmaterial (flutter_map).
 
 5. Betroffenenrechte
 Auskunft, Berichtigung, Löschung, Einschränkung, Datenübertragbarkeit, Widerspruch
-sowie Beschwerderecht bei einer Aufsichtsbehörde. Anfragen an: [KONTAKT-E-MAIL].
+sowie Beschwerderecht bei einer Aufsichtsbehörde. Anfragen an: jakob@klangradar.com.
 
 6. Widerruf
 Standortfreigabe und Push-Benachrichtigungen jederzeit in den Geräte-/App-
@@ -96,8 +96,8 @@ const _termsText = '''
 ENTWURF — nicht rechtsverbindlich. Vollständiger Text: docs/legal/agb.md
 
 1. Geltungsbereich
-Diese AGB gelten für die Nutzung der App "Klassik München", angeboten von
-[FIRMENNAME], [ANSCHRIFT].
+Diese AGB gelten für die Nutzung der App "Klangradar", angeboten von
+Jakob Liess, Gabelsbergerstraße 6, 80333 München.
 
 2. Leistungsbeschreibung
 Die App aggregiert Informationen zu klassischen Konzerten, Chor-, Vokal-,
@@ -131,13 +131,13 @@ ENTWURF — nicht rechtsverbindlich. Vollständiger Text: docs/legal/impressum.m
 
 Angaben gemäß § 5 TMG/DDG:
 
-Anbieter: [FIRMENNAME / VOR- UND NACHNAME]
-[STRASSE UND HAUSNUMMER], [PLZ ORT], Deutschland
+Anbieter: Jakob Liess
+Gabelsbergerstraße 6, 80333 München, Deutschland
 
-Kontakt: [TELEFONNUMMER], [KONTAKT-E-MAIL]
-Vertretungsberechtigt: [NAME]
+Kontakt: jakob@klangradar.com
+Vertretungsberechtigt: Jakob Liess
 
-Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV: [NAME, ANSCHRIFT]
+Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV: Jakob Liess, Gabelsbergerstraße 6, 80333 München
 
 Streitschlichtung: Online-Streitbeilegungsplattform der EU-Kommission:
 https://ec.europa.eu/consumers/odr/

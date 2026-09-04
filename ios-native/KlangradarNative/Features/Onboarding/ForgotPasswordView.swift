@@ -120,6 +120,7 @@ struct PasswordResetCompletionView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var password = ""
     @State private var confirmation = ""
+    @State private var showsPassword = false
     @State private var isWorking = false
     @State private var errorMessage: String?
 
@@ -129,10 +130,8 @@ struct PasswordResetCompletionView: View {
         NavigationStack {
             Form {
                 Section("Neues Passwort") {
-                    SecureField("Passwort", text: $password)
-                        .textContentType(.newPassword)
-                    SecureField("Passwort wiederholen", text: $confirmation)
-                        .textContentType(.newPassword)
+                    RevealablePasswordField(title: "Passwort", text: $password, isRevealed: $showsPassword, textContentType: .newPassword)
+                    RevealablePasswordField(title: "Passwort wiederholen", text: $confirmation, isRevealed: $showsPassword, textContentType: .newPassword)
                 }
                 Section {
                     ForEach(requirements, id: \.title) { item in

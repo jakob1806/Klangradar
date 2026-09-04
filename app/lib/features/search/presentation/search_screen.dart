@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/events/filtered_events_providers.dart';
+import '../../../core/haptics.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/time/munich_time.dart';
@@ -43,6 +44,14 @@ final _searchResultsProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
       final rawQuery = ref.watch(_queryProvider).trim();
       if (rawQuery.length < 2) return [];
+
+      final completer = Completer<void>();
+      final debounce = Timer(
+        const Duration(milliseconds: 350),
+        completer.complete,
+      );
+      ref.onDispose(debounce.cancel);
+      await completer.future;
 
       final parsed = ref.watch(_parsedQueryProvider);
       // Leerer Rest nach dem Herausfiltern von Preis-/Datumsphrasen (z.B.
@@ -906,7 +915,10 @@ class _DirectoryList extends StatelessWidget {
                     ),
                   )
                 : null,
-            onTap: () => context.push(_resultRoute(type, r)),
+            onTap: () {
+              Haptics.light();
+              context.push(_resultRoute(type, r));
+            },
           ),
       ],
     );
@@ -986,7 +998,10 @@ class _ResultsList extends StatelessWidget {
                         ),
                       )
                     : null,
-                onTap: () => context.push(_resultRoute(type, r)),
+                onTap: () {
+                  Haptics.light();
+                  context.push(_resultRoute(type, r));
+                },
               ),
             const SizedBox(height: AppSpacing.lg),
           ],

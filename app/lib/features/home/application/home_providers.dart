@@ -262,7 +262,9 @@ Future<Map<String, Set<String>>> _loadComposerIdsByEvent(
   return result;
 }
 
-final homeDataProvider = FutureProvider.autoDispose<HomeData>((ref) async {
+/// Bleibt beim Tab-Wechsel im Speicher; Pull-to-refresh, Stadtwechsel und
+/// Favoriten-/Follow-Änderungen invalidieren den Feed weiterhin gezielt.
+final homeDataProvider = FutureProvider<HomeData>((ref) async {
   // Auth-, Like- und Follow-Änderungen invalidieren den Feed unmittelbar.
   // Das ist besonders wichtig beim Login über den Profil-Tab, weil der
   // IndexedStack den bereits aufgebauten Home-Tab sonst im Speicher hält.

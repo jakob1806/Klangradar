@@ -9,6 +9,7 @@ struct VerifyEmailStepView: View {
     let repository: UserRepository?
     let email: String
     let marketingEmailOptIn: Bool
+    let header: OnboardingProgressHeader
     let onVerified: () -> Void
     var onChangeEmail: (() -> Void)?
 
@@ -60,7 +61,10 @@ struct VerifyEmailStepView: View {
             }
         }
         .navigationTitle("E-Mail bestätigen")
+        .onboardingChrome()
         .navigationBarTitleDisplayMode(.inline)
+        .safeAreaInset(edge: .top, spacing: 0) { header }
+        .onboardingBackground()
         .safeAreaInset(edge: .bottom) {
             Button { Task { await verify() } } label: {
                 Text("E-Mail bestätigen").frame(maxWidth: .infinity)

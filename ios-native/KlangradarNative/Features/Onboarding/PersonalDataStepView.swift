@@ -6,6 +6,7 @@ import SwiftUI
 struct PersonalDataStepView: View {
     @ObservedObject var auth: AuthStore
     let repository: UserRepository?
+    let header: OnboardingProgressHeader
     let onSaved: () -> Void
 
     @State private var firstName = ""
@@ -31,14 +32,17 @@ struct PersonalDataStepView: View {
             } header: {
                 Text("Über dich")
             } footer: {
-                Text("Nachname und Geburtsdatum sind freiwillig. Profilbild, Telefonnummer und Adresse kannst du später im Profil ergänzen.")
+                Text("Nachname und Geburtsdatum sind freiwillig. Profilbild, Telefonnummer und Adresse kannst du später im Profil ergänzen. Dein Geburtsdatum nutzen wir ausschließlich, um Altersfreigaben zu berücksichtigen und passendere Empfehlungen zu zeigen — es wird nirgends öffentlich angezeigt.")
             }
             if let errorMessage {
                 Section { Label(errorMessage, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.red) }
             }
         }
         .navigationTitle("Über dich")
+        .onboardingChrome()
         .navigationBarTitleDisplayMode(.inline)
+        .safeAreaInset(edge: .top, spacing: 0) { header }
+        .onboardingBackground()
         .safeAreaInset(edge: .bottom) {
             Button { Task { await save() } } label: { Text("Weiter").frame(maxWidth: .infinity) }
                 .authPrimaryButtonStyle()

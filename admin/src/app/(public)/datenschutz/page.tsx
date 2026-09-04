@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Datenschutz — Klangradar",
+  title: "Datenschutz",
+  alternates: { canonical: "/datenschutz" },
 };
 
 // Hinweis aus website/README.md (dort stand dieser Disclaimer bisher nur im

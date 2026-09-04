@@ -1,6 +1,9 @@
 import Image from "next/image";
 import Link from "next/link";
+import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
+
+export const metadata: Metadata = { robots: { index: true, follow: true } };
 
 // Eine einzige Server-seitige Auth-Prüfung für alle öffentlichen Seiten
 // (/, /impressum, /datenschutz) statt in jeder Page erneut — entscheidet
@@ -61,6 +64,9 @@ export default async function PublicLayout({ children }: { children: React.React
         </Link>
         <Link href="/datenschutz" className="hover:text-[#1d1d1f]">
           Datenschutz
+        </Link>
+        <Link href="/nutzungsbedingungen" className="hover:text-[#1d1d1f]">
+          Nutzungsbedingungen
         </Link>
       </footer>
     </div>

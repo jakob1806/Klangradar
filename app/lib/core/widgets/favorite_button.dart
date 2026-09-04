@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/generated/app_localizations.dart';
 import '../auth/auth_providers.dart';
 import '../favorites/favorites_providers.dart';
+import '../haptics.dart';
 import '../theme/app_colors.dart';
 
 /// Herz-Button zum Favorisieren. Ohne Login zeigt ein Tap nur einen Hinweis —
@@ -41,6 +42,8 @@ class FavoriteButton extends ConsumerWidget {
         ).showSnackBar(SnackBar(content: Text(l10n.favoriteSignInPrompt)));
         return;
       }
+      // Speichern/Favorisieren ist laut Vorgabe eine "Bestätigung"-Aktion.
+      Haptics.confirm();
       await FavoritesService.toggle(
         ref,
         eventId: eventId,

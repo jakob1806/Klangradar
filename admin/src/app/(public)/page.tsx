@@ -1,8 +1,14 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Klangradar — Klassische Konzerte entdecken",
+  title: "Klassische Konzerte entdecken",
   description: "Klassische Konzerte entdecken — in München, Berlin, Hamburg, Wien und Frankfurt.",
+  alternates: { canonical: "/" },
+  openGraph: {
+    title: "Klangradar — Klassische Konzerte entdecken",
+    description: "Konzerte, Ensembles und Spielstätten an einem Ort.",
+    url: "/",
+  },
 };
 
 export default function PublicHomePage() {

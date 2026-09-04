@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Sidebar } from "@/components/sidebar";
+import type { Metadata } from "next";
 import { MobileNavigation } from "@/components/mobile-navigation";
 import { MobileTableAdapter } from "@/components/mobile-table-adapter";
 import { SignOutButton } from "@/components/sign-out-button";
@@ -55,3 +56,4 @@ export default async function DashboardLayout({
     </div>
   );
 }
+export const metadata: Metadata = { robots: { index: false, follow: false } };
