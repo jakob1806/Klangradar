@@ -13,7 +13,17 @@ import SwiftUI
 struct HiddenScrollEdgeNavigationBar: ViewModifier {
     func body(content: Content) -> some View {
         if #available(iOS 26.0, *) {
-            content.toolbarBackgroundVisibility(.hidden, for: .navigationBar)
+            content
+                .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
+                // Nutzerfeedback (per Screenshot mit Markierung): der Rand
+                // blieb trotz .toolbarBackgroundVisibility(.hidden) sichtbar
+                // — das ist ein GESONDERTER Mechanismus: iOS 26 blendet am
+                // oberen Rand von scrollbarem Inhalt automatisch einen
+                // eigenen "Scroll Edge Effect" (Weichzeichner/Fade) ein,
+                // unabhängig vom Titelleisten-Hintergrund selbst.
+                // scrollEdgeEffectHidden(_:for:) ist die dafür vorgesehene,
+                // direkte Abschaltung.
+                .scrollEdgeEffectHidden(true, for: .top)
         } else {
             content
         }
