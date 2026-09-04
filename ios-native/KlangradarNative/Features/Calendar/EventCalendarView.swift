@@ -108,8 +108,15 @@ struct EventCalendarView: View {
             .navigationTitle("Kalender")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    CityCompactMenu(cityStore: cityStore)
+                if #available(iOS 26.0, *) {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        CityCompactMenu(cityStore: cityStore)
+                    }
+                    .sharedBackgroundVisibility(.hidden)
+                } else {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        CityCompactMenu(cityStore: cityStore)
+                    }
                 }
             }
             .navigationDestination(for: ConcertEvent.self) { EventDetailView(event: $0, repository: repository, contentRepository: contentRepository) }

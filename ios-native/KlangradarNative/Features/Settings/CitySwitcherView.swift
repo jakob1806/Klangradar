@@ -163,7 +163,7 @@ struct CityCompactMenu: View {
             if isMapMenu {
                 mapMenu
             } else {
-                Button { showsCitySwitcher = true } label: { toolbarChipLabel }
+                Button { showsCitySwitcher = true } label: { chipLabel }
                     .buttonStyle(.plain)
             }
         }
@@ -189,34 +189,23 @@ struct CityCompactMenu: View {
                     menuLabel(city.name, selected: cityStore.selectedCity?.id == city.id)
                 }
             }
-        } label: { mapChipLabel }
+        } label: { chipLabel }
     }
 
-    // Nutzerfeedback: Städte-Chip auf der Karte soll denselben Glas-Stil wie
-    // "Filter" und der Standort-Button auf VenueMapView zeigen — beide
-    // stehen frei über der Karte (kein Toolbar-Kontext) und bekommen deshalb
-    // KEIN automatisches System-Glas, anders als unten bei toolbarChipLabel.
-    private var mapChipLabel: some View {
+    // Nutzerfeedback (zweiter Anlauf): Auf iOS 26 den eigenen Hintergrund
+    // ganz wegzulassen war die falsche Lösung für "doppeltes Glas" im
+    // Toolbar (Home/Suche/Kalender) — ohne .sharedBackgroundVisibility(.hidden)
+    // auf dem umgebenden ToolbarItem (siehe Home/SearchView/
+    // EventCalendarView) spannt sich das AUTOMATISCHE System-Glas des
+    // Toolbars über die GANZE Zeile, inklusive des Titels links — sichtbar
+    // als eine große, geteilte Glasfläche statt des gewünschten einzelnen
+    // kleinen Chips. Der richtige Fix: automatisches Glas dort unterdrücken,
+    // dieses eigene, in sich geschlossene Glas behalten — exakt wie beim
+    // Standort-/Filter-Button auf der Karte, wo kein Toolbar-Kontext
+    // existiert und deshalb auch kein automatisches Glas kollidieren kann.
+    private var chipLabel: some View {
         chipContent
             .background { LiquidGlassSurface(cornerRadius: 19, isInteractive: true) { Color.clear } }
-    }
-
-    // Nutzerfeedback: "doppelter Liquid-Glass-Effekt" auf Home/Suche/Kalender
-    // — dieser Chip steckt dort in einem ToolbarItem, das iOS 26 bereits
-    // automatisch mit eigenem Liquid Glass umgibt (siehe RootTabView/
-    // SearchView). Ein zusätzliches, manuelles LiquidGlassSurface hier
-    // legte eine zweite Glasschicht darüber. Auf iOS 26 deshalb bewusst KEIN
-    // eigener Hintergrund — das System-Glas des Toolbars reicht; nur der
-    // Material-Fallback für iOS 17–25 (kein automatisches Toolbar-Glas dort)
-    // bekommt weiterhin einen manuellen Hintergrund.
-    @ViewBuilder
-    private var toolbarChipLabel: some View {
-        if #available(iOS 26.0, *) {
-            chipContent
-        } else {
-            chipContent
-                .background(.regularMaterial, in: .capsule)
-        }
     }
 
     // Nutzerfeedback: Button (Home/Suche/Kalender) und vor allem der
