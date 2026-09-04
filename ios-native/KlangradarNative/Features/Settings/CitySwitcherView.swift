@@ -179,52 +179,41 @@ struct CityCompactMenu: View {
                 Button {
                     cityStore.select(nil)
                 } label: {
-                    menuLabel(
-                        "Alle Städte",
-                        selected: cityStore.selectedCity == nil,
-                        showsSelectionIndicator: true
-                    )
+                    menuLabel("Alle Städte", selected: cityStore.selectedCity == nil)
                 }
             }
             ForEach(cityStore.activeCities) { city in
                 Button {
                     cityStore.select(city)
                 } label: {
-                    menuLabel(
-                        city.name,
-                        selected: cityStore.selectedCity?.id == city.id,
-                        showsSelectionIndicator: true
-                    )
+                    menuLabel(city.name, selected: cityStore.selectedCity?.id == city.id)
                 }
             }
         } label: { chipLabel }
     }
 
-    @ViewBuilder
+    // Nutzerfeedback: Städte-Chip soll denselben Glas-Stil wie "Filter" und
+    // der Standort-Button auf VenueMapView zeigen — vorher auf iOS 26 gar
+    // kein eigener Hintergrund (verließ sich auf das automatische, davon
+    // optisch abweichende Menu-Chrome), darunter .regularMaterial statt der
+    // gemeinsamen LiquidGlassSurface-Komponente. Jetzt in allen drei Fällen
+    // exakt dieselbe Komponente wie auf der Karte.
     private var chipLabel: some View {
-        if #available(iOS 26.0, *) {
-            chipContent
-        } else {
-            // Nutzerfeedback: Auf der Karte wirkte der Städte-Chip neben dem
-            // "Filter"-Chip zu durchsichtig (ultraThinMaterial statt dessen
-            // regularMaterial) — gleiches, blickdichteres Material wie
-            // "Filter" und der Standort-Button auf VenueMapView, damit beide
-            // gleich hell/opak über der Karte stehen.
-            chipContent
-                .background(.regularMaterial, in: .capsule)
-        }
+        chipContent
+            .background { LiquidGlassSurface(cornerRadius: 19, isInteractive: true) { Color.clear } }
     }
 
     // Nutzerfeedback: Button (Home/Suche/Kalender) und vor allem der
     // Richtungspfeil wirkten im Verhältnis zum Stadtnamen zu groß --
     // Icons jetzt eigens verkleinert statt am Text-Schriftgrad hängend,
     // Innenabstand/Höhe leicht reduziert, Design (Farbe, Kapselform,
-    // Glas-Hintergrund) unverändert.
+    // Glas-Hintergrund) unverändert. Rotation auf 45° vereinheitlicht (siehe
+    // Standort-Button in VenueMapView) statt der vorherigen 28°.
     private var chipContent: some View {
         HStack(spacing: 5) {
             Image(systemName: "location.north.fill")
                 .font(.caption)
-                .rotationEffect(.degrees(28))
+                .rotationEffect(.degrees(45))
             Text(cityStore.selectedCity?.name ?? (allowsAllCities ? "Alle Städte" : "Stadt"))
             Image(systemName: "chevron.down")
                 .font(.caption2.weight(.bold))
@@ -236,18 +225,20 @@ struct CityCompactMenu: View {
     }
 
     @ViewBuilder
-    private func menuLabel(
-        _ title: String,
-        selected: Bool,
-        showsSelectionIndicator: Bool
-    ) -> some View {
+    private func menuLabel(_ title: String, selected: Bool) -> some View {
         HStack(spacing: 10) {
-            // Einen festen Platz reservieren: Der Haken steht in der Karte
-            // wirklich links vom Text und lässt die Zeilen beim Wechsel nicht
-            // hin- und herspringen.
-            Image(systemName: "checkmark")
-                .font(.body.weight(.bold))
-                .opacity(showsSelectionIndicator && selected ? 1 : 0)
+            // Nutzerfeedback: Vor JEDER Option stand ein Haken, nicht nur vor
+            // der ausgewählten — ein per .opacity(0) unsichtbar gemachtes
+            // Checkmark-Symbol wird von SwiftUIs Menu auf manchen iOS-
+            // Versionen trotzdem als eigenständiges, sichtbares Icon
+            // gerendert (bekannte Eigenheit des automatischen Menu-Item-
+            // Stylings). Fester Platzhalter statt unsichtbarem Icon behebt
+            // das zuverlässig, ohne die Ausrichtung zu verändern.
+            if selected {
+                Image(systemName: "checkmark").font(.body.weight(.bold))
+            } else {
+                Color.clear.frame(width: 17, height: 17)
+            }
             Text(title)
         }
     }
