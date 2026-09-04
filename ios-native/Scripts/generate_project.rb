@@ -110,6 +110,17 @@ app_target.build_configurations.each do |config|
     "INFOPLIST_KEY_NSCameraUsageDescription" => "Klangradar nutzt die Kamera, um ein Profilbild aufzunehmen.",
     "INFOPLIST_KEY_NSPhotoLibraryUsageDescription" => "Klangradar nutzt deine Fotomediathek, um ein Profilbild auszuwählen.",
     "INFOPLIST_KEY_NSFaceIDUsageDescription" => "Klangradar nutzt Face ID, um deinen Account zu schützen.",
+    # Fehlten hier bislang, obwohl vom Code benötigt (SpeechSearchController,
+    # AddToCalendarView) — dieses Skript ist die EINZIGE Quelle der Wahrheit
+    # für die generierte Info.plist (project.pbxproj wird bei jedem Lauf
+    # komplett neu erzeugt, FileUtils.rm_rf oben); ein Key, der nur direkt in
+    # project.pbxproj steht, verschwindet beim nächsten `generate_project.rb`
+    # kommentarlos wieder — genau das ist der Sprachsuche-Berechtigung schon
+    # einmal passiert (fehlende Beschreibung lässt iOS beim ersten Zugriff
+    # auf ein privacy-sensitives API hart abstürzen, kein catchbarer Fehler).
+    "INFOPLIST_KEY_NSMicrophoneUsageDescription" => "Klangradar nutzt das Mikrofon nur, wenn du die Sprachsuche startest.",
+    "INFOPLIST_KEY_NSSpeechRecognitionUsageDescription" => "Klangradar wandelt deine Sucheingabe in Text um.",
+    "INFOPLIST_KEY_NSCalendarsWriteOnlyAccessUsageDescription" => "Klangradar legt Konzerte nur nach deiner Bestätigung in deinem Kalender an.",
     "INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents" => "YES",
     "INFOPLIST_KEY_UILaunchScreen_Generation" => "YES",
     "INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad" => "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight",

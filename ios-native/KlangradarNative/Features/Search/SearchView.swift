@@ -598,6 +598,12 @@ private struct InspirationTile: View {
 
 private struct SearchDiscoveryEventCard: View {
     let event: ConcertEvent
+    // Nutzerfeedback: "jedes Konzert soll oben rechts noch einen Like-Button
+    // haben" — @EnvironmentObject statt eigenem State, damit derselbe
+    // FavoriteStore wie überall sonst in der App genutzt wird (inkl. dessen
+    // eingebauter Haptik: confirm() beim Hinzufügen, soft() beim Entfernen,
+    // siehe FavoriteStore.toggle).
+    @EnvironmentObject private var favorites: FavoriteStore
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
@@ -609,6 +615,29 @@ private struct SearchDiscoveryEventCard: View {
                 startPoint: .top,
                 endPoint: .bottom
             )
+            // Eigener Button statt Teil der NavigationLink-Kachel: SwiftUI
+            // behandelt einen Button innerhalb des Labels eines anderen
+            // Buttons/NavigationLink als eigenständiges Tap-Ziel (gleiches
+            // Muster wie der Herz-Button in coachEventMiniCard), Antippen
+            // öffnet also NICHT zusätzlich die Eventdetailseite.
+            VStack {
+                HStack {
+                    Spacer()
+                    Button {
+                        Task { await favorites.toggle(event.id) }
+                    } label: {
+                        Image(systemName: favorites.ids.contains(event.id) ? "heart.fill" : "heart")
+                            .font(.footnote.weight(.bold))
+                            .foregroundStyle(.white)
+                            .padding(7)
+                            .background(.black.opacity(0.32), in: .circle)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(favorites.ids.contains(event.id) ? "Von Favoriten entfernen" : "Zu Favoriten hinzufügen")
+                }
+                Spacer()
+            }
+            .padding(10)
             VStack(alignment: .leading, spacing: 6) {
                 if let label = event.genreLabels.first ?? event.category {
                     Text(label.uppercased())
