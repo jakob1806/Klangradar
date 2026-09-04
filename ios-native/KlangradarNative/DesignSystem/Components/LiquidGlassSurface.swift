@@ -31,6 +31,12 @@ struct LiquidGlassSurface<Content: View>: View {
         } else {
             content
                 .background(.ultraThinMaterial)
+                // .tint(.clear) auf iOS 26 hat keine sichtbare Wirkung, hier
+                // muss der Farbton dagegen manuell als Ebene ergänzt werden —
+                // für bestehende Aufrufer mit tint: .clear (Default) ein
+                // No-op, für z.B. einen abgedunkelten Kreis über einem Foto
+                // (EventDetailView-Kopfzeilenbuttons) auch < iOS 26 wirksam.
+                .background(tint)
                 .clipShape(.rect(cornerRadius: cornerRadius))
                 .overlay {
                     RoundedRectangle(cornerRadius: cornerRadius)

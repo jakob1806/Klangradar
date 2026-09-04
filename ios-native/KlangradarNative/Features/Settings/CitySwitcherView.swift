@@ -163,7 +163,7 @@ struct CityCompactMenu: View {
             if isMapMenu {
                 mapMenu
             } else {
-                Button { showsCitySwitcher = true } label: { chipLabel }
+                Button { showsCitySwitcher = true } label: { toolbarChipLabel }
                     .buttonStyle(.plain)
             }
         }
@@ -189,18 +189,34 @@ struct CityCompactMenu: View {
                     menuLabel(city.name, selected: cityStore.selectedCity?.id == city.id)
                 }
             }
-        } label: { chipLabel }
+        } label: { mapChipLabel }
     }
 
-    // Nutzerfeedback: Städte-Chip soll denselben Glas-Stil wie "Filter" und
-    // der Standort-Button auf VenueMapView zeigen — vorher auf iOS 26 gar
-    // kein eigener Hintergrund (verließ sich auf das automatische, davon
-    // optisch abweichende Menu-Chrome), darunter .regularMaterial statt der
-    // gemeinsamen LiquidGlassSurface-Komponente. Jetzt in allen drei Fällen
-    // exakt dieselbe Komponente wie auf der Karte.
-    private var chipLabel: some View {
+    // Nutzerfeedback: Städte-Chip auf der Karte soll denselben Glas-Stil wie
+    // "Filter" und der Standort-Button auf VenueMapView zeigen — beide
+    // stehen frei über der Karte (kein Toolbar-Kontext) und bekommen deshalb
+    // KEIN automatisches System-Glas, anders als unten bei toolbarChipLabel.
+    private var mapChipLabel: some View {
         chipContent
             .background { LiquidGlassSurface(cornerRadius: 19, isInteractive: true) { Color.clear } }
+    }
+
+    // Nutzerfeedback: "doppelter Liquid-Glass-Effekt" auf Home/Suche/Kalender
+    // — dieser Chip steckt dort in einem ToolbarItem, das iOS 26 bereits
+    // automatisch mit eigenem Liquid Glass umgibt (siehe RootTabView/
+    // SearchView). Ein zusätzliches, manuelles LiquidGlassSurface hier
+    // legte eine zweite Glasschicht darüber. Auf iOS 26 deshalb bewusst KEIN
+    // eigener Hintergrund — das System-Glas des Toolbars reicht; nur der
+    // Material-Fallback für iOS 17–25 (kein automatisches Toolbar-Glas dort)
+    // bekommt weiterhin einen manuellen Hintergrund.
+    @ViewBuilder
+    private var toolbarChipLabel: some View {
+        if #available(iOS 26.0, *) {
+            chipContent
+        } else {
+            chipContent
+                .background(.regularMaterial, in: .capsule)
+        }
     }
 
     // Nutzerfeedback: Button (Home/Suche/Kalender) und vor allem der
@@ -227,15 +243,16 @@ struct CityCompactMenu: View {
     @ViewBuilder
     private func menuLabel(_ title: String, selected: Bool) -> some View {
         HStack(spacing: 10) {
-            // Nutzerfeedback: Vor JEDER Option stand ein Haken, nicht nur vor
-            // der ausgewählten — ein per .opacity(0) unsichtbar gemachtes
-            // Checkmark-Symbol wird von SwiftUIs Menu auf manchen iOS-
-            // Versionen trotzdem als eigenständiges, sichtbares Icon
-            // gerendert (bekannte Eigenheit des automatischen Menu-Item-
-            // Stylings). Fester Platzhalter statt unsichtbarem Icon behebt
-            // das zuverlässig, ohne die Ausrichtung zu verändern.
+            // Nutzerfeedback: Die ausgewählte Zeile war zusätzlich eingerückt
+            // ("München" stand weiter rechts als die anderen Städte). Grund:
+            // SwiftUIs Menu behandelt ein Image(systemName: "checkmark") als
+            // eigenes Auswahl-Symbol und reserviert dafür ZUSÄTZLICH zu
+            // unserem manuellen HStack-Eintrag eigenen Platz — nur bei der
+            // Zeile, die dieses SF-Symbol tatsächlich enthält. Ein reines
+            // Text-Glyph statt des Systemsymbols umgeht diese Sonderbehandlung
+            // vollständig, sieht aber identisch aus.
             if selected {
-                Image(systemName: "checkmark").font(.body.weight(.bold))
+                Text("✓").font(.body.weight(.bold))
             } else {
                 Color.clear.frame(width: 17, height: 17)
             }
