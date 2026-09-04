@@ -240,23 +240,23 @@ struct CityCompactMenu: View {
         .frame(height: 38)
     }
 
+    // Nutzerfeedback (zweiter Anlauf): Das Text-Glyph landete als eigene
+    // Menüzeile OBERHALB des zugehörigen Stadtnamens statt daneben — ein
+    // manuell gebautes HStack innerhalb eines Menu-Button-Labels wird von
+    // SwiftUI nicht zuverlässig als eine einzelne, inline angeordnete Zeile
+    // behandelt. Der native, dafür vorgesehene Weg ist Label mit separatem
+    // icon:-Builder: Menu reserviert für JEDE Zeile denselben Icon-Platz
+    // (einheitlicher Einzug für alle Städte, wie gewünscht) und füllt ihn
+    // nur bei der ausgewählten Zeile mit dem Haken — leer sonst, keine
+    // eigene Zeile, kein Extra-Einzug.
     @ViewBuilder
     private func menuLabel(_ title: String, selected: Bool) -> some View {
-        HStack(spacing: 10) {
-            // Nutzerfeedback: Die ausgewählte Zeile war zusätzlich eingerückt
-            // ("München" stand weiter rechts als die anderen Städte). Grund:
-            // SwiftUIs Menu behandelt ein Image(systemName: "checkmark") als
-            // eigenes Auswahl-Symbol und reserviert dafür ZUSÄTZLICH zu
-            // unserem manuellen HStack-Eintrag eigenen Platz — nur bei der
-            // Zeile, die dieses SF-Symbol tatsächlich enthält. Ein reines
-            // Text-Glyph statt des Systemsymbols umgeht diese Sonderbehandlung
-            // vollständig, sieht aber identisch aus.
-            if selected {
-                Text("✓").font(.body.weight(.bold))
-            } else {
-                Color.clear.frame(width: 17, height: 17)
-            }
+        Label {
             Text(title)
+        } icon: {
+            if selected {
+                Image(systemName: "checkmark")
+            }
         }
     }
 }
