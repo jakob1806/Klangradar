@@ -164,13 +164,18 @@ struct EventDetailView: View {
             .accessibilityLabel(label)
     }
 
+    // Nutzerfeedback: "etwas mehr im Apple-Stil, z.B. Liquid Glass" — nutzt
+    // jetzt dieselbe LiquidGlassSurface-Komponente wie die Buttons auf der
+    // Karte statt eines eigens hier gebauten Material+Scrim-Stapels; die
+    // dunkle Abdunkelung über dem Foto bleibt über den tint-Parameter erhalten.
     private func heroButtonLabel(systemImage: String) -> some View {
         Image(systemName: systemImage)
             .font(.headline)
-            .frame(width: 44, height: 44)
-            .background(.black.opacity(0.22), in: .circle)
-            .background(.ultraThinMaterial, in: .circle)
             .foregroundStyle(.white)
+            .frame(width: 44, height: 44)
+            .background {
+                LiquidGlassSurface(cornerRadius: 22, tint: .black.opacity(0.22), isInteractive: true) { Color.clear }
+            }
     }
 
     private var titleBlock: some View {
