@@ -120,10 +120,15 @@ struct VenueMapView: View {
                         .font(.subheadline.weight(.medium))
                         .padding(.horizontal, 12)
                         .frame(height: 36)
-                        .background(.regularMaterial, in: .capsule)
                 }
                     .buttonStyle(.plain)
                     .foregroundStyle(.primary)
+                    // Nutzerfeedback: alle drei Bedienelemente über der Karte
+                    // (Filter, Stadt-Chip, Standort) sollen denselben Glas-Stil
+                    // zeigen — jetzt einheitlich über LiquidGlassSurface statt
+                    // teils .regularMaterial, teils (auf iOS 26) gar keinem
+                    // manuellen Hintergrund.
+                    .background { LiquidGlassSurface(cornerRadius: 18, isInteractive: true) { Color.clear } }
                 // Nutzeranfrage: Venues auf der Karte sollen nach Stadt
                 // filterbar sein, seit es mehr als München gibt (siehe
                 // CityStore/CitySwitcherView) -- Chip nur zeigen, wenn es
@@ -143,10 +148,10 @@ struct VenueMapView: View {
                     Image(systemName: "location.north.fill")
                         .font(.headline)
                         .foregroundStyle(KlangradarTheme.accent)
-                        .rotationEffect(.degrees(28))
+                        .rotationEffect(.degrees(45))
+                        .frame(width: 46, height: 46)
                 }
-                    .frame(width: 46, height: 46)
-                    .background(.regularMaterial, in: .circle)
+                    .background { LiquidGlassSurface(cornerRadius: 23, isInteractive: true) { Color.clear } }
                     .contentShape(.circle)
                     .accessibilityLabel("Meinen Standort anzeigen")
                 }
