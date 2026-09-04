@@ -26,6 +26,7 @@ struct RootTabView: View {
     @State private var isBiometricUnlocked = !BiometricAuth.isEnabled
     @State private var isAuthenticatingBiometrics = false
     @State private var showsCoach = false
+    @ObservedObject private var attendanceMonitor = AttendanceLocationMonitor.shared
 
     init(environment: AppEnvironment) {
         self.environment = environment
@@ -146,11 +147,30 @@ struct RootTabView: View {
                 await favorites.load()
                 await follows.load()
                 await cityStore.load()
+                await attendanceMonitor.refresh()
             }
         }
         .task { await favorites.load() }
         .task { await follows.load() }
         .task { await cityStore.load() }
+        .task {
+            // Nutzerwunsch: automatische, standortbasierte Erkennung "warst
+            // du bei diesem gemerkten Konzert?" — läuft passiv im
+            // Hintergrund (Geofencing), markiert nie selbstständig, fragt
+            // immer per eigenem Popup nach (siehe AttendanceLocationMonitor,
+            // .sheet unten). requestAlwaysAuthorizationIfNeeded() ist ein
+            // No-Op, solange der Zugriff bereits "Immer" ist oder verweigert
+            // wurde — kein wiederholtes Nachfragen.
+            attendanceMonitor.configure(repository: environment.restClient.map(UserRepository.init(client:)), auth: auth)
+            attendanceMonitor.requestAlwaysAuthorizationIfNeeded()
+            await attendanceMonitor.refresh()
+        }
+        .sheet(item: $attendanceMonitor.pendingConfirmation) { pending in
+            AttendanceConfirmationPrompt(eventTitle: pending.title) { accepted in
+                Task { await attendanceMonitor.confirmPendingAttendance(accepted: accepted) }
+            }
+            .presentationDetents([.height(260)])
+        }
         .fullScreenCover(isPresented: $showsOnboarding) {
             OnboardingView(
                 auth: auth,
@@ -237,7 +257,10 @@ struct RootTabView: View {
             if phase == .background, biometricProtectionEnabled, case .authenticated = auth.state {
                 isBiometricUnlocked = false
             } else if phase == .active {
-                Task { await unlockWithBiometricsIfNeeded() }
+                Task {
+                    await unlockWithBiometricsIfNeeded()
+                    await attendanceMonitor.refresh()
+                }
             }
         }
         .onChange(of: biometricProtectionEnabled) { _, enabled in
