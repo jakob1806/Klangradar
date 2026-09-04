@@ -83,8 +83,20 @@ struct SearchView: View {
                         Text("Suche").font(.headline.bold()).fixedSize()
                     }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    CityCompactMenu(cityStore: cityStore)
+                // Nutzerfeedback: Ohne dieses Ausblenden spannt sich das
+                // automatische Liquid-Glass des Toolbars auf iOS 26 über die
+                // GANZE Zeile (inklusive Titel links) statt nur um diesen
+                // Chip — CityCompactMenu bringt bereits sein eigenes,
+                // geschlossenes Glas mit (siehe CitySwitcherView.chipLabel).
+                if #available(iOS 26.0, *) {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        CityCompactMenu(cityStore: cityStore)
+                    }
+                    .sharedBackgroundVisibility(.hidden)
+                } else {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        CityCompactMenu(cityStore: cityStore)
+                    }
                 }
             }
             .navigationDestination(for: ConcertEvent.self) { EventDetailView(event: $0, repository: eventRepository, contentRepository: contentRepository) }

@@ -146,8 +146,15 @@ struct HomeView: View {
             .navigationTitle("Klangradar")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    CityCompactMenu(cityStore: cityStore)
+                if #available(iOS 26.0, *) {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        CityCompactMenu(cityStore: cityStore)
+                    }
+                    .sharedBackgroundVisibility(.hidden)
+                } else {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        CityCompactMenu(cityStore: cityStore)
+                    }
                 }
             }
             .navigationDestination(for: ConcertEvent.self) { event in
