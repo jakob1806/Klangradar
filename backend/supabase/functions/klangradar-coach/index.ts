@@ -30,7 +30,7 @@ const ANSWER_FUNCTION: AiFunctionDeclaration = {
   parameters: {
     type: "object",
     properties: {
-      answer: { type: "string", description: "Deutsch, 2-3 kurze Absätze. Erst Erkenntnis, dann konkrete Empfehlung. Unsicherheit offen nennen." },
+      answer: { type: "string", description: "Deutsch, MAXIMAL 2-3 kurze Sätze insgesamt (keine mehreren Absätze). Zähle Konzerttitel, Daten oder Programme NICHT im Fließtext auf -- die stehen bereits als Karten unter der Antwort. Nur eine knappe Einordnung plus eine konkrete nächste Aktion, Unsicherheit in einem Halbsatz." },
       suggestedPrompts: { type: "array", items: { type: "string" } },
     },
     required: ["answer", "suggestedPrompts"],
@@ -280,7 +280,14 @@ Deno.serve(async (req) => {
     ...(events.map((e) => ({ type: "event", id: e.id, slug: e.slug, reasons: e.reasons }))),
   ];
   const answerResult = await callAiFunctionPreferGemini(
-    `Du bist die persönliche Klangradar KI. Verwende niemals die Bezeichnung Coach. Antworte warm, klar und präzise in 2-3 kurzen Absätzen. Nutze ausschließlich gelieferte Daten. Nenne Verhaltenstrends nur als Zusammenhang, nie als Ursache. Bei signal_quality=low sage, dass du die Person noch kennenlernst. Eventnamen nur aus Echte Treffer. Gib eine konkrete nächste Aktion.${usedRelaxedSearch ? " Zur Anfrage selbst gab es keinen exakten Treffer -- sag das offen und biete die gelieferten Treffer ausdrücklich als Alternativen an." : ""}`,
+    // Nutzerfeedback: "Design der Antworten noch viel zu lang,
+    // unübersichtlich" -- die KI schrieb mehrere Absätze und zählte
+    // Konzerttitel/Daten/Programme nochmal in Prosa auf, obwohl diese
+    // bereits als Karten unter der Antwort erscheinen (siehe eventCarousel
+    // in KlangradarCoachView). Prompt jetzt auf 2-3 kurze SÄTZE (nicht
+    // Absätze) verschärft, mit explizitem Verbot, Treffer im Fließtext
+    // aufzuzählen.
+    `Du bist die persönliche Klangradar KI. Verwende niemals die Bezeichnung Coach. Antworte warm, klar und SEHR knapp: maximal 2-3 kurze Sätze insgesamt, keine mehreren Absätze. Zähle Konzerttitel, Daten oder Programme NICHT im Fließtext auf -- die Treffer erscheinen bereits als eigene Karten unter deiner Antwort, wiederhole sie nicht. Nutze ausschließlich gelieferte Daten. Nenne Verhaltenstrends nur als Zusammenhang, nie als Ursache. Bei signal_quality=low sage kurz, dass du die Person noch kennenlernst. Eventnamen nur aus Echte Treffer, und nur falls du eins konkret hervorhebst. Gib eine konkrete nächste Aktion.${usedRelaxedSearch ? " Zur Anfrage selbst gab es keinen exakten Treffer -- sag das offen in einem Halbsatz und biete die gelieferten Treffer als Alternativen an." : ""}`,
     `Frage: ${message}\nIntent: ${local.intent}\nPersönlicher Kontext: ${JSON.stringify(dashboard.context)}\nBeobachtete Trends: ${JSON.stringify(dashboard.trends)}\nEchte Treffer${usedRelaxedSearch ? " (Alternativen, keine exakte Übereinstimmung)" : ""}: ${JSON.stringify(events ?? [])}`,
     ANSWER_FUNCTION,
   );
