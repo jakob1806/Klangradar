@@ -252,6 +252,39 @@ extension UserRepository {
         }
     }
 
+    /// Für die "Geplant"-Kachel unter "Mein Klangradar" (my_klangradar_stats
+    /// zählt dasselbe: favorites mit status='attending' und zukünftigem
+    /// Beginn) -- dieselbe Event-Selektion wie visitedConcerts/eventLists,
+    /// damit Navigation zur Detailseite identisch funktioniert.
+    func plannedEvents(userID: UUID, token: String) async throws -> [ConcertEvent] {
+        let selection = "events(id,slug,title,subtitle,start_datetime,image_urls,status,category,is_free,venues(id,name,photo_url),event_genres(genres(id,slug,label_de)))"
+        let rows: [JSONObject] = try await client.get(table: "favorites", queryItems: [
+            URLQueryItem(name: "select", value: selection),
+            URLQueryItem(name: "user_id", value: "eq.\(userID.uuidString)"),
+            URLQueryItem(name: "status", value: "eq.attending"),
+        ], accessToken: token)
+        let now = Date()
+        return rows.compactMap { row -> ConcertEvent? in
+            guard let event = row.object("events"), let concert = ConcertEvent(json: event), let start = concert.startDate, start >= now else { return nil }
+            return concert
+        }.sorted { ($0.startDate ?? .distantFuture) < ($1.startDate ?? .distantFuture) }
+    }
+
+    /// Für die "Werke"-Kachel unter "Mein Klangradar" -- dieselben Felder
+    /// wie VisitedWork (VisitedConcert.works), damit eine Zeile identisch
+    /// aussieht, egal ob das Werk aus einem Besuch oder direkt gefolgt wurde.
+    func followedWorks(userID: UUID, token: String) async throws -> [VisitedWork] {
+        let rows: [JSONObject] = try await client.get(table: "user_favorite_works", queryItems: [
+            URLQueryItem(name: "select", value: "works(id,title,composition_year,composer:persons(id,full_name))"),
+            URLQueryItem(name: "user_id", value: "eq.\(userID.uuidString)"),
+        ], accessToken: token)
+        return rows.compactMap { row -> VisitedWork? in
+            guard let work = row.object("works"), let idString = work.string("id"), let id = UUID(uuidString: idString), let title = work.string("title") else { return nil }
+            let composer = work.object("composer")
+            return VisitedWork(id: id, title: title, composerID: composer?.string("id").flatMap(UUID.init(uuidString:)), composerName: composer?.string("full_name"), compositionYear: work.integer("composition_year"))
+        }.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+    }
+
     func followedProfiles(userID: UUID, token: String) async -> [FollowedProfile] {
         async let persons = try? followedRows(table: "user_favorite_persons", foreignKey: "person_id", relation: "persons", nameKey: "full_name", kind: .person, userID: userID, token: token)
         async let ensembles = try? followedRows(table: "user_favorite_ensembles", foreignKey: "ensemble_id", relation: "ensembles", nameKey: "name", kind: .ensemble, userID: userID, token: token)
@@ -389,21 +422,33 @@ struct FollowedPeopleView: View {
     @ObservedObject var auth: AuthStore
     let repository: UserRepository?
     let contentRepository: any ContentRepository
+    // Nutzerwunsch: "Mein Klangradar"-Kacheln (Personen/Ensembles/Orte)
+    // sollen jeweils DIREKT zur passenden Kategorie führen, statt immer zur
+    // vollständigen, nach allen drei Arten gruppierten Liste -- optionaler
+    // Filter, Standardverhalten (nil) bleibt unverändert (z.B. "Gefolgt"
+    // im Hauptprofil).
+    var filterKind: FollowedProfileKind?
     @State private var followed: [FollowedProfile] = []
     @State private var isLoading = true
+
+    private var visibleKinds: [FollowedProfileKind] {
+        filterKind.map { [$0] } ?? FollowedProfileKind.allVisible
+    }
 
     var body: some View {
         Group {
             if isLoading { ProgressView("Gefolgte Profile laden …") }
-            else if followed.isEmpty { ContentUnavailableView("Du folgst noch niemandem", systemImage: "person.badge.plus", description: Text("Folge Personen und Ensembles auf deren Profilseite.")) }
+            else if followed.filter({ visibleKinds.contains($0.kind) }).isEmpty {
+                ContentUnavailableView("Du folgst noch niemandem", systemImage: "person.badge.plus", description: Text("Folge Personen und Ensembles auf deren Profilseite."))
+            }
             else { List {
-                ForEach(FollowedProfileKind.allVisible, id: \.rawValue) { kind in
+                ForEach(visibleKinds, id: \.rawValue) { kind in
                     let entries = followed.filter { $0.kind == kind }
-                    if !entries.isEmpty { Section(kind.title) { ForEach(entries) { profile in followedRow(profile) } } }
+                    if !entries.isEmpty { Section(filterKind == nil ? kind.title : "") { ForEach(entries) { profile in followedRow(profile) } } }
                 }
             } }
         }
-        .navigationTitle("Gefolgt")
+        .navigationTitle(filterKind?.title ?? "Gefolgt")
         .task { await load() }
         .refreshable { await load() }
     }
@@ -483,7 +528,7 @@ struct LevelDetailView: View {
                     VisitedConcertsView(auth: auth, repository: repository, eventRepository: eventRepository, contentRepository: contentRepository)
                 } label: { journeyValue(summary.visitedConcerts, "Konzerte", "ticket.fill") }
                 NavigationLink {
-                    VisitedWorksListView(visits: summary.visits)
+                    VisitedWorksListView(visits: summary.visits, contentRepository: contentRepository)
                 } label: { journeyValue(summary.uniqueWorks.count, "Werke", "music.note.list") }
                 NavigationLink {
                     VisitedEntityListView(kind: .person, title: "Komponist:innen", entries: composerEntries, contentRepository: contentRepository)
@@ -598,6 +643,7 @@ struct LevelDetailView: View {
 /// den Icon-Kacheln in coachLens/achievementTile).
 struct VisitedWorksListView: View {
     let visits: [VisitedConcert]
+    let contentRepository: any ContentRepository
 
     private var works: [VisitedWork] {
         var seen = Set<UUID>()
@@ -606,19 +652,64 @@ struct VisitedWorksListView: View {
     }
 
     var body: some View {
-        List(works, id: \.id) { work in
-            HStack(spacing: 12) {
-                Circle().fill(KlangradarTheme.accent.opacity(0.14)).frame(width: 44, height: 44)
-                    .overlay { Image(systemName: "music.note.list").foregroundStyle(KlangradarTheme.accent) }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(work.title).font(.headline)
-                    Text([work.composerName, work.compositionYear.map(String.init)].compactMap { $0 }.joined(separator: " · "))
-                        .font(.subheadline).foregroundStyle(.secondary)
-                }
-            }.padding(.vertical, 3)
+        WorkListRows(works: works, contentRepository: contentRepository)
+            .overlay { if works.isEmpty { ContentUnavailableView("Noch keine Werke", systemImage: "music.note.list", description: Text("Werke aus besuchten Konzerten erscheinen hier.")) } }
+            .navigationTitle("Werke")
+    }
+}
+
+/// Für die "Werke"-Kachel unter "Mein Klangradar" (direkt gefolgte Werke,
+/// nicht nur aus besuchten Konzerten) -- lädt selbst über
+/// UserRepository.followedWorks, teilt sich die Zeilendarstellung mit
+/// VisitedWorksListView über WorkListRows.
+struct FollowedWorksListView: View {
+    @ObservedObject var auth: AuthStore
+    let repository: UserRepository?
+    let contentRepository: any ContentRepository
+    @State private var works: [VisitedWork] = []
+    @State private var isLoading = true
+
+    var body: some View {
+        Group {
+            if isLoading { ProgressView("Werke laden …") }
+            else { WorkListRows(works: works, contentRepository: contentRepository) }
         }
-        .overlay { if works.isEmpty { ContentUnavailableView("Noch keine Werke", systemImage: "music.note.list", description: Text("Werke aus besuchten Konzerten erscheinen hier.")) } }
+        .overlay { if !isLoading && works.isEmpty { ContentUnavailableView("Noch keine Werke", systemImage: "music.note.list", description: Text("Gefolgte Werke erscheinen hier.")) } }
         .navigationTitle("Werke")
+        .task { await load() }
+        .refreshable { await load() }
+    }
+
+    private func load() async {
+        defer { isLoading = false }
+        guard let repository, let userID = auth.userID, let token = auth.accessToken else { return }
+        works = (try? await repository.followedWorks(userID: userID, token: token)) ?? []
+    }
+}
+
+/// Gemeinsame Zeilendarstellung für Werke -- jede Zeile führt zur echten
+/// Werk-Detailseite (EntityDetailView), damit man von jeder "Mein
+/// Klangradar"/"Klangreise"-Liste aus weiternavigieren kann.
+private struct WorkListRows: View {
+    let works: [VisitedWork]
+    let contentRepository: any ContentRepository
+
+    var body: some View {
+        List(works, id: \.id) { work in
+            NavigationLink {
+                EntityDetailView(route: EntityRoute(kind: .work, identifier: work.id.uuidString), repository: contentRepository)
+            } label: {
+                HStack(spacing: 12) {
+                    Circle().fill(KlangradarTheme.accent.opacity(0.14)).frame(width: 44, height: 44)
+                        .overlay { Image(systemName: "music.note.list").foregroundStyle(KlangradarTheme.accent) }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(work.title).font(.headline)
+                        Text([work.composerName, work.compositionYear.map(String.init)].compactMap { $0 }.joined(separator: " · "))
+                            .font(.subheadline).foregroundStyle(.secondary)
+                    }
+                }.padding(.vertical, 3)
+            }
+        }
     }
 }
 
