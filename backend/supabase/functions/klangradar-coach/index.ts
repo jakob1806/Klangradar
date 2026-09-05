@@ -97,12 +97,24 @@ function localPlan(message: string, defaultCity?: string): { intent: string; sho
   // typischer Substantive ausschliessen UND den LETZTEN Treffer statt den
   // ersten nehmen -- Venue-/Künstlernamen stehen in natürlicher deutscher
   // Formulierung fast immer am Ende, nach Präpositionen wie "in der/im/von".
+  // Nutzerfeedback (zweiter Anlauf): "Empfiehl mir ein Konzert unter 30
+  // Euro" fing danach faelschlich "Euro" als Suchbegriff (letzter groko-
+  // geschriebener Treffer nach dem Ausschluss von "Konzert") und schraenkte
+  // die Suche unnoetig ein. Zwei zusaetzliche Sicherungen: ein negativer
+  // Lookbehind schliesst Woerter direkt nach einer Zahl aus (Waehrungs-/
+  // Einheitenangaben wie "30 Euro", "2 Stunden"), und die Stopwortliste
+  // deckt jetzt auch gaengige Imperativ-Verben und Einheiten ab.
   const stopwords = new Set([
     "Ich", "Wie", "Was", "Wann", "Wo", "Gibt", "Kannst", "Bitte", "Zeig", "Zeige", "Suche", "Finde", "Klangradar",
+    "Empfiehl", "Erklaere", "Erkläre", "Sag", "Zeigt", "Hilf", "Waehl", "Wähl", "Plane", "Buche",
     "Konzert", "Konzerte", "Veranstaltung", "Veranstaltungen", "Termin", "Termine", "Ticket", "Tickets", "Karte", "Karten",
     "Monat", "Monate", "Woche", "Wochen", "Wochenende", "Tag", "Tage", "Abend", "Abende", "Musik", "Programm",
+    "Euro", "Stunden", "Stunde", "Minuten", "Minute", "Prozent", "Grad", "Uhr",
   ]);
-  const properNoun = message.match(/[A-ZÄÖÜ][\wÀ-ÿ'-]{2,}(?:\s[A-ZÄÖÜ][\wÀ-ÿ'-]{2,})?/g)?.filter((w) => !stopwords.has(w.split(" ")[0])).pop();
+  const properNoun = message
+    .match(/(?<!\d\s)[A-ZÄÖÜ][\wÀ-ÿ'-]{2,}(?:\s[A-ZÄÖÜ][\wÀ-ÿ'-]{2,})?/g)
+    ?.filter((w) => !stopwords.has(w.split(" ")[0]))
+    .pop();
   filters.query = music.find((word) => q.includes(word)) ?? properNoun;
   const target = new Date();
   if (/übermorgen/.test(q)) target.setDate(target.getDate() + 2);
@@ -230,6 +242,19 @@ Deno.serve(async (req) => {
     local.filters.city = explicitCityIn(message) ?? defaultCity;
     memoryProposal = safeObject(planned.args.memoryProposalJson);
     goalProposal = safeObject(planned.args.goalProposalJson);
+  }
+  // Nutzerfeedback: "Konzerte heute" fand nichts, obwohl welche existieren --
+  // der externe Planer lieferte date_from/date_to als IDENTISCHES Datum ohne
+  // Uhrzeit (z.B. beide "2026-09-05"), wodurch coach_search_events' Bereich
+  // start_datetime>=date_from AND start_datetime<date_to leer wird. Schutz:
+  // liegt date_to nicht sichtbar NACH date_from, wird auf einen vollen Tag
+  // ab date_from erweitert.
+  if (local.filters.date_from) {
+    const from = new Date(local.filters.date_from);
+    const to = local.filters.date_to ? new Date(local.filters.date_to) : undefined;
+    if (!Number.isNaN(from.getTime()) && (!to || Number.isNaN(to.getTime()) || to.getTime() <= from.getTime())) {
+      local.filters.date_to = new Date(from.getTime() + 24 * 3600 * 1000).toISOString();
+    }
   }
   let events: Json[] = local.shouldSearchEvents
     ? ((await db.rpc("coach_search_events", { p_filters: local.filters, p_limit: 8 })).data as Json[] | null) ?? []
