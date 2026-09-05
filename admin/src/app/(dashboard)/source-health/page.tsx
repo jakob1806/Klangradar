@@ -29,6 +29,11 @@ const HYDRATE_SOURCES: HydrateSource[] = [
   { key: "mko", label: "Münchener Kammerorchester", domainPattern: "%m-k-o.eu/%", syncedAtColumn: "mko_detail_synced_at", syncErrorColumn: "mko_detail_sync_error" },
   { key: "gaertnerplatz", label: "Staatstheater am Gärtnerplatz", domainPattern: "%gaertnerplatztheater.de/%", syncedAtColumn: "gaertnerplatz_detail_synced_at", syncErrorColumn: "gaertnerplatz_detail_sync_error" },
   { key: "biennale", label: "Münchener Biennale", domainPattern: "%muenchener-biennale.de/%", syncedAtColumn: "biennale_detail_synced_at", syncErrorColumn: "biennale_detail_sync_error" },
+  // Multi-City-Erweiterung (Nutzeranfrage: "mache venue-spezifische
+  // Hydration-Parser wie bei München" für Hamburg/Berlin/Wien/Frankfurt).
+  { key: "komischeoperberlin", label: "Komische Oper Berlin", domainPattern: "%komische-oper-berlin.de/%", syncedAtColumn: "komischeoperberlin_detail_synced_at", syncErrorColumn: "komischeoperberlin_detail_sync_error" },
+  { key: "volksoperwien", label: "Volksoper Wien", domainPattern: "%volksoper.at/%", syncedAtColumn: "volksoperwien_detail_synced_at", syncErrorColumn: "volksoperwien_detail_sync_error" },
+  { key: "wienerphilharmoniker", label: "Wiener Philharmoniker", domainPattern: "%wienerphilharmoniker.at/%", syncedAtColumn: "wienerphilharmoniker_detail_synced_at", syncErrorColumn: "wienerphilharmoniker_detail_sync_error" },
 ];
 
 interface EventSyncRow {
