@@ -43,6 +43,19 @@ function dateRange(date: Date) {
   return { date_from: from.toISOString(), date_to: to.toISOString() };
 }
 
+// Nutzerfeedback: "diesen Monat"/"nächsten Monat" wurde bislang gar nicht
+// erkannt -- ohne date_from/date_to griff der 90-Tage-Standardzeitraum der
+// RPC, was zwar nicht zu leeren Ergebnissen führt, aber Monatsanfragen nicht
+// wie erwartet eingrenzt.
+function monthRange(monthsFromNow: number) {
+  const from = new Date();
+  from.setDate(1); from.setHours(0, 0, 0, 0);
+  from.setMonth(from.getMonth() + monthsFromNow);
+  const to = new Date(from);
+  to.setMonth(to.getMonth() + 1);
+  return { date_from: from.toISOString(), date_to: to.toISOString() };
+}
+
 const KNOWN_CITIES = ["München", "Berlin", "Hamburg", "Frankfurt", "Wien"];
 
 // Einzige Quelle für "welche Stadt steht ausdrücklich im Text" -- wird sowohl
@@ -75,8 +88,21 @@ function localPlan(message: string, defaultCity?: string): { intent: string; sho
   // feste Genre-Wortliste. Venue-/Kuenstlernamen (z.B. "Isarphilharmonie")
   // gehen als Grossschreibungs-Eigennamen in den Originaltext daher als
   // Fallback-Suchbegriff ein.
-  const stopwords = new Set(["Ich", "Wie", "Was", "Wann", "Wo", "Gibt", "Kannst", "Bitte", "Zeig", "Zeige", "Suche", "Finde", "Klangradar"]);
-  const properNoun = message.match(/[A-ZÄÖÜ][\wÀ-ÿ'-]{2,}(?:\s[A-ZÄÖÜ][\wÀ-ÿ'-]{2,})?/g)?.find((w) => !stopwords.has(w.split(" ")[0]));
+  // Nutzerfeedback: "Konzerte diesen Monat in der Isarphilharmonie" fand
+  // nichts, obwohl echte Events existieren -- Ursache war, dass diese
+  // Heuristik den ERSTEN grossgeschriebenen Wort-Treffer nimmt. Im Deutschen
+  // sind aber ALLE Substantive grossgeschrieben, also traf sie hier
+  // "Konzerte" statt "Isarphilharmonie" und die SQL-Suche lief komplett ins
+  // Leere. Fix: eine breitere Liste generischer, in Konzert-Anfragen
+  // typischer Substantive ausschliessen UND den LETZTEN Treffer statt den
+  // ersten nehmen -- Venue-/Künstlernamen stehen in natürlicher deutscher
+  // Formulierung fast immer am Ende, nach Präpositionen wie "in der/im/von".
+  const stopwords = new Set([
+    "Ich", "Wie", "Was", "Wann", "Wo", "Gibt", "Kannst", "Bitte", "Zeig", "Zeige", "Suche", "Finde", "Klangradar",
+    "Konzert", "Konzerte", "Veranstaltung", "Veranstaltungen", "Termin", "Termine", "Ticket", "Tickets", "Karte", "Karten",
+    "Monat", "Monate", "Woche", "Wochen", "Wochenende", "Tag", "Tage", "Abend", "Abende", "Musik", "Programm",
+  ]);
+  const properNoun = message.match(/[A-ZÄÖÜ][\wÀ-ÿ'-]{2,}(?:\s[A-ZÄÖÜ][\wÀ-ÿ'-]{2,})?/g)?.filter((w) => !stopwords.has(w.split(" ")[0])).pop();
   filters.query = music.find((word) => q.includes(word)) ?? properNoun;
   const target = new Date();
   if (/übermorgen/.test(q)) target.setDate(target.getDate() + 2);
@@ -84,7 +110,9 @@ function localPlan(message: string, defaultCity?: string): { intent: string; sho
   else if (/samstag/.test(q)) target.setDate(target.getDate() + ((6 - target.getDay() + 7) % 7 || 7));
   else if (/sonntag/.test(q)) target.setDate(target.getDate() + ((7 - target.getDay()) % 7 || 7));
   if (/heute|morgen|übermorgen|samstag|sonntag/.test(q)) Object.assign(filters, dateRange(target));
-  const search = /find|such|empfiehl|konzert|abend|wochenende|heute|morgen|samstag|sonntag/.test(q);
+  else if (/nächsten monat/.test(q)) Object.assign(filters, monthRange(1));
+  else if (/diesen monat/.test(q)) Object.assign(filters, monthRange(0));
+  const search = /find|such|empfiehl|konzert|abend|wochenende|heute|morgen|samstag|sonntag|monat/.test(q);
   const intent = /warum|profil|geschmack/.test(q) ? "explain_profile" : /trend|häufig|meistens|langfristig/.test(q) ? "behavior_trend" : /plan|abend/.test(q) ? "plan_evening" : search ? "find_events" : "general";
   return { intent, shouldSearchEvents: search, filters: Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== undefined)) };
 }
