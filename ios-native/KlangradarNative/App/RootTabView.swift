@@ -2,7 +2,6 @@ import SwiftUI
 
 struct RootTabView: View {
     @Environment(\.scenePhase) private var scenePhase
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     let environment: AppEnvironment
 
     @State private var selection: AppTab = .home
@@ -212,17 +211,17 @@ struct RootTabView: View {
                 .environmentObject(favorites)
                 .environmentObject(cityStore)
                 .presentationCornerRadius(28)
-                // Nutzerfeedback: "nach wie vor links und rechts ein Rand,
-                // Hintergrund sichtbar" — .presentationSizing(.page) ALLEIN
-                // reichte nicht: sobald .presentationDetents gesetzt ist,
-                // stellt SwiftUI auf iPad (regulärer horizontalSizeClass)
-                // trotzdem die freischwebende "Form"-Karte dar, das Sizing
-                // wird dabei ignoriert — Detents implizieren dort inhärent
-                // diesen Kartenstil. Deshalb auf iPad KEINE Detents mehr
-                // setzen (dann greift .page tatsächlich kantenbündig);
-                // iPhone behält die ziehbare halb-/vollhohe Ansicht wie
-                // bisher, dort sind Detent-Sheets ohnehin schon randlos.
-                .modifier(CoachSheetPresentation(horizontalSizeClass: horizontalSizeClass))
+                // Nutzerfeedback (mehrfach): auf iPad blieb links/rechts ein
+                // Rand, Hintergrund sichtbar — sowohl bei .presentationSizing
+                // (.page) mit Detents (Detents erzwingen dort die
+                // freischwebende "Form"-Karte, Sizing wird ignoriert) als
+                // auch beim früheren Verzicht auf Detents (dann keine
+                // ziehbare Halbhöhe mehr). Die eigentlich richtige Lösung:
+                // .page.fitted(horizontal: false, vertical: true) — "page"
+                // füllt die Breite kantenbündig, "fitted(vertical: true)"
+                // lässt NUR die Höhe dem gewählten Detent folgen. Funktioniert
+                // size-class-unabhängig, kein Branching mehr nötig.
+                .modifier(CoachSheetPresentation())
             }
         }
         .alert("Link konnte nicht geöffnet werden", isPresented: callbackErrorBinding) {
@@ -331,20 +330,14 @@ struct RootTabView: View {
 // sich nicht direkt inline in eine Modifier-Kette schreiben, deshalb als
 // eigener Typ.
 private struct CoachSheetPresentation: ViewModifier {
-    let horizontalSizeClass: UserInterfaceSizeClass?
-
     func body(content: Content) -> some View {
-        if horizontalSizeClass == .regular {
-            // iPad: keine Detents — sonst zeigt SwiftUI trotz .page-Sizing
-            // die freischwebende "Form"-Karte mit Rand auf allen Seiten.
-            if #available(iOS 18.0, *) {
-                content.presentationSizing(.page)
-            } else {
-                content
-            }
+        if #available(iOS 18.0, *) {
+            content
+                .presentationSizing(.page.fitted(horizontal: false, vertical: true))
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+                .presentationBackgroundInteraction(.enabled(upThrough: .medium))
         } else {
-            // iPhone: ziehbare halb-/vollhohe Ansicht wie bisher, dort
-            // bereits kantenbündig ohne Detents-Sonderfall.
             content
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
