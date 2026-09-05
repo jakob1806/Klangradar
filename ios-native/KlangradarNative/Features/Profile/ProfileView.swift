@@ -50,13 +50,15 @@ struct ProfileView: View {
                 }
 
                 Section("Dein Klangradar") {
+                    // Nutzerfeedback: "Assistent & Abendplaner" (Personal-
+                    // ConciergeView) und "Klangradar KI" (KlangradarCoachView)
+                    // waren zwei separate, sich inhaltlich überschneidende
+                    // Chat-Assistenten in derselben Profil-Sektion --
+                    // KlangradarCoachView ist der ausgereiftere, aktiv
+                    // gepflegte Assistent (Dashboard, Einblicke, Check-in,
+                    // Memory, Ziele) und bleibt als EINZIGER Einstiegspunkt.
                     NavigationLink {
-                        PersonalConciergeView(auth: auth, repository: userRepository, eventRepository: eventRepository, contentRepository: contentRepository)
-                    } label: {
-                        Label("Assistent & Abendplaner", systemImage: "sparkles")
-                    }
-                    NavigationLink {
-                        MyKlangradarHubView(auth: auth, repository: userRepository)
+                        MyKlangradarHubView(auth: auth, repository: userRepository, eventRepository: eventRepository, contentRepository: contentRepository)
                     } label: {
                         Label("Mein Klangradar", systemImage: "person.crop.rectangle.stack")
                     }
@@ -216,7 +218,7 @@ struct ProfileView: View {
                 case .follows:
                     FollowedPeopleView(auth: auth, repository: userRepository, contentRepository: contentRepository)
                 case .level:
-                    LevelDetailView(auth: auth, repository: userRepository)
+                    LevelDetailView(auth: auth, repository: userRepository, eventRepository: eventRepository, contentRepository: contentRepository)
                 case .edit:
                     AccountProfileEditView(auth: auth, repository: userRepository)
                 }
@@ -319,128 +321,16 @@ struct ProfileView: View {
     }
 }
 
-private struct PersonalConciergeView: View {
-    private struct Message: Identifiable { let id = UUID(); let text: String; let isUser: Bool }
+// Nutzerfeedback: "Design von 'Mein Klangradar' noch sehr durcheinander" --
+// vorher reine Zahlen-Kacheln ohne Navigation, jede Kachel unterschiedlich
+// hoch/breit wirkend. Jetzt: einheitliche, antippbare Zeilen-Kacheln (Icon +
+// Wert + Chevron, dieselbe Sprache wie LevelDetailView.journeyValue), jede
+// führt zu einer echten Liste mit funktionierender Weiternavigation.
+private struct MyKlangradarHubView: View {
     @ObservedObject var auth: AuthStore
     let repository: UserRepository?
     let eventRepository: any EventRepository
     let contentRepository: any ContentRepository
-    @EnvironmentObject private var favorites: FavoriteStore
-    @State private var conversationID: UUID?
-    @State private var messages: [Message] = [
-        .init(text: "Erzähl mir, wie dein Abend aussehen soll. Ich suche nur echte Veranstaltungen aus Klangradar und merke mir Änderungen im Gespräch.", isUser: false)
-    ]
-    @State private var events: [PersonalConciergeEvent] = []
-    @State private var places: [PersonalConciergePlace] = []
-    @State private var draft = ""
-    @State private var isLoading = false
-    @State private var errorMessage: String?
-
-    private let prompts = ["Samstag romantisch, bis 50 €", "Heute spontan und unter 30 €", "Kammermusik, danach Restaurant", "U30-Angebote in München"]
-
-    var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 14) {
-                    if messages.count == 1 {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack { ForEach(prompts, id: \.self) { prompt in
-                                Button(prompt) { draft = prompt; Task { await send() } }
-                                    .buttonStyle(.bordered).buttonBorderShape(.capsule)
-                            } }
-                        }
-                    }
-                    ForEach(messages) { message in
-                        HStack {
-                            if message.isUser { Spacer(minLength: 48) }
-                            Text(message.text)
-                                .padding(.horizontal, 14).padding(.vertical, 11)
-                                .background(message.isUser ? KlangradarTheme.accent : Color(uiColor: .secondarySystemGroupedBackground))
-                                .foregroundStyle(message.isUser ? .white : .primary)
-                                .clipShape(.rect(cornerRadius: 18, style: .continuous))
-                            if !message.isUser { Spacer(minLength: 48) }
-                        }
-                    }
-                    ForEach(events) { event in conciergeEventCard(event) }
-                    if !places.isEmpty {
-                        Text("Danach in der Nähe").font(.title3.bold()).padding(.top, 4)
-                        ForEach(places) { place in
-                            if let url = place.mapsURL {
-                                Link(destination: url) { placeRow(place) }
-                            } else { placeRow(place) }
-                        }
-                    }
-                    if isLoading { ProgressView("Ich suche in Klangradar …").frame(maxWidth: .infinity).padding() }
-                    if let errorMessage { Text(errorMessage).font(.footnote).foregroundStyle(.red) }
-                    Color.clear.frame(height: 1).id("bottom")
-                }.padding()
-            }
-            .safeAreaInset(edge: .bottom) {
-                HStack(spacing: 10) {
-                    TextField("Etwas günstiger, lieber früher …", text: $draft, axis: .vertical)
-                        .textFieldStyle(.roundedBorder).lineLimit(1...4).submitLabel(.send)
-                        .onSubmit { Task { await send() } }
-                    Button { Task { await send() } } label: {
-                        Image(systemName: "arrow.up.circle.fill").font(.title).symbolRenderingMode(.hierarchical)
-                    }.disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLoading)
-                }.padding().background(.ultraThinMaterial)
-            }
-            .onChange(of: messages.count) { _, _ in withAnimation { proxy.scrollTo("bottom") } }
-        }
-        .navigationTitle("Klangradar Assistent").navigationBarTitleDisplayMode(.inline)
-        .navigationDestination(for: ConcertEvent.self) { event in
-            EventDetailView(event: event, repository: eventRepository, contentRepository: contentRepository)
-        }
-    }
-
-    @ViewBuilder private func conciergeEventCard(_ event: PersonalConciergeEvent) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            NavigationLink(value: event.concertEvent) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(event.startDate.map { KlangradarDateTime.string($0, format: "EEE, d. MMM · HH:mm") } ?? "Termin folgt")
-                        .font(.caption.weight(.semibold)).foregroundStyle(KlangradarTheme.accent)
-                    Text(event.title).font(.headline).foregroundStyle(.primary)
-                    Text(event.venueName).font(.subheadline).foregroundStyle(.secondary)
-                }.frame(maxWidth: .infinity, alignment: .leading)
-            }
-            if !event.reasons.isEmpty {
-                Text(event.reasons.joined(separator: " · ")).font(.caption).foregroundStyle(.secondary)
-            }
-            HStack {
-                Button(favorites.ids.contains(event.id) ? "Gespeichert" : "Speichern", systemImage: favorites.ids.contains(event.id) ? "heart.fill" : "heart") {
-                    Task { await favorites.toggle(event.id) }
-                }.buttonStyle(.bordered)
-                if let url = event.ticketURL { Link(destination: url) { Label("Tickets", systemImage: "ticket") }.buttonStyle(.borderedProminent) }
-                ShareLink(item: "\(event.title) – \(event.venueName)") { Image(systemName: "square.and.arrow.up") }
-            }
-        }.padding(15).background(Color(uiColor: .secondarySystemGroupedBackground)).clipShape(.rect(cornerRadius: 20, style: .continuous))
-    }
-
-    private func placeRow(_ place: PersonalConciergePlace) -> some View {
-        HStack { Image(systemName: "fork.knife.circle.fill").font(.title2); VStack(alignment: .leading) {
-            Text(place.name).font(.headline); Text([place.address, place.rating.map { "★ \($0.formatted(.number.precision(.fractionLength(1))))" }].compactMap { $0 }.joined(separator: " · ")).font(.caption).foregroundStyle(.secondary)
-        }; Spacer(); Image(systemName: "arrow.up.right") }.padding(12).background(Color(uiColor: .secondarySystemGroupedBackground)).clipShape(.rect(cornerRadius: 16))
-    }
-
-    @MainActor private func send() async {
-        let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, !isLoading, let repository, let token = auth.accessToken else {
-            if auth.accessToken == nil { errorMessage = "Bitte melde dich an, damit ich Gesprächskontext und persönliche Empfehlungen sicher speichern kann." }
-            return
-        }
-        draft = ""; errorMessage = nil; isLoading = true; messages.append(.init(text: text, isUser: true))
-        defer { isLoading = false }
-        do {
-            let result = try await repository.askConcierge(message: text, conversationID: conversationID, token: token)
-            conversationID = result.conversationID; events = result.events; places = result.places
-            messages.append(.init(text: result.message, isUser: false))
-        } catch { errorMessage = error.localizedDescription }
-    }
-}
-
-private struct MyKlangradarHubView: View {
-    @ObservedObject var auth: AuthStore
-    let repository: UserRepository?
     @State private var stats: KlangradarStats?
     @State private var isLoading = false
     @State private var errorMessage: String?
@@ -450,15 +340,30 @@ private struct MyKlangradarHubView: View {
             VStack(alignment: .leading, spacing: 22) {
                 Text("Deine Klassikwelt auf einen Blick").font(.title2.bold())
                 if let stats {
-                    LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 12) {
-                        stat("Gespeichert", stats.savedEvents, "heart.fill")
-                        stat("Geplant", stats.plannedEvents, "calendar.badge.checkmark")
-                        stat("Besucht", stats.visitedEvents, "checkmark.seal.fill")
-                        stat("Personen", stats.followedPersons, "person.fill")
-                        stat("Ensembles", stats.followedEnsembles, "person.3.fill")
-                        stat("Orte", stats.followedVenues, "building.columns.fill")
-                        stat("Werke", stats.followedWorks, "music.note.list")
+                    LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 10) {
+                        NavigationLink {
+                            FavoriteEventsView(auth: auth, repository: repository, eventRepository: eventRepository, contentRepository: contentRepository)
+                        } label: { stat("Gespeichert", stats.savedEvents, "heart.fill") }
+                        NavigationLink {
+                            PlannedEventsListView(auth: auth, repository: repository, eventRepository: eventRepository, contentRepository: contentRepository)
+                        } label: { stat("Geplant", stats.plannedEvents, "calendar.badge.checkmark") }
+                        NavigationLink {
+                            VisitedConcertsView(auth: auth, repository: repository, eventRepository: eventRepository, contentRepository: contentRepository)
+                        } label: { stat("Besucht", stats.visitedEvents, "checkmark.seal.fill") }
+                        NavigationLink {
+                            FollowedPeopleView(auth: auth, repository: repository, contentRepository: contentRepository, filterKind: .person)
+                        } label: { stat("Personen", stats.followedPersons, "person.fill") }
+                        NavigationLink {
+                            FollowedPeopleView(auth: auth, repository: repository, contentRepository: contentRepository, filterKind: .ensemble)
+                        } label: { stat("Ensembles", stats.followedEnsembles, "person.3.fill") }
+                        NavigationLink {
+                            FollowedPeopleView(auth: auth, repository: repository, contentRepository: contentRepository, filterKind: .venue)
+                        } label: { stat("Orte", stats.followedVenues, "building.columns.fill") }
+                        NavigationLink {
+                            FollowedWorksListView(auth: auth, repository: repository, contentRepository: contentRepository)
+                        } label: { stat("Werke", stats.followedWorks, "music.note.list") }
                     }
+                    .buttonStyle(.plain)
                 } else if auth.accessToken == nil {
                     ContentUnavailableView("Anmeldung erforderlich", systemImage: "person.crop.circle.badge.exclamationmark")
                 } else if let errorMessage {
@@ -472,15 +377,29 @@ private struct MyKlangradarHubView: View {
                 } else if isLoading {
                     ProgressView().frame(maxWidth: .infinity).padding()
                 }
-                Text("Wishlist, Konzertlisten, Interessen und Benachrichtigungen findest du direkt im Profil. Ein Konzert wird erst nach deiner Bestätigung als besucht gezählt.")
+                Text("Interessen und Benachrichtigungen findest du direkt im Profil. Ein Konzert wird erst nach deiner Bestätigung als besucht gezählt.")
                     .font(.footnote).foregroundStyle(.secondary)
             }.padding()
-        }.navigationTitle("Mein Klangradar").task { await load() }
+        }
+        // Nutzerfeedback: Kacheln hatten dieselbe Farbe wie der Hintergrund
+        // (kein Kontrast sichtbar) -- gleiches Design wie Profil -> Level ->
+        // "Meine Klangreise" (LevelDetailView): expliziter
+        // .systemGroupedBackground-Seitenhintergrund, Kacheln in
+        // .background (Systemvordergrund/Weiß) statt
+        // .secondarySystemGroupedBackground (das dort fast identisch zum
+        // Standard-Gruppenhintergrund aussieht).
+        .background(Color(uiColor: .systemGroupedBackground))
+        .navigationTitle("Mein Klangradar")
+        .task { await load() }
     }
 
     private func stat(_ title: String, _ value: Int, _ icon: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) { Image(systemName: icon).foregroundStyle(KlangradarTheme.accent); Text(value.formatted()).font(.title.bold()); Text(title).font(.subheadline).foregroundStyle(.secondary) }
-            .frame(maxWidth: .infinity, minHeight: 105, alignment: .leading).padding(15).background(Color(uiColor: .secondarySystemGroupedBackground)).clipShape(.rect(cornerRadius: 20, style: .continuous))
+        HStack(spacing: 10) {
+            Image(systemName: icon).foregroundStyle(KlangradarTheme.accent).frame(width: 24)
+            VStack(alignment: .leading, spacing: 1) { Text(value.formatted()).font(.title3.bold()).monospacedDigit(); Text(title).font(.caption).foregroundStyle(.secondary) }
+            Spacer()
+            Image(systemName: "chevron.right").font(.caption2.bold()).foregroundStyle(.tertiary)
+        }.padding(13).background(.background, in: .rect(cornerRadius: 16, style: .continuous))
     }
 
     // Generated by Claude Code — RPC-Fehler zeigten vorher gar nichts an
@@ -536,6 +455,12 @@ struct KlangradarCoachView: View {
     @State private var draft = ""
     @State private var retryDraft: String?
     @State private var isLoading = false
+    // Nutzerfeedback: der Senden-Button soll sich während des Wartens auf
+    // die Antwort in ein Stopp-Quadrat verwandeln (wie beim Senden einer
+    // Anfrage an Claude) statt nur einen "denkt nach"-Text zu zeigen --
+    // dieser Task-Handle macht den Abbruch tatsächlich wirksam, nicht nur
+    // optisch.
+    @State private var sendTask: Task<Void, Never>?
     @State private var errorMessage: String?
     @State private var showsCheckin = false
 
@@ -679,7 +604,7 @@ struct KlangradarCoachView: View {
             HStack { Image(systemName: insightIcon(insight.kind)).foregroundStyle(insight.priority >= 3 ? .orange : KlangradarTheme.accent); Text(insight.title).font(.headline); Spacer() }
             Text(insight.body).font(.subheadline).foregroundStyle(.secondary)
             if let action = insight.actions.first, action.string("type") == "ask_coach", let prompt = action.string("prompt") {
-                Button("Mit der KI planen") { draft = prompt; selectedSection = .chat; Task { await send() } }.buttonStyle(.bordered)
+                Button("Mit der KI planen") { draft = prompt; selectedSection = .chat; sendTask = Task { await send() } }.buttonStyle(.bordered)
             }
         }.padding(16).background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 20, style: .continuous))
     }
@@ -709,7 +634,6 @@ struct KlangradarCoachView: View {
                     }
                     if let proposal = memoryProposal { proposalCard("Soll ich mir das merken?", proposal, action: "confirm_memory") }
                     if let proposal = goalProposal { proposalCard("Dieses Ziel übernehmen?", proposal, action: "confirm_goal") }
-                    if isLoading { ProgressView("Klangradar KI denkt nach …").frame(maxWidth: .infinity).padding() }
                     if let errorMessage {
                         HStack(alignment: .top, spacing: 10) {
                             Image(systemName: "exclamationmark.circle.fill").foregroundStyle(.orange)
@@ -718,7 +642,7 @@ struct KlangradarCoachView: View {
                                 if let retryDraft {
                                     Button("Erneut versuchen") {
                                         draft = retryDraft
-                                        Task { await send() }
+                                        sendTask = Task { await send() }
                                     }
                                     .font(.subheadline.weight(.semibold))
                                 }
@@ -740,7 +664,7 @@ struct KlangradarCoachView: View {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 8) {
                                 ForEach(suggestedPrompts, id: \.self) { prompt in
-                                    Button { draft = prompt; Task { await send() } } label: {
+                                    Button { draft = prompt; sendTask = Task { await send() } } label: {
                                         Text(prompt)
                                             .font(.subheadline.weight(.medium))
                                             .padding(.horizontal, 13)
@@ -759,7 +683,7 @@ struct KlangradarCoachView: View {
                             .font(.body)
                             .lineLimit(1...5)
                             .submitLabel(.send)
-                            .onSubmit { Task { await send() } }
+                            .onSubmit { sendTask = Task { await send() } }
                             .padding(.horizontal, 16)
                             .padding(.vertical, 13)
                             .frame(minHeight: 50)
@@ -769,15 +693,21 @@ struct KlangradarCoachView: View {
                                     .stroke(Color.primary.opacity(0.08), lineWidth: 1)
                             }
 
-                        Button { Task { await send() } } label: {
-                            Image(systemName: "arrow.up")
-                                .font(.system(size: 17, weight: .bold))
+                        Button {
+                            if isLoading {
+                                sendTask?.cancel()
+                            } else {
+                                sendTask = Task { await send() }
+                            }
+                        } label: {
+                            Image(systemName: isLoading ? "square.fill" : "arrow.up")
+                                .font(.system(size: isLoading ? 15 : 17, weight: .bold))
                                 .foregroundStyle(.white)
                                 .frame(width: 50, height: 50)
                                 .background(KlangradarTheme.accent, in: Circle())
                         }
                         .buttonStyle(CoachSendButtonStyle())
-                        .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLoading)
+                        .disabled(!isLoading && draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
                     .padding(.horizontal, 14)
                     .padding(.bottom, 10)
@@ -880,10 +810,16 @@ struct KlangradarCoachView: View {
         defer { isLoading = false }
         do {
             let reply = try await repository.askCoach(message: text, conversationID: conversationID, cityName: cityStore.selectedCity?.name, token: token)
+            guard !Task.isCancelled else { return }
             conversationID = reply.conversationID
             messages.append(ChatMessage(text: reply.answer, user: false, events: reply.events, eventsAreAlternatives: reply.eventsAreAlternatives))
             memoryProposal = reply.memoryProposal; goalProposal = reply.goalProposal; suggestedPrompts = reply.suggestedPrompts; retryDraft = nil
-        } catch { errorMessage = coachErrorDescription(error) }
+        } catch is CancellationError {
+            // Nutzer hat das Warten auf die Antwort abgebrochen (Stopp-Quadrat) -- keine Fehlermeldung.
+        } catch {
+            guard !Task.isCancelled else { return }
+            errorMessage = coachErrorDescription(error)
+        }
     }
 
     @MainActor private func confirm(_ proposal: JSONObject, action: String) async {
@@ -1415,7 +1351,7 @@ private struct HomeCategoryOrderView: View {
 }
 
 
-private struct FavoriteEventsView: View {
+struct FavoriteEventsView: View {
     @ObservedObject var auth: AuthStore
     let repository: UserRepository?
     let eventRepository: any EventRepository
@@ -1441,6 +1377,35 @@ private struct FavoriteEventsView: View {
                 let loaded = (try? await repository.favoriteEvents(userID: id, token: token)) ?? []
                 events = (try? await eventRepository.enrichingImages(in: loaded)) ?? loaded
             }
+    }
+}
+
+/// Für die "Geplant"-Kachel unter "Mein Klangradar" -- Events, die per
+/// favorites.status='attending' als geplant markiert sind (siehe
+/// UserRepository.plannedEvents), mit derselben Miniaturbild-Zeile wie
+/// FavoriteEventsView.
+struct PlannedEventsListView: View {
+    @ObservedObject var auth: AuthStore
+    let repository: UserRepository?
+    let eventRepository: any EventRepository
+    let contentRepository: any ContentRepository
+    @State private var events: [ConcertEvent] = []
+
+    var body: some View {
+        List(events) { event in
+            NavigationLink {
+                EventDetailView(event: event, repository: eventRepository, contentRepository: contentRepository)
+            } label: {
+                FavoriteEventRow(event: event)
+            }
+        }
+        .overlay { if events.isEmpty { ContentUnavailableView("Noch nichts geplant", systemImage: "calendar.badge.checkmark", description: Text("Als \"Geplant\" markierte Veranstaltungen erscheinen hier.")) } }
+        .navigationTitle("Geplant")
+        .task {
+            guard let repository, let id = auth.userID, let token = auth.accessToken else { return }
+            let loaded = (try? await repository.plannedEvents(userID: id, token: token)) ?? []
+            events = (try? await eventRepository.enrichingImages(in: loaded)) ?? loaded
+        }
     }
 }
 

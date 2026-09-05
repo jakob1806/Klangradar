@@ -30,7 +30,7 @@ const ANSWER_FUNCTION: AiFunctionDeclaration = {
   parameters: {
     type: "object",
     properties: {
-      answer: { type: "string", description: "Deutsch, 2-3 kurze Absätze. Erst Erkenntnis, dann konkrete Empfehlung. Unsicherheit offen nennen." },
+      answer: { type: "string", description: "Deutsch, MAXIMAL 2-3 kurze Sätze insgesamt (keine mehreren Absätze). Zähle Konzerttitel, Daten oder Programme NICHT im Fließtext auf -- die stehen bereits als Karten unter der Antwort. Nur eine knappe Einordnung plus eine konkrete nächste Aktion, Unsicherheit in einem Halbsatz." },
       suggestedPrompts: { type: "array", items: { type: "string" } },
     },
     required: ["answer", "suggestedPrompts"],
@@ -40,6 +40,19 @@ const ANSWER_FUNCTION: AiFunctionDeclaration = {
 function dateRange(date: Date) {
   const from = new Date(date); from.setHours(0, 0, 0, 0);
   const to = new Date(from); to.setDate(to.getDate() + 1);
+  return { date_from: from.toISOString(), date_to: to.toISOString() };
+}
+
+// Nutzerfeedback: "diesen Monat"/"nächsten Monat" wurde bislang gar nicht
+// erkannt -- ohne date_from/date_to griff der 90-Tage-Standardzeitraum der
+// RPC, was zwar nicht zu leeren Ergebnissen führt, aber Monatsanfragen nicht
+// wie erwartet eingrenzt.
+function monthRange(monthsFromNow: number) {
+  const from = new Date();
+  from.setDate(1); from.setHours(0, 0, 0, 0);
+  from.setMonth(from.getMonth() + monthsFromNow);
+  const to = new Date(from);
+  to.setMonth(to.getMonth() + 1);
   return { date_from: from.toISOString(), date_to: to.toISOString() };
 }
 
@@ -75,8 +88,33 @@ function localPlan(message: string, defaultCity?: string): { intent: string; sho
   // feste Genre-Wortliste. Venue-/Kuenstlernamen (z.B. "Isarphilharmonie")
   // gehen als Grossschreibungs-Eigennamen in den Originaltext daher als
   // Fallback-Suchbegriff ein.
-  const stopwords = new Set(["Ich", "Wie", "Was", "Wann", "Wo", "Gibt", "Kannst", "Bitte", "Zeig", "Zeige", "Suche", "Finde", "Klangradar"]);
-  const properNoun = message.match(/[A-ZÄÖÜ][\wÀ-ÿ'-]{2,}(?:\s[A-ZÄÖÜ][\wÀ-ÿ'-]{2,})?/g)?.find((w) => !stopwords.has(w.split(" ")[0]));
+  // Nutzerfeedback: "Konzerte diesen Monat in der Isarphilharmonie" fand
+  // nichts, obwohl echte Events existieren -- Ursache war, dass diese
+  // Heuristik den ERSTEN grossgeschriebenen Wort-Treffer nimmt. Im Deutschen
+  // sind aber ALLE Substantive grossgeschrieben, also traf sie hier
+  // "Konzerte" statt "Isarphilharmonie" und die SQL-Suche lief komplett ins
+  // Leere. Fix: eine breitere Liste generischer, in Konzert-Anfragen
+  // typischer Substantive ausschliessen UND den LETZTEN Treffer statt den
+  // ersten nehmen -- Venue-/Künstlernamen stehen in natürlicher deutscher
+  // Formulierung fast immer am Ende, nach Präpositionen wie "in der/im/von".
+  // Nutzerfeedback (zweiter Anlauf): "Empfiehl mir ein Konzert unter 30
+  // Euro" fing danach faelschlich "Euro" als Suchbegriff (letzter groko-
+  // geschriebener Treffer nach dem Ausschluss von "Konzert") und schraenkte
+  // die Suche unnoetig ein. Zwei zusaetzliche Sicherungen: ein negativer
+  // Lookbehind schliesst Woerter direkt nach einer Zahl aus (Waehrungs-/
+  // Einheitenangaben wie "30 Euro", "2 Stunden"), und die Stopwortliste
+  // deckt jetzt auch gaengige Imperativ-Verben und Einheiten ab.
+  const stopwords = new Set([
+    "Ich", "Wie", "Was", "Wann", "Wo", "Gibt", "Kannst", "Bitte", "Zeig", "Zeige", "Suche", "Finde", "Klangradar",
+    "Empfiehl", "Erklaere", "Erkläre", "Sag", "Zeigt", "Hilf", "Waehl", "Wähl", "Plane", "Buche",
+    "Konzert", "Konzerte", "Veranstaltung", "Veranstaltungen", "Termin", "Termine", "Ticket", "Tickets", "Karte", "Karten",
+    "Monat", "Monate", "Woche", "Wochen", "Wochenende", "Tag", "Tage", "Abend", "Abende", "Musik", "Programm",
+    "Euro", "Stunden", "Stunde", "Minuten", "Minute", "Prozent", "Grad", "Uhr",
+  ]);
+  const properNoun = message
+    .match(/(?<!\d\s)[A-ZÄÖÜ][\wÀ-ÿ'-]{2,}(?:\s[A-ZÄÖÜ][\wÀ-ÿ'-]{2,})?/g)
+    ?.filter((w) => !stopwords.has(w.split(" ")[0]))
+    .pop();
   filters.query = music.find((word) => q.includes(word)) ?? properNoun;
   const target = new Date();
   if (/übermorgen/.test(q)) target.setDate(target.getDate() + 2);
@@ -84,7 +122,9 @@ function localPlan(message: string, defaultCity?: string): { intent: string; sho
   else if (/samstag/.test(q)) target.setDate(target.getDate() + ((6 - target.getDay() + 7) % 7 || 7));
   else if (/sonntag/.test(q)) target.setDate(target.getDate() + ((7 - target.getDay()) % 7 || 7));
   if (/heute|morgen|übermorgen|samstag|sonntag/.test(q)) Object.assign(filters, dateRange(target));
-  const search = /find|such|empfiehl|konzert|abend|wochenende|heute|morgen|samstag|sonntag/.test(q);
+  else if (/nächsten monat/.test(q)) Object.assign(filters, monthRange(1));
+  else if (/diesen monat/.test(q)) Object.assign(filters, monthRange(0));
+  const search = /find|such|empfiehl|konzert|abend|wochenende|heute|morgen|samstag|sonntag|monat/.test(q);
   const intent = /warum|profil|geschmack/.test(q) ? "explain_profile" : /trend|häufig|meistens|langfristig/.test(q) ? "behavior_trend" : /plan|abend/.test(q) ? "plan_evening" : search ? "find_events" : "general";
   return { intent, shouldSearchEvents: search, filters: Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== undefined)) };
 }
@@ -203,6 +243,19 @@ Deno.serve(async (req) => {
     memoryProposal = safeObject(planned.args.memoryProposalJson);
     goalProposal = safeObject(planned.args.goalProposalJson);
   }
+  // Nutzerfeedback: "Konzerte heute" fand nichts, obwohl welche existieren --
+  // der externe Planer lieferte date_from/date_to als IDENTISCHES Datum ohne
+  // Uhrzeit (z.B. beide "2026-09-05"), wodurch coach_search_events' Bereich
+  // start_datetime>=date_from AND start_datetime<date_to leer wird. Schutz:
+  // liegt date_to nicht sichtbar NACH date_from, wird auf einen vollen Tag
+  // ab date_from erweitert.
+  if (local.filters.date_from) {
+    const from = new Date(local.filters.date_from);
+    const to = local.filters.date_to ? new Date(local.filters.date_to) : undefined;
+    if (!Number.isNaN(from.getTime()) && (!to || Number.isNaN(to.getTime()) || to.getTime() <= from.getTime())) {
+      local.filters.date_to = new Date(from.getTime() + 24 * 3600 * 1000).toISOString();
+    }
+  }
   let events: Json[] = local.shouldSearchEvents
     ? ((await db.rpc("coach_search_events", { p_filters: local.filters, p_limit: 8 })).data as Json[] | null) ?? []
     : [];
@@ -227,7 +280,14 @@ Deno.serve(async (req) => {
     ...(events.map((e) => ({ type: "event", id: e.id, slug: e.slug, reasons: e.reasons }))),
   ];
   const answerResult = await callAiFunctionPreferGemini(
-    `Du bist die persönliche Klangradar KI. Verwende niemals die Bezeichnung Coach. Antworte warm, klar und präzise in 2-3 kurzen Absätzen. Nutze ausschließlich gelieferte Daten. Nenne Verhaltenstrends nur als Zusammenhang, nie als Ursache. Bei signal_quality=low sage, dass du die Person noch kennenlernst. Eventnamen nur aus Echte Treffer. Gib eine konkrete nächste Aktion.${usedRelaxedSearch ? " Zur Anfrage selbst gab es keinen exakten Treffer -- sag das offen und biete die gelieferten Treffer ausdrücklich als Alternativen an." : ""}`,
+    // Nutzerfeedback: "Design der Antworten noch viel zu lang,
+    // unübersichtlich" -- die KI schrieb mehrere Absätze und zählte
+    // Konzerttitel/Daten/Programme nochmal in Prosa auf, obwohl diese
+    // bereits als Karten unter der Antwort erscheinen (siehe eventCarousel
+    // in KlangradarCoachView). Prompt jetzt auf 2-3 kurze SÄTZE (nicht
+    // Absätze) verschärft, mit explizitem Verbot, Treffer im Fließtext
+    // aufzuzählen.
+    `Du bist die persönliche Klangradar KI. Verwende niemals die Bezeichnung Coach. Antworte warm, klar und SEHR knapp: maximal 2-3 kurze Sätze insgesamt, keine mehreren Absätze. Zähle Konzerttitel, Daten oder Programme NICHT im Fließtext auf -- die Treffer erscheinen bereits als eigene Karten unter deiner Antwort, wiederhole sie nicht. Nutze ausschließlich gelieferte Daten. Nenne Verhaltenstrends nur als Zusammenhang, nie als Ursache. Bei signal_quality=low sage kurz, dass du die Person noch kennenlernst. Eventnamen nur aus Echte Treffer, und nur falls du eins konkret hervorhebst. Gib eine konkrete nächste Aktion.${usedRelaxedSearch ? " Zur Anfrage selbst gab es keinen exakten Treffer -- sag das offen in einem Halbsatz und biete die gelieferten Treffer als Alternativen an." : ""}`,
     `Frage: ${message}\nIntent: ${local.intent}\nPersönlicher Kontext: ${JSON.stringify(dashboard.context)}\nBeobachtete Trends: ${JSON.stringify(dashboard.trends)}\nEchte Treffer${usedRelaxedSearch ? " (Alternativen, keine exakte Übereinstimmung)" : ""}: ${JSON.stringify(events ?? [])}`,
     ANSWER_FUNCTION,
   );
