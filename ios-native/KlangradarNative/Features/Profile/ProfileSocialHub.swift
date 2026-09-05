@@ -360,11 +360,21 @@ struct VisitedConcertsView: View {
         .refreshable { await load() }
     }
 
+    // Nutzerwunsch: Miniaturbild pro Zeile, konsistent mit dem übrigen
+    // App-Design (siehe CalendarEventRow) statt reinem Text.
     private func concertRow(_ concert: VisitedConcert) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Text(concert.title).font(.headline)
-            Text([concert.venue, concert.city].compactMap { $0 }.joined(separator: " · ")).foregroundStyle(.secondary)
-            HStack { if let date = concert.attendedAt { Text(KlangradarDateTime.string(date, format: "d. MMMM yyyy")) }; Spacer(); Text("+\(15 + concert.works.count * 8) XP").foregroundStyle(KlangradarTheme.accent) }.font(.caption.weight(.semibold))
+        HStack(spacing: 12) {
+            if let event = concert.event {
+                EventArtwork(event: event).frame(width: 52, height: 52).clipped().clipShape(.rect(cornerRadius: 12))
+            } else {
+                RoundedRectangle(cornerRadius: 12).fill(Color(uiColor: .tertiarySystemFill)).frame(width: 52, height: 52)
+                    .overlay { Image(systemName: "ticket.fill").foregroundStyle(.secondary) }
+            }
+            VStack(alignment: .leading, spacing: 5) {
+                Text(concert.title).font(.headline)
+                Text([concert.venue, concert.city].compactMap { $0 }.joined(separator: " · ")).font(.subheadline).foregroundStyle(.secondary)
+                HStack { if let date = concert.attendedAt { Text(KlangradarDateTime.string(date, format: "d. MMMM yyyy")) }; Spacer(); Text("+\(15 + concert.works.count * 8) XP").foregroundStyle(KlangradarTheme.accent) }.font(.caption.weight(.semibold))
+            }
         }.padding(.vertical, 4)
     }
 
@@ -423,6 +433,8 @@ struct FollowedPeopleView: View {
 struct LevelDetailView: View {
     @ObservedObject var auth: AuthStore
     let repository: UserRepository?
+    let eventRepository: any EventRepository
+    let contentRepository: any ContentRepository
     @State private var summary = ProfileSocialSummary.empty
 
     var body: some View {
@@ -459,18 +471,51 @@ struct LevelDetailView: View {
         }.foregroundStyle(.white).padding(20).background(LinearGradient(colors: [KlangradarTheme.accent, .indigo.opacity(0.82)], startPoint: .topLeading, endPoint: .bottomTrailing), in: .rect(cornerRadius: 26, style: .continuous))
     }
 
+    // Nutzerwunsch: die Kacheln unter "Meine Klangreise" sollen antippbar
+    // sein und zu einer Liste aller zugrundeliegenden Einträge führen
+    // (Konzerte, Werke, Komponist:innen, Spielstätten, Städte, Gespeichert)
+    // -- vorher waren das reine Zahlen ohne Detailansicht.
     private var discoveryGrid: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Meine Klangreise").font(.title2.bold())
             LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 10) {
-                journeyValue(summary.visitedConcerts, "Konzerte", "ticket.fill")
-                journeyValue(summary.uniqueWorks.count, "Werke", "music.note.list")
-                journeyValue(summary.uniqueComposers.count, "Komponist:innen", "person.wave.2.fill")
-                journeyValue(summary.uniqueVenues.count, "Spielstätten", "building.columns.fill")
-                journeyValue(summary.uniqueCities.count, "Städte", "map.fill")
-                journeyValue(summary.savedEvents, "Gespeichert", "heart.fill")
+                NavigationLink {
+                    VisitedConcertsView(auth: auth, repository: repository, eventRepository: eventRepository, contentRepository: contentRepository)
+                } label: { journeyValue(summary.visitedConcerts, "Konzerte", "ticket.fill") }
+                NavigationLink {
+                    VisitedWorksListView(visits: summary.visits)
+                } label: { journeyValue(summary.uniqueWorks.count, "Werke", "music.note.list") }
+                NavigationLink {
+                    VisitedEntityListView(kind: .person, title: "Komponist:innen", entries: composerEntries, contentRepository: contentRepository)
+                } label: { journeyValue(summary.uniqueComposers.count, "Komponist:innen", "person.wave.2.fill") }
+                NavigationLink {
+                    VisitedEntityListView(kind: .venue, title: "Spielstätten", entries: venueEntries, contentRepository: contentRepository)
+                } label: { journeyValue(summary.uniqueVenues.count, "Spielstätten", "building.columns.fill") }
+                NavigationLink {
+                    VisitedCitiesListView(cities: summary.uniqueCities)
+                } label: { journeyValue(summary.uniqueCities.count, "Städte", "map.fill") }
+                NavigationLink {
+                    FavoriteEventsView(auth: auth, repository: repository, eventRepository: eventRepository, contentRepository: contentRepository)
+                } label: { journeyValue(summary.savedEvents, "Gespeichert", "heart.fill") }
             }
         }
+        .buttonStyle(.plain)
+    }
+
+    private var composerEntries: [VisitedEntityEntry] {
+        var seen = Set<UUID>()
+        return summary.visits.flatMap(\.works).compactMap { work -> VisitedEntityEntry? in
+            guard let id = work.composerID, let name = work.composerName, seen.insert(id).inserted else { return nil }
+            return VisitedEntityEntry(id: id, name: name)
+        }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }
+
+    private var venueEntries: [VisitedEntityEntry] {
+        var seen = Set<UUID>()
+        return summary.visits.compactMap { visit -> VisitedEntityEntry? in
+            guard let id = visit.venueID, seen.insert(id).inserted else { return nil }
+            return VisitedEntityEntry(id: id, name: visit.venue)
+        }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
 
     private func journeyValue(_ value: Int, _ label: String, _ symbol: String) -> some View {
@@ -478,6 +523,7 @@ struct LevelDetailView: View {
             Image(systemName: symbol).foregroundStyle(KlangradarTheme.accent).frame(width: 24)
             VStack(alignment: .leading, spacing: 1) { Text("\(value)").font(.title3.bold()).monospacedDigit(); Text(label).font(.caption).foregroundStyle(.secondary) }
             Spacer()
+            Image(systemName: "chevron.right").font(.caption2.bold()).foregroundStyle(.tertiary)
         }.padding(13).background(.background, in: .rect(cornerRadius: 16, style: .continuous))
     }
 
@@ -543,5 +589,105 @@ struct LevelDetailView: View {
     private func load() async {
         guard let repository, let userID = auth.userID, let token = auth.accessToken else { return }
         summary = await repository.socialProfileSummary(userID: userID, token: token)
+    }
+}
+
+/// Nutzerwunsch: "Werke" aus "Meine Klangreise" antippbar machen und dort
+/// eine Liste zeigen -- Werke haben in Klangradar kein eigenes Bild, daher
+/// ein einheitliches Noten-Icon statt eines Miniaturbilds (konsistent mit
+/// den Icon-Kacheln in coachLens/achievementTile).
+struct VisitedWorksListView: View {
+    let visits: [VisitedConcert]
+
+    private var works: [VisitedWork] {
+        var seen = Set<UUID>()
+        return visits.flatMap(\.works).filter { seen.insert($0.id).inserted }
+            .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+    }
+
+    var body: some View {
+        List(works, id: \.id) { work in
+            HStack(spacing: 12) {
+                Circle().fill(KlangradarTheme.accent.opacity(0.14)).frame(width: 44, height: 44)
+                    .overlay { Image(systemName: "music.note.list").foregroundStyle(KlangradarTheme.accent) }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(work.title).font(.headline)
+                    Text([work.composerName, work.compositionYear.map(String.init)].compactMap { $0 }.joined(separator: " · "))
+                        .font(.subheadline).foregroundStyle(.secondary)
+                }
+            }.padding(.vertical, 3)
+        }
+        .overlay { if works.isEmpty { ContentUnavailableView("Noch keine Werke", systemImage: "music.note.list", description: Text("Werke aus besuchten Konzerten erscheinen hier.")) } }
+        .navigationTitle("Werke")
+    }
+}
+
+/// Gemeinsamer Eintragstyp für Komponist:innen- und Spielstätten-Listen
+/// (beide sind echte Klangradar-Entitäten mit eigener Detailseite und
+/// bekanntem Miniaturbild aus dem Verzeichnis, siehe DirectoryItem).
+struct VisitedEntityEntry: Identifiable, Hashable {
+    let id: UUID
+    let name: String
+}
+
+/// Nutzerwunsch: "Komponist:innen" und "Spielstätten" antippbar machen und
+/// dort eine Liste MIT Miniaturbildern zeigen, konsistent mit dem übrigen
+/// Verzeichnis-Design (siehe FollowedPeopleView.followedRow). Löst die
+/// Bilder über das ohnehin geladene Verzeichnis auf (directory(kind:))
+/// statt pro Eintrag einzeln nachzuladen.
+struct VisitedEntityListView: View {
+    let kind: EntityKind
+    let title: String
+    let entries: [VisitedEntityEntry]
+    let contentRepository: any ContentRepository
+    @State private var images: [UUID: URL] = [:]
+
+    var body: some View {
+        List(entries) { entry in
+            NavigationLink {
+                EntityDetailView(route: EntityRoute(kind: kind, identifier: entry.id.uuidString), repository: contentRepository)
+            } label: {
+                HStack(spacing: 12) {
+                    AsyncImage(url: images[entry.id]) { image in image.resizable().scaledToFill() } placeholder: {
+                        Image(systemName: kind.systemImage).foregroundStyle(KlangradarTheme.accent)
+                    }
+                    .frame(width: 46, height: 46)
+                    .background(Color(uiColor: .tertiarySystemFill))
+                    .clipShape(kind == .venue ? AnyShape(RoundedRectangle(cornerRadius: 10)) : AnyShape(Circle()))
+                    Text(entry.name).font(.headline)
+                }.padding(.vertical, 3)
+            }
+        }
+        .overlay { if entries.isEmpty { ContentUnavailableView("Noch keine Einträge", systemImage: kind.systemImage, description: Text("Einträge aus besuchten Konzerten erscheinen hier.")) } }
+        .navigationTitle(title)
+        .task {
+            guard images.isEmpty, let items = try? await contentRepository.directory(kind: kind) else { return }
+            let byID = Dictionary(uniqueKeysWithValues: items.compactMap { item -> (UUID, URL)? in
+                guard let id = UUID(uuidString: item.id), let url = item.imageURL else { return nil }
+                return (id, url)
+            })
+            images = byID
+        }
+    }
+}
+
+/// Nutzerwunsch: "Städte" antippbar machen -- Städte sind keine eigene
+/// Klangradar-Entität mit Detailseite, daher eine einfache Liste ohne
+/// Navigation, mit demselben Icon-Avatar-Stil wie VisitedWorksListView.
+struct VisitedCitiesListView: View {
+    let cities: Set<String>
+
+    private var sorted: [String] { cities.sorted { $0.localizedStandardCompare($1) == .orderedAscending } }
+
+    var body: some View {
+        List(sorted, id: \.self) { city in
+            HStack(spacing: 12) {
+                Circle().fill(KlangradarTheme.accent.opacity(0.14)).frame(width: 44, height: 44)
+                    .overlay { Image(systemName: "map.fill").foregroundStyle(KlangradarTheme.accent) }
+                Text(city).font(.headline)
+            }.padding(.vertical, 3)
+        }
+        .overlay { if sorted.isEmpty { ContentUnavailableView("Noch keine Städte", systemImage: "map", description: Text("Städte aus besuchten Konzerten erscheinen hier.")) } }
+        .navigationTitle("Städte")
     }
 }
