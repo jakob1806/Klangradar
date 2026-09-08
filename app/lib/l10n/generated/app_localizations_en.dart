@@ -116,6 +116,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get searchDirectoryEmpty => 'No entries.';
 
   @override
+  String searchDirectoryLoadMore(int count) {
+    return 'Show $count more';
+  }
+
+  @override
   String get searchNoResults => 'No results.';
 
   @override

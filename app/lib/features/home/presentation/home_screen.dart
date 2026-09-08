@@ -24,7 +24,7 @@ class HomeScreen extends ConsumerWidget {
 
     return SafeArea(
       child: RefreshIndicator(
-        onRefresh: () async => ref.invalidate(homeDataProvider),
+        onRefresh: () => ref.read(homeDataProvider.notifier).refresh(),
         child: CustomScrollView(
           slivers: [
             SliverPadding(
