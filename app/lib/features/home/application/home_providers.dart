@@ -239,27 +239,18 @@ List<HomeEventItem> _applyDiversity(
   return result;
 }
 
-/// Komponist:innen pro Event für die Diversitätsregel oben — ein einzelner
-/// gezielter Nachschlag über genau die schon geladenen Kandidaten-IDs
-/// (keine zusätzliche Abfrage pro Event/Modul).
-Future<Map<String, Set<String>>> _loadComposerIdsByEvent(
-  SupabaseClient client,
-  Iterable<String> eventIds,
-) async {
-  if (eventIds.isEmpty) return {};
-  final rows = await client
-      .from('event_works')
-      .select('event_id, works(composer_id)')
-      .inFilter('event_id', eventIds.toList());
-
-  final result = <String, Set<String>>{};
-  for (final row in rows as List) {
-    final eventId = row['event_id'] as String?;
-    final composerId = row['works']?['composer_id'] as String?;
-    if (eventId == null || composerId == null) continue;
-    result.putIfAbsent(eventId, () => {}).add(composerId);
-  }
-  return result;
+/// Komponist:innen pro Event für die Diversitätsregel oben — kommen seit
+/// der RPC-Bündelung (Perf-Audit Punkt 1, Nachtrag) direkt aus
+/// `home_feed_bundle()`s `composerIdsByEvent`-Feld mit, statt eines eigenen
+/// 12. Requests über alle Kandidaten-IDs.
+Map<String, Set<String>> _parseComposerIdsByEvent(dynamic json) {
+  final map = json as Map<String, dynamic>? ?? const {};
+  return map.map(
+    (eventId, composerIds) => MapEntry(
+      eventId,
+      (composerIds as List).whereType<String>().toSet(),
+    ),
+  );
 }
 
 /// Bleibt beim Tab-Wechsel im Speicher; Pull-to-refresh, Stadtwechsel und
@@ -276,105 +267,50 @@ final homeDataProvider = FutureProvider<HomeData>((ref) async {
   final now = MunichTime.now();
   final todayStart = DateTime(now.year, now.month, now.day);
   final todayEnd = todayStart.add(const Duration(days: 1));
-  final nowIso = now.toIso8601String();
 
-  final results = await Future.wait<dynamic>([
-    // Hero (docs/08, Abschnitt 4.2): personalisiertes Scoring + Bildbonus +
-    // Wiederholungs-Malus statt des bisherigen reinen "nächstes Event".
-    // Fällt ohne Login serverseitig automatisch auf "nächstes Event" zurück
-    // (Cold-Start-Stufe 0, Abschnitt 6) — kein Sonderfall hier nötig.
-    client.rpc('hero_event'),
-    client
-        .from('events')
-        .select(homeEventColumns)
-        .eq('status', 'scheduled')
-        .gte('start_datetime', todayStart.toIso8601String())
-        .lt('start_datetime', todayEnd.toIso8601String())
-        .order('start_datetime', ascending: true),
-    // Regelbasierte Empfehlungen (docs/08-home-feed-recommendation-
-    // algorithm.md, Abschnitt 4.1/0) — degradiert für anonyme/interesselose
-    // Nutzer serverseitig automatisch zu Popularität + zeitlicher Nähe,
-    // kein Sonderfall hier im Client nötig.
-    client.rpc(
-      'recommended_events',
-      // p_city_id: siehe Kommentar in map_providers.dart -- die bereits
-      // live deployte Version dieser RPC (mit zusätzlichem rank_score/
-      // rank_reason) nutzt city_id, keine eigene region_id-Variante.
-      params: {
-        'p_result_limit': 24,
-        if (region != null) 'p_city_id': region.id,
-      },
-    ),
-    client.rpc('favorite_events_home', params: {'p_result_limit': 20}),
-    client.rpc('followed_events', params: {'p_result_limit': 20}),
-    // "Entdecken" (docs/08, Abschnitt 4.3): semantische Ähnlichkeit zu
-    // zuletzt favorisierten/angesehenen Events statt Geschmacks-Regeln —
-    // liefert ohne Login oder ohne jede Historie bewusst eine leere Liste
-    // (RPC-seitig, kein Sonderfall hier nötig).
-    client.rpc('discovery_events', params: {'p_result_limit': 10}),
-    // "Dein Ort/Ensemble hat Neuigkeiten" (docs/08, Abschnitt 3.5): neu
-    // hinzugekommene Events an gefolgten Venues/Personen/Ensembles. Ohne
-    // Login leer.
-    client.rpc('entity_news_events', params: {'p_result_limit': 10}),
-    client
-        .from('events')
-        .select(homeEventColumns)
-        .eq('status', 'scheduled')
-        .eq('remaining_tickets_status', 'few_left')
-        .gte('start_datetime', nowIso)
-        .order('start_datetime', ascending: true)
-        .limit(10),
-    // Saisonal/Festival (docs/08, Abschnitt 4.4): nur aktiv, wenn now()
-    // in einem Festival-Zeitfenster liegt — sonst leer und das Modul wird
-    // wie jedes andere zu schwache Modul übersprungen.
-    client.rpc('festival_events', params: {'p_result_limit': 10}),
-    client
-        .from('events')
-        .select(homeEventColumns)
-        .eq('status', 'scheduled')
-        .eq('is_free', true)
-        .gte('start_datetime', nowIso)
-        .order('start_datetime', ascending: true)
-        .limit(10),
-    client.rpc('popular_events', params: {'p_result_limit': 10}),
-  ]);
+  // Perf-Audit Punkt 1 (Nachtrag "Homescreen-RPC-Bündeln"): vorher 11
+  // parallele Requests (8 RPCs + 3 rohe Table-Selects) plus ein 12. für die
+  // Komponisten-Diversität — jetzt ein einziger Roundtrip. Scoring-/
+  // Ranking-Logik bleibt unverändert in den bestehenden SQL-Funktionen
+  // (hero_event/recommended_events/…), home_feed_bundle() ruft sie nur
+  // serverseitig statt clientseitig parallel auf (siehe Migration
+  // 20261218000001_home_feed_bundle_rpc.sql für die genauen Parameter/
+  // Limits, identisch zu den bisherigen Client-Aufrufen).
+  final bundle =
+      await client.rpc(
+            'home_feed_bundle',
+            params: {
+              'p_now': now.toIso8601String(),
+              'p_today_start': todayStart.toIso8601String(),
+              'p_today_end': todayEnd.toIso8601String(),
+              if (region != null) 'p_city_id': region.id,
+            },
+          )
+          as Map<String, dynamic>;
 
-  final heroRows = results[0] as List;
-  final heute = (results[1] as List)
+  List<HomeEventItem> parseModule(String key) => (bundle[key] as List)
       .map((r) => HomeEventItem.fromRow(r as Map<String, dynamic>))
       .toList();
-  final empfehlungen = (results[2] as List)
-      .map((r) => HomeEventItem.fromRow(r as Map<String, dynamic>))
-      .toList();
-  final favoriteCandidates = (results[3] as List)
-      .map((r) => HomeEventItem.fromRow(r as Map<String, dynamic>))
-      .toList();
-  final followedCandidates = (results[4] as List)
-      .map((r) => HomeEventItem.fromRow(r as Map<String, dynamic>))
-      .toList();
-  final entdecken = (results[5] as List)
-      .map((r) => HomeEventItem.fromRow(r as Map<String, dynamic>))
-      .toList();
-  final entityNews = (results[6] as List)
-      .map((r) => HomeEventItem.fromRow(r as Map<String, dynamic>))
-      .toList();
-  final ausverkauft = (results[7] as List)
-      .map((r) => HomeEventItem.fromRow(r as Map<String, dynamic>))
-      .toList();
-  final festivalRows = results[8] as List;
-  final festival = festivalRows
-      .map((r) => HomeEventItem.fromRow(r as Map<String, dynamic>))
-      .toList();
+
+  final heroRows = bundle['hero'] as List;
+  final heute = parseModule('heute');
+  final empfehlungen = parseModule('empfehlungen');
+  final favoriteCandidates = parseModule('favoriten');
+  final followedCandidates = parseModule('gefolgt');
+  final entdecken = parseModule('entdecken');
+  final entityNews = parseModule('entityNews');
+  final ausverkauft = parseModule('ausverkauft');
+  final festivalRows = bundle['festival'] as List;
+  final festival = parseModule('festival');
   final festivalName = festivalRows.isEmpty
       ? null
       : (festivalRows.first as Map<String, dynamic>)['festival_name']
             as String?;
-  final kostenlos = (results[9] as List)
-      .map((r) => HomeEventItem.fromRow(r as Map<String, dynamic>))
-      .toList();
-  final beliebt = (results[10] as List)
-      .map((r) => HomeEventItem.fromRow(r as Map<String, dynamic>))
-      .toList();
+  final kostenlos = parseModule('kostenlos');
+  final beliebt = parseModule('beliebt');
+  final composerIdsByEvent = _parseComposerIdsByEvent(
+    bundle['composerIdsByEvent'],
+  );
 
   final ordered = _orderedModules(
     heute,
@@ -386,12 +322,6 @@ final homeDataProvider = FutureProvider<HomeData>((ref) async {
     kostenlos,
     beliebt,
   );
-  final allIds = [
-    favoriteCandidates,
-    followedCandidates,
-    ...ordered,
-  ].expand((m) => m.map((e) => e.id));
-  final composerIdsByEvent = await _loadComposerIdsByEvent(client, allIds);
 
   // Hero vorab als "gesehen" markieren — sonst könnte dasselbe Event direkt
   // darunter im ersten Modul (z.B. "Heute") nochmal auftauchen.
