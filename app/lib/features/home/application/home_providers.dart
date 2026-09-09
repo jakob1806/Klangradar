@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/auth/auth_providers.dart';
+import '../../../core/cache/home_cache.dart';
 import '../../../core/favorites/favorites_providers.dart';
 import '../../../core/regions/region_providers.dart';
 import '../../../core/widgets/genre_artwork.dart';
@@ -55,6 +56,39 @@ class HomeEventItem {
   final String? imageUrl;
   final String? followKind;
   final String? followName;
+
+  /// Für [HomeCache] — bewusst ein eigenes, stabiles Format statt der rohen
+  /// Supabase-Row (die enthält bereits aufbereitete Felder wie [genre] und
+  /// [badge], die aus mehreren Rohspalten berechnet wurden).
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'slug': slug,
+    'title': title,
+    'venueAndTime': venueAndTime,
+    'genre': genre.name,
+    'startDateTime': startDateTime?.toIso8601String(),
+    'venueId': venueId,
+    'badge': badge,
+    'imageUrl': imageUrl,
+    'followKind': followKind,
+    'followName': followName,
+  };
+
+  factory HomeEventItem.fromJson(Map<String, dynamic> json) => HomeEventItem(
+    id: json['id'] as String,
+    slug: json['slug'] as String,
+    title: json['title'] as String,
+    venueAndTime: json['venueAndTime'] as String,
+    genre: EventGenre.values.byName(json['genre'] as String),
+    startDateTime: json['startDateTime'] == null
+        ? null
+        : DateTime.parse(json['startDateTime'] as String),
+    venueId: json['venueId'] as String?,
+    badge: json['badge'] as String?,
+    imageUrl: json['imageUrl'] as String?,
+    followKind: json['followKind'] as String?,
+    followName: json['followName'] as String?,
+  );
 
   factory HomeEventItem.fromRow(Map<String, dynamic> row) {
     final start = MunichTime.tryParse(row['start_datetime'] as String?);
@@ -150,6 +184,50 @@ class HomeData {
   final List<HomeEventItem> ausverkauft;
   final List<HomeEventItem> festival;
   final String? festivalName;
+
+  /// Für [HomeCache]. `hero` bleibt als rohe Map erhalten (bereits
+  /// JSON-kompatibel, kommt so direkt von der `hero_event`-RPC).
+  Map<String, dynamic> toJson() => {
+    'hero': hero,
+    'heute': heute.map((e) => e.toJson()).toList(),
+    'empfehlungen': empfehlungen.map((e) => e.toJson()).toList(),
+    'favoriten': favoriten.map((e) => e.toJson()).toList(),
+    'gefolgt': gefolgt.map((e) => e.toJson()).toList(),
+    'geschmacksTitel': geschmacksTitel,
+    'geschmack': geschmack.map((e) => e.toJson()).toList(),
+    'entitySpotlightTitle': entitySpotlightTitle,
+    'entitySpotlight': entitySpotlight.map((e) => e.toJson()).toList(),
+    'entdecken': entdecken.map((e) => e.toJson()).toList(),
+    'entityNews': entityNews.map((e) => e.toJson()).toList(),
+    'beliebt': beliebt.map((e) => e.toJson()).toList(),
+    'kostenlos': kostenlos.map((e) => e.toJson()).toList(),
+    'ausverkauft': ausverkauft.map((e) => e.toJson()).toList(),
+    'festival': festival.map((e) => e.toJson()).toList(),
+    'festivalName': festivalName,
+  };
+
+  static List<HomeEventItem> _listFromJson(dynamic list) => (list as List)
+      .map((e) => HomeEventItem.fromJson(e as Map<String, dynamic>))
+      .toList();
+
+  factory HomeData.fromJson(Map<String, dynamic> json) => HomeData(
+    hero: json['hero'] as Map<String, dynamic>?,
+    heute: _listFromJson(json['heute']),
+    empfehlungen: _listFromJson(json['empfehlungen']),
+    favoriten: _listFromJson(json['favoriten']),
+    gefolgt: _listFromJson(json['gefolgt']),
+    geschmacksTitel: json['geschmacksTitel'] as String?,
+    geschmack: _listFromJson(json['geschmack']),
+    entitySpotlightTitle: json['entitySpotlightTitle'] as String?,
+    entitySpotlight: _listFromJson(json['entitySpotlight']),
+    entdecken: _listFromJson(json['entdecken']),
+    entityNews: _listFromJson(json['entityNews']),
+    beliebt: _listFromJson(json['beliebt']),
+    kostenlos: _listFromJson(json['kostenlos']),
+    ausverkauft: _listFromJson(json['ausverkauft']),
+    festival: _listFromJson(json['festival']),
+    festivalName: json['festivalName'] as String?,
+  );
 }
 
 /// Modul-Reihenfolge nach docs/08-home-feed-recommendation-algorithm.md,
@@ -264,14 +342,82 @@ Future<Map<String, Set<String>>> _loadComposerIdsByEvent(
 
 /// Bleibt beim Tab-Wechsel im Speicher; Pull-to-refresh, Stadtwechsel und
 /// Favoriten-/Follow-Änderungen invalidieren den Feed weiterhin gezielt.
-final homeDataProvider = FutureProvider<HomeData>((ref) async {
-  // Auth-, Like- und Follow-Änderungen invalidieren den Feed unmittelbar.
-  // Das ist besonders wichtig beim Login über den Profil-Tab, weil der
-  // IndexedStack den bereits aufgebauten Home-Tab sonst im Speicher hält.
-  ref.watch(currentUserProvider);
-  ref.watch(favoriteIdsProvider);
-  ref.watch(myFollowsProvider);
-  final region = ref.watch(selectedCityRegionProvider);
+///
+/// Stale-while-revalidate (Perf-Audit Punkt 1): [HomeDataNotifier.build]
+/// zeigt beim ersten Aufbau sofort den zuletzt via [HomeCache] gespeicherten
+/// Stand, während [_fetchHomeData] im Hintergrund läuft und `state`
+/// anschließend mit den frischen Daten überschreibt — statt bei jedem
+/// Öffnen erst die volle 11-Request-Antwort abzuwarten.
+final homeDataProvider = AsyncNotifierProvider<HomeDataNotifier, HomeData>(
+  HomeDataNotifier.new,
+);
+
+class HomeDataNotifier extends AsyncNotifier<HomeData> {
+  @override
+  Future<HomeData> build() async {
+    // Auth-, Like- und Follow-Änderungen invalidieren den Feed unmittelbar.
+    // Das ist besonders wichtig beim Login über den Profil-Tab, weil der
+    // IndexedStack den bereits aufgebauten Home-Tab sonst im Speicher hält.
+    ref.watch(currentUserProvider);
+    ref.watch(favoriteIdsProvider);
+    ref.watch(myFollowsProvider);
+    final region = ref.watch(selectedCityRegionProvider);
+    final cityKey = region?.id ?? 'none';
+    final userKey = Supabase.instance.client.auth.currentUser?.id ?? 'anon';
+
+    final cached = await HomeCache.load(cityKey: cityKey, userKey: userKey);
+    if (cached != null) {
+      unawaited(_refreshInBackground(region, cityKey, userKey));
+      return cached;
+    }
+
+    final fresh = await _fetchHomeData(region);
+    unawaited(HomeCache.save(fresh, cityKey: cityKey, userKey: userKey));
+    return fresh;
+  }
+
+  /// Für Pull-to-refresh und Stadtwechsel (Perf-Audit Punkt 1): erzwingt
+  /// eine echte Neuladung statt (wie bei `ref.invalidate`) erst wieder den
+  /// Cache zu zeigen. `state` bleibt währenddessen auf den bisherigen Daten
+  /// stehen (kein Leerzustand), der Pull-Indikator läuft bis die Antwort da
+  /// ist.
+  Future<void> refresh() async {
+    final current = state.valueOrNull;
+    final region = ref.read(selectedCityRegionProvider);
+    final cityKey = region?.id ?? 'none';
+    final userKey = Supabase.instance.client.auth.currentUser?.id ?? 'anon';
+    state = current == null ? const AsyncLoading() : AsyncData(current);
+    try {
+      final fresh = await _fetchHomeData(region);
+      state = AsyncData(fresh);
+      unawaited(HomeCache.save(fresh, cityKey: cityKey, userKey: userKey));
+    } catch (error, stackTrace) {
+      state = current == null
+          ? AsyncError(error, stackTrace)
+          : AsyncData(current);
+    }
+  }
+
+  /// Lädt frisch nach, während der (gecachte) `state` weiter sichtbar
+  /// bleibt, und ersetzt ihn erst, wenn die neue Antwort da ist — kein
+  /// sichtbares Flackern/Leeren der Liste in der Zwischenzeit.
+  Future<void> _refreshInBackground(
+    CityRegion? region,
+    String cityKey,
+    String userKey,
+  ) async {
+    try {
+      final fresh = await _fetchHomeData(region);
+      state = AsyncData(fresh);
+      unawaited(HomeCache.save(fresh, cityKey: cityKey, userKey: userKey));
+    } catch (_) {
+      // Hintergrund-Refresh fehlgeschlagen (z. B. offline) — der gecachte
+      // Stand bleibt sichtbar, kein Fehlerzustand für den Nutzer.
+    }
+  }
+}
+
+Future<HomeData> _fetchHomeData(CityRegion? region) async {
   final client = Supabase.instance.client;
   final now = MunichTime.now();
   final todayStart = DateTime(now.year, now.month, now.day);
@@ -505,7 +651,7 @@ final homeDataProvider = FutureProvider<HomeData>((ref) async {
     kostenlos: diversified[6],
     beliebt: diversified[7],
   );
-});
+}
 
 String _tasteTitle(EventGenre genre) => switch (genre) {
   EventGenre.oper => 'Weil du Oper magst',

@@ -4,9 +4,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 /// Datenquellen für den Verzeichnis-Browser im Suchtab (Tab "Künstler" /
 /// "Ensembles" / "Orte", sichtbar solange keine Sucheingabe erfolgt ist).
 ///
-/// Die Tabellen sind klein (persons ~28, ensembles ~32, venues ~37 Zeilen),
-/// daher genügt ein vollständiger, alphabetisch sortierter Read ohne
-/// Pagination.
+/// Seit der Multi-City-Erweiterung nicht mehr klein (persons ~1.800,
+/// ensembles ~290, venues ~250 Zeilen) — weiterhin ein vollständiger,
+/// alphabetisch sortierter Read (Alphabet-Browsing über die ganze Liste
+/// ist der Zweck dieses Tabs), aber `_DirectoryList`
+/// (search_screen.dart) zeigt die Ergebnisse seit Perf-Audit Punkt 7 nur
+/// noch seitenweise an, statt alle ListTiles auf einmal zu bauen.
 ///
 /// `ascending: true` ist hier Pflicht, nicht Kosmetik: anders als der
 /// JS-Supabase-Client (dort ist `ascending` standardmäßig `true`) defaultet
