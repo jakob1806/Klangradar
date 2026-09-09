@@ -246,10 +246,8 @@ List<HomeEventItem> _applyDiversity(
 Map<String, Set<String>> _parseComposerIdsByEvent(dynamic json) {
   final map = json as Map<String, dynamic>? ?? const {};
   return map.map(
-    (eventId, composerIds) => MapEntry(
-      eventId,
-      (composerIds as List).whereType<String>().toSet(),
-    ),
+    (eventId, composerIds) =>
+        MapEntry(eventId, (composerIds as List).whereType<String>().toSet()),
   );
 }
 
