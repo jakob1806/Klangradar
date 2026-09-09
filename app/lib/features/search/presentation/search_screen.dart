@@ -957,9 +957,7 @@ class _DirectoryListState extends State<_DirectoryList> {
           Padding(
             padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
             child: TextButton(
-              onPressed: () => setState(
-                () => _visibleCount += _pageSize,
-              ),
+              onPressed: () => setState(() => _visibleCount += _pageSize),
               child: Text(l10n.searchDirectoryLoadMore(remaining)),
             ),
           ),

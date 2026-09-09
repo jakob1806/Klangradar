@@ -386,9 +386,7 @@ class HomeDataNotifier extends AsyncNotifier<HomeData> {
     final region = ref.read(selectedCityRegionProvider);
     final cityKey = region?.id ?? 'none';
     final userKey = Supabase.instance.client.auth.currentUser?.id ?? 'anon';
-    state = current == null
-        ? const AsyncLoading()
-        : AsyncData(current);
+    state = current == null ? const AsyncLoading() : AsyncData(current);
     try {
       final fresh = await _fetchHomeData(region);
       state = AsyncData(fresh);

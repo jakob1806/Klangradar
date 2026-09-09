@@ -35,8 +35,7 @@ class HomeCache {
         return null;
       }
       final savedAt = DateTime.tryParse(envelope['savedAt'] as String? ?? '');
-      if (savedAt == null ||
-          DateTime.now().difference(savedAt) > maxAge) {
+      if (savedAt == null || DateTime.now().difference(savedAt) > maxAge) {
         return null;
       }
       return HomeData.fromJson(envelope['data'] as Map<String, dynamic>);
