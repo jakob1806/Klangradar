@@ -48,7 +48,12 @@ struct CitySwitcherView: View {
                 }
             }
         }
-        .toolbarBackground(.hidden, for: .navigationBar)
+        // Nutzerfeedback: "Fertig" hatte kein Liquid Glass um sich herum --
+        // .toolbarBackground(.hidden) hier (unbedingt, auch auf iOS 26)
+        // unterdrückte auch die automatische Glas-Kapsel des
+        // .confirmationAction-Buttons selbst. Diese Seite hat anders als
+        // Home/Suche/Kalender keinen eigenen ToolbarItem-Chip, der mit dem
+        // System-Glas kollidieren könnte -- kein Grund, es hier zu verstecken.
         .navigationTitle(embedsNavigationStack ? "" : "Stadt wechseln")
         .navigationBarTitleDisplayMode(.inline)
         .task { if cityStore.activeCities.isEmpty { await cityStore.load() } }
@@ -169,6 +174,13 @@ struct CityCompactMenu: View {
         }
         .sheet(isPresented: $showsCitySwitcher) {
             CitySwitcherView(cityStore: cityStore)
+                // Nutzerfeedback per Screenshot: das Sheet zeigte links/
+                // rechts/unten Rand mit sichtbarem Hintergrund dahinter statt
+                // randlos zu sein — dieselbe Ursache/derselbe Fix wie beim
+                // Klangradar-KI-Popup (siehe RootTabView.CoachSheetPresentation):
+                // ohne explizites .page-Sizing zeigt iOS 26 hier die
+                // freischwebende "Form"-Karte statt eines randlosen Sheets.
+                .modifier(EdgeToEdgeSheetSizing())
         }
         .accessibilityLabel("Stadt auswählen")
     }
@@ -246,6 +258,21 @@ struct CityCompactMenu: View {
             if selected {
                 Image(systemName: "checkmark")
             }
+        }
+    }
+}
+
+/// Ohne explizites .page-Sizing zeigt iOS 26 ein detentloses Sheet ohne
+/// eigene Höhenbegrenzung trotzdem als freischwebende "Form"-Karte mit
+/// Rand auf allen Seiten (gleiche Ursache wie beim Klangradar-KI-Popup,
+/// siehe RootTabView.CoachSheetPresentation) -- .page erzwingt randlose
+/// Darstellung.
+private struct EdgeToEdgeSheetSizing: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content.presentationSizing(.page)
+        } else {
+            content
         }
     }
 }
