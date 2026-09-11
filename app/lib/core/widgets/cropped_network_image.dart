@@ -21,6 +21,8 @@ class CroppedNetworkImage extends StatelessWidget {
     this.crop,
     this.errorWidget,
     this.placeholder,
+    this.memCacheWidth,
+    this.memCacheHeight,
   });
 
   final String imageUrl;
@@ -28,8 +30,17 @@ class CroppedNetworkImage extends StatelessWidget {
   final WidgetBuilder? errorWidget;
   final WidgetBuilder? placeholder;
 
+  /// Zielgröße in logischen Pixeln für kleine, feste Darstellungen (z. B.
+  /// Avatare in Listen) — begrenzt Download UND Bild-Decoding auf die
+  /// tatsächlich sichtbare Größe statt des vollen Originalbilds
+  /// (Perf-Audit Punkt 4). Für große Detailseiten-Darstellungen (z. B.
+  /// [entity_photo_gallery]) bewusst `null` lassen.
+  final int? memCacheWidth;
+  final int? memCacheHeight;
+
   @override
   Widget build(BuildContext context) {
+    final dpr = MediaQuery.devicePixelRatioOf(context);
     final image = CachedNetworkImage(
       imageUrl: imageUrl,
       fit: BoxFit.cover,
@@ -37,6 +48,12 @@ class CroppedNetworkImage extends StatelessWidget {
       // siehe DetailHeroBackground für die -0.6-Begründung
       // (Dynamic-Island/Notch-Freiraum).
       alignment: const Alignment(0, -0.6),
+      memCacheWidth: memCacheWidth == null
+          ? null
+          : (memCacheWidth! * dpr).round(),
+      memCacheHeight: memCacheHeight == null
+          ? null
+          : (memCacheHeight! * dpr).round(),
       errorWidget: errorWidget == null
           ? null
           : (context, url, error) => errorWidget!(context),
