@@ -824,6 +824,8 @@ class _EntryLeading extends StatelessWidget {
         child: CroppedNetworkImage(
           imageUrl: photoUrl!,
           crop: crop,
+          memCacheWidth: _size.round(),
+          memCacheHeight: _size.round(),
           placeholder: (context) => icon,
           errorWidget: (context) => icon,
         ),
@@ -844,7 +846,15 @@ Rect? _avatarCropFromRow(Map<String, dynamic> r) {
   return Rect.fromLTWH(x, y, width, height);
 }
 
-class _DirectoryList extends StatelessWidget {
+/// Zeigt nur die ersten [_pageSize] Zeilen an und blendet den Rest erst bei
+/// Bedarf ein (Perf-Audit Punkt 7): bei mittlerweile ~1.800 Personen baute
+/// die Liste zuvor alle ListTiles inkl. Bild-Widgets auf einmal auf, auch
+/// wenn nur ein Bruchteil davon je sichtbar wird. Bewusst kein
+/// `ListView.builder`, weil diese Liste innerhalb einer äußeren `ListView`
+/// eingebettet ist (kein eigener Scroll-Viewport) — echtes Lazy-Building
+/// bräuchte eine größere Sliver-Umstellung des ganzen Suchbildschirms, die
+/// beim aktuellen Datenvolumen (max. ~1.800 Zeilen) nicht nötig ist.
+class _DirectoryList extends StatefulWidget {
   const _DirectoryList({
     required this.type,
     required this.rows,
@@ -854,6 +864,27 @@ class _DirectoryList extends StatelessWidget {
   final String type;
   final List<Map<String, dynamic>> rows;
   final AppColorsExtension colors;
+
+  @override
+  State<_DirectoryList> createState() => _DirectoryListState();
+}
+
+class _DirectoryListState extends State<_DirectoryList> {
+  static const _pageSize = 60;
+  int _visibleCount = _pageSize;
+
+  @override
+  void didUpdateWidget(_DirectoryList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Typ-Wechsel (Personen/Ensembles/Orte) fängt wieder bei Seite 1 an.
+    if (oldWidget.type != widget.type) {
+      _visibleCount = _pageSize;
+    }
+  }
+
+  String get type => widget.type;
+  List<Map<String, dynamic>> get rows => widget.rows;
+  AppColorsExtension get colors => widget.colors;
 
   String _title(Map<String, dynamic> r) => switch (type) {
     'ensemble' || 'venue' => r['name'] as String? ?? '',
@@ -888,9 +919,11 @@ class _DirectoryList extends StatelessWidget {
       );
     }
 
+    final visibleRows = rows.take(_visibleCount).toList();
+    final remaining = rows.length - visibleRows.length;
     return Column(
       children: [
-        for (final r in rows)
+        for (final r in visibleRows)
           ListTile(
             contentPadding: EdgeInsets.zero,
             leading: _EntryLeading(
@@ -919,6 +952,14 @@ class _DirectoryList extends StatelessWidget {
               Haptics.light();
               context.push(_resultRoute(type, r));
             },
+          ),
+        if (remaining > 0)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+            child: TextButton(
+              onPressed: () => setState(() => _visibleCount += _pageSize),
+              child: Text(l10n.searchDirectoryLoadMore(remaining)),
+            ),
           ),
       ],
     );

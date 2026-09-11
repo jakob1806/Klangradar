@@ -48,6 +48,8 @@
   "searchTrendingTitle": "Beliebte Suchen",
   "searchBrowseTitle": "Durchstöbern",
   "searchDirectoryEmpty": "Keine Einträge.",
+  "searchDirectoryLoadMore": "{count} weitere anzeigen",
+  "@searchDirectoryLoadMore": {"placeholders": {"count": {"type": "int"}}},
   "searchNoResults": "Keine Treffer.",
   "searchDetectedFilters": "Erkannt: {labels}",
   "@searchDetectedFilters": {"placeholders": {"labels": {"type": "String"}}},

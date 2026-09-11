@@ -34,6 +34,11 @@ class EventCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
+    // Begrenzt Download+Decoding aufs tatsächlich sichtbare Kartenbild
+    // (3:2-Ratio) statt der vollen Originalauflösung (Perf-Audit Punkt 4).
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final cacheWidth = (width * dpr).round();
+    final cacheHeight = (width * 2 / 3 * dpr).round();
     return SizedBox(
       width: width,
       // Ein Semantics-Knoten für Titel+Venue+Zeit+Badge, damit Screen-Reader
@@ -61,6 +66,8 @@ class EventCard extends StatelessWidget {
                       CachedNetworkImage(
                         imageUrl: imageUrl!,
                         fit: BoxFit.cover,
+                        memCacheWidth: cacheWidth,
+                        memCacheHeight: cacheHeight,
                         errorWidget: (context, url, error) => GenreArtwork(
                           genre: genre,
                           borderRadius: BorderRadius.circular(

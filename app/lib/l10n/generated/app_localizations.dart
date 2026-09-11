@@ -308,6 +308,12 @@ abstract class AppLocalizations {
   /// **'Keine Einträge.'**
   String get searchDirectoryEmpty;
 
+  /// No description provided for @searchDirectoryLoadMore.
+  ///
+  /// In de, this message translates to:
+  /// **'{count} weitere anzeigen'**
+  String searchDirectoryLoadMore(int count);
+
   /// No description provided for @searchNoResults.
   ///
   /// In de, this message translates to:
