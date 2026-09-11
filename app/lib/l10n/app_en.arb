@@ -39,6 +39,8 @@
   "searchTrendingTitle": "Popular searches",
   "searchBrowseTitle": "Browse",
   "searchDirectoryEmpty": "No entries.",
+  "searchDirectoryLoadMore": "Show {count} more",
+  "@searchDirectoryLoadMore": {"placeholders": {"count": {"type": "int"}}},
   "searchNoResults": "No results.",
   "searchDetectedFilters": "Detected: {labels}",
   "searchFilterFree": "Free",
