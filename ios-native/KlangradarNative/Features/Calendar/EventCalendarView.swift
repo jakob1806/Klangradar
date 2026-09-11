@@ -5,27 +5,10 @@ struct EventCalendarView: View {
     let contentRepository: any ContentRepository
     let auth: AuthStore?
     let userRepository: UserRepository?
-    // Für Marketing-Screenshots (siehe MarketingAppShellView): Kalender
-    // bleibt dort bewusst eine reine Live-Ansicht ohne Werkzeug -- die echte
-    // Multiauswahl/Gruppen-Funktion bleibt im normalen Nutzerfluss unverändert.
-    var hidesSelectionUI = false
     @EnvironmentObject private var cityStore: CityStore
     @State private var selectedDate = Date.now
     @State private var visibleMonth = Date.now
     @State private var events: [ConcertEvent] = []
-
-    // Nutzerwunsch: "Multiauswahl bei Veranstaltungen soll die Option
-    // ergeben, daraus eine Gruppe zu erstellen" — nutzt dieselbe
-    // favorite_lists/favorite_list_items-Infrastruktur wie "Meine Listen"
-    // im Profil (UserRepository.createEventList/replaceEvents), damit eine
-    // hier erstellte Gruppe dort direkt sichtbar/bearbeitbar ist.
-    @State private var isSelecting = false
-    @State private var selectedIDs: Set<UUID> = []
-    @State private var showsNamePrompt = false
-    @State private var groupName = ""
-    @State private var isCreatingGroup = false
-    @State private var creationError: String?
-    @State private var createdListName: String?
 
     private var selectedEvents: [ConcertEvent] {
         events.filter { $0.startDate.map { KlangradarDateTime.calendar.isDate($0, inSameDayAs: selectedDate) } ?? false }
@@ -41,18 +24,8 @@ struct EventCalendarView: View {
                         eventDates: events.compactMap(\.startDate)
                     )
 
-                    HStack {
-                        Text(KlangradarDateTime.string(selectedDate, format: "EEEE, d. MMMM"))
-                            .font(.title2.bold())
-                        Spacer()
-                        if !hidesSelectionUI, auth?.userID != nil, !selectedEvents.isEmpty {
-                            Button(isSelecting ? "Fertig" : "Auswählen") {
-                                isSelecting.toggle()
-                                if !isSelecting { selectedIDs.removeAll() }
-                            }
-                            .font(.subheadline.weight(.semibold))
-                        }
-                    }
+                    Text(KlangradarDateTime.string(selectedDate, format: "EEEE, d. MMMM"))
+                        .font(.title2.bold())
 
                     if selectedEvents.isEmpty {
                         ContentUnavailableView("Keine Konzerte", systemImage: "calendar.badge.minus", description: Text("Für diesen Tag sind keine Veranstaltungen verfügbar."))
@@ -60,23 +33,8 @@ struct EventCalendarView: View {
                         LiquidGlassSurface(cornerRadius: 24) {
                             VStack(spacing: 0) {
                                 ForEach(Array(selectedEvents.enumerated()), id: \.element.id) { index, event in
-                                    if isSelecting {
-                                        Button {
-                                            if selectedIDs.contains(event.id) { selectedIDs.remove(event.id) }
-                                            else { selectedIDs.insert(event.id) }
-                                        } label: {
-                                            HStack(spacing: 12) {
-                                                Image(systemName: selectedIDs.contains(event.id) ? "checkmark.circle.fill" : "circle")
-                                                    .font(.title3)
-                                                    .foregroundStyle(selectedIDs.contains(event.id) ? KlangradarTheme.accent : Color.secondary)
-                                                CalendarEventRow(event: event)
-                                            }
-                                        }
+                                    NavigationLink(value: event) { CalendarEventRow(event: event) }
                                         .buttonStyle(.plain)
-                                    } else {
-                                        NavigationLink(value: event) { CalendarEventRow(event: event) }
-                                            .buttonStyle(.plain)
-                                    }
                                     if index < selectedEvents.count - 1 { Divider().padding(.leading, 78) }
                                 }
                             }
@@ -85,29 +43,12 @@ struct EventCalendarView: View {
                 }
                 .frame(maxWidth: 760)
                 .padding(KlangradarTheme.pagePadding)
-                .padding(.bottom, isSelecting && !selectedIDs.isEmpty ? 140 : 100)
+                .padding(.bottom, 100)
                 .frame(maxWidth: .infinity)
             }
             .background { KlangradarBackground().ignoresSafeArea() }
-            .safeAreaInset(edge: .bottom) {
-                if isSelecting, !selectedIDs.isEmpty {
-                    Button {
-                        groupName = ""
-                        showsNamePrompt = true
-                    } label: {
-                        Label("Gruppe erstellen (\(selectedIDs.count))", systemImage: "rectangle.stack.badge.plus")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .padding(KlangradarTheme.pagePadding)
-                    .background(.ultraThinMaterial)
-                }
-            }
             .navigationTitle("Kalender")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(.hidden, for: .navigationBar)
             .modifier(HiddenScrollEdgeNavigationBar())
             .toolbar {
                 if #available(iOS 26.0, *) {
@@ -126,23 +67,6 @@ struct EventCalendarView: View {
             .onChange(of: cityStore.selectedCity) { _, _ in
                 Task { await loadEvents() }
             }
-            .alert("Neue Gruppe", isPresented: $showsNamePrompt) {
-                TextField("Name der Gruppe", text: $groupName)
-                Button("Abbrechen", role: .cancel) {}
-                Button("Erstellen") { Task { await createGroup() } }
-            } message: {
-                Text("\(selectedIDs.count) Veranstaltungen werden in die neue Gruppe aufgenommen.")
-            }
-            .alert("Gruppe konnte nicht erstellt werden", isPresented: Binding(get: { creationError != nil }, set: { if !$0 { creationError = nil } })) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(creationError ?? "")
-            }
-            .alert("Gruppe erstellt", isPresented: Binding(get: { createdListName != nil }, set: { if !$0 { createdListName = nil } })) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text("„\(createdListName ?? "")“ ist jetzt unter Profil → Meine Listen verfügbar.")
-            }
         }
         .environment(\.locale, Locale(identifier: "de_DE"))
     }
@@ -151,25 +75,6 @@ struct EventCalendarView: View {
         let basic = (try? await repository.allUpcomingEvents(regionID: cityStore.selectedCity?.id)) ?? []
         events = basic
         if let enriched = try? await repository.enrichingImages(in: basic) { events = enriched }
-    }
-
-    private func createGroup() async {
-        guard let userRepository, let auth, let userID = auth.userID, let token = auth.accessToken else { return }
-        isCreatingGroup = true
-        defer { isCreatingGroup = false }
-        do {
-            guard let list = try await userRepository.createEventList(name: groupName, userID: userID, token: token) else {
-                creationError = "Bitte einen Namen eingeben."
-                return
-            }
-            try await userRepository.replaceEvents(in: list.id, selected: selectedIDs, previous: [], token: token)
-            Haptics.confirm() // Generated by Claude Code — beim finalen Speichern, nicht beim Öffnen des Dialogs
-            createdListName = list.name
-            isSelecting = false
-            selectedIDs.removeAll()
-        } catch {
-            creationError = error.localizedDescription
-        }
     }
 }
 
