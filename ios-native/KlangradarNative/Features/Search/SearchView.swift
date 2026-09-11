@@ -72,7 +72,6 @@ struct SearchView: View {
             // HomeView).
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(.hidden, for: .navigationBar)
             .modifier(HiddenScrollEdgeNavigationBar())
             .toolbar {
                 if #available(iOS 26.0, *) {
@@ -166,7 +165,10 @@ struct SearchView: View {
         // hatte vor der Mikrofon-Erweiterung ein blickdichtes, helles Feld
         // (systemGray6, kein Rand). Gleiche Optik jetzt hier nachgebaut, da
         // das Mikrofon ein eigenes HStack statt des nativen Modifiers braucht.
-        .background(Color(.systemGray6), in: .rect(cornerRadius: 16, style: .continuous))
+        // Nutzerfeedback (Screenshot-Vergleich): mit .rect(cornerRadius: 16)
+        // wirkte das Feld eckiger als das native, komplett abgerundete
+        // Suchfeld-Pill — Capsule() statt fixem Eckenradius behebt das.
+        .background(Color(.systemGray6), in: .capsule)
         .accessibilityElement(children: .contain)
     }
 

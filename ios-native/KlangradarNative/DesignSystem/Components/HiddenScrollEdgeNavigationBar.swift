@@ -1,31 +1,26 @@
 import SwiftUI
 
-/// Nutzerfeedback: Home/Suche/Kalender zeigten weiterhin einen sichtbaren
-/// Blur-Streifen zwischen Hintergrund und Titelleiste, obwohl kein
-/// ToolbarItem mehr doppeltes Glas zeigte. Grund: iOS 26 blendet an
-/// Titelleisten automatisch einen eigenen "Scroll Edge Effect" ein, sobald
-/// Inhalt darunter scrollt — unabhängig von .sharedBackgroundVisibility
-/// (das nur einzelne ToolbarItems betrifft) und unabhängig vom älteren
-/// .toolbarBackground(.hidden) (das dafür bereits als iOS-17-Fallback
-/// gesetzt ist). .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
-/// ist die iOS-26-Entsprechung, die genau diesen automatischen Rand
-/// unterdrückt.
+/// Nutzerfeedback (Verlauf, per Screenshot-Vergleich): das komplette
+/// Abschalten des automatischen Scroll-Edge-Effekts (frühere Fassung dieser
+/// Datei: .toolbarBackgroundVisibility(.hidden) + .scrollEdgeEffectHidden)
+/// ging zu weit — dadurch wurde die Titelleiste komplett durchsichtig,
+/// Statuszeile/Titel und darunterliegender Inhalt überlagerten sich
+/// unleserlich. Der Blur-Effekt soll bleiben (er trennt Titel/Chip lesbar
+/// vom scrollenden Inhalt), nur OHNE die zuvor sichtbare harte Kante
+/// zwischen Titelleiste und Hintergrund. .soft (statt .automatic/.hard)
+/// ist genau dafür gedacht: ein weicher, kantenloser Übergang statt eines
+/// abrupt endenden Blur-Streifens.
 struct HiddenScrollEdgeNavigationBar: ViewModifier {
     func body(content: Content) -> some View {
         if #available(iOS 26.0, *) {
-            content
-                .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
-                // Nutzerfeedback (per Screenshot mit Markierung): der Rand
-                // blieb trotz .toolbarBackgroundVisibility(.hidden) sichtbar
-                // — das ist ein GESONDERTER Mechanismus: iOS 26 blendet am
-                // oberen Rand von scrollbarem Inhalt automatisch einen
-                // eigenen "Scroll Edge Effect" (Weichzeichner/Fade) ein,
-                // unabhängig vom Titelleisten-Hintergrund selbst.
-                // scrollEdgeEffectHidden(_:for:) ist die dafür vorgesehene,
-                // direkte Abschaltung.
-                .scrollEdgeEffectHidden(true, for: .top)
+            content.scrollEdgeEffectStyle(.soft, for: .top)
         } else {
-            content
+            // iOS 17–25 kennen den automatischen Scroll-Edge-Effekt nicht;
+            // dort bleibt das ältere .toolbarBackground(.hidden) als
+            // Material-Fallback nötig, sonst zeigt die Titelleiste dort ein
+            // undurchsichtiges Standardmaterial ohne den eigenen
+            // LiquidGlassSurface-Chip darunter durchscheinen zu lassen.
+            content.toolbarBackground(.hidden, for: .navigationBar)
         }
     }
 }

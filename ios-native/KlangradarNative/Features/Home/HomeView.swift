@@ -145,19 +145,13 @@ struct HomeView: View {
             }
             // Nutzerwunsch: "Klangradar" soll linksbündig stehen (nicht als
             // UIKit-Standard-.large-Titel) — derselbe eigene .topBarLeading-
-            // Titel wie in SearchView ("Suche"). Nutzerfeedback zusätzlich:
-            // ein sichtbarer Rand/breiter Blur-Streifen blieb zwischen
-            // Hintergrund und Titelleiste bestehen, obwohl der Chip selbst
-            // kein doppeltes Glas mehr zeigte — das ist iOS 26s automatischer
-            // "Scroll Edge Effect" der Titelleiste selbst, ein GESONDERTER
-            // Mechanismus von .sharedBackgroundVisibility (das nur einzelne
-            // ToolbarItems betrifft). .toolbarBackgroundVisibility(.hidden)
-            // ist die iOS-26-Entsprechung, die genau diesen Streifen
-            // unterdrückt; .toolbarBackground(.hidden) bleibt als Fallback
-            // für iOS 17–25 (kein automatisches Scroll-Glas dort).
+            // Titel wie in SearchView ("Suche"). Der automatische
+            // Scroll-Edge-Blur der Titelleiste bleibt bewusst erhalten
+            // (siehe HiddenScrollEdgeNavigationBar) — ihn ganz abzuschalten
+            // machte die Leiste komplett durchsichtig und Titel/Inhalt
+            // überlagerten sich unleserlich.
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar {
                 if #available(iOS 26.0, *) {
                     ToolbarItem(placement: .topBarLeading) {
