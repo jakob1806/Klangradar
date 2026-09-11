@@ -162,13 +162,17 @@ struct SearchView: View {
         .padding(.trailing, 8)
         .padding(.vertical, 8)
         // Vorher .regularMaterial (durchscheinend) — das native .searchable()
-        // hatte vor der Mikrofon-Erweiterung ein blickdichtes, helles Feld
-        // (systemGray6, kein Rand). Gleiche Optik jetzt hier nachgebaut, da
-        // das Mikrofon ein eigenes HStack statt des nativen Modifiers braucht.
+        // hatte vor der Mikrofon-Erweiterung ein blickdichtes, helles Feld.
         // Nutzerfeedback (Screenshot-Vergleich): mit .rect(cornerRadius: 16)
         // wirkte das Feld eckiger als das native, komplett abgerundete
         // Suchfeld-Pill — Capsule() statt fixem Eckenradius behebt das.
-        .background(Color(.systemGray6), in: .capsule)
+        // Nutzerfeedback zusätzlich: Color(.systemGray6) wirkte sichtbar
+        // gelblich/warm statt neutral grau. .fill.tertiary ist SwiftUIs
+        // adaptiver hierarchischer Füllstil (derselbe, den native Such-
+        // /Filterfelder verwenden) statt einer festen Asset-Farbe — garantiert
+        // neutrales Grau in Light/Dark, unabhängig von Systemzuständen, die
+        // Color(.systemGray6) hier offenbar warm einfärbten.
+        .background(.fill.tertiary, in: .capsule)
         .accessibilityElement(children: .contain)
     }
 
