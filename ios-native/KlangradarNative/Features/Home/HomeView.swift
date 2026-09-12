@@ -8,20 +8,29 @@ enum HomeRecommendationCategory: String, CaseIterable, Codable, Identifiable {
 
     var id: String { rawValue }
 
-    var title: String {
-        switch self {
+    // Nutzerfeedback: "Heute in München" zeigte auch nach Wechsel auf
+    // Berlin weiterhin "München" -- der Stadtname stand fest im Enum statt
+    // sich aus der aktuell gewählten Stadt zu ergeben. `title` bleibt als
+    // stadtloser Fallback (z.B. für Vorschau-Kontexte ohne CityStore),
+    // `title(cityName:)` ist die tatsächlich verwendete Variante mit der
+    // echten Auswahl.
+    var title: String { title(cityName: nil) }
+
+    func title(cityName: String?) -> String {
+        let city = cityName ?? "München"
+        return switch self {
         case .forYou: "Für dich"
-        case .today: "Heute in München"
+        case .today: "Heute in \(city)"
         case .nextSevenDays: "In den nächsten 7 Tagen"
         case .weekend: "Dieses Wochenende"
-        case .popular: "Beliebt in München"
+        case .popular: "Beliebt in \(city)"
         case .discover: "Neu für dich entdecken"
         case .opera: "Oper & Musiktheater"
         case .orchestra: "Orchester & Sinfonik"
         case .chamber: "Kammermusik & Recitals"
         case .choir: "Chor & Vokalmusik"
         case .free: "Eintritt frei"
-        case .upcoming: "Demnächst in München"
+        case .upcoming: "Demnächst in \(city)"
         case .favorites: "Deine Favoriten"
         case .taste: "Nach deinem Geschmack"
         case .entitySpotlight: "Von dir gefolgt"
@@ -145,19 +154,13 @@ struct HomeView: View {
             }
             // Nutzerwunsch: "Klangradar" soll linksbündig stehen (nicht als
             // UIKit-Standard-.large-Titel) — derselbe eigene .topBarLeading-
-            // Titel wie in SearchView ("Suche"). Nutzerfeedback zusätzlich:
-            // ein sichtbarer Rand/breiter Blur-Streifen blieb zwischen
-            // Hintergrund und Titelleiste bestehen, obwohl der Chip selbst
-            // kein doppeltes Glas mehr zeigte — das ist iOS 26s automatischer
-            // "Scroll Edge Effect" der Titelleiste selbst, ein GESONDERTER
-            // Mechanismus von .sharedBackgroundVisibility (das nur einzelne
-            // ToolbarItems betrifft). .toolbarBackgroundVisibility(.hidden)
-            // ist die iOS-26-Entsprechung, die genau diesen Streifen
-            // unterdrückt; .toolbarBackground(.hidden) bleibt als Fallback
-            // für iOS 17–25 (kein automatisches Scroll-Glas dort).
+            // Titel wie in SearchView ("Suche"). Der automatische
+            // Scroll-Edge-Blur der Titelleiste bleibt bewusst erhalten
+            // (siehe HiddenScrollEdgeNavigationBar) — ihn ganz abzuschalten
+            // machte die Leiste komplett durchsichtig und Titel/Inhalt
+            // überlagerten sich unleserlich.
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar {
                 if #available(iOS 26.0, *) {
                     ToolbarItem(placement: .topBarLeading) {
@@ -274,9 +277,9 @@ struct HomeView: View {
             // Kategorie „Für dich“ bleibt trotzdem sichtbar: persönliche
             // Treffer haben Vorrang, danach folgen die Server-Empfehlungen
             // und zuletzt kommende Events als sinnvoller Fallback.
-            EventRail(title: category.title, events: forYouEvents(from: events))
+            EventRail(title: category.title(cityName: cityStore.selectedCity?.name), events: forYouEvents(from: events))
         case .favorites:
-            EventRail(title: category.title, events: Array(model.favoriteEvents.prefix(14)))
+            EventRail(title: category.title(cityName: cityStore.selectedCity?.name), events: Array(model.favoriteEvents.prefix(14)))
         case .taste:
             let spotlight = tasteSpotlight(from: events)
             EventRail(title: spotlight.title, events: spotlight.events)
@@ -284,27 +287,27 @@ struct HomeView: View {
             let spotlight = entitySpotlight(from: events)
             EventRail(title: spotlight.title, events: spotlight.events)
         case .today:
-            EventRail(title: category.title, events: events.dropFirst().filter { $0.startDate.map(KlangradarDateTime.calendar.isDateInToday) ?? false })
+            EventRail(title: category.title(cityName: cityStore.selectedCity?.name), events: events.dropFirst().filter { $0.startDate.map(KlangradarDateTime.calendar.isDateInToday) ?? false })
         case .nextSevenDays:
-            EventRail(title: category.title, events: Array(events.dropFirst().filter(isWithinNextSevenDays).prefix(14)))
+            EventRail(title: category.title(cityName: cityStore.selectedCity?.name), events: Array(events.dropFirst().filter(isWithinNextSevenDays).prefix(14)))
         case .weekend:
-            EventRail(title: category.title, events: Array(events.filter(isThisWeekend).prefix(14)))
+            EventRail(title: category.title(cityName: cityStore.selectedCity?.name), events: Array(events.filter(isThisWeekend).prefix(14)))
         case .popular:
-            EventRail(title: category.title, events: Array(model.popularEvents.prefix(14)))
+            EventRail(title: category.title(cityName: cityStore.selectedCity?.name), events: Array(model.popularEvents.prefix(14)))
         case .discover:
-            EventRail(title: category.title, events: Array(model.discoveryEvents.prefix(14)))
+            EventRail(title: category.title(cityName: cityStore.selectedCity?.name), events: Array(model.discoveryEvents.prefix(14)))
         case .opera:
-            EventRail(title: category.title, events: Array(events.filter { $0.matchesFeedTerms(["oper", "musiktheater", "ballett"]) }.prefix(14)))
+            EventRail(title: category.title(cityName: cityStore.selectedCity?.name), events: Array(events.filter { $0.matchesFeedTerms(["oper", "musiktheater", "ballett"]) }.prefix(14)))
         case .orchestra:
-            EventRail(title: category.title, events: Array(events.filter { $0.matchesFeedTerms(["orchester", "sinfoni", "symphoni"]) }.prefix(14)))
+            EventRail(title: category.title(cityName: cityStore.selectedCity?.name), events: Array(events.filter { $0.matchesFeedTerms(["orchester", "sinfoni", "symphoni"]) }.prefix(14)))
         case .chamber:
-            EventRail(title: category.title, events: Array(events.filter { $0.matchesFeedTerms(["kammer", "recital", "klavierabend", "sonatenabend"]) }.prefix(14)))
+            EventRail(title: category.title(cityName: cityStore.selectedCity?.name), events: Array(events.filter { $0.matchesFeedTerms(["kammer", "recital", "klavierabend", "sonatenabend"]) }.prefix(14)))
         case .choir:
-            EventRail(title: category.title, events: Array(events.filter { $0.matchesFeedTerms(["chor", "vokal", "lied", "requiem", "messe"]) }.prefix(14)))
+            EventRail(title: category.title(cityName: cityStore.selectedCity?.name), events: Array(events.filter { $0.matchesFeedTerms(["chor", "vokal", "lied", "requiem", "messe"]) }.prefix(14)))
         case .free:
-            EventRail(title: category.title, events: Array(events.filter { $0.isFree == true }.prefix(14)))
+            EventRail(title: category.title(cityName: cityStore.selectedCity?.name), events: Array(events.filter { $0.isFree == true }.prefix(14)))
         case .upcoming:
-            EventRail(title: category.title, events: events.dropFirst().filter { !($0.startDate.map(KlangradarDateTime.calendar.isDateInToday) ?? false) }.sorted { lhs, rhs in
+            EventRail(title: category.title(cityName: cityStore.selectedCity?.name), events: events.dropFirst().filter { !($0.startDate.map(KlangradarDateTime.calendar.isDateInToday) ?? false) }.sorted { lhs, rhs in
                 lhs.matchesPersonalization(model.personalizedEntityIDs) && !rhs.matchesPersonalization(model.personalizedEntityIDs)
             })
         case .followed:
@@ -317,9 +320,9 @@ struct HomeView: View {
         case .editorialCollections:
             if !collections.isEmpty { CollectionRail(collections: collections) }
         case .followedPersons:
-            EntityRail(title: category.title, items: followedPersonDirectoryItems)
+            EntityRail(title: category.title(cityName: cityStore.selectedCity?.name), items: followedPersonDirectoryItems)
         case .followedEnsembles:
-            EntityRail(title: category.title, items: followedEnsembleDirectoryItems)
+            EntityRail(title: category.title(cityName: cityStore.selectedCity?.name), items: followedEnsembleDirectoryItems)
         case .followedVenues:
             ForEach(followedSections(from: events, kind: .venue)) { section in
                 EventRail(title: section.title, events: section.events)
