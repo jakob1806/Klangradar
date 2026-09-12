@@ -88,8 +88,7 @@ struct MarketingAppShellView: View {
                     repository: eventRepository,
                     contentRepository: contentRepository,
                     auth: auth,
-                    userRepository: userRepository,
-                    hidesSelectionUI: true
+                    userRepository: userRepository
                 )
                     .tag(MarketingTab.calendar)
                     .tabItem { Label("Kalender", systemImage: "calendar") }

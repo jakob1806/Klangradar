@@ -1,0 +1,27 @@
+-- Nutzeranfrage: "fix den discovery_events-Overload-Bug auch". Beim Bauen
+-- von home_feed_bundle() (20261218000001) aufgefallen: recommended_events
+-- und discovery_events existieren live jeweils in zwei Versionen —
+-- (p_result_limit integer) und (p_result_limit integer, p_city_id uuid
+-- default munich_city_id()) — seit der Multi-City-Erweiterung eine
+-- Stadt-Filter-Variante ergänzt wurde, ohne die alte Einzelargument-Version
+-- zu droppen.
+--
+-- Das ist kein theoretisches Risiko, sondern ein AKTIVER Produktions-Bug:
+-- hero_event() ruft intern `recommended_events(30)` mit nur einem Argument
+-- auf (siehe Funktionskörper) -- seit es zwei Overloads mit passendem
+-- Default gibt, ist das mehrdeutig und hero_event() wirft für JEDEN
+-- eingeloggten Nutzer:
+--   ERROR: 42725: function recommended_events(integer) is not unique
+-- Live gegen Produktion mit einer echten user_id reproduziert (siehe
+-- PR-Beschreibung). Da hero (results[0]) Teil desselben Future.wait/jetzt
+-- home_feed_bundle()-Aufrufs ist, riss das den gesamten Homescreen-Feed für
+-- eingeloggte Nutzer runter, nicht nur die Hero-Karte.
+--
+-- Fix: die überflüssige Einzelargument-Version droppen, nur die
+-- Zwei-Parameter-Version behalten. p_city_id hat dort denselben Default
+-- (munich_city_id()) wie die gedroppte Version implizit hatte -- für jeden
+-- bestehenden Aufrufer mit nur einem Argument (inkl. hero_event() intern)
+-- ändert sich dadurch nichts am Verhalten, nur die Mehrdeutigkeit
+-- verschwindet.
+drop function if exists public.recommended_events(integer);
+drop function if exists public.discovery_events(integer);
