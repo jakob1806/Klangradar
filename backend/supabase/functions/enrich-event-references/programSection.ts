@@ -5,8 +5,12 @@
 // Extraktion wesentlich zuverlässiger.
 
 const START_HEADING = /^(programm|program|werke|repertoire)\s*:? *$/i;
+// "weitere veranstaltungen" (mphil.de-Relaunch 2026-09, Live-Fund: Karussell
+// mit ANDEREN Konzerten am Seitenende, direkt unterhalb des eigentlichen
+// Programms) ergänzt zu "weitere termine" — sonst würde die Extraktion in
+// dieses Karussell hineinlaufen und dessen Werke/Besetzung mit einsammeln.
 const STOP_HEADING =
-  /^(mitwirkende|besetzung|künstler(?:innen)?|artists?|tickets?|termine|weitere termine|ähnliche (?:konzerte|veranstaltungen)|veranstaltungsort|spielstätte|preise?|kontakt|newsletter|biografie|beschreibung)\s*:? *$/i;
+  /^(mitwirkende|besetzung|künstler(?:innen)?|artists?|tickets?|termine|weitere (?:termine|konzerte|veranstaltungen)|ähnliche (?:konzerte|veranstaltungen)|veranstaltungsort|spielstätte|preise?|kontakt|newsletter|biografie|beschreibung)\s*:? *$/i;
 
 export function extractProgramSection(pageText: string | null): string | null {
   if (!pageText) return null;
