@@ -239,7 +239,14 @@ private struct VenuePreviewSheet: View {
     let eventRepository: any EventRepository
     @State private var events: [ConcertEvent] = []
     @State private var venueImageURL: URL?
-    @State private var navigationPath: [ConcertEvent] = []
+    // War auf [ConcertEvent] eingeschränkt — dadurch konnten Venue-/
+    // Mitwirkenden-Links von einer hier gepushten EventDetailView nicht
+    // wertbasiert weiternavigieren (siehe EntityRoute-Destination unten),
+    // sondern blieben auf der alten destination-closure-NavigationLink
+    // angewiesen, deren Mischung mit wertbasierten Links im selben Stack zu
+    // hängenden/falschen Pushes führte (Nutzerfeedback: "lande wieder auf
+    // der Landingpage der Venue, erst 'Zurück' zeigt die gewünschte Seite").
+    @State private var navigationPath = NavigationPath()
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
@@ -306,6 +313,7 @@ private struct VenuePreviewSheet: View {
                 .padding(20)
             }
             .navigationDestination(for: ConcertEvent.self) { EventDetailView(event: $0, repository: eventRepository, contentRepository: repository) }
+            .navigationDestination(for: EntityRoute.self) { EntityDetailView(route: $0, repository: repository) }
         }
         .task {
             async let loadedEvents = try? repository.venueEvents(venueID: venue.id, limit: 3)

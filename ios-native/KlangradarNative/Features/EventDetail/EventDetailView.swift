@@ -518,9 +518,7 @@ struct EventDetailView: View {
                 }
                 if let composer = work.object("composer"), let name = composer.string("full_name") {
                     if let route = entityRoute(from: composer, kind: .person) {
-                        NavigationLink {
-                            EntityDetailView(route: route, repository: contentRepository)
-                        } label: {
+                        NavigationLink(value: route) {
                             HStack(spacing: 5) {
                                 Text(name)
                                 Image(systemName: "chevron.right").font(.caption2.bold())
@@ -625,9 +623,7 @@ struct EventDetailView: View {
         @ViewBuilder label: (_ participant: (kind: EntityKind, value: JSONObject)) -> Label
     ) -> some View {
         if let participant = participantEntity(row), let route = entityRoute(from: participant.value, kind: participant.kind) {
-            NavigationLink {
-                EntityDetailView(route: route, repository: contentRepository)
-            } label: {
+            NavigationLink(value: route) {
                 label(participant)
             }
             .buttonStyle(.plain)
@@ -788,9 +784,7 @@ struct EventDetailView: View {
         if let venue = value.object("venues") {
             section("Veranstaltungsort") {
                 if let route = entityRoute(from: venue, kind: .venue) {
-                    NavigationLink {
-                        EntityDetailView(route: route, repository: contentRepository)
-                    } label: {
+                    NavigationLink(value: route) {
                         venueLabel(venue)
                     }
                     .buttonStyle(.plain)

@@ -47,6 +47,7 @@ struct CollectionDetailView: View {
         .navigationTitle(content.title)
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(for: ConcertEvent.self) { EventDetailView(event: $0, repository: eventRepository, contentRepository: repository) }
+        .navigationDestination(for: EntityRoute.self) { EntityDetailView(route: $0, repository: repository) }
         .task {
             guard let loaded = try? await repository.collection(slug: collection.slug) else { return }
             let enriched = (try? await eventRepository.enrichingImages(in: loaded.events)) ?? loaded.events
