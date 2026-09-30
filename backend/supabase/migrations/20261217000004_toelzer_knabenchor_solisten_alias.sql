@@ -18,7 +18,24 @@ cross join (
   values
     ('Solisten des Tölzer Knabenchores'),
     ('Solisten des Tölzer Knabenchors'),
-    ('Solistinnen und Solisten des Tölzer Knabenchores')
+    ('Solistinnen und Solisten des Tölzer Knabenchores'),
+    ('Solist(en) des Tölzer Knabenchors'),
+    ('Solist(en) des Tölzer Knabenchores')
 ) as v(alias)
 where e.slug = 'toelzer-knabenchor'
 on conflict (entity_type, entity_id, alias_normalized) do nothing;
+
+-- Rückwirkender Backfill: Der Trigger canonicalize_alias_references() (siehe
+-- 20261013000016) biegt beim Einfügen eines Alias die event_participants-,
+-- Favoriten- und Source-Verweise einer bereits existierenden Ensemble-Zeile
+-- mit genau diesem normalisierten Namen auf das kanonische Ensemble um
+-- (z.B. das separat angelegte "Solist(en) des Tölzer Knabenchors"). Für
+-- Aliasse, die schon vorher existierten (on conflict do nothing), feuert er
+-- nicht — daher hier einmal explizit für alle Aliasse des Chors anstoßen.
+-- Die alte Ensemble-Zeile bleibt bewusst bestehen (Duplikate-Prüfung).
+update entity_aliases a
+set alias = a.alias
+from ensembles e
+where a.entity_type = 'ensemble'
+  and a.entity_id = e.id
+  and e.slug = 'toelzer-knabenchor';
