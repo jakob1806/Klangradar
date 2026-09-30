@@ -639,7 +639,7 @@ struct EventDetailView: View {
     private func participantGridCell(_ row: JSONObject) -> some View {
         participantLink(row) { participant in
             LiquidGlassSurface(cornerRadius: 16) {
-                HStack(alignment: .top, spacing: 8) {
+                HStack(alignment: .top, spacing: 9) {
                     AsyncImage(url: participant.value.string("photo_url").flatMap(URL.init(string:))) { image in
                         image.resizable().scaledToFill()
                     } placeholder: {
@@ -651,12 +651,12 @@ struct EventDetailView: View {
                                     .foregroundStyle(KlangradarTheme.accent)
                             }
                     }
-                    .frame(width: 32, height: 32)
+                    .frame(width: 38, height: 38)
                     .clipShape(.circle)
 
-                    VStack(alignment: .leading, spacing: 1) {
+                    VStack(alignment: .leading, spacing: 2) {
                         Text(participantName(row))
-                            .font(.caption.weight(.semibold))
+                            .font(.footnote.weight(.semibold))
                             .multilineTextAlignment(.leading)
                             .lineLimit(2)
                         Text(participantRole(row))
@@ -673,7 +673,7 @@ struct EventDetailView: View {
                     }
                     Spacer(minLength: 0)
                 }
-                .padding(8)
+                .padding(10)
                 .frame(maxWidth: .infinity, alignment: .topLeading)
                 .contentShape(.rect)
             }
