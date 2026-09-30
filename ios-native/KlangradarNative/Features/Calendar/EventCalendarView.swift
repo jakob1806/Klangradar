@@ -63,6 +63,7 @@ struct EventCalendarView: View {
                 }
             }
             .navigationDestination(for: ConcertEvent.self) { EventDetailView(event: $0, repository: repository, contentRepository: contentRepository) }
+            .navigationDestination(for: EntityRoute.self) { EntityDetailView(route: $0, repository: contentRepository) }
             .task { await loadEvents() }
             .onChange(of: cityStore.selectedCity) { _, _ in
                 Task { await loadEvents() }
