@@ -568,25 +568,33 @@ struct EventDetailView: View {
 
     @ViewBuilder private func participants(_ value: JSONObject) -> some View {
         let rows = value.objects("event_participants")
-        let compactLimit = 6
+        // Bis zu vier Mitwirkende bleiben eine ruhige Liste; darüber wechselt
+        // die Darstellung auf zwei Spalten, damit lange Besetzungen nicht
+        // eine endlose Liste ergeben. Auch dort lässt sich alles ein-/
+        // ausklappen.
+        let listLimit = 4
+        let usesGrid = rows.count > listLimit
+        let compactLimit = usesGrid ? 6 : listLimit
         let visibleRows = showsAllParticipants ? rows : Array(rows.prefix(compactLimit))
         if !rows.isEmpty {
             section("Mitwirkende") {
                 VStack(spacing: 12) {
-                    LiquidGlassSurface(cornerRadius: 22) {
-                        VStack(spacing: 0) {
-                            ForEach(Array(visibleRows.enumerated()), id: \.offset) { index, row in
-                                if let participant = participantEntity(row), let route = entityRoute(from: participant.value, kind: participant.kind) {
-                                    NavigationLink {
-                                        EntityDetailView(route: route, repository: contentRepository)
-                                    } label: {
-                                        participantLabel(row, participant: participant)
-                                    }
-                                    .buttonStyle(.plain)
-                                } else if let participant = participantEntity(row) {
-                                    participantLabel(row, participant: participant)
+                    if usesGrid {
+                        LazyVGrid(
+                            columns: [GridItem(.flexible(), spacing: 10, alignment: .top), GridItem(.flexible(), spacing: 10, alignment: .top)],
+                            spacing: 10
+                        ) {
+                            ForEach(Array(visibleRows.enumerated()), id: \.offset) { _, row in
+                                participantGridCell(row)
+                            }
+                        }
+                    } else {
+                        LiquidGlassSurface(cornerRadius: 22) {
+                            VStack(spacing: 0) {
+                                ForEach(Array(visibleRows.enumerated()), id: \.offset) { index, row in
+                                    participantLink(row) { participant in participantLabel(row, participant: participant) }
+                                    if index < visibleRows.count - 1 { Divider().padding(.leading, 56) }
                                 }
-                                if index < visibleRows.count - 1 { Divider().padding(.leading, 56) }
                             }
                         }
                     }
@@ -608,6 +616,66 @@ struct EventDetailView: View {
                         .controlSize(.large)
                     }
                 }
+            }
+        }
+    }
+
+    @ViewBuilder private func participantLink<Label: View>(
+        _ row: JSONObject,
+        @ViewBuilder label: (_ participant: (kind: EntityKind, value: JSONObject)) -> Label
+    ) -> some View {
+        if let participant = participantEntity(row), let route = entityRoute(from: participant.value, kind: participant.kind) {
+            NavigationLink {
+                EntityDetailView(route: route, repository: contentRepository)
+            } label: {
+                label(participant)
+            }
+            .buttonStyle(.plain)
+        } else if let participant = participantEntity(row) {
+            label(participant)
+        }
+    }
+
+    private func participantGridCell(_ row: JSONObject) -> some View {
+        participantLink(row) { participant in
+            LiquidGlassSurface(cornerRadius: 16) {
+                HStack(alignment: .top, spacing: 8) {
+                    AsyncImage(url: participant.value.string("photo_url").flatMap(URL.init(string:))) { image in
+                        image.resizable().scaledToFill()
+                    } placeholder: {
+                        Circle()
+                            .fill(.quaternary)
+                            .overlay {
+                                Text(initials(participantName(row)))
+                                    .font(.caption2.bold())
+                                    .foregroundStyle(KlangradarTheme.accent)
+                            }
+                    }
+                    .frame(width: 32, height: 32)
+                    .clipShape(.circle)
+
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(participantName(row))
+                            .font(.caption.weight(.semibold))
+                            .multilineTextAlignment(.leading)
+                            .lineLimit(2)
+                        Text(participantRole(row))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.leading)
+                            .lineLimit(1)
+                        if let parentEnsembleName = parentEnsembleName(row) {
+                            Text("Teil von \(parentEnsembleName)")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                                .lineLimit(1)
+                        }
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(8)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .contentShape(.rect)
             }
         }
     }

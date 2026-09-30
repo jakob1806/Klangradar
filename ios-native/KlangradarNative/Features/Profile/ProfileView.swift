@@ -27,6 +27,7 @@ struct ProfileView: View {
     @EnvironmentObject private var follows: FollowStore
     @State private var showsLogin = false
     @State private var hasEditorialAccess = false
+    @State private var showsEditorialShell = false
     @State private var showsMarketingShell = ProcessInfo.processInfo.environment["KLANGRADAR_MARKETING_CAPTURE"] == "1"
     @State private var profileDestination: ProfileDestination?
 
@@ -129,8 +130,13 @@ struct ProfileView: View {
 
                 if hasEditorialAccess, let editorialRepository {
                     Section {
-                        NavigationLink {
-                            EditorialDashboardView(auth: auth, repository: editorialRepository)
+                        // Punkt 2 des Redesigns (Heute/Events/Meldungen/Medien/
+                        // Mehr, siehe EditorialShellView): per .fullScreenCover
+                        // statt gepusht, weil eine eigene Tab-Bar innerhalb
+                        // dieses Navigation-Stacks kein sauberes Apple-Pattern
+                        // wäre. Ersetzt die aufgelöste EditorialDashboardView.
+                        Button {
+                            showsEditorialShell = true
                         } label: {
                             Label("Redaktionsmodus", systemImage: "exclamationmark.shield.fill")
                                 .foregroundStyle(.orange)
@@ -241,6 +247,11 @@ struct ProfileView: View {
                     contentRepository: contentRepository,
                     usesPreviewData: usesPreviewData
                 )
+            }
+            .fullScreenCover(isPresented: $showsEditorialShell) {
+                if let editorialRepository {
+                    EditorialShellView(auth: auth, repository: editorialRepository)
+                }
             }
             .task(id: auth.accessToken) { await checkEditorialAccess() }
         }
