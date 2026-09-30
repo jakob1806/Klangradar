@@ -82,6 +82,31 @@ struct EditorialEvent: Identifiable, Hashable, Sendable {
     var genreIDs: [UUID] = []
 }
 
+/// Steuert Zeitrichtung/Sortierung von `EditorialRepository.events(search:scope:token:)`.
+/// `.past` sortiert absteigend (jüngst vergangenes Konzert zuerst) — das ist
+/// der typische Korrektur-Fall ("gestern lief etwas schief"), nicht ein
+/// Konzert von vor drei Jahren.
+enum EditorialEventScope: String, CaseIterable, Identifiable {
+    case upcoming, past, all
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .upcoming: "Anstehend"
+        case .past: "Vergangen"
+        case .all: "Alle"
+        }
+    }
+    var sortDirection: String { self == .past ? "desc" : "asc" }
+    func dateFilter(now: Date) -> String? {
+        let startOfToday = KlangradarDateTime.calendar.startOfDay(for: now)
+        switch self {
+        case .upcoming: return "gte.\(EditorialRepository.isoString(from: startOfToday))"
+        case .past: return "lt.\(EditorialRepository.isoString(from: startOfToday))"
+        case .all: return nil
+        }
+    }
+}
+
 struct EditorialOption: Identifiable, Hashable, Sendable {
     let id: UUID
     let title: String
@@ -256,11 +281,20 @@ struct EditorialRepository: Sendable {
     /// Nutzeranfrage: "es sollen alle verfügbaren Veranstaltungen angezeigt
     /// werden" — vorher war hier ein hartes limit=150 gesetzt, sodass bei
     /// mehr offenen/zukünftigen Events die Redaktionsliste (die client-
-    /// seitig über EditorialDashboardView.filteredEvents durchsucht wird)
+    /// seitig über EditorialEventsListView.filteredEvents durchsucht wird)
     /// unvollständig blieb. Paginiert jetzt analog zu
     /// LiveEventRepository.allUpcomingEvents(), bis eine Seite kleiner als
     /// die Seitengröße zurückkommt.
-    func events(search: String, token: String) async throws -> [EditorialEvent] {
+    ///
+    /// Nutzerfeedback (2026-09-30): "Bearbeitung von bereits vergangenen
+    /// Konzerten soll auch möglich sein" — der frühere hartcodierte
+    /// `gte(heute)`-Filter machte abgelaufene Events aus dieser Liste UND aus
+    /// der globalen Suche (EditorialSearchView nutzt dieselbe Methode)
+    /// unerreichbar, obwohl nachträgliche Korrekturen (z.B. falsch erkannte
+    /// Besetzung, siehe auch mphil-Scraper-Fix) gerade bei bereits
+    /// stattgefundenen Konzerten nötig werden. `scope` steuert jetzt
+    /// Zeitrichtung und Sortierung statt eines festen Filters.
+    func events(search: String, scope: EditorialEventScope = .upcoming, token: String) async throws -> [EditorialEvent] {
         let clean = search.trimmingCharacters(in: .whitespacesAndNewlines)
         let pageSize = 500
         var result: [EditorialEvent] = []
@@ -268,11 +302,13 @@ struct EditorialRepository: Sendable {
         while true {
             var query = [
                 URLQueryItem(name: "select", value: "id,slug,title,subtitle,start_datetime,venue_id,image_urls,status,venues(name)"),
-                URLQueryItem(name: "start_datetime", value: "gte.\(Self.isoString(from: KlangradarDateTime.calendar.startOfDay(for: .now)))"),
-                URLQueryItem(name: "order", value: "start_datetime.asc"),
+                URLQueryItem(name: "order", value: "start_datetime.\(scope.sortDirection)"),
                 URLQueryItem(name: "limit", value: String(pageSize)),
                 URLQueryItem(name: "offset", value: String(offset))
             ]
+            if let dateFilter = scope.dateFilter(now: .now) {
+                query.append(URLQueryItem(name: "start_datetime", value: dateFilter))
+            }
             if !clean.isEmpty {
                 let escaped = clean.replacingOccurrences(of: ",", with: " ")
                 query.append(URLQueryItem(name: "or", value: "(title.ilike.*\(escaped)*,subtitle.ilike.*\(escaped)*)"))
@@ -1028,7 +1064,7 @@ struct EditorialRepository: Sendable {
         )
     }
 
-    private static func isoString(from date: Date) -> String {
+    fileprivate static func isoString(from date: Date) -> String {
         ISO8601DateFormatter().string(from: date)
     }
 }

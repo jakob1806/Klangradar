@@ -28,7 +28,18 @@ type ListedEvent = EventRow & { source: "own" | "claimed"; sourceLabel?: string 
 // entity_claims-Migration) — kein manueller organizer_id-Filter nötig, ein
 // unauthorisierter Nutzer sähe hier ohnehin nur öffentlich sichtbare Zeilen
 // (die RLS-Policies werden pro Command-Typ ODER-verknüpft).
-export default async function VeranstalterEventsPage() {
+export default async function VeranstalterEventsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ zeitraum?: string }>;
+}) {
+  const params = await searchParams;
+  // Nutzerfeedback: Bearbeitung bereits vergangener Konzerte soll auch im
+  // Webportal möglich sein — vorher blendete der feste `gte(now)`-Filter
+  // abgelaufene Events komplett aus, sie waren für Veranstalter dadurch nie
+  // erreichbar. Default bleibt "kommend" (der übliche Fall beim Öffnen der
+  // Seite), "vergangen" ist ein expliziter Tab.
+  const showsPast = params.zeitraum === "vergangen";
   const supabase = await createClient();
   const organizers = await getEventOrganizerOptions();
   const organizerIds = organizers.map((organizer) => organizer.id);
@@ -46,10 +57,16 @@ export default async function VeranstalterEventsPage() {
 
   const [ownResult, venueResult, personParticipantsResult, ensembleParticipantsResult] = await Promise.all([
     organizerIds.length
-      ? supabase.from("events").select("id, title, start_datetime, status, venue_id, venues(name), image_urls").in("organizer_id", organizerIds).gte("start_datetime", now).returns<EventRow[]>()
+      ? (showsPast
+          ? supabase.from("events").select("id, title, start_datetime, status, venue_id, venues(name), image_urls").in("organizer_id", organizerIds).lt("start_datetime", now)
+          : supabase.from("events").select("id, title, start_datetime, status, venue_id, venues(name), image_urls").in("organizer_id", organizerIds).gte("start_datetime", now)
+        ).returns<EventRow[]>()
       : Promise.resolve({ data: [] as EventRow[], error: null }),
     venueIds.length
-      ? supabase.from("events").select("id, title, start_datetime, status, venue_id, venues(name), image_urls").in("venue_id", venueIds).gte("start_datetime", now).returns<EventRow[]>()
+      ? (showsPast
+          ? supabase.from("events").select("id, title, start_datetime, status, venue_id, venues(name), image_urls").in("venue_id", venueIds).lt("start_datetime", now)
+          : supabase.from("events").select("id, title, start_datetime, status, venue_id, venues(name), image_urls").in("venue_id", venueIds).gte("start_datetime", now)
+        ).returns<EventRow[]>()
       : Promise.resolve({ data: [] as EventRow[], error: null }),
     personIds.length
       ? supabase.from("event_participants").select("event_id, person_id, ensemble_id").in("person_id", personIds).returns<ParticipantLink[]>()
@@ -62,7 +79,10 @@ export default async function VeranstalterEventsPage() {
   const participantLinks = [...(personParticipantsResult.data ?? []), ...(ensembleParticipantsResult.data ?? [])];
   const participantEventIds = [...new Set(participantLinks.map((link) => link.event_id))];
   const participantEventsResult = participantEventIds.length
-    ? await supabase.from("events").select("id, title, start_datetime, status, venue_id, venues(name), image_urls").in("id", participantEventIds).gte("start_datetime", now).returns<EventRow[]>()
+    ? await (showsPast
+        ? supabase.from("events").select("id, title, start_datetime, status, venue_id, venues(name), image_urls").in("id", participantEventIds).lt("start_datetime", now)
+        : supabase.from("events").select("id, title, start_datetime, status, venue_id, venues(name), image_urls").in("id", participantEventIds).gte("start_datetime", now)
+      ).returns<EventRow[]>()
     : { data: [] as EventRow[], error: null };
 
   const names = await resolveEntityNames(
@@ -92,7 +112,9 @@ export default async function VeranstalterEventsPage() {
     // einem beanspruchten Profil mitwirkt oder dort stattfindet.
     listedEvents.set(event.id, { ...event, source: "own" });
   }
-  const events = [...listedEvents.values()].sort((a, b) => a.start_datetime.localeCompare(b.start_datetime));
+  const events = [...listedEvents.values()].sort((a, b) =>
+    showsPast ? b.start_datetime.localeCompare(a.start_datetime) : a.start_datetime.localeCompare(b.start_datetime)
+  );
   const error = ownResult.error ?? venueResult.error ?? personParticipantsResult.error ?? ensembleParticipantsResult.error ?? participantEventsResult.error;
 
   return (
@@ -100,7 +122,11 @@ export default async function VeranstalterEventsPage() {
       <PageHeader
         eyebrow="Events"
         title="Meine Events"
-        description="Kommende eigene Events und Termine deiner beanspruchten Profile, chronologisch ab heute."
+        description={
+          showsPast
+            ? "Bereits stattgefundene eigene Events und Termine deiner beanspruchten Profile, jüngste zuerst — z.B. um nachträglich Besetzung oder Programm zu korrigieren."
+            : "Kommende eigene Events und Termine deiner beanspruchten Profile, chronologisch ab heute."
+        }
         actions={
           organizerIds.length > 0 && (
             <Button asChild>
@@ -109,6 +135,24 @@ export default async function VeranstalterEventsPage() {
           )
         }
       />
+      <div className="mb-1 flex gap-2 px-6 pt-4 sm:px-8">
+        <Link
+          href="/veranstalter/events"
+          className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
+            !showsPast ? "bg-[#2D2A6E] text-white" : "bg-[#2D2A6E]/5 text-[#726c78] hover:bg-[#2D2A6E]/10"
+          }`}
+        >
+          Kommend
+        </Link>
+        <Link
+          href="/veranstalter/events?zeitraum=vergangen"
+          className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
+            showsPast ? "bg-[#2D2A6E] text-white" : "bg-[#2D2A6E]/5 text-[#726c78] hover:bg-[#2D2A6E]/10"
+          }`}
+        >
+          Vergangen
+        </Link>
+      </div>
       <PageBody className="flex flex-col gap-6">
         {error && (
           <p className="rounded-xl border border-[#a9700f]/20 bg-[#a9700f]/10 px-4 py-3 text-sm text-[#8a5a0c]">
@@ -121,7 +165,7 @@ export default async function VeranstalterEventsPage() {
               {organizerIds.length === 0 && profileClaims.length === 0 ? (
                 <>Noch keine Events. Beanspruche zuerst ein Profil unter <Link href="/veranstalter/claim" className="font-semibold text-[#2D2A6E] hover:underline">Beanspruchen</Link>.</>
               ) : (
-                "Noch keine kommenden Events. Lege dein erstes Event an."
+                showsPast ? "Noch keine vergangenen Events." : "Noch keine kommenden Events. Lege dein erstes Event an."
               )}
             </CardContent>
           </Card>

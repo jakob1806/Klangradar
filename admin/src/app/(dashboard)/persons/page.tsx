@@ -40,13 +40,31 @@ const ROLE_LABEL: Record<string, string> = {
   choreograf: "Choreograf:in",
 };
 
-export default async function PersonsPage() {
+// Nutzerfeedback: "es geht nur bis K" -- PostgREST begrenzt Antworten
+// projektweit auf 1.000 Zeilen, bei 1.761 Personen (alphabetisch sortiert)
+// brach die einzelne, ungepagte Abfrage deshalb mittendrin ab. Gleiches
+// Muster wie bereits in bio-research/page.tsx: seitenweise laden, bis der
+// gesamte Bestand vorliegt.
+async function loadAllPersons(): Promise<{ data: PersonRow[]; error: string | null }> {
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("persons")
-    .select("id, full_name, roles, is_verified, biography_de, photo_url, ai_biography_status, last_image_search_note")
-    .order("full_name")
-    .returns<PersonRow[]>();
+  const rows: PersonRow[] = [];
+  const pageSize = 1_000;
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from("persons")
+      .select("id, full_name, roles, is_verified, biography_de, photo_url, ai_biography_status, last_image_search_note")
+      .order("full_name")
+      .range(from, from + pageSize - 1)
+      .returns<PersonRow[]>();
+    if (error) return { data: rows, error: error.message };
+    rows.push(...(data ?? []));
+    if (!data || data.length < pageSize) break;
+  }
+  return { data: rows, error: null };
+}
+
+export default async function PersonsPage() {
+  const { data, error } = await loadAllPersons();
 
   const missingBioIds = (data ?? []).filter((p) => !p.biography_de).map((p) => p.id);
 
@@ -54,7 +72,7 @@ export default async function PersonsPage() {
     <div className="p-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">Personen & Ensembles</h1>
+          <h1 className="text-xl font-semibold tracking-tight">Personen</h1>
           <p className="mt-1 max-w-xl text-sm text-neutral-500">
             Komponist:innen, Dirigent:innen, Solist:innen.{" "}
             <Link href="/ensembles" className="underline hover:text-neutral-700">
@@ -79,7 +97,7 @@ export default async function PersonsPage() {
       </div>
 
       {error && (
-        <p className="mt-6 text-sm text-amber-700">Konnte Personen nicht laden: {error.message}</p>
+        <p className="mt-6 text-sm text-amber-700">Konnte Personen nicht laden: {error}</p>
       )}
 
       {!error && (
