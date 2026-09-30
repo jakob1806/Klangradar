@@ -98,7 +98,10 @@ struct EditorialSearchView: View {
         loadedOnce = true
         isLoading = true
         defer { isLoading = false }
-        async let loadedEvents = try? repository.events(search: "", token: token)
+        // Globale Suche soll auch bereits vergangene Konzerte finden (siehe
+        // EditorialEventScope-Kommentar in EditorialEventsListView) — anders
+        // als die Events-Liste ist hier "Anstehend" kein sinnvoller Default.
+        async let loadedEvents = try? repository.events(search: "", scope: .all, token: token)
         async let person = try? repository.entities(kind: .person, token: token)
         async let ensemble = try? repository.entities(kind: .ensemble, token: token)
         async let venue = try? repository.entities(kind: .venue, token: token)

@@ -9,6 +9,7 @@ struct EditorialEventsListView: View {
 
     @State private var events: [EditorialEvent] = []
     @State private var searchText = ""
+    @State private var scope: EditorialEventScope = .upcoming
     @State private var isLoading = true
     @State private var errorMessage: String?
 
@@ -16,20 +17,25 @@ struct EditorialEventsListView: View {
         NavigationStack {
             ZStack {
                 EditorialBackground()
-                Group {
-                    if isLoading {
-                        ProgressView("Veranstaltungen werden geladen …").tint(KlangradarTheme.accent)
-                    } else if let errorMessage {
-                        ContentUnavailableView("Redaktion nicht verfügbar", systemImage: "exclamationmark.shield", description: Text(errorMessage))
-                    } else {
-                        list
+                VStack(spacing: 0) {
+                    EditorialEventScopePicker(selection: $scope)
+                        .padding(.vertical, 8)
+
+                    Group {
+                        if isLoading {
+                            ProgressView("Veranstaltungen werden geladen …").tint(KlangradarTheme.accent)
+                        } else if let errorMessage {
+                            ContentUnavailableView("Redaktion nicht verfügbar", systemImage: "exclamationmark.shield", description: Text(errorMessage))
+                        } else {
+                            list
+                        }
                     }
                 }
             }
             .navigationTitle("Events")
             .searchable(text: $searchText, prompt: "Events durchsuchen")
             .editorialGlobalToolbar(auth: auth, repository: repository) { Task { await load() } }
-            .task { await load() }
+            .task(id: scope) { await load() }
         }
     }
 
@@ -44,7 +50,7 @@ struct EditorialEventsListView: View {
                     }
                 }
             } header: {
-                HStack { Text("Veranstaltungen"); Spacer(); Text("\(filteredEvents.count)").foregroundStyle(.secondary) }
+                HStack { Text(scope.title); Spacer(); Text("\(filteredEvents.count)").foregroundStyle(.secondary) }
             }
         }
         .listStyle(.insetGrouped)
@@ -65,9 +71,27 @@ struct EditorialEventsListView: View {
         isLoading = events.isEmpty
         defer { isLoading = false }
         do {
-            events = try await repository.events(search: "", token: token)
+            events = try await repository.events(search: "", scope: scope, token: token)
             errorMessage = nil
         } catch { errorMessage = error.localizedDescription }
+    }
+}
+
+/// Nutzerfeedback (2026-09-30): Bearbeitung bereits vergangener Konzerte
+/// (z.B. um nachträglich falsch erkannte Besetzung/Programm zu korrigieren)
+/// soll auch im Redaktionsmodus möglich sein — vorher zeigte diese Liste
+/// (und die darauf aufbauende globale Suche) ausschließlich Events ab heute.
+private struct EditorialEventScopePicker: View {
+    @Binding var selection: EditorialEventScope
+
+    var body: some View {
+        Picker("Zeitraum", selection: $selection) {
+            ForEach(EditorialEventScope.allCases) { scope in
+                Text(scope.title).tag(scope)
+            }
+        }
+        .pickerStyle(.segmented)
+        .padding(.horizontal, 16)
     }
 }
 
