@@ -299,22 +299,24 @@ struct SearchView: View {
     }
 
     private var scopePicker: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 108), spacing: 8)], alignment: .leading, spacing: 8) {
-            ForEach(ResultScope.allCases) { scope in
-                Button {
-                    withAnimation(.snappy) { resultScope = scope }
-                } label: {
-                    Text(scope.title)
-                        .font(.subheadline.weight(.semibold))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.82)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 40)
-                        .foregroundStyle(resultScope == scope ? Color.white : Color.primary)
-                        .background(resultScope == scope ? KlangradarTheme.accent : Color.secondary.opacity(0.12), in: .capsule)
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(ResultScope.allCases) { scope in
+                    Button {
+                        withAnimation(.snappy) { resultScope = scope }
+                    } label: {
+                        Text(scope.title)
+                            .font(.footnote.weight(.semibold))
+                            .lineLimit(1)
+                            .padding(.horizontal, 14)
+                            .frame(height: 32)
+                            .foregroundStyle(resultScope == scope ? Color.white : Color.primary)
+                            .background(resultScope == scope ? KlangradarTheme.accent : Color.secondary.opacity(0.12), in: .capsule)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
+            .padding(.vertical, 2)
         }
     }
 

@@ -7,759 +7,759 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		03A4C409039542C0A902C1F7 /* ContentModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5B667F0319A9835E353552C /* ContentModels.swift */; };
-		0612AFB5684115B67E706514 /* EditorialCropMathTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C996D3C5FC24CDF7C4D87E40 /* EditorialCropMathTests.swift */; };
-		0696478D67C95F6AA97A1214 /* LocationRequester.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20BF0BB6E640E21C9DB77EE8 /* LocationRequester.swift */; };
-		07A6CC4196C76B4CDB6D7965 /* EventCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5635FCA8779C047884F47DDA /* EventCalendarView.swift */; };
-		08E2FD972EFFB3A68C1CA5D9 /* SupabaseRESTClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BA3E2280BA0D1CA71560970 /* SupabaseRESTClient.swift */; };
-		0A1C85F5F3300009D74FA5BE /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 9DBF255F8060C0FDCBACEFDB /* Assets.xcassets */; };
-		0C7900C51641737EA08E253B /* GenreFilterRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD42956B71D80FF8D3FC72B9 /* GenreFilterRouter.swift */; };
-		12C2EEDF9E0D382970EADE48 /* ProfileAvatarEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7EF3EC860E381C25D17AE81 /* ProfileAvatarEditor.swift */; };
-		14D87ADCA2E2824CC36EB3AA /* RootTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 920A6AC5AE7D166F57C3745A /* RootTabView.swift */; };
-		159DCD479C4766AD5A39E667 /* EditorialProgramOCRTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58C6BB36467F2504D783DEE1 /* EditorialProgramOCRTests.swift */; };
-		1C07617EABC9393843AD3225 /* VenueLocation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CFDA3E28E1DFBC929A9EBF1 /* VenueLocation.swift */; };
-		1F55D82BDA5955E7EDC9511D /* EditorialCreateEntityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFA2EC1270E3433A825CDA32 /* EditorialCreateEntityView.swift */; };
-		1FB84CF1F289BBF42B8E948F /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5698ABEE256BBAAD633C29EC /* AppDelegate.swift */; };
-		2607A226198F26C1AFA985C5 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 12E1A906D69A49B2F8EF2DC1 /* Foundation.framework */; };
-		26C9152C864AC22962FB3DFC /* OnboardingStepScaffold.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0008990DB0A50E33B85C21A /* OnboardingStepScaffold.swift */; };
-		288CB63F512B90B926060AFD /* IcsExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D4EABFE09E5A5766F7E4E7C /* IcsExport.swift */; };
-		2DCACB83DE6A743219C91FCC /* EditorialEntityEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E492DECCCF70A9EBB85B983B /* EditorialEntityEditorView.swift */; };
-		2E01DF4E2483B4F5AD68D756 /* EditorialGlobalToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FC15074F495979A5EBA5BE7 /* EditorialGlobalToolbar.swift */; };
-		2E9BEF69B9164F6DEFCAF00C /* SearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 378DB42F9E78E6D576E7852C /* SearchView.swift */; };
-		2FCB6EB3B7B8AEEB74069F7D /* AttendanceLocationMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BEAF0F2AD4B0E1A51A21AFC /* AttendanceLocationMonitor.swift */; };
-		3242EA5B422DB5653AB5CB48 /* ProfileSocialHub.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96FED7F0FF82E851F0E20361 /* ProfileSocialHub.swift */; };
-		32A3F605FF27B89DD3FD9A70 /* EditorialTodayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE54C4A3A9BAB891EF889CE2 /* EditorialTodayView.swift */; };
-		33516502D135711BC625EF57 /* AuthStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0097F49F2FEDCA9F3CEC2105 /* AuthStore.swift */; };
-		36E6486613BD9C9BD5070484 /* APIConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 048436BD89ED51F5CBC696A5 /* APIConfiguration.swift */; };
-		3889ABE49D1044EE66A9C66C /* GlassIconButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08F5EEE1C717E35255EFA7EE /* GlassIconButton.swift */; };
-		38ED60681ABC1404CFA35BA6 /* FollowProfilesStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94687CE7DFDA1C22B282C192 /* FollowProfilesStepView.swift */; };
-		3A4D4452ACA8F6737F1E0038 /* MarketingHomeScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61A589A9410C9708A8E971C3 /* MarketingHomeScreenView.swift */; };
-		3BBDFF1190DEC7A1F030E64D /* EditorialSharedViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 577DAB30D23FF2984784DE8E /* EditorialSharedViews.swift */; };
-		3BFA27424D5B311738899D47 /* EventCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1657A95B3B910903F49B9590 /* EventCard.swift */; };
-		3C4088969CA5F8A4E92B75E8 /* CityPickerStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 184C7A306E3F9D31B88E97B1 /* CityPickerStepView.swift */; };
-		3D974E7FA9F913B16FB0D9DD /* ReportContentSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61FB738C201522FAA7BE7D33 /* ReportContentSheet.swift */; };
-		3DF2A44E221CAED8A11A47EC /* EditorialCreateVenueView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F68B64FFABECB1F4141E9BF3 /* EditorialCreateVenueView.swift */; };
-		40265F58F390EA436BF31CE5 /* EditorialRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = D374EB500020709BA2223FE3 /* EditorialRepository.swift */; };
-		415628C494CD80C8324B9741 /* EditorialMediaTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D742E7431038BCE9B48D190 /* EditorialMediaTabView.swift */; };
-		41FA2E12133B9EC65AAF9351 /* EditorialImagePickerButtons.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C2C1EFB4CC291AE3AFC2942 /* EditorialImagePickerButtons.swift */; };
-		44C9FE7552950FB75BABDBA1 /* AGBView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB1E890C5F20A2C3DC318B01 /* AGBView.swift */; };
-		50836ED1E5B0B3BC2E8110CD /* RecentlyEditedStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FE3A682A926733690400A8A /* RecentlyEditedStore.swift */; };
-		5556EBC1A663DD4218F9920D /* AttendanceConfirmationPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = C709B642E2AEFCA3DE3FD367 /* AttendanceConfirmationPrompt.swift */; };
-		55784074AA6001B5F5F06000 /* EditorialImageCropView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87ED4904A253A8E324871893 /* EditorialImageCropView.swift */; };
-		56D9A78AA61F51A4E7523736 /* CityRegionOptionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB1EF314CEA4F7361F72FD9 /* CityRegionOptionTests.swift */; };
-		5C53A83EE716E7847402ADE1 /* EditorialShellView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 105376EB237900C5C31A485A /* EditorialShellView.swift */; };
-		5D6898B0119191F43B55DDB7 /* MarketingContentEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F9B5E47708F79890E127560 /* MarketingContentEditorView.swift */; };
-		60EAE2EAA194DFD9F5056373 /* CityStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61BF0BA5144233C0C43EB3A8 /* CityStore.swift */; };
-		647551D76E29162A414BF5DB /* AddToCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B8A6A39F7A9002757C80BC3 /* AddToCalendarView.swift */; };
-		649C21AEDC1129C91F1EA398 /* LiquidGlassSurface.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8786A36AF6308A5AAE7D4F1B /* LiquidGlassSurface.swift */; };
-		667DF761F351320E59B7F0A1 /* HomeCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B20EC92187D6FBFBD987ED8 /* HomeCache.swift */; };
-		66939DBF7B005531DCE03E91 /* ForgotPasswordView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9409804B3F1584A703134DD /* ForgotPasswordView.swift */; };
-		684BEC649E0F796219A153B8 /* EventRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55327F8FFEE5DC296BBF4A10 /* EventRepository.swift */; };
-		6AA71C33A30EAAD14CFBA0A0 /* InterestsStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBB8BB63B6610D4D8CFDF6C6 /* InterestsStepView.swift */; };
-		6D120F4C31C68D2C80018E6E /* FavoritesCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCBA1F321C95EAEF7ADA03D5 /* FavoritesCache.swift */; };
-		6FFD7836A2997709D473D6F2 /* JSONValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2836435617337A512BB84FC8 /* JSONValue.swift */; };
-		71AF8756BFF019348803434C /* CroppedAsyncImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B0B79A2535FFDE28273C4E4 /* CroppedAsyncImage.swift */; };
-		79189642216C39532A1BEA48 /* HomeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA064B37ECB3E8325CDA4778 /* HomeViewModel.swift */; };
-		7A9B605099AD90B5B46E8F55 /* VenueMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81E0E35DBF33470F4B437805 /* VenueMapView.swift */; };
-		7C0B30D9C74C75967AD4BB52 /* EntityDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FAC36417949354001CCEDE9 /* EntityDetailView.swift */; };
-		7E1145FDE2DA0895E0A6261C /* EditorialReportsTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F382CE6FCB3CB557B46A8644 /* EditorialReportsTabView.swift */; };
-		8194B8024CED3CCEA862394D /* EditorialProgramScanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3121F9D15393C82B764A2799 /* EditorialProgramScanView.swift */; };
-		876123950C575DD399E57E77 /* NotificationsStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEFAE1410A0E1E8B53551C7F /* NotificationsStepView.swift */; };
-		894D1BFEAD454ECD1FE6C0B1 /* Haptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 145A8CD092EC604209DE7935 /* Haptics.swift */; };
-		8A85BBABCEED62BAEA19BD59 /* DatenschutzView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0AFBD01BB98E406782765D6 /* DatenschutzView.swift */; };
-		8B3028977E8E8C49118E7B0F /* EditorialAIAssistantView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10A893C36AEDF5A8611B7ADF /* EditorialAIAssistantView.swift */; };
-		8CC880B911F0C8E976813CD5 /* EditorialEventsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6825F8AD280EB0F869B7A99 /* EditorialEventsListView.swift */; };
-		8E25A515757197FE9444E0F0 /* EditorialGalleryEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7446CBA373E784E34414117F /* EditorialGalleryEditor.swift */; };
-		90CADCE3CAEAEF9558393C24 /* VenueLocationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6712C84A5E02AD2B452D0655 /* VenueLocationTests.swift */; };
-		91FDEE29585ED1A9A12B81C9 /* SampleData.swift in Sources */ = {isa = PBXBuildFile; fileRef = E256744295AD31AB8493C892 /* SampleData.swift */; };
-		92863AB3209F11BC9849F6E7 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0480953EDDDB19B8FE10B7 /* HomeView.swift */; };
-		94E3F8676F770144279E63F2 /* InterestsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3750FB7CE989FEFECE7EFDFA /* InterestsView.swift */; };
-		96C828010BDF2E84DD41F994 /* NotificationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1406CA68F6954A9CF13B05B4 /* NotificationSettingsView.swift */; };
-		96D54D4BB6C23E8528690D43 /* ConcertEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31CD7C7CE1A4E66320780EBC /* ConcertEvent.swift */; };
-		96FA0458DC837C04A33CDEAF /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 12E1A906D69A49B2F8EF2DC1 /* Foundation.framework */; };
-		97193F78FB4C598998F0055B /* EventDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D17917508D0BD4EEF4B37E37 /* EventDetailView.swift */; };
-		97CCC4591C8E5BE4C9A64326 /* EditorialQuickFixView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4FC9D55F20067D4EC80CC59 /* EditorialQuickFixView.swift */; };
-		99ED7E329C98FD1A9BF40DEA /* PersonalDataStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5C552E95ACA525975058DF6 /* PersonalDataStepView.swift */; };
-		99FF89899DA660FD5984496F /* SpeechSearchController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 744D838319754D1CF8CF6669 /* SpeechSearchController.swift */; };
-		9DFBFE140FF69534071B33D2 /* CachedAsyncImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C34229630A276F9F856361B /* CachedAsyncImage.swift */; };
-		A13042338132E314D83E5769 /* EditorialLocationSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFC014F3864D46A5DFD08A41 /* EditorialLocationSearch.swift */; };
-		A23C610D2A71B0693CD0F15D /* WelcomeStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5AD98D00BE8770D8A4C1167 /* WelcomeStepView.swift */; };
-		A845DC4A20EE0BCF3F6346B6 /* KlangradarNativeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F97371DD51F02824ABFA1755 /* KlangradarNativeApp.swift */; };
-		AAD8D95544E7363FB44403C8 /* SignUpStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98016709BD1EEDFCBADCB993 /* SignUpStepView.swift */; };
-		B091C9295C2C1D1CDAB99B43 /* BiometricAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6FCF2DCADCBEC3DCA6E72DB /* BiometricAuth.swift */; };
-		B752DF187A58345E6FE5580E /* MarketingAppShellView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 945251532212CD7FCFB265D8 /* MarketingAppShellView.swift */; };
-		BAFE8D61D80EA0C9B2A94FB1 /* HiddenScrollEdgeNavigationBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AD2DE889C494B90A15F6F69 /* HiddenScrollEdgeNavigationBar.swift */; };
-		C14500F3A7A394FB12A24732 /* HTTPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = F09F2EDC5E1B2818A436F3D9 /* HTTPClient.swift */; };
-		C69952DD8F6172F081F5495D /* ImpressumView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCF25E27E4F92DE4DD0FC92D /* ImpressumView.swift */; };
-		C81A24A0DC2F634A684C3FD5 /* VerifyEmailStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F372FC6B730FF0C1E4E5C8C5 /* VerifyEmailStepView.swift */; };
-		CD1936207977BB35CC64FCE7 /* EditorialProgramOCR.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CD19ED106F82EAA1FDD7342 /* EditorialProgramOCR.swift */; };
-		CEB204573A08E9B22B6FB2EB /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17A12A2B14B476A38E180D82 /* KeychainStore.swift */; };
-		D24BA145ED81A733B1D91D26 /* ContentRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F0909984463028752575C9A /* ContentRepository.swift */; };
-		D73CA795700C9A437E7B8C47 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FABD581D3DB79039B0020889 /* OnboardingView.swift */; };
-		D78284A4F36DDDCB434DFF40 /* ImageCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F584941AB400EF167D68AB3 /* ImageCache.swift */; };
-		DB0A6127CE3C79BF0064D4AF /* OnboardingSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86432E7C4015E6A4EA95F147 /* OnboardingSummaryView.swift */; };
-		DB4AF9F207A74C0BB396A3C8 /* EditorialSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F15499FC195134912E4DD1C8 /* EditorialSearchView.swift */; };
-		DCA46335D361EA76C928925D /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E3B0CFB3C52F158B5321357 /* ProfileView.swift */; };
-		E52ED9DF200027D4E7C8190D /* CitySwitcherView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83788F2F51510B4EF6B2C600 /* CitySwitcherView.swift */; };
-		E531838C7154FCE9C83E6D75 /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52F0FAE0A403980E7015AF50 /* AuthService.swift */; };
-		E9E3442B44871A05226FAA2F /* MarketingContentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EE22B03D96447FF4212BBA0 /* MarketingContentStore.swift */; };
-		ED4A90FB4A47F7989D7F9718 /* ConcertEventTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 386F5044BE33CD6B0D5DF5FF /* ConcertEventTests.swift */; };
-		EF41917DDD0D279E381976B5 /* EditorialDocumentScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36A4BA38C694E81F1384D45E /* EditorialDocumentScanner.swift */; };
-		EF75168F497F0C06A68F16B5 /* EditorialMoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCC9ED9CE1A38DD819DBD2BA /* EditorialMoreView.swift */; };
-		EF908A0A480324F13520C4A1 /* KlangradarTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FA2297E86F8484092A63435 /* KlangradarTheme.swift */; };
-		F0B736C8158F6E92E1E23542 /* AuthSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18414751CF8AF6167E026EBA /* AuthSession.swift */; };
-		F3A467D4FB9883768B26C6D6 /* PasswordLoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE9D25FDF106122FD178642E /* PasswordLoginView.swift */; };
-		F7AC15BEC33AAD4DB95EE932 /* EditorialEventEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7859331F7E51FE72E5AD4BC3 /* EditorialEventEditorView.swift */; };
-		F8ADABB2E4EA31403324A911 /* EventArtwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6145B3134B7E477FCCE0553 /* EventArtwork.swift */; };
-		FAF7FC3D9FACEC0515F73966 /* UserRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDD59146F0FDAEBD852D8D7D /* UserRepository.swift */; };
-		FBFE67C2FDB23B168518961A /* CollectionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F73938EA0B0A2130BDE94A3 /* CollectionDetailView.swift */; };
-		FEEC515534C74EE79F9F11A2 /* EditorialRepositoryDeleteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CDEA0C9DFBE01F83635CC8F /* EditorialRepositoryDeleteTests.swift */; };
-		FFB3D376E3504D3517E5F05B /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA670E80DCE42A2F426C3349 /* AppEnvironment.swift */; };
+		0091622962ACA1D0D5584BDA /* AttendanceConfirmationPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CBCBC9240721B778B95EE5A /* AttendanceConfirmationPrompt.swift */; };
+		0310A19B16C6A754718CBC62 /* SignUpStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8AA5213BBFF83F37B6FE34C /* SignUpStepView.swift */; };
+		03443FD6F69BE43319F6DE20 /* EventCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DD9078356BE1DE6EBB55FE5 /* EventCalendarView.swift */; };
+		04855143319B585895F70DE4 /* KlangradarNativeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 588BCAD0C6C303CC007374A1 /* KlangradarNativeApp.swift */; };
+		0A5CD1F5908FE5F3AA1794FC /* ContentModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A44F279B8E4B87017D77255C /* ContentModels.swift */; };
+		0C104703976EF1219061AFA4 /* CollectionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB8ED8D832FD0D27514A4091 /* CollectionDetailView.swift */; };
+		0CA8B6A46EB4135137FDCDB4 /* Haptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = E15FBA70434E0D67076BA00B /* Haptics.swift */; };
+		171348AA2970D5C5D2A8E5BB /* EditorialGlobalToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 334E7AE2E7EDEE55A55AAB8A /* EditorialGlobalToolbar.swift */; };
+		2345E074C3C9B64A9F59EDDD /* ContentRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD4623666B8036D87605E508 /* ContentRepository.swift */; };
+		267A8A03EA0F4C0CB8A8268E /* WelcomeStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BFEDC904B41882F2F2FCB47 /* WelcomeStepView.swift */; };
+		2D353DB9CD76A487A230BDB2 /* IcsExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67329E895F3780EEB775ED9D /* IcsExport.swift */; };
+		30B57025FDCCD0DD1A54A0D8 /* HiddenScrollEdgeNavigationBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 476D7A87DF4012218025648B /* HiddenScrollEdgeNavigationBar.swift */; };
+		30FBC524498583E898D6BD49 /* AuthStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2718F9393FDB3DB6DC880A30 /* AuthStore.swift */; };
+		312EB2A0385E9AD9303E48D2 /* ReportContentSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F6E579575F17FA74C79295B /* ReportContentSheet.swift */; };
+		3255264DD1EE79D8855781D0 /* EditorialProgramOCRTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA4F0DC9DB97E45E99DFF805 /* EditorialProgramOCRTests.swift */; };
+		32DD0CE7970B69B0968CAA67 /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F4A46147E42B9F93EF6BAAD /* KeychainStore.swift */; };
+		3E1F2EAAA35F38B8F3335940 /* EventArtwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC86997EC4A5165668B7B697 /* EventArtwork.swift */; };
+		3E5203A758625F09540C8137 /* EditorialProgramScanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E44D3F639F52D54A14E4C76A /* EditorialProgramScanView.swift */; };
+		3F942CC720C921D92DB5DEA2 /* EntityDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 825BD8724370AC8FDB3F2BEE /* EntityDetailView.swift */; };
+		4038C1C1B6838DAF526FCA8E /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B60B6053225DC8E045EBE42D /* Foundation.framework */; };
+		4183D0B9FE7B680EA318FB44 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3A22C734DC9CBF150681C700 /* Assets.xcassets */; };
+		43341DAD141857ACAD38A46D /* VenueMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FEBC5F0764AC68C81769AAF /* VenueMapView.swift */; };
+		433D73A4261546E4DDD11C06 /* EditorialEventEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03B539B407134632F4DF43C0 /* EditorialEventEditorView.swift */; };
+		43438797831E33894EAEBEDA /* EditorialTodayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D33E8D989652D3D9BE41B5E5 /* EditorialTodayView.swift */; };
+		470522207C7B5A406775F971 /* EditorialMediaTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F081E0BAD41751D6E5C7A52 /* EditorialMediaTabView.swift */; };
+		473D76E500F928F2319A6540 /* EditorialEntityEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CC40BBC7992AF097E0F2F93 /* EditorialEntityEditorView.swift */; };
+		482D637B31099D31F6133BEA /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B60B6053225DC8E045EBE42D /* Foundation.framework */; };
+		484863DC99776312B5E67C98 /* LiquidGlassSurface.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2FE0DD41137CE1A144F65AA /* LiquidGlassSurface.swift */; };
+		48DFD4FD3CC2C22758A31708 /* EventDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78B55DCD3BD82DF057211248 /* EventDetailView.swift */; };
+		4B24DA11C471D55D45CFEB2F /* ImageCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 168FEE83D0D65761973AE5DC /* ImageCache.swift */; };
+		4BA3C40CA42E397FAAA53D7A /* EditorialAIAssistantView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5CD8132E84371350EDD4FE7 /* EditorialAIAssistantView.swift */; };
+		4EF8CED138D9DFC2EE538185 /* InterestsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA8F144D40C15391C4989954 /* InterestsView.swift */; };
+		5154ACF409BBB3EFE5BF0327 /* EditorialEventsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3271F83560B4A71645600CEA /* EditorialEventsListView.swift */; };
+		525452D5F52C65ACB1A65EE2 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34E76F8820832D7FAC64E987 /* ProfileView.swift */; };
+		539308D72AD4EF7C5FB8CEE7 /* EditorialReportsTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4500E6BCC479279D0BC946AC /* EditorialReportsTabView.swift */; };
+		53B6471C2D1A7DA847AC76D7 /* MarketingHomeScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FC5EE5967820E7B639B4D87 /* MarketingHomeScreenView.swift */; };
+		576C9DC636823EEF870E449E /* ConcertEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 284266A3CF205CB683D0AC85 /* ConcertEvent.swift */; };
+		58F017BD3FD8E987D5CE2F94 /* SpeechSearchController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 495D136179F05FC8F6DF188A /* SpeechSearchController.swift */; };
+		5AA3238817BEBF0C800352F1 /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44A2C0F280874A90F895BB6F /* AuthService.swift */; };
+		5C9757E7493D2827403ED7B0 /* ProfileSocialHub.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1115305A5F3EEC6C2B163154 /* ProfileSocialHub.swift */; };
+		5EBB2A3A75E6B2003EE9D1CB /* HTTPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69ED109801134EC8F4E3C6B3 /* HTTPClient.swift */; };
+		657B87D7324397FAED00EEB2 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEAE800C61FC22C6F93A4639 /* HomeView.swift */; };
+		65C0ECEB9352B6BD3EDF1857 /* EditorialImageCropView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CDC5BD1C7643C193F9D6F1E /* EditorialImageCropView.swift */; };
+		660C82213E4044F67D175D39 /* EditorialCreateEntityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C355E77205B7F1E36109F5C /* EditorialCreateEntityView.swift */; };
+		67A37192032C01DCC23B8D15 /* PersonalDataStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C97F7FA022924710A5796FD /* PersonalDataStepView.swift */; };
+		6861DD1A79A87FA19ECD1533 /* EditorialCropMathTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85B365C498558659310A25C1 /* EditorialCropMathTests.swift */; };
+		6D81B5AA14E704A03FB000FB /* EditorialGalleryEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = BED13CDEAAF4A05BB4C3D60F /* EditorialGalleryEditor.swift */; };
+		6FF3A6622CA2EBA2A3456984 /* MarketingContentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 698051849A1D34AC780FD160 /* MarketingContentStore.swift */; };
+		70FAEC2BD293F7F746B39AFA /* AuthSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6DA01FE0665A7F9DA7CDCB4 /* AuthSession.swift */; };
+		757A223BA4C26CB5F8217970 /* EditorialMoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7DCF17C1753411EDB7107D3 /* EditorialMoreView.swift */; };
+		76E8D47AECAFB3C0B00D6630 /* VerifyEmailStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9EEDF66B782F41BEE616A4D /* VerifyEmailStepView.swift */; };
+		7A0710D9FE76C31545066838 /* UserRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA77211E442E747F744CCDE9 /* UserRepository.swift */; };
+		7CF14E23B7137985AD31C35E /* SearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AB3FFB35D4BAE0D1226FA09 /* SearchView.swift */; };
+		7FA4E5670C444FF6BAA79AEC /* CityPickerStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BF4DBF846174FE61ECBB49E /* CityPickerStepView.swift */; };
+		81003A8FFE663BC8F332C685 /* LocationRequester.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3D7F5FFE6AC7C6515911C3B /* LocationRequester.swift */; };
+		83CDFE4C469BC573E98DA5E5 /* FavoritesCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22A22A89D97F5AEAC57CFBE0 /* FavoritesCache.swift */; };
+		853C373DF948A8E99655D127 /* OnboardingStepScaffold.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39ABFEDACB5D11CA53AF52DF /* OnboardingStepScaffold.swift */; };
+		863E25605E1A0C3B4B57E1E6 /* ForgotPasswordView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2306B27D29BEA70BB20C8A1 /* ForgotPasswordView.swift */; };
+		86EE449856AD2B50D8FC3E49 /* RecentlyEditedStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D84115ADD960227B5718C5FC /* RecentlyEditedStore.swift */; };
+		8AFC28BEB40183455E769EA4 /* APIConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16A490301DA8B38411A2152E /* APIConfiguration.swift */; };
+		8B01FF82890DF58D84FB2564 /* GlassIconButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2076093E066AD322AAB99691 /* GlassIconButton.swift */; };
+		8B0874A5A359DA5226186175 /* EditorialDocumentScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98089858538DF92B24F7A46E /* EditorialDocumentScanner.swift */; };
+		8BD9C37EE59530E2723B5871 /* HomeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C299D8465F0E5925F02F4D7 /* HomeViewModel.swift */; };
+		8E9839F45A2BB26A5CE77E59 /* SupabaseRESTClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6425F93DA598AABEBB507E5 /* SupabaseRESTClient.swift */; };
+		90A8A9FEA5AC7A5EB61499D3 /* VenueLocation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6667FE83A05200CFC5231D42 /* VenueLocation.swift */; };
+		90E731DCC95E291DE09B5BC5 /* MarketingContentEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 011FCF90BFE3AB8AFA91567E /* MarketingContentEditorView.swift */; };
+		9236A4BB5BF7C3E69DC6A8CE /* GenreFilterRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 453C2DF2F97946F9C8F9BD8B /* GenreFilterRouter.swift */; };
+		9634277045FBFF21C3969668 /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF3C7B8E109910E6DB7E2E1C /* AppEnvironment.swift */; };
+		978BF9E53A45F0CDDB17ED55 /* RootTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A04E8EC084410944EE9AAE6B /* RootTabView.swift */; };
+		9ABC16FA4E10915A5EAE5A6C /* EditorialCreateVenueView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8073904A6A166EC933837DC3 /* EditorialCreateVenueView.swift */; };
+		9FC99ACCFE10917CFC6462D4 /* NotificationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4B25C634A27FACAFEBD81F2 /* NotificationSettingsView.swift */; };
+		A1341167969A67106F1FFF76 /* CroppedAsyncImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20C3B64C5E340661575EE9A /* CroppedAsyncImage.swift */; };
+		A2FD5429CCCFE20359958709 /* SampleData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2879CC5CD6BA5172F85EEE8D /* SampleData.swift */; };
+		A4BBDFEF91AC74199D05164F /* ImpressumView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D1146DBBB24A10F287F87E9 /* ImpressumView.swift */; };
+		B2906AE3468271AD8A9496D8 /* FollowProfilesStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7291D88ACD7B35CE290FCC2 /* FollowProfilesStepView.swift */; };
+		B36A8F55F96412F42C03FB00 /* EditorialRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = E42F06D0C7920FE8986E02F9 /* EditorialRepository.swift */; };
+		B51E413E53B328E200B4E4E5 /* AGBView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0610BE67CD50248408093D5E /* AGBView.swift */; };
+		B6B6315C1739740C8CB345AD /* EditorialImagePickerButtons.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02109EEEDF63286CF801284A /* EditorialImagePickerButtons.swift */; };
+		B6EBD6BFC1E134546921BFB8 /* CityStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F429384AC105C65BEB0661E6 /* CityStore.swift */; };
+		B8014F857EC67B45F1FABB6A /* ProfileAvatarEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0ECEABEC55D99F523E7C0DEB /* ProfileAvatarEditor.swift */; };
+		B8B1B614A89713AC2EF1D2E6 /* AddToCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13EBA46008242B439485EE39 /* AddToCalendarView.swift */; };
+		BA9F762C4CE0B5C578649924 /* OnboardingSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79F5C7E0B847FA2617EA66E0 /* OnboardingSummaryView.swift */; };
+		C02C7C5D8E7FCC5FDC2796BD /* KlangradarTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6D1EF5CCDCD21904E907DAD /* KlangradarTheme.swift */; };
+		C03F1A8DBA0D6B18523DD7A0 /* ConcertEventTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B71F21DFAE9A47EE82CE0BA /* ConcertEventTests.swift */; };
+		C2FA6EC4847DDF44A0EA19F0 /* DatenschutzView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A6A0E43803CBA03DA1EB925 /* DatenschutzView.swift */; };
+		C55216C8D895967686851CD9 /* EventRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8959F6315C7974ACEF1857B /* EventRepository.swift */; };
+		C8078D14E6A0A039FDC92FA3 /* CitySwitcherView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3312DBCA3DE465A9A19FE7A6 /* CitySwitcherView.swift */; };
+		CAC638E8DE6B29393FD2AD46 /* HomeCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = D811FF60F1C9C94DCC60B768 /* HomeCache.swift */; };
+		CCEBA972B90D644AC72254D4 /* EditorialProgramOCR.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FD817BCA7A8E9A0C8538639 /* EditorialProgramOCR.swift */; };
+		CEBC84C9E1F3A64B57A23177 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 400D8A40F15F92F6125C0D67 /* AppDelegate.swift */; };
+		D4C742D6B6A8A327EC4D28A6 /* BiometricAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2513DB56A4CE60B1D7BE647E /* BiometricAuth.swift */; };
+		D56161006330B60790D7A7E6 /* EditorialRepositoryDeleteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B223046F25910383BB2F730 /* EditorialRepositoryDeleteTests.swift */; };
+		D5E60091AE88583512498CE6 /* EventCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = F454E3F2A0E4E3EDE8348EC5 /* EventCard.swift */; };
+		DB044B486AB87FC229A9A865 /* NotificationsStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 514C77B3AE769BD586355413 /* NotificationsStepView.swift */; };
+		DB8ED0A4226696A2903A4577 /* EditorialSharedViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86AFF1D82012C16551A66547 /* EditorialSharedViews.swift */; };
+		DBE8751BA43EE00000181922 /* CachedAsyncImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9791A11D2D559B5CF281FA3D /* CachedAsyncImage.swift */; };
+		E1BD6563A1DBC55DE3D9B5E1 /* VenueLocationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEC4DA6BA0B04AC376A7FC75 /* VenueLocationTests.swift */; };
+		E4E3DDC85DA0D1B4455B7D06 /* AttendanceLocationMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = C821C0FD125416D597792438 /* AttendanceLocationMonitor.swift */; };
+		E6E60D804517B983EF290E9B /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 840161EEEB6E424A31F40B4B /* OnboardingView.swift */; };
+		E7DB1582D39664BC7759B1C7 /* PasswordLoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED5D2FE81680DDE2224BCAE5 /* PasswordLoginView.swift */; };
+		EDE3611E4AC559876491F924 /* EditorialLocationSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6889B3D02EE9859AAACE334E /* EditorialLocationSearch.swift */; };
+		EF84ABFCEB779BC186B5D4C1 /* MarketingAppShellView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 610AA2274E730024470E8C9B /* MarketingAppShellView.swift */; };
+		F46EA96044AEA38ACCE3F38E /* EditorialQuickFixView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1B596F3F086360E442DFAAC /* EditorialQuickFixView.swift */; };
+		F55751B57A6BC95AA7287F0A /* JSONValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = F54764C65C4D181B1B47AD9C /* JSONValue.swift */; };
+		F7611C7119EA1BE04EC311D8 /* EditorialSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B36EBFC644C3DE4E3AA22D9 /* EditorialSearchView.swift */; };
+		F89F04607B9794DFD4E5D259 /* EditorialShellView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8279BEFAB1D4CE4AA6E5D15 /* EditorialShellView.swift */; };
+		FD0A6CC954056970789A47EB /* InterestsStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0068FF1DAC1E239A284EAB /* InterestsStepView.swift */; };
+		FFB27BAD98A265C35DB5942E /* CityRegionOptionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A90C7EC37822645602FEA2C /* CityRegionOptionTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		93B774B4D42F31818AA3FEEE /* PBXContainerItemProxy */ = {
+		3CB73C2A131A994A56BA3D62 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
-			containerPortal = 45B841E8481848AD3DE8467A /* Project object */;
+			containerPortal = 5E2271DA4C31809B2B349631 /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = B2E30A88EEB93088C1C03DFB;
+			remoteGlobalIDString = 39CEE6ECBA229E1221296458;
 			remoteInfo = KlangradarNative;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		0097F49F2FEDCA9F3CEC2105 /* AuthStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AuthStore.swift; path = KlangradarNative/Core/Authentication/AuthStore.swift; sourceTree = "<group>"; };
-		048436BD89ED51F5CBC696A5 /* APIConfiguration.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = APIConfiguration.swift; path = KlangradarNative/Core/Configuration/APIConfiguration.swift; sourceTree = "<group>"; };
-		08F5EEE1C717E35255EFA7EE /* GlassIconButton.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = GlassIconButton.swift; path = KlangradarNative/DesignSystem/Components/GlassIconButton.swift; sourceTree = "<group>"; };
-		0CFDA3E28E1DFBC929A9EBF1 /* VenueLocation.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VenueLocation.swift; path = KlangradarNative/Domain/Models/VenueLocation.swift; sourceTree = "<group>"; };
-		0F9B5E47708F79890E127560 /* MarketingContentEditorView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MarketingContentEditorView.swift; path = KlangradarNative/Features/Home/MarketingContentEditorView.swift; sourceTree = "<group>"; };
-		0FAC36417949354001CCEDE9 /* EntityDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EntityDetailView.swift; path = KlangradarNative/Features/Directory/EntityDetailView.swift; sourceTree = "<group>"; };
-		105376EB237900C5C31A485A /* EditorialShellView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialShellView.swift; path = KlangradarNative/Features/Editorial/Shell/EditorialShellView.swift; sourceTree = "<group>"; };
-		10A893C36AEDF5A8611B7ADF /* EditorialAIAssistantView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialAIAssistantView.swift; path = KlangradarNative/Features/Editorial/Shared/EditorialAIAssistantView.swift; sourceTree = "<group>"; };
-		12E1A906D69A49B2F8EF2DC1 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
-		1406CA68F6954A9CF13B05B4 /* NotificationSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = NotificationSettingsView.swift; path = KlangradarNative/Features/Profile/NotificationSettingsView.swift; sourceTree = "<group>"; };
-		145A8CD092EC604209DE7935 /* Haptics.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = Haptics.swift; path = KlangradarNative/DesignSystem/Haptics.swift; sourceTree = "<group>"; };
-		1657A95B3B910903F49B9590 /* EventCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EventCard.swift; path = KlangradarNative/DesignSystem/Components/EventCard.swift; sourceTree = "<group>"; };
-		17A12A2B14B476A38E180D82 /* KeychainStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = KeychainStore.swift; path = KlangradarNative/Core/Authentication/KeychainStore.swift; sourceTree = "<group>"; };
-		18414751CF8AF6167E026EBA /* AuthSession.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AuthSession.swift; path = KlangradarNative/Core/Authentication/AuthSession.swift; sourceTree = "<group>"; };
-		184C7A306E3F9D31B88E97B1 /* CityPickerStepView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CityPickerStepView.swift; path = KlangradarNative/Features/Onboarding/CityPickerStepView.swift; sourceTree = "<group>"; };
-		1CD19ED106F82EAA1FDD7342 /* EditorialProgramOCR.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialProgramOCR.swift; path = KlangradarNative/Features/Editorial/ProgramScan/EditorialProgramOCR.swift; sourceTree = "<group>"; };
-		1F0480953EDDDB19B8FE10B7 /* HomeView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = HomeView.swift; path = KlangradarNative/Features/Home/HomeView.swift; sourceTree = "<group>"; };
-		20BF0BB6E640E21C9DB77EE8 /* LocationRequester.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LocationRequester.swift; path = KlangradarNative/Core/Location/LocationRequester.swift; sourceTree = "<group>"; };
-		2836435617337A512BB84FC8 /* JSONValue.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = JSONValue.swift; path = KlangradarNative/Core/Networking/JSONValue.swift; sourceTree = "<group>"; };
-		2B8A6A39F7A9002757C80BC3 /* AddToCalendarView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AddToCalendarView.swift; path = KlangradarNative/Core/Utilities/AddToCalendarView.swift; sourceTree = "<group>"; };
-		2BA3E2280BA0D1CA71560970 /* SupabaseRESTClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SupabaseRESTClient.swift; path = KlangradarNative/Core/Networking/SupabaseRESTClient.swift; sourceTree = "<group>"; };
-		2FA2297E86F8484092A63435 /* KlangradarTheme.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = KlangradarTheme.swift; path = KlangradarNative/DesignSystem/KlangradarTheme.swift; sourceTree = "<group>"; };
-		3121F9D15393C82B764A2799 /* EditorialProgramScanView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialProgramScanView.swift; path = KlangradarNative/Features/Editorial/ProgramScan/EditorialProgramScanView.swift; sourceTree = "<group>"; };
-		31CD7C7CE1A4E66320780EBC /* ConcertEvent.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ConcertEvent.swift; path = KlangradarNative/Domain/Models/ConcertEvent.swift; sourceTree = "<group>"; };
-		36A4BA38C694E81F1384D45E /* EditorialDocumentScanner.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialDocumentScanner.swift; path = KlangradarNative/Features/Editorial/ProgramScan/EditorialDocumentScanner.swift; sourceTree = "<group>"; };
-		3750FB7CE989FEFECE7EFDFA /* InterestsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = InterestsView.swift; path = KlangradarNative/Features/Profile/InterestsView.swift; sourceTree = "<group>"; };
-		378DB42F9E78E6D576E7852C /* SearchView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SearchView.swift; path = KlangradarNative/Features/Search/SearchView.swift; sourceTree = "<group>"; };
-		386F5044BE33CD6B0D5DF5FF /* ConcertEventTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ConcertEventTests.swift; path = KlangradarNativeTests/ConcertEventTests.swift; sourceTree = "<group>"; };
-		3BCFBFB5EE1D83BC0107334F /* KlangradarNativeTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KlangradarNativeTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		3D742E7431038BCE9B48D190 /* EditorialMediaTabView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialMediaTabView.swift; path = KlangradarNative/Features/Editorial/Media/EditorialMediaTabView.swift; sourceTree = "<group>"; };
-		3DB1EF314CEA4F7361F72FD9 /* CityRegionOptionTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CityRegionOptionTests.swift; path = KlangradarNativeTests/CityRegionOptionTests.swift; sourceTree = "<group>"; };
-		3EE22B03D96447FF4212BBA0 /* MarketingContentStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MarketingContentStore.swift; path = KlangradarNative/Features/Home/MarketingContentStore.swift; sourceTree = "<group>"; };
-		4B0B79A2535FFDE28273C4E4 /* CroppedAsyncImage.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CroppedAsyncImage.swift; path = KlangradarNative/DesignSystem/Components/CroppedAsyncImage.swift; sourceTree = "<group>"; };
-		4C34229630A276F9F856361B /* CachedAsyncImage.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CachedAsyncImage.swift; path = KlangradarNative/DesignSystem/Components/CachedAsyncImage.swift; sourceTree = "<group>"; };
-		52F0FAE0A403980E7015AF50 /* AuthService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AuthService.swift; path = KlangradarNative/Core/Authentication/AuthService.swift; sourceTree = "<group>"; };
-		55327F8FFEE5DC296BBF4A10 /* EventRepository.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EventRepository.swift; path = KlangradarNative/Core/Repositories/EventRepository.swift; sourceTree = "<group>"; };
-		5635FCA8779C047884F47DDA /* EventCalendarView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EventCalendarView.swift; path = KlangradarNative/Features/Calendar/EventCalendarView.swift; sourceTree = "<group>"; };
-		5698ABEE256BBAAD633C29EC /* AppDelegate.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = KlangradarNative/App/AppDelegate.swift; sourceTree = "<group>"; };
-		577DAB30D23FF2984784DE8E /* EditorialSharedViews.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialSharedViews.swift; path = KlangradarNative/Features/Editorial/Shared/EditorialSharedViews.swift; sourceTree = "<group>"; };
-		58C6BB36467F2504D783DEE1 /* EditorialProgramOCRTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialProgramOCRTests.swift; path = KlangradarNativeTests/EditorialProgramOCRTests.swift; sourceTree = "<group>"; };
-		5BEAF0F2AD4B0E1A51A21AFC /* AttendanceLocationMonitor.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AttendanceLocationMonitor.swift; path = KlangradarNative/Core/Attendance/AttendanceLocationMonitor.swift; sourceTree = "<group>"; };
-		61A589A9410C9708A8E971C3 /* MarketingHomeScreenView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MarketingHomeScreenView.swift; path = KlangradarNative/Features/Home/MarketingHomeScreenView.swift; sourceTree = "<group>"; };
-		61BF0BA5144233C0C43EB3A8 /* CityStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CityStore.swift; path = KlangradarNative/Core/Regions/CityStore.swift; sourceTree = "<group>"; };
-		61FB738C201522FAA7BE7D33 /* ReportContentSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReportContentSheet.swift; path = KlangradarNative/Features/Shared/ReportContentSheet.swift; sourceTree = "<group>"; };
-		6712C84A5E02AD2B452D0655 /* VenueLocationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VenueLocationTests.swift; path = KlangradarNativeTests/VenueLocationTests.swift; sourceTree = "<group>"; };
-		6B20EC92187D6FBFBD987ED8 /* HomeCache.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = HomeCache.swift; path = KlangradarNative/Core/Networking/HomeCache.swift; sourceTree = "<group>"; };
-		6C2C1EFB4CC291AE3AFC2942 /* EditorialImagePickerButtons.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialImagePickerButtons.swift; path = KlangradarNative/Features/Editorial/Media/EditorialImagePickerButtons.swift; sourceTree = "<group>"; };
-		7446CBA373E784E34414117F /* EditorialGalleryEditor.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialGalleryEditor.swift; path = KlangradarNative/Features/Editorial/Media/EditorialGalleryEditor.swift; sourceTree = "<group>"; };
-		744D838319754D1CF8CF6669 /* SpeechSearchController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SpeechSearchController.swift; path = KlangradarNative/Features/Search/SpeechSearchController.swift; sourceTree = "<group>"; };
-		7859331F7E51FE72E5AD4BC3 /* EditorialEventEditorView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialEventEditorView.swift; path = KlangradarNative/Features/Editorial/EventEditor/EditorialEventEditorView.swift; sourceTree = "<group>"; };
-		79C7FD434805A89B5DA70672 /* KlangradarNative.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = KlangradarNative.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		7AD2DE889C494B90A15F6F69 /* HiddenScrollEdgeNavigationBar.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = HiddenScrollEdgeNavigationBar.swift; path = KlangradarNative/DesignSystem/Components/HiddenScrollEdgeNavigationBar.swift; sourceTree = "<group>"; };
-		7D4EABFE09E5A5766F7E4E7C /* IcsExport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = IcsExport.swift; path = KlangradarNative/Core/Utilities/IcsExport.swift; sourceTree = "<group>"; };
-		7E3B0CFB3C52F158B5321357 /* ProfileView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ProfileView.swift; path = KlangradarNative/Features/Profile/ProfileView.swift; sourceTree = "<group>"; };
-		7FE3A682A926733690400A8A /* RecentlyEditedStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RecentlyEditedStore.swift; path = KlangradarNative/Features/Editorial/Shell/RecentlyEditedStore.swift; sourceTree = "<group>"; };
-		81E0E35DBF33470F4B437805 /* VenueMapView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VenueMapView.swift; path = KlangradarNative/Features/Map/VenueMapView.swift; sourceTree = "<group>"; };
-		83788F2F51510B4EF6B2C600 /* CitySwitcherView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CitySwitcherView.swift; path = KlangradarNative/Features/Settings/CitySwitcherView.swift; sourceTree = "<group>"; };
-		86432E7C4015E6A4EA95F147 /* OnboardingSummaryView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = OnboardingSummaryView.swift; path = KlangradarNative/Features/Onboarding/OnboardingSummaryView.swift; sourceTree = "<group>"; };
-		8786A36AF6308A5AAE7D4F1B /* LiquidGlassSurface.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LiquidGlassSurface.swift; path = KlangradarNative/DesignSystem/Components/LiquidGlassSurface.swift; sourceTree = "<group>"; };
-		87ED4904A253A8E324871893 /* EditorialImageCropView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialImageCropView.swift; path = KlangradarNative/Features/Editorial/ImageCrop/EditorialImageCropView.swift; sourceTree = "<group>"; };
-		8FC15074F495979A5EBA5BE7 /* EditorialGlobalToolbar.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialGlobalToolbar.swift; path = KlangradarNative/Features/Editorial/Shell/EditorialGlobalToolbar.swift; sourceTree = "<group>"; };
-		920A6AC5AE7D166F57C3745A /* RootTabView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RootTabView.swift; path = KlangradarNative/App/RootTabView.swift; sourceTree = "<group>"; };
-		945251532212CD7FCFB265D8 /* MarketingAppShellView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MarketingAppShellView.swift; path = KlangradarNative/Features/Home/MarketingAppShellView.swift; sourceTree = "<group>"; };
-		94687CE7DFDA1C22B282C192 /* FollowProfilesStepView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FollowProfilesStepView.swift; path = KlangradarNative/Features/Onboarding/FollowProfilesStepView.swift; sourceTree = "<group>"; };
-		96FED7F0FF82E851F0E20361 /* ProfileSocialHub.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ProfileSocialHub.swift; path = KlangradarNative/Features/Profile/ProfileSocialHub.swift; sourceTree = "<group>"; };
-		98016709BD1EEDFCBADCB993 /* SignUpStepView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SignUpStepView.swift; path = KlangradarNative/Features/Onboarding/SignUpStepView.swift; sourceTree = "<group>"; };
-		9CDEA0C9DFBE01F83635CC8F /* EditorialRepositoryDeleteTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialRepositoryDeleteTests.swift; path = KlangradarNativeTests/EditorialRepositoryDeleteTests.swift; sourceTree = "<group>"; };
-		9DBF255F8060C0FDCBACEFDB /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; name = Assets.xcassets; path = KlangradarNative/Resources/Assets.xcassets; sourceTree = "<group>"; };
-		9F0909984463028752575C9A /* ContentRepository.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ContentRepository.swift; path = KlangradarNative/Core/Repositories/ContentRepository.swift; sourceTree = "<group>"; };
-		9F584941AB400EF167D68AB3 /* ImageCache.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ImageCache.swift; path = KlangradarNative/Core/Networking/ImageCache.swift; sourceTree = "<group>"; };
-		9F73938EA0B0A2130BDE94A3 /* CollectionDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CollectionDetailView.swift; path = KlangradarNative/Features/Collections/CollectionDetailView.swift; sourceTree = "<group>"; };
-		A5B667F0319A9835E353552C /* ContentModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ContentModels.swift; path = KlangradarNative/Domain/Models/ContentModels.swift; sourceTree = "<group>"; };
-		A7EF3EC860E381C25D17AE81 /* ProfileAvatarEditor.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ProfileAvatarEditor.swift; path = KlangradarNative/Features/Profile/ProfileAvatarEditor.swift; sourceTree = "<group>"; };
-		BB1E890C5F20A2C3DC318B01 /* AGBView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AGBView.swift; path = KlangradarNative/Features/Profile/AGBView.swift; sourceTree = "<group>"; };
-		BEFAE1410A0E1E8B53551C7F /* NotificationsStepView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = NotificationsStepView.swift; path = KlangradarNative/Features/Onboarding/NotificationsStepView.swift; sourceTree = "<group>"; };
-		C709B642E2AEFCA3DE3FD367 /* AttendanceConfirmationPrompt.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AttendanceConfirmationPrompt.swift; path = KlangradarNative/Core/Attendance/AttendanceConfirmationPrompt.swift; sourceTree = "<group>"; };
-		C996D3C5FC24CDF7C4D87E40 /* EditorialCropMathTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialCropMathTests.swift; path = KlangradarNativeTests/EditorialCropMathTests.swift; sourceTree = "<group>"; };
-		CCC9ED9CE1A38DD819DBD2BA /* EditorialMoreView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialMoreView.swift; path = KlangradarNative/Features/Editorial/More/EditorialMoreView.swift; sourceTree = "<group>"; };
-		CFC014F3864D46A5DFD08A41 /* EditorialLocationSearch.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialLocationSearch.swift; path = KlangradarNative/Features/Editorial/VenueCreate/EditorialLocationSearch.swift; sourceTree = "<group>"; };
-		D17917508D0BD4EEF4B37E37 /* EventDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EventDetailView.swift; path = KlangradarNative/Features/EventDetail/EventDetailView.swift; sourceTree = "<group>"; };
-		D374EB500020709BA2223FE3 /* EditorialRepository.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialRepository.swift; path = KlangradarNative/Core/Repositories/EditorialRepository.swift; sourceTree = "<group>"; };
-		D4FC9D55F20067D4EC80CC59 /* EditorialQuickFixView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialQuickFixView.swift; path = KlangradarNative/Features/Editorial/QuickFix/EditorialQuickFixView.swift; sourceTree = "<group>"; };
-		D5AD98D00BE8770D8A4C1167 /* WelcomeStepView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WelcomeStepView.swift; path = KlangradarNative/Features/Onboarding/WelcomeStepView.swift; sourceTree = "<group>"; };
-		D5C552E95ACA525975058DF6 /* PersonalDataStepView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PersonalDataStepView.swift; path = KlangradarNative/Features/Onboarding/PersonalDataStepView.swift; sourceTree = "<group>"; };
-		D6145B3134B7E477FCCE0553 /* EventArtwork.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EventArtwork.swift; path = KlangradarNative/DesignSystem/Components/EventArtwork.swift; sourceTree = "<group>"; };
-		D6825F8AD280EB0F869B7A99 /* EditorialEventsListView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialEventsListView.swift; path = KlangradarNative/Features/Editorial/Events/EditorialEventsListView.swift; sourceTree = "<group>"; };
-		DCBA1F321C95EAEF7ADA03D5 /* FavoritesCache.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FavoritesCache.swift; path = KlangradarNative/Core/Repositories/FavoritesCache.swift; sourceTree = "<group>"; };
-		DCF25E27E4F92DE4DD0FC92D /* ImpressumView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ImpressumView.swift; path = KlangradarNative/Features/Profile/ImpressumView.swift; sourceTree = "<group>"; };
-		DD42956B71D80FF8D3FC72B9 /* GenreFilterRouter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = GenreFilterRouter.swift; path = KlangradarNative/Core/GenreFilterRouter.swift; sourceTree = "<group>"; };
-		DFA2EC1270E3433A825CDA32 /* EditorialCreateEntityView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialCreateEntityView.swift; path = KlangradarNative/Features/Editorial/CreateFlows/EditorialCreateEntityView.swift; sourceTree = "<group>"; };
-		E0008990DB0A50E33B85C21A /* OnboardingStepScaffold.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = OnboardingStepScaffold.swift; path = KlangradarNative/Features/Onboarding/OnboardingStepScaffold.swift; sourceTree = "<group>"; };
-		E256744295AD31AB8493C892 /* SampleData.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SampleData.swift; path = KlangradarNative/Domain/Models/SampleData.swift; sourceTree = "<group>"; };
-		E492DECCCF70A9EBB85B983B /* EditorialEntityEditorView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialEntityEditorView.swift; path = KlangradarNative/Features/Editorial/EntityEditor/EditorialEntityEditorView.swift; sourceTree = "<group>"; };
-		E9409804B3F1584A703134DD /* ForgotPasswordView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ForgotPasswordView.swift; path = KlangradarNative/Features/Onboarding/ForgotPasswordView.swift; sourceTree = "<group>"; };
-		EA670E80DCE42A2F426C3349 /* AppEnvironment.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AppEnvironment.swift; path = KlangradarNative/App/AppEnvironment.swift; sourceTree = "<group>"; };
-		EE9D25FDF106122FD178642E /* PasswordLoginView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PasswordLoginView.swift; path = KlangradarNative/Features/Onboarding/PasswordLoginView.swift; sourceTree = "<group>"; };
-		F09F2EDC5E1B2818A436F3D9 /* HTTPClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = HTTPClient.swift; path = KlangradarNative/Core/Networking/HTTPClient.swift; sourceTree = "<group>"; };
-		F0AFBD01BB98E406782765D6 /* DatenschutzView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DatenschutzView.swift; path = KlangradarNative/Features/Profile/DatenschutzView.swift; sourceTree = "<group>"; };
-		F15499FC195134912E4DD1C8 /* EditorialSearchView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialSearchView.swift; path = KlangradarNative/Features/Editorial/Shell/EditorialSearchView.swift; sourceTree = "<group>"; };
-		F372FC6B730FF0C1E4E5C8C5 /* VerifyEmailStepView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VerifyEmailStepView.swift; path = KlangradarNative/Features/Onboarding/VerifyEmailStepView.swift; sourceTree = "<group>"; };
-		F382CE6FCB3CB557B46A8644 /* EditorialReportsTabView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialReportsTabView.swift; path = KlangradarNative/Features/Editorial/Reports/EditorialReportsTabView.swift; sourceTree = "<group>"; };
-		F68B64FFABECB1F4141E9BF3 /* EditorialCreateVenueView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialCreateVenueView.swift; path = KlangradarNative/Features/Editorial/VenueCreate/EditorialCreateVenueView.swift; sourceTree = "<group>"; };
-		F6FCF2DCADCBEC3DCA6E72DB /* BiometricAuth.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BiometricAuth.swift; path = KlangradarNative/Core/Authentication/BiometricAuth.swift; sourceTree = "<group>"; };
-		F97371DD51F02824ABFA1755 /* KlangradarNativeApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = KlangradarNativeApp.swift; path = KlangradarNative/App/KlangradarNativeApp.swift; sourceTree = "<group>"; };
-		FA064B37ECB3E8325CDA4778 /* HomeViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = HomeViewModel.swift; path = KlangradarNative/Features/Home/HomeViewModel.swift; sourceTree = "<group>"; };
-		FABD581D3DB79039B0020889 /* OnboardingView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = OnboardingView.swift; path = KlangradarNative/Features/Onboarding/OnboardingView.swift; sourceTree = "<group>"; };
-		FBB8BB63B6610D4D8CFDF6C6 /* InterestsStepView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = InterestsStepView.swift; path = KlangradarNative/Features/Onboarding/InterestsStepView.swift; sourceTree = "<group>"; };
-		FDD59146F0FDAEBD852D8D7D /* UserRepository.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = UserRepository.swift; path = KlangradarNative/Core/Repositories/UserRepository.swift; sourceTree = "<group>"; };
-		FE54C4A3A9BAB891EF889CE2 /* EditorialTodayView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialTodayView.swift; path = KlangradarNative/Features/Editorial/Today/EditorialTodayView.swift; sourceTree = "<group>"; };
+		011FCF90BFE3AB8AFA91567E /* MarketingContentEditorView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MarketingContentEditorView.swift; path = KlangradarNative/Features/Home/MarketingContentEditorView.swift; sourceTree = "<group>"; };
+		02109EEEDF63286CF801284A /* EditorialImagePickerButtons.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialImagePickerButtons.swift; path = KlangradarNative/Features/Editorial/Media/EditorialImagePickerButtons.swift; sourceTree = "<group>"; };
+		03B539B407134632F4DF43C0 /* EditorialEventEditorView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialEventEditorView.swift; path = KlangradarNative/Features/Editorial/EventEditor/EditorialEventEditorView.swift; sourceTree = "<group>"; };
+		0610BE67CD50248408093D5E /* AGBView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AGBView.swift; path = KlangradarNative/Features/Profile/AGBView.swift; sourceTree = "<group>"; };
+		0BF4DBF846174FE61ECBB49E /* CityPickerStepView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CityPickerStepView.swift; path = KlangradarNative/Features/Onboarding/CityPickerStepView.swift; sourceTree = "<group>"; };
+		0ECEABEC55D99F523E7C0DEB /* ProfileAvatarEditor.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ProfileAvatarEditor.swift; path = KlangradarNative/Features/Profile/ProfileAvatarEditor.swift; sourceTree = "<group>"; };
+		1115305A5F3EEC6C2B163154 /* ProfileSocialHub.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ProfileSocialHub.swift; path = KlangradarNative/Features/Profile/ProfileSocialHub.swift; sourceTree = "<group>"; };
+		13EBA46008242B439485EE39 /* AddToCalendarView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AddToCalendarView.swift; path = KlangradarNative/Core/Utilities/AddToCalendarView.swift; sourceTree = "<group>"; };
+		168FEE83D0D65761973AE5DC /* ImageCache.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ImageCache.swift; path = KlangradarNative/Core/Networking/ImageCache.swift; sourceTree = "<group>"; };
+		16A490301DA8B38411A2152E /* APIConfiguration.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = APIConfiguration.swift; path = KlangradarNative/Core/Configuration/APIConfiguration.swift; sourceTree = "<group>"; };
+		1BFEDC904B41882F2F2FCB47 /* WelcomeStepView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WelcomeStepView.swift; path = KlangradarNative/Features/Onboarding/WelcomeStepView.swift; sourceTree = "<group>"; };
+		1CBCBC9240721B778B95EE5A /* AttendanceConfirmationPrompt.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AttendanceConfirmationPrompt.swift; path = KlangradarNative/Core/Attendance/AttendanceConfirmationPrompt.swift; sourceTree = "<group>"; };
+		1CDC5BD1C7643C193F9D6F1E /* EditorialImageCropView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialImageCropView.swift; path = KlangradarNative/Features/Editorial/ImageCrop/EditorialImageCropView.swift; sourceTree = "<group>"; };
+		1DD9078356BE1DE6EBB55FE5 /* EventCalendarView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EventCalendarView.swift; path = KlangradarNative/Features/Calendar/EventCalendarView.swift; sourceTree = "<group>"; };
+		2076093E066AD322AAB99691 /* GlassIconButton.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = GlassIconButton.swift; path = KlangradarNative/DesignSystem/Components/GlassIconButton.swift; sourceTree = "<group>"; };
+		22A22A89D97F5AEAC57CFBE0 /* FavoritesCache.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FavoritesCache.swift; path = KlangradarNative/Core/Repositories/FavoritesCache.swift; sourceTree = "<group>"; };
+		2513DB56A4CE60B1D7BE647E /* BiometricAuth.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BiometricAuth.swift; path = KlangradarNative/Core/Authentication/BiometricAuth.swift; sourceTree = "<group>"; };
+		2718F9393FDB3DB6DC880A30 /* AuthStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AuthStore.swift; path = KlangradarNative/Core/Authentication/AuthStore.swift; sourceTree = "<group>"; };
+		284266A3CF205CB683D0AC85 /* ConcertEvent.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ConcertEvent.swift; path = KlangradarNative/Domain/Models/ConcertEvent.swift; sourceTree = "<group>"; };
+		2879CC5CD6BA5172F85EEE8D /* SampleData.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SampleData.swift; path = KlangradarNative/Domain/Models/SampleData.swift; sourceTree = "<group>"; };
+		2A6A0E43803CBA03DA1EB925 /* DatenschutzView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DatenschutzView.swift; path = KlangradarNative/Features/Profile/DatenschutzView.swift; sourceTree = "<group>"; };
+		2B71F21DFAE9A47EE82CE0BA /* ConcertEventTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ConcertEventTests.swift; path = KlangradarNativeTests/ConcertEventTests.swift; sourceTree = "<group>"; };
+		2FC5EE5967820E7B639B4D87 /* MarketingHomeScreenView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MarketingHomeScreenView.swift; path = KlangradarNative/Features/Home/MarketingHomeScreenView.swift; sourceTree = "<group>"; };
+		2FEBC5F0764AC68C81769AAF /* VenueMapView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VenueMapView.swift; path = KlangradarNative/Features/Map/VenueMapView.swift; sourceTree = "<group>"; };
+		3271F83560B4A71645600CEA /* EditorialEventsListView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialEventsListView.swift; path = KlangradarNative/Features/Editorial/Events/EditorialEventsListView.swift; sourceTree = "<group>"; };
+		3312DBCA3DE465A9A19FE7A6 /* CitySwitcherView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CitySwitcherView.swift; path = KlangradarNative/Features/Settings/CitySwitcherView.swift; sourceTree = "<group>"; };
+		334E7AE2E7EDEE55A55AAB8A /* EditorialGlobalToolbar.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialGlobalToolbar.swift; path = KlangradarNative/Features/Editorial/Shell/EditorialGlobalToolbar.swift; sourceTree = "<group>"; };
+		34E76F8820832D7FAC64E987 /* ProfileView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ProfileView.swift; path = KlangradarNative/Features/Profile/ProfileView.swift; sourceTree = "<group>"; };
+		39ABFEDACB5D11CA53AF52DF /* OnboardingStepScaffold.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = OnboardingStepScaffold.swift; path = KlangradarNative/Features/Onboarding/OnboardingStepScaffold.swift; sourceTree = "<group>"; };
+		3A22C734DC9CBF150681C700 /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; name = Assets.xcassets; path = KlangradarNative/Resources/Assets.xcassets; sourceTree = "<group>"; };
+		3C355E77205B7F1E36109F5C /* EditorialCreateEntityView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialCreateEntityView.swift; path = KlangradarNative/Features/Editorial/CreateFlows/EditorialCreateEntityView.swift; sourceTree = "<group>"; };
+		3F6E579575F17FA74C79295B /* ReportContentSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ReportContentSheet.swift; path = KlangradarNative/Features/Shared/ReportContentSheet.swift; sourceTree = "<group>"; };
+		3FD817BCA7A8E9A0C8538639 /* EditorialProgramOCR.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialProgramOCR.swift; path = KlangradarNative/Features/Editorial/ProgramScan/EditorialProgramOCR.swift; sourceTree = "<group>"; };
+		400D8A40F15F92F6125C0D67 /* AppDelegate.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = KlangradarNative/App/AppDelegate.swift; sourceTree = "<group>"; };
+		44A2C0F280874A90F895BB6F /* AuthService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AuthService.swift; path = KlangradarNative/Core/Authentication/AuthService.swift; sourceTree = "<group>"; };
+		4500E6BCC479279D0BC946AC /* EditorialReportsTabView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialReportsTabView.swift; path = KlangradarNative/Features/Editorial/Reports/EditorialReportsTabView.swift; sourceTree = "<group>"; };
+		453C2DF2F97946F9C8F9BD8B /* GenreFilterRouter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = GenreFilterRouter.swift; path = KlangradarNative/Core/GenreFilterRouter.swift; sourceTree = "<group>"; };
+		476D7A87DF4012218025648B /* HiddenScrollEdgeNavigationBar.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = HiddenScrollEdgeNavigationBar.swift; path = KlangradarNative/DesignSystem/Components/HiddenScrollEdgeNavigationBar.swift; sourceTree = "<group>"; };
+		495D136179F05FC8F6DF188A /* SpeechSearchController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SpeechSearchController.swift; path = KlangradarNative/Features/Search/SpeechSearchController.swift; sourceTree = "<group>"; };
+		4D1146DBBB24A10F287F87E9 /* ImpressumView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ImpressumView.swift; path = KlangradarNative/Features/Profile/ImpressumView.swift; sourceTree = "<group>"; };
+		514C77B3AE769BD586355413 /* NotificationsStepView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = NotificationsStepView.swift; path = KlangradarNative/Features/Onboarding/NotificationsStepView.swift; sourceTree = "<group>"; };
+		588BCAD0C6C303CC007374A1 /* KlangradarNativeApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = KlangradarNativeApp.swift; path = KlangradarNative/App/KlangradarNativeApp.swift; sourceTree = "<group>"; };
+		5A90C7EC37822645602FEA2C /* CityRegionOptionTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CityRegionOptionTests.swift; path = KlangradarNativeTests/CityRegionOptionTests.swift; sourceTree = "<group>"; };
+		610AA2274E730024470E8C9B /* MarketingAppShellView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MarketingAppShellView.swift; path = KlangradarNative/Features/Home/MarketingAppShellView.swift; sourceTree = "<group>"; };
+		6667FE83A05200CFC5231D42 /* VenueLocation.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VenueLocation.swift; path = KlangradarNative/Domain/Models/VenueLocation.swift; sourceTree = "<group>"; };
+		67329E895F3780EEB775ED9D /* IcsExport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = IcsExport.swift; path = KlangradarNative/Core/Utilities/IcsExport.swift; sourceTree = "<group>"; };
+		6889B3D02EE9859AAACE334E /* EditorialLocationSearch.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialLocationSearch.swift; path = KlangradarNative/Features/Editorial/VenueCreate/EditorialLocationSearch.swift; sourceTree = "<group>"; };
+		698051849A1D34AC780FD160 /* MarketingContentStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MarketingContentStore.swift; path = KlangradarNative/Features/Home/MarketingContentStore.swift; sourceTree = "<group>"; };
+		69ED109801134EC8F4E3C6B3 /* HTTPClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = HTTPClient.swift; path = KlangradarNative/Core/Networking/HTTPClient.swift; sourceTree = "<group>"; };
+		6F081E0BAD41751D6E5C7A52 /* EditorialMediaTabView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialMediaTabView.swift; path = KlangradarNative/Features/Editorial/Media/EditorialMediaTabView.swift; sourceTree = "<group>"; };
+		78B55DCD3BD82DF057211248 /* EventDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EventDetailView.swift; path = KlangradarNative/Features/EventDetail/EventDetailView.swift; sourceTree = "<group>"; };
+		79F5C7E0B847FA2617EA66E0 /* OnboardingSummaryView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = OnboardingSummaryView.swift; path = KlangradarNative/Features/Onboarding/OnboardingSummaryView.swift; sourceTree = "<group>"; };
+		7B36EBFC644C3DE4E3AA22D9 /* EditorialSearchView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialSearchView.swift; path = KlangradarNative/Features/Editorial/Shell/EditorialSearchView.swift; sourceTree = "<group>"; };
+		7CC40BBC7992AF097E0F2F93 /* EditorialEntityEditorView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialEntityEditorView.swift; path = KlangradarNative/Features/Editorial/EntityEditor/EditorialEntityEditorView.swift; sourceTree = "<group>"; };
+		8073904A6A166EC933837DC3 /* EditorialCreateVenueView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialCreateVenueView.swift; path = KlangradarNative/Features/Editorial/VenueCreate/EditorialCreateVenueView.swift; sourceTree = "<group>"; };
+		825BD8724370AC8FDB3F2BEE /* EntityDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EntityDetailView.swift; path = KlangradarNative/Features/Directory/EntityDetailView.swift; sourceTree = "<group>"; };
+		840161EEEB6E424A31F40B4B /* OnboardingView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = OnboardingView.swift; path = KlangradarNative/Features/Onboarding/OnboardingView.swift; sourceTree = "<group>"; };
+		85B365C498558659310A25C1 /* EditorialCropMathTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialCropMathTests.swift; path = KlangradarNativeTests/EditorialCropMathTests.swift; sourceTree = "<group>"; };
+		86AFF1D82012C16551A66547 /* EditorialSharedViews.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialSharedViews.swift; path = KlangradarNative/Features/Editorial/Shared/EditorialSharedViews.swift; sourceTree = "<group>"; };
+		8B223046F25910383BB2F730 /* EditorialRepositoryDeleteTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialRepositoryDeleteTests.swift; path = KlangradarNativeTests/EditorialRepositoryDeleteTests.swift; sourceTree = "<group>"; };
+		8C299D8465F0E5925F02F4D7 /* HomeViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = HomeViewModel.swift; path = KlangradarNative/Features/Home/HomeViewModel.swift; sourceTree = "<group>"; };
+		8F4A46147E42B9F93EF6BAAD /* KeychainStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = KeychainStore.swift; path = KlangradarNative/Core/Authentication/KeychainStore.swift; sourceTree = "<group>"; };
+		9248A88CFE77B8421812B44B /* KlangradarNative.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = KlangradarNative.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		9791A11D2D559B5CF281FA3D /* CachedAsyncImage.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CachedAsyncImage.swift; path = KlangradarNative/DesignSystem/Components/CachedAsyncImage.swift; sourceTree = "<group>"; };
+		98089858538DF92B24F7A46E /* EditorialDocumentScanner.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialDocumentScanner.swift; path = KlangradarNative/Features/Editorial/ProgramScan/EditorialDocumentScanner.swift; sourceTree = "<group>"; };
+		9AB3FFB35D4BAE0D1226FA09 /* SearchView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SearchView.swift; path = KlangradarNative/Features/Search/SearchView.swift; sourceTree = "<group>"; };
+		9B0068FF1DAC1E239A284EAB /* InterestsStepView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = InterestsStepView.swift; path = KlangradarNative/Features/Onboarding/InterestsStepView.swift; sourceTree = "<group>"; };
+		9C97F7FA022924710A5796FD /* PersonalDataStepView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PersonalDataStepView.swift; path = KlangradarNative/Features/Onboarding/PersonalDataStepView.swift; sourceTree = "<group>"; };
+		A04E8EC084410944EE9AAE6B /* RootTabView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RootTabView.swift; path = KlangradarNative/App/RootTabView.swift; sourceTree = "<group>"; };
+		A44F279B8E4B87017D77255C /* ContentModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ContentModels.swift; path = KlangradarNative/Domain/Models/ContentModels.swift; sourceTree = "<group>"; };
+		AEAE800C61FC22C6F93A4639 /* HomeView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = HomeView.swift; path = KlangradarNative/Features/Home/HomeView.swift; sourceTree = "<group>"; };
+		B5C12CAEBA694A6E81A0022E /* KlangradarNativeTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KlangradarNativeTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		B60B6053225DC8E045EBE42D /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		B6425F93DA598AABEBB507E5 /* SupabaseRESTClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SupabaseRESTClient.swift; path = KlangradarNative/Core/Networking/SupabaseRESTClient.swift; sourceTree = "<group>"; };
+		B8959F6315C7974ACEF1857B /* EventRepository.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EventRepository.swift; path = KlangradarNative/Core/Repositories/EventRepository.swift; sourceTree = "<group>"; };
+		B9EEDF66B782F41BEE616A4D /* VerifyEmailStepView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VerifyEmailStepView.swift; path = KlangradarNative/Features/Onboarding/VerifyEmailStepView.swift; sourceTree = "<group>"; };
+		BD4623666B8036D87605E508 /* ContentRepository.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ContentRepository.swift; path = KlangradarNative/Core/Repositories/ContentRepository.swift; sourceTree = "<group>"; };
+		BEC4DA6BA0B04AC376A7FC75 /* VenueLocationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VenueLocationTests.swift; path = KlangradarNativeTests/VenueLocationTests.swift; sourceTree = "<group>"; };
+		BED13CDEAAF4A05BB4C3D60F /* EditorialGalleryEditor.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialGalleryEditor.swift; path = KlangradarNative/Features/Editorial/Media/EditorialGalleryEditor.swift; sourceTree = "<group>"; };
+		C4B25C634A27FACAFEBD81F2 /* NotificationSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = NotificationSettingsView.swift; path = KlangradarNative/Features/Profile/NotificationSettingsView.swift; sourceTree = "<group>"; };
+		C6DA01FE0665A7F9DA7CDCB4 /* AuthSession.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AuthSession.swift; path = KlangradarNative/Core/Authentication/AuthSession.swift; sourceTree = "<group>"; };
+		C7291D88ACD7B35CE290FCC2 /* FollowProfilesStepView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FollowProfilesStepView.swift; path = KlangradarNative/Features/Onboarding/FollowProfilesStepView.swift; sourceTree = "<group>"; };
+		C821C0FD125416D597792438 /* AttendanceLocationMonitor.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AttendanceLocationMonitor.swift; path = KlangradarNative/Core/Attendance/AttendanceLocationMonitor.swift; sourceTree = "<group>"; };
+		CA77211E442E747F744CCDE9 /* UserRepository.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = UserRepository.swift; path = KlangradarNative/Core/Repositories/UserRepository.swift; sourceTree = "<group>"; };
+		CC86997EC4A5165668B7B697 /* EventArtwork.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EventArtwork.swift; path = KlangradarNative/DesignSystem/Components/EventArtwork.swift; sourceTree = "<group>"; };
+		D33E8D989652D3D9BE41B5E5 /* EditorialTodayView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialTodayView.swift; path = KlangradarNative/Features/Editorial/Today/EditorialTodayView.swift; sourceTree = "<group>"; };
+		D811FF60F1C9C94DCC60B768 /* HomeCache.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = HomeCache.swift; path = KlangradarNative/Core/Networking/HomeCache.swift; sourceTree = "<group>"; };
+		D84115ADD960227B5718C5FC /* RecentlyEditedStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RecentlyEditedStore.swift; path = KlangradarNative/Features/Editorial/Shell/RecentlyEditedStore.swift; sourceTree = "<group>"; };
+		E15FBA70434E0D67076BA00B /* Haptics.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = Haptics.swift; path = KlangradarNative/DesignSystem/Haptics.swift; sourceTree = "<group>"; };
+		E20C3B64C5E340661575EE9A /* CroppedAsyncImage.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CroppedAsyncImage.swift; path = KlangradarNative/DesignSystem/Components/CroppedAsyncImage.swift; sourceTree = "<group>"; };
+		E2306B27D29BEA70BB20C8A1 /* ForgotPasswordView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ForgotPasswordView.swift; path = KlangradarNative/Features/Onboarding/ForgotPasswordView.swift; sourceTree = "<group>"; };
+		E2FE0DD41137CE1A144F65AA /* LiquidGlassSurface.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LiquidGlassSurface.swift; path = KlangradarNative/DesignSystem/Components/LiquidGlassSurface.swift; sourceTree = "<group>"; };
+		E3D7F5FFE6AC7C6515911C3B /* LocationRequester.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LocationRequester.swift; path = KlangradarNative/Core/Location/LocationRequester.swift; sourceTree = "<group>"; };
+		E42F06D0C7920FE8986E02F9 /* EditorialRepository.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialRepository.swift; path = KlangradarNative/Core/Repositories/EditorialRepository.swift; sourceTree = "<group>"; };
+		E44D3F639F52D54A14E4C76A /* EditorialProgramScanView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialProgramScanView.swift; path = KlangradarNative/Features/Editorial/ProgramScan/EditorialProgramScanView.swift; sourceTree = "<group>"; };
+		E6D1EF5CCDCD21904E907DAD /* KlangradarTheme.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = KlangradarTheme.swift; path = KlangradarNative/DesignSystem/KlangradarTheme.swift; sourceTree = "<group>"; };
+		E7DCF17C1753411EDB7107D3 /* EditorialMoreView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialMoreView.swift; path = KlangradarNative/Features/Editorial/More/EditorialMoreView.swift; sourceTree = "<group>"; };
+		E8279BEFAB1D4CE4AA6E5D15 /* EditorialShellView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialShellView.swift; path = KlangradarNative/Features/Editorial/Shell/EditorialShellView.swift; sourceTree = "<group>"; };
+		ED5D2FE81680DDE2224BCAE5 /* PasswordLoginView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PasswordLoginView.swift; path = KlangradarNative/Features/Onboarding/PasswordLoginView.swift; sourceTree = "<group>"; };
+		F1B596F3F086360E442DFAAC /* EditorialQuickFixView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialQuickFixView.swift; path = KlangradarNative/Features/Editorial/QuickFix/EditorialQuickFixView.swift; sourceTree = "<group>"; };
+		F429384AC105C65BEB0661E6 /* CityStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CityStore.swift; path = KlangradarNative/Core/Regions/CityStore.swift; sourceTree = "<group>"; };
+		F454E3F2A0E4E3EDE8348EC5 /* EventCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EventCard.swift; path = KlangradarNative/DesignSystem/Components/EventCard.swift; sourceTree = "<group>"; };
+		F54764C65C4D181B1B47AD9C /* JSONValue.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = JSONValue.swift; path = KlangradarNative/Core/Networking/JSONValue.swift; sourceTree = "<group>"; };
+		F5CD8132E84371350EDD4FE7 /* EditorialAIAssistantView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialAIAssistantView.swift; path = KlangradarNative/Features/Editorial/Shared/EditorialAIAssistantView.swift; sourceTree = "<group>"; };
+		F8AA5213BBFF83F37B6FE34C /* SignUpStepView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SignUpStepView.swift; path = KlangradarNative/Features/Onboarding/SignUpStepView.swift; sourceTree = "<group>"; };
+		FA4F0DC9DB97E45E99DFF805 /* EditorialProgramOCRTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EditorialProgramOCRTests.swift; path = KlangradarNativeTests/EditorialProgramOCRTests.swift; sourceTree = "<group>"; };
+		FA8F144D40C15391C4989954 /* InterestsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = InterestsView.swift; path = KlangradarNative/Features/Profile/InterestsView.swift; sourceTree = "<group>"; };
+		FB8ED8D832FD0D27514A4091 /* CollectionDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CollectionDetailView.swift; path = KlangradarNative/Features/Collections/CollectionDetailView.swift; sourceTree = "<group>"; };
+		FF3C7B8E109910E6DB7E2E1C /* AppEnvironment.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AppEnvironment.swift; path = KlangradarNative/App/AppEnvironment.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		1AC21F95938D836ED7DFDD07 /* Frameworks */ = {
+		479C523C3B59CE1A9E8641A4 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				96FA0458DC837C04A33CDEAF /* Foundation.framework in Frameworks */,
+				4038C1C1B6838DAF526FCA8E /* Foundation.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		8F6CC5AFE0CC990D9933EE99 /* Frameworks */ = {
+		78B5639CD860E961218A08DE /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				2607A226198F26C1AFA985C5 /* Foundation.framework in Frameworks */,
+				482D637B31099D31F6133BEA /* Foundation.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		09214E209300AA8DE0A60EC5 /* Settings */ = {
+		071EFB5A838674F3A358BC4B /* Media */ = {
 			isa = PBXGroup;
 			children = (
-				83788F2F51510B4EF6B2C600 /* CitySwitcherView.swift */,
-			);
-			name = Settings;
-			sourceTree = "<group>";
-		};
-		1B72EDF1A20A4E09B263C112 /* QuickFix */ = {
-			isa = PBXGroup;
-			children = (
-				D4FC9D55F20067D4EC80CC59 /* EditorialQuickFixView.swift */,
-			);
-			name = QuickFix;
-			sourceTree = "<group>";
-		};
-		28519CD627634F25979D5D56 /* Shared */ = {
-			isa = PBXGroup;
-			children = (
-				10A893C36AEDF5A8611B7ADF /* EditorialAIAssistantView.swift */,
-				577DAB30D23FF2984784DE8E /* EditorialSharedViews.swift */,
-			);
-			name = Shared;
-			sourceTree = "<group>";
-		};
-		2E466C6FDE80E286B40771D5 /* App */ = {
-			isa = PBXGroup;
-			children = (
-				5698ABEE256BBAAD633C29EC /* AppDelegate.swift */,
-				EA670E80DCE42A2F426C3349 /* AppEnvironment.swift */,
-				F97371DD51F02824ABFA1755 /* KlangradarNativeApp.swift */,
-				920A6AC5AE7D166F57C3745A /* RootTabView.swift */,
-			);
-			name = App;
-			sourceTree = "<group>";
-		};
-		3302FB5DCF29645FE28DCAEC /* Networking */ = {
-			isa = PBXGroup;
-			children = (
-				F09F2EDC5E1B2818A436F3D9 /* HTTPClient.swift */,
-				6B20EC92187D6FBFBD987ED8 /* HomeCache.swift */,
-				9F584941AB400EF167D68AB3 /* ImageCache.swift */,
-				2836435617337A512BB84FC8 /* JSONValue.swift */,
-				2BA3E2280BA0D1CA71560970 /* SupabaseRESTClient.swift */,
-			);
-			name = Networking;
-			sourceTree = "<group>";
-		};
-		344E5E38467CE783D8A2E000 /* Resources */ = {
-			isa = PBXGroup;
-			children = (
-				9DBF255F8060C0FDCBACEFDB /* Assets.xcassets */,
-			);
-			name = Resources;
-			sourceTree = "<group>";
-		};
-		3793E5322CA7C0B284EF0BCF /* Components */ = {
-			isa = PBXGroup;
-			children = (
-				4C34229630A276F9F856361B /* CachedAsyncImage.swift */,
-				4B0B79A2535FFDE28273C4E4 /* CroppedAsyncImage.swift */,
-				D6145B3134B7E477FCCE0553 /* EventArtwork.swift */,
-				1657A95B3B910903F49B9590 /* EventCard.swift */,
-				08F5EEE1C717E35255EFA7EE /* GlassIconButton.swift */,
-				7AD2DE889C494B90A15F6F69 /* HiddenScrollEdgeNavigationBar.swift */,
-				8786A36AF6308A5AAE7D4F1B /* LiquidGlassSurface.swift */,
-			);
-			name = Components;
-			sourceTree = "<group>";
-		};
-		3A22D17FEEAEE8296DFF942D /* Map */ = {
-			isa = PBXGroup;
-			children = (
-				81E0E35DBF33470F4B437805 /* VenueMapView.swift */,
-			);
-			name = Map;
-			sourceTree = "<group>";
-		};
-		403E47E7C9CFC9CA1ECF5EBB /* Calendar */ = {
-			isa = PBXGroup;
-			children = (
-				5635FCA8779C047884F47DDA /* EventCalendarView.swift */,
-			);
-			name = Calendar;
-			sourceTree = "<group>";
-		};
-		46D3CF0A4D5DA151787C20E2 /* iOS */ = {
-			isa = PBXGroup;
-			children = (
-				12E1A906D69A49B2F8EF2DC1 /* Foundation.framework */,
-			);
-			name = iOS;
-			sourceTree = "<group>";
-		};
-		4C459E6172DFA63630891890 /* KlangradarNativeTests */ = {
-			isa = PBXGroup;
-			children = (
-				3DB1EF314CEA4F7361F72FD9 /* CityRegionOptionTests.swift */,
-				386F5044BE33CD6B0D5DF5FF /* ConcertEventTests.swift */,
-				C996D3C5FC24CDF7C4D87E40 /* EditorialCropMathTests.swift */,
-				58C6BB36467F2504D783DEE1 /* EditorialProgramOCRTests.swift */,
-				9CDEA0C9DFBE01F83635CC8F /* EditorialRepositoryDeleteTests.swift */,
-				6712C84A5E02AD2B452D0655 /* VenueLocationTests.swift */,
-			);
-			name = KlangradarNativeTests;
-			sourceTree = "<group>";
-		};
-		4F8ED34FA7196DFBC60D8593 /* VenueCreate */ = {
-			isa = PBXGroup;
-			children = (
-				F68B64FFABECB1F4141E9BF3 /* EditorialCreateVenueView.swift */,
-				CFC014F3864D46A5DFD08A41 /* EditorialLocationSearch.swift */,
-			);
-			name = VenueCreate;
-			sourceTree = "<group>";
-		};
-		53BF05338B31EB4EB67070BF /* ProgramScan */ = {
-			isa = PBXGroup;
-			children = (
-				36A4BA38C694E81F1384D45E /* EditorialDocumentScanner.swift */,
-				1CD19ED106F82EAA1FDD7342 /* EditorialProgramOCR.swift */,
-				3121F9D15393C82B764A2799 /* EditorialProgramScanView.swift */,
-			);
-			name = ProgramScan;
-			sourceTree = "<group>";
-		};
-		5594DB5BED923C4FE74A1532 /* Location */ = {
-			isa = PBXGroup;
-			children = (
-				20BF0BB6E640E21C9DB77EE8 /* LocationRequester.swift */,
-			);
-			name = Location;
-			sourceTree = "<group>";
-		};
-		60E9934F7DFD6D96B07951D7 /* Directory */ = {
-			isa = PBXGroup;
-			children = (
-				0FAC36417949354001CCEDE9 /* EntityDetailView.swift */,
-			);
-			name = Directory;
-			sourceTree = "<group>";
-		};
-		60FCD1FC99704CADEC5E08A8 /* Events */ = {
-			isa = PBXGroup;
-			children = (
-				D6825F8AD280EB0F869B7A99 /* EditorialEventsListView.swift */,
-			);
-			name = Events;
-			sourceTree = "<group>";
-		};
-		695EABA4EC68F3A76EFD9ACB /* CreateFlows */ = {
-			isa = PBXGroup;
-			children = (
-				DFA2EC1270E3433A825CDA32 /* EditorialCreateEntityView.swift */,
-			);
-			name = CreateFlows;
-			sourceTree = "<group>";
-		};
-		6E52CED2CDF4CD8B1439BCEE /* EntityEditor */ = {
-			isa = PBXGroup;
-			children = (
-				E492DECCCF70A9EBB85B983B /* EditorialEntityEditorView.swift */,
-			);
-			name = EntityEditor;
-			sourceTree = "<group>";
-		};
-		7050753CE47F0A5C5B7AACBF /* Regions */ = {
-			isa = PBXGroup;
-			children = (
-				61BF0BA5144233C0C43EB3A8 /* CityStore.swift */,
-			);
-			name = Regions;
-			sourceTree = "<group>";
-		};
-		73A2DA2C9240300CC9444B4D /* Editorial */ = {
-			isa = PBXGroup;
-			children = (
-				695EABA4EC68F3A76EFD9ACB /* CreateFlows */,
-				6E52CED2CDF4CD8B1439BCEE /* EntityEditor */,
-				B7CF0D3EE10656F9E0F20EF9 /* EventEditor */,
-				60FCD1FC99704CADEC5E08A8 /* Events */,
-				D21060EC865C1A469F9C6E7A /* ImageCrop */,
-				7D6B1A52616A0F9D25E9EF43 /* Media */,
-				7A8C14FC7DF851403EADA774 /* More */,
-				53BF05338B31EB4EB67070BF /* ProgramScan */,
-				1B72EDF1A20A4E09B263C112 /* QuickFix */,
-				916AE0C6FC15EFCF9D6727C1 /* Reports */,
-				28519CD627634F25979D5D56 /* Shared */,
-				C69AE0D0A3E16DB925E0158E /* Shell */,
-				B686548211D6F42AAFBB46C0 /* Today */,
-				4F8ED34FA7196DFBC60D8593 /* VenueCreate */,
-			);
-			name = Editorial;
-			sourceTree = "<group>";
-		};
-		7A8C14FC7DF851403EADA774 /* More */ = {
-			isa = PBXGroup;
-			children = (
-				CCC9ED9CE1A38DD819DBD2BA /* EditorialMoreView.swift */,
-			);
-			name = More;
-			sourceTree = "<group>";
-		};
-		7D6B1A52616A0F9D25E9EF43 /* Media */ = {
-			isa = PBXGroup;
-			children = (
-				7446CBA373E784E34414117F /* EditorialGalleryEditor.swift */,
-				6C2C1EFB4CC291AE3AFC2942 /* EditorialImagePickerButtons.swift */,
-				3D742E7431038BCE9B48D190 /* EditorialMediaTabView.swift */,
+				BED13CDEAAF4A05BB4C3D60F /* EditorialGalleryEditor.swift */,
+				02109EEEDF63286CF801284A /* EditorialImagePickerButtons.swift */,
+				6F081E0BAD41751D6E5C7A52 /* EditorialMediaTabView.swift */,
 			);
 			name = Media;
 			sourceTree = "<group>";
 		};
-		83FCCECB85B9CE1AA879B35D /* Onboarding */ = {
+		09A9BDB6463086ACF7D6A06D /* EntityEditor */ = {
 			isa = PBXGroup;
 			children = (
-				184C7A306E3F9D31B88E97B1 /* CityPickerStepView.swift */,
-				94687CE7DFDA1C22B282C192 /* FollowProfilesStepView.swift */,
-				E9409804B3F1584A703134DD /* ForgotPasswordView.swift */,
-				FBB8BB63B6610D4D8CFDF6C6 /* InterestsStepView.swift */,
-				BEFAE1410A0E1E8B53551C7F /* NotificationsStepView.swift */,
-				E0008990DB0A50E33B85C21A /* OnboardingStepScaffold.swift */,
-				86432E7C4015E6A4EA95F147 /* OnboardingSummaryView.swift */,
-				FABD581D3DB79039B0020889 /* OnboardingView.swift */,
-				EE9D25FDF106122FD178642E /* PasswordLoginView.swift */,
-				D5C552E95ACA525975058DF6 /* PersonalDataStepView.swift */,
-				98016709BD1EEDFCBADCB993 /* SignUpStepView.swift */,
-				F372FC6B730FF0C1E4E5C8C5 /* VerifyEmailStepView.swift */,
-				D5AD98D00BE8770D8A4C1167 /* WelcomeStepView.swift */,
+				7CC40BBC7992AF097E0F2F93 /* EditorialEntityEditorView.swift */,
 			);
-			name = Onboarding;
+			name = EntityEditor;
 			sourceTree = "<group>";
 		};
-		861469E4DBAE7A854A135847 /* Repositories */ = {
+		15073A75D15F28B1B8DC6096 /* Events */ = {
 			isa = PBXGroup;
 			children = (
-				9F0909984463028752575C9A /* ContentRepository.swift */,
-				D374EB500020709BA2223FE3 /* EditorialRepository.swift */,
-				55327F8FFEE5DC296BBF4A10 /* EventRepository.swift */,
-				DCBA1F321C95EAEF7ADA03D5 /* FavoritesCache.swift */,
-				FDD59146F0FDAEBD852D8D7D /* UserRepository.swift */,
+				3271F83560B4A71645600CEA /* EditorialEventsListView.swift */,
 			);
-			name = Repositories;
+			name = Events;
 			sourceTree = "<group>";
 		};
-		88E7CF4D7BBE192E22CAB645 /* DesignSystem */ = {
+		1710435EE62E7C6B228E00BD /* Home */ = {
 			isa = PBXGroup;
 			children = (
-				3793E5322CA7C0B284EF0BCF /* Components */,
-				145A8CD092EC604209DE7935 /* Haptics.swift */,
-				2FA2297E86F8484092A63435 /* KlangradarTheme.swift */,
-			);
-			name = DesignSystem;
-			sourceTree = "<group>";
-		};
-		916AE0C6FC15EFCF9D6727C1 /* Reports */ = {
-			isa = PBXGroup;
-			children = (
-				F382CE6FCB3CB557B46A8644 /* EditorialReportsTabView.swift */,
-			);
-			name = Reports;
-			sourceTree = "<group>";
-		};
-		91A3DA9967343D1473C0AF81 /* Authentication */ = {
-			isa = PBXGroup;
-			children = (
-				52F0FAE0A403980E7015AF50 /* AuthService.swift */,
-				18414751CF8AF6167E026EBA /* AuthSession.swift */,
-				0097F49F2FEDCA9F3CEC2105 /* AuthStore.swift */,
-				F6FCF2DCADCBEC3DCA6E72DB /* BiometricAuth.swift */,
-				17A12A2B14B476A38E180D82 /* KeychainStore.swift */,
-			);
-			name = Authentication;
-			sourceTree = "<group>";
-		};
-		929785157E4259B9E78BFF3E /* Home */ = {
-			isa = PBXGroup;
-			children = (
-				1F0480953EDDDB19B8FE10B7 /* HomeView.swift */,
-				FA064B37ECB3E8325CDA4778 /* HomeViewModel.swift */,
-				945251532212CD7FCFB265D8 /* MarketingAppShellView.swift */,
-				0F9B5E47708F79890E127560 /* MarketingContentEditorView.swift */,
-				3EE22B03D96447FF4212BBA0 /* MarketingContentStore.swift */,
-				61A589A9410C9708A8E971C3 /* MarketingHomeScreenView.swift */,
+				AEAE800C61FC22C6F93A4639 /* HomeView.swift */,
+				8C299D8465F0E5925F02F4D7 /* HomeViewModel.swift */,
+				610AA2274E730024470E8C9B /* MarketingAppShellView.swift */,
+				011FCF90BFE3AB8AFA91567E /* MarketingContentEditorView.swift */,
+				698051849A1D34AC780FD160 /* MarketingContentStore.swift */,
+				2FC5EE5967820E7B639B4D87 /* MarketingHomeScreenView.swift */,
 			);
 			name = Home;
 			sourceTree = "<group>";
 		};
-		945F5206AFF91A078A2B2717 /* EventDetail */ = {
+		17F52D45526611599624C8D3 /* Directory */ = {
 			isa = PBXGroup;
 			children = (
-				D17917508D0BD4EEF4B37E37 /* EventDetailView.swift */,
+				825BD8724370AC8FDB3F2BEE /* EntityDetailView.swift */,
 			);
-			name = EventDetail;
+			name = Directory;
 			sourceTree = "<group>";
 		};
-		964F2B45CEAB0DB023C801B1 /* Models */ = {
+		1AC7EFDB9210B5EF42F3D30B /* Networking */ = {
 			isa = PBXGroup;
 			children = (
-				31CD7C7CE1A4E66320780EBC /* ConcertEvent.swift */,
-				A5B667F0319A9835E353552C /* ContentModels.swift */,
-				E256744295AD31AB8493C892 /* SampleData.swift */,
-				0CFDA3E28E1DFBC929A9EBF1 /* VenueLocation.swift */,
+				69ED109801134EC8F4E3C6B3 /* HTTPClient.swift */,
+				D811FF60F1C9C94DCC60B768 /* HomeCache.swift */,
+				168FEE83D0D65761973AE5DC /* ImageCache.swift */,
+				F54764C65C4D181B1B47AD9C /* JSONValue.swift */,
+				B6425F93DA598AABEBB507E5 /* SupabaseRESTClient.swift */,
 			);
-			name = Models;
+			name = Networking;
 			sourceTree = "<group>";
 		};
-		9A256FD342A14505A6941078 /* Collections */ = {
+		1ACAD1A38AF1F92F0C123D9D /* EventEditor */ = {
 			isa = PBXGroup;
 			children = (
-				9F73938EA0B0A2130BDE94A3 /* CollectionDetailView.swift */,
-			);
-			name = Collections;
-			sourceTree = "<group>";
-		};
-		A3F7F94875CA40F486570ACF = {
-			isa = PBXGroup;
-			children = (
-				E45D80BAA2F537A02D07ED64 /* Products */,
-				E2A9BBDE593EF65F407A72F2 /* Frameworks */,
-				FF80D21D32543D16BE863542 /* KlangradarNative */,
-				4C459E6172DFA63630891890 /* KlangradarNativeTests */,
-			);
-			sourceTree = "<group>";
-		};
-		ADDC0742FAD2F2B2CAE78F24 /* Profile */ = {
-			isa = PBXGroup;
-			children = (
-				BB1E890C5F20A2C3DC318B01 /* AGBView.swift */,
-				F0AFBD01BB98E406782765D6 /* DatenschutzView.swift */,
-				DCF25E27E4F92DE4DD0FC92D /* ImpressumView.swift */,
-				3750FB7CE989FEFECE7EFDFA /* InterestsView.swift */,
-				1406CA68F6954A9CF13B05B4 /* NotificationSettingsView.swift */,
-				A7EF3EC860E381C25D17AE81 /* ProfileAvatarEditor.swift */,
-				96FED7F0FF82E851F0E20361 /* ProfileSocialHub.swift */,
-				7E3B0CFB3C52F158B5321357 /* ProfileView.swift */,
-			);
-			name = Profile;
-			sourceTree = "<group>";
-		};
-		B48B7BA15593175C3E1C3C60 /* Features */ = {
-			isa = PBXGroup;
-			children = (
-				403E47E7C9CFC9CA1ECF5EBB /* Calendar */,
-				9A256FD342A14505A6941078 /* Collections */,
-				60E9934F7DFD6D96B07951D7 /* Directory */,
-				73A2DA2C9240300CC9444B4D /* Editorial */,
-				945F5206AFF91A078A2B2717 /* EventDetail */,
-				929785157E4259B9E78BFF3E /* Home */,
-				3A22D17FEEAEE8296DFF942D /* Map */,
-				83FCCECB85B9CE1AA879B35D /* Onboarding */,
-				ADDC0742FAD2F2B2CAE78F24 /* Profile */,
-				F7D4492A9F43C4B457CA2E08 /* Search */,
-				09214E209300AA8DE0A60EC5 /* Settings */,
-				CC7F1B4D1FC72E5F7532E9F3 /* Shared */,
-			);
-			name = Features;
-			sourceTree = "<group>";
-		};
-		B686548211D6F42AAFBB46C0 /* Today */ = {
-			isa = PBXGroup;
-			children = (
-				FE54C4A3A9BAB891EF889CE2 /* EditorialTodayView.swift */,
-			);
-			name = Today;
-			sourceTree = "<group>";
-		};
-		B6B96E20BF8A7AF9F9FBB358 /* Utilities */ = {
-			isa = PBXGroup;
-			children = (
-				2B8A6A39F7A9002757C80BC3 /* AddToCalendarView.swift */,
-				7D4EABFE09E5A5766F7E4E7C /* IcsExport.swift */,
-			);
-			name = Utilities;
-			sourceTree = "<group>";
-		};
-		B7CF0D3EE10656F9E0F20EF9 /* EventEditor */ = {
-			isa = PBXGroup;
-			children = (
-				7859331F7E51FE72E5AD4BC3 /* EditorialEventEditorView.swift */,
+				03B539B407134632F4DF43C0 /* EditorialEventEditorView.swift */,
 			);
 			name = EventEditor;
 			sourceTree = "<group>";
 		};
-		BB3CA59E9F41F5F2A1633FBA /* Core */ = {
+		1C83EF9787CA2D837C7982B1 /* Shared */ = {
 			isa = PBXGroup;
 			children = (
-				F22B855F9F57C2687D97E060 /* Attendance */,
-				91A3DA9967343D1473C0AF81 /* Authentication */,
-				F7F401F8049807A05495B3C7 /* Configuration */,
-				DD42956B71D80FF8D3FC72B9 /* GenreFilterRouter.swift */,
-				5594DB5BED923C4FE74A1532 /* Location */,
-				3302FB5DCF29645FE28DCAEC /* Networking */,
-				7050753CE47F0A5C5B7AACBF /* Regions */,
-				861469E4DBAE7A854A135847 /* Repositories */,
-				B6B96E20BF8A7AF9F9FBB358 /* Utilities */,
-			);
-			name = Core;
-			sourceTree = "<group>";
-		};
-		C69AE0D0A3E16DB925E0158E /* Shell */ = {
-			isa = PBXGroup;
-			children = (
-				8FC15074F495979A5EBA5BE7 /* EditorialGlobalToolbar.swift */,
-				F15499FC195134912E4DD1C8 /* EditorialSearchView.swift */,
-				105376EB237900C5C31A485A /* EditorialShellView.swift */,
-				7FE3A682A926733690400A8A /* RecentlyEditedStore.swift */,
-			);
-			name = Shell;
-			sourceTree = "<group>";
-		};
-		CC7F1B4D1FC72E5F7532E9F3 /* Shared */ = {
-			isa = PBXGroup;
-			children = (
-				61FB738C201522FAA7BE7D33 /* ReportContentSheet.swift */,
+				3F6E579575F17FA74C79295B /* ReportContentSheet.swift */,
 			);
 			name = Shared;
 			sourceTree = "<group>";
 		};
-		D21060EC865C1A469F9C6E7A /* ImageCrop */ = {
+		1E0FE893DB11A71EFE816061 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				87ED4904A253A8E324871893 /* EditorialImageCropView.swift */,
-			);
-			name = ImageCrop;
-			sourceTree = "<group>";
-		};
-		E2A9BBDE593EF65F407A72F2 /* Frameworks */ = {
-			isa = PBXGroup;
-			children = (
-				46D3CF0A4D5DA151787C20E2 /* iOS */,
-			);
-			name = Frameworks;
-			sourceTree = "<group>";
-		};
-		E45D80BAA2F537A02D07ED64 /* Products */ = {
-			isa = PBXGroup;
-			children = (
-				79C7FD434805A89B5DA70672 /* KlangradarNative.app */,
-				3BCFBFB5EE1D83BC0107334F /* KlangradarNativeTests.xctest */,
+				9248A88CFE77B8421812B44B /* KlangradarNative.app */,
+				B5C12CAEBA694A6E81A0022E /* KlangradarNativeTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
 		};
-		F22B855F9F57C2687D97E060 /* Attendance */ = {
+		2EEF0FEB69D1D35CF6D969EB /* DesignSystem */ = {
 			isa = PBXGroup;
 			children = (
-				C709B642E2AEFCA3DE3FD367 /* AttendanceConfirmationPrompt.swift */,
-				5BEAF0F2AD4B0E1A51A21AFC /* AttendanceLocationMonitor.swift */,
+				923B51ED488E9612E2E4E43F /* Components */,
+				E15FBA70434E0D67076BA00B /* Haptics.swift */,
+				E6D1EF5CCDCD21904E907DAD /* KlangradarTheme.swift */,
 			);
-			name = Attendance;
+			name = DesignSystem;
 			sourceTree = "<group>";
 		};
-		F7D4492A9F43C4B457CA2E08 /* Search */ = {
+		32BBE0C720A8CBFA521DFBEB /* Authentication */ = {
 			isa = PBXGroup;
 			children = (
-				378DB42F9E78E6D576E7852C /* SearchView.swift */,
-				744D838319754D1CF8CF6669 /* SpeechSearchController.swift */,
+				44A2C0F280874A90F895BB6F /* AuthService.swift */,
+				C6DA01FE0665A7F9DA7CDCB4 /* AuthSession.swift */,
+				2718F9393FDB3DB6DC880A30 /* AuthStore.swift */,
+				2513DB56A4CE60B1D7BE647E /* BiometricAuth.swift */,
+				8F4A46147E42B9F93EF6BAAD /* KeychainStore.swift */,
 			);
-			name = Search;
+			name = Authentication;
 			sourceTree = "<group>";
 		};
-		F7F401F8049807A05495B3C7 /* Configuration */ = {
+		3FE9EED9D44D487E7E573B07 /* Domain */ = {
 			isa = PBXGroup;
 			children = (
-				048436BD89ED51F5CBC696A5 /* APIConfiguration.swift */,
-			);
-			name = Configuration;
-			sourceTree = "<group>";
-		};
-		F9A54578AB6CF7295E0DDFCB /* Domain */ = {
-			isa = PBXGroup;
-			children = (
-				964F2B45CEAB0DB023C801B1 /* Models */,
+				4179E88CF01F23D962AC7730 /* Models */,
 			);
 			name = Domain;
 			sourceTree = "<group>";
 		};
-		FF80D21D32543D16BE863542 /* KlangradarNative */ = {
+		4179E88CF01F23D962AC7730 /* Models */ = {
 			isa = PBXGroup;
 			children = (
-				2E466C6FDE80E286B40771D5 /* App */,
-				BB3CA59E9F41F5F2A1633FBA /* Core */,
-				88E7CF4D7BBE192E22CAB645 /* DesignSystem */,
-				F9A54578AB6CF7295E0DDFCB /* Domain */,
-				B48B7BA15593175C3E1C3C60 /* Features */,
-				344E5E38467CE783D8A2E000 /* Resources */,
+				284266A3CF205CB683D0AC85 /* ConcertEvent.swift */,
+				A44F279B8E4B87017D77255C /* ContentModels.swift */,
+				2879CC5CD6BA5172F85EEE8D /* SampleData.swift */,
+				6667FE83A05200CFC5231D42 /* VenueLocation.swift */,
+			);
+			name = Models;
+			sourceTree = "<group>";
+		};
+		43E214C3DE209B531EE62172 /* Repositories */ = {
+			isa = PBXGroup;
+			children = (
+				BD4623666B8036D87605E508 /* ContentRepository.swift */,
+				E42F06D0C7920FE8986E02F9 /* EditorialRepository.swift */,
+				B8959F6315C7974ACEF1857B /* EventRepository.swift */,
+				22A22A89D97F5AEAC57CFBE0 /* FavoritesCache.swift */,
+				CA77211E442E747F744CCDE9 /* UserRepository.swift */,
+			);
+			name = Repositories;
+			sourceTree = "<group>";
+		};
+		4932EA151ECA39E7866CB592 /* KlangradarNativeTests */ = {
+			isa = PBXGroup;
+			children = (
+				5A90C7EC37822645602FEA2C /* CityRegionOptionTests.swift */,
+				2B71F21DFAE9A47EE82CE0BA /* ConcertEventTests.swift */,
+				85B365C498558659310A25C1 /* EditorialCropMathTests.swift */,
+				FA4F0DC9DB97E45E99DFF805 /* EditorialProgramOCRTests.swift */,
+				8B223046F25910383BB2F730 /* EditorialRepositoryDeleteTests.swift */,
+				BEC4DA6BA0B04AC376A7FC75 /* VenueLocationTests.swift */,
+			);
+			name = KlangradarNativeTests;
+			sourceTree = "<group>";
+		};
+		4F173FC5522806E025FE48A7 /* Shell */ = {
+			isa = PBXGroup;
+			children = (
+				334E7AE2E7EDEE55A55AAB8A /* EditorialGlobalToolbar.swift */,
+				7B36EBFC644C3DE4E3AA22D9 /* EditorialSearchView.swift */,
+				E8279BEFAB1D4CE4AA6E5D15 /* EditorialShellView.swift */,
+				D84115ADD960227B5718C5FC /* RecentlyEditedStore.swift */,
+			);
+			name = Shell;
+			sourceTree = "<group>";
+		};
+		56F5EA41FEA0097E40342FD7 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				400D8A40F15F92F6125C0D67 /* AppDelegate.swift */,
+				FF3C7B8E109910E6DB7E2E1C /* AppEnvironment.swift */,
+				588BCAD0C6C303CC007374A1 /* KlangradarNativeApp.swift */,
+				A04E8EC084410944EE9AAE6B /* RootTabView.swift */,
+			);
+			name = App;
+			sourceTree = "<group>";
+		};
+		5B2FF56A942A91C0D00068FD /* Location */ = {
+			isa = PBXGroup;
+			children = (
+				E3D7F5FFE6AC7C6515911C3B /* LocationRequester.swift */,
+			);
+			name = Location;
+			sourceTree = "<group>";
+		};
+		61316B178BEB2179B453F40E /* Reports */ = {
+			isa = PBXGroup;
+			children = (
+				4500E6BCC479279D0BC946AC /* EditorialReportsTabView.swift */,
+			);
+			name = Reports;
+			sourceTree = "<group>";
+		};
+		683722221DD090A732F3A752 /* Attendance */ = {
+			isa = PBXGroup;
+			children = (
+				1CBCBC9240721B778B95EE5A /* AttendanceConfirmationPrompt.swift */,
+				C821C0FD125416D597792438 /* AttendanceLocationMonitor.swift */,
+			);
+			name = Attendance;
+			sourceTree = "<group>";
+		};
+		6C261AA0DE289AC6CA535EAA = {
+			isa = PBXGroup;
+			children = (
+				1E0FE893DB11A71EFE816061 /* Products */,
+				EF8D6D5256CA4E5107B52254 /* Frameworks */,
+				EF1177B41F2B05D52F78DD30 /* KlangradarNative */,
+				4932EA151ECA39E7866CB592 /* KlangradarNativeTests */,
+			);
+			sourceTree = "<group>";
+		};
+		70A124EF4B0C253007811D6F /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				86489F19894530D925283C99 /* Calendar */,
+				E289AF521DA8CE5EAAA55B89 /* Collections */,
+				17F52D45526611599624C8D3 /* Directory */,
+				DE6F5379F8280AA915DE9372 /* Editorial */,
+				CA2CAB45CC7A4B4FC85A0119 /* EventDetail */,
+				1710435EE62E7C6B228E00BD /* Home */,
+				FE60E8FF7400D2D19757E9EF /* Map */,
+				F2FB045A4CD1F1B053E5BD2C /* Onboarding */,
+				CF0A103B8D10C1345BDB221D /* Profile */,
+				FB73C86F4AC58D91B791CF0E /* Search */,
+				DF6AF7A5659BAD2B59EF4AEF /* Settings */,
+				1C83EF9787CA2D837C7982B1 /* Shared */,
+			);
+			name = Features;
+			sourceTree = "<group>";
+		};
+		72A50E352D7B1705ED7808E4 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				3A22C734DC9CBF150681C700 /* Assets.xcassets */,
+			);
+			name = Resources;
+			sourceTree = "<group>";
+		};
+		78821B4D821FE7610052ADFE /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				F5CD8132E84371350EDD4FE7 /* EditorialAIAssistantView.swift */,
+				86AFF1D82012C16551A66547 /* EditorialSharedViews.swift */,
+			);
+			name = Shared;
+			sourceTree = "<group>";
+		};
+		7DD275571012840004D58946 /* Utilities */ = {
+			isa = PBXGroup;
+			children = (
+				13EBA46008242B439485EE39 /* AddToCalendarView.swift */,
+				67329E895F3780EEB775ED9D /* IcsExport.swift */,
+			);
+			name = Utilities;
+			sourceTree = "<group>";
+		};
+		838A31E5FB5BB45C35C71DE2 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				683722221DD090A732F3A752 /* Attendance */,
+				32BBE0C720A8CBFA521DFBEB /* Authentication */,
+				EC4B3BE5D1B02265F346733C /* Configuration */,
+				453C2DF2F97946F9C8F9BD8B /* GenreFilterRouter.swift */,
+				5B2FF56A942A91C0D00068FD /* Location */,
+				1AC7EFDB9210B5EF42F3D30B /* Networking */,
+				DF3D19AC4FD559FFA3813F9E /* Regions */,
+				43E214C3DE209B531EE62172 /* Repositories */,
+				7DD275571012840004D58946 /* Utilities */,
+			);
+			name = Core;
+			sourceTree = "<group>";
+		};
+		86489F19894530D925283C99 /* Calendar */ = {
+			isa = PBXGroup;
+			children = (
+				1DD9078356BE1DE6EBB55FE5 /* EventCalendarView.swift */,
+			);
+			name = Calendar;
+			sourceTree = "<group>";
+		};
+		923B51ED488E9612E2E4E43F /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				9791A11D2D559B5CF281FA3D /* CachedAsyncImage.swift */,
+				E20C3B64C5E340661575EE9A /* CroppedAsyncImage.swift */,
+				CC86997EC4A5165668B7B697 /* EventArtwork.swift */,
+				F454E3F2A0E4E3EDE8348EC5 /* EventCard.swift */,
+				2076093E066AD322AAB99691 /* GlassIconButton.swift */,
+				476D7A87DF4012218025648B /* HiddenScrollEdgeNavigationBar.swift */,
+				E2FE0DD41137CE1A144F65AA /* LiquidGlassSurface.swift */,
+			);
+			name = Components;
+			sourceTree = "<group>";
+		};
+		96984467511DB1D85CD65B6D /* CreateFlows */ = {
+			isa = PBXGroup;
+			children = (
+				3C355E77205B7F1E36109F5C /* EditorialCreateEntityView.swift */,
+			);
+			name = CreateFlows;
+			sourceTree = "<group>";
+		};
+		9F1691CE4C84B930EFF1E1C7 /* ProgramScan */ = {
+			isa = PBXGroup;
+			children = (
+				98089858538DF92B24F7A46E /* EditorialDocumentScanner.swift */,
+				3FD817BCA7A8E9A0C8538639 /* EditorialProgramOCR.swift */,
+				E44D3F639F52D54A14E4C76A /* EditorialProgramScanView.swift */,
+			);
+			name = ProgramScan;
+			sourceTree = "<group>";
+		};
+		A5B78DB2ACE894D89264B550 /* ImageCrop */ = {
+			isa = PBXGroup;
+			children = (
+				1CDC5BD1C7643C193F9D6F1E /* EditorialImageCropView.swift */,
+			);
+			name = ImageCrop;
+			sourceTree = "<group>";
+		};
+		A7ADB5FBF08DBF5536A07D4A /* VenueCreate */ = {
+			isa = PBXGroup;
+			children = (
+				8073904A6A166EC933837DC3 /* EditorialCreateVenueView.swift */,
+				6889B3D02EE9859AAACE334E /* EditorialLocationSearch.swift */,
+			);
+			name = VenueCreate;
+			sourceTree = "<group>";
+		};
+		B80596CF000972BB4D4BF5AF /* Today */ = {
+			isa = PBXGroup;
+			children = (
+				D33E8D989652D3D9BE41B5E5 /* EditorialTodayView.swift */,
+			);
+			name = Today;
+			sourceTree = "<group>";
+		};
+		CA2CAB45CC7A4B4FC85A0119 /* EventDetail */ = {
+			isa = PBXGroup;
+			children = (
+				78B55DCD3BD82DF057211248 /* EventDetailView.swift */,
+			);
+			name = EventDetail;
+			sourceTree = "<group>";
+		};
+		CF0A103B8D10C1345BDB221D /* Profile */ = {
+			isa = PBXGroup;
+			children = (
+				0610BE67CD50248408093D5E /* AGBView.swift */,
+				2A6A0E43803CBA03DA1EB925 /* DatenschutzView.swift */,
+				4D1146DBBB24A10F287F87E9 /* ImpressumView.swift */,
+				FA8F144D40C15391C4989954 /* InterestsView.swift */,
+				C4B25C634A27FACAFEBD81F2 /* NotificationSettingsView.swift */,
+				0ECEABEC55D99F523E7C0DEB /* ProfileAvatarEditor.swift */,
+				1115305A5F3EEC6C2B163154 /* ProfileSocialHub.swift */,
+				34E76F8820832D7FAC64E987 /* ProfileView.swift */,
+			);
+			name = Profile;
+			sourceTree = "<group>";
+		};
+		D9B173505C917C96BEB616AA /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				B60B6053225DC8E045EBE42D /* Foundation.framework */,
+			);
+			name = iOS;
+			sourceTree = "<group>";
+		};
+		DE6F5379F8280AA915DE9372 /* Editorial */ = {
+			isa = PBXGroup;
+			children = (
+				96984467511DB1D85CD65B6D /* CreateFlows */,
+				09A9BDB6463086ACF7D6A06D /* EntityEditor */,
+				1ACAD1A38AF1F92F0C123D9D /* EventEditor */,
+				15073A75D15F28B1B8DC6096 /* Events */,
+				A5B78DB2ACE894D89264B550 /* ImageCrop */,
+				071EFB5A838674F3A358BC4B /* Media */,
+				DFF2A242BE2E06B8FD9802EA /* More */,
+				9F1691CE4C84B930EFF1E1C7 /* ProgramScan */,
+				E96EB1D14F21E84A95C9A4B9 /* QuickFix */,
+				61316B178BEB2179B453F40E /* Reports */,
+				78821B4D821FE7610052ADFE /* Shared */,
+				4F173FC5522806E025FE48A7 /* Shell */,
+				B80596CF000972BB4D4BF5AF /* Today */,
+				A7ADB5FBF08DBF5536A07D4A /* VenueCreate */,
+			);
+			name = Editorial;
+			sourceTree = "<group>";
+		};
+		DF3D19AC4FD559FFA3813F9E /* Regions */ = {
+			isa = PBXGroup;
+			children = (
+				F429384AC105C65BEB0661E6 /* CityStore.swift */,
+			);
+			name = Regions;
+			sourceTree = "<group>";
+		};
+		DF6AF7A5659BAD2B59EF4AEF /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				3312DBCA3DE465A9A19FE7A6 /* CitySwitcherView.swift */,
+			);
+			name = Settings;
+			sourceTree = "<group>";
+		};
+		DFF2A242BE2E06B8FD9802EA /* More */ = {
+			isa = PBXGroup;
+			children = (
+				E7DCF17C1753411EDB7107D3 /* EditorialMoreView.swift */,
+			);
+			name = More;
+			sourceTree = "<group>";
+		};
+		E289AF521DA8CE5EAAA55B89 /* Collections */ = {
+			isa = PBXGroup;
+			children = (
+				FB8ED8D832FD0D27514A4091 /* CollectionDetailView.swift */,
+			);
+			name = Collections;
+			sourceTree = "<group>";
+		};
+		E96EB1D14F21E84A95C9A4B9 /* QuickFix */ = {
+			isa = PBXGroup;
+			children = (
+				F1B596F3F086360E442DFAAC /* EditorialQuickFixView.swift */,
+			);
+			name = QuickFix;
+			sourceTree = "<group>";
+		};
+		EC4B3BE5D1B02265F346733C /* Configuration */ = {
+			isa = PBXGroup;
+			children = (
+				16A490301DA8B38411A2152E /* APIConfiguration.swift */,
+			);
+			name = Configuration;
+			sourceTree = "<group>";
+		};
+		EF1177B41F2B05D52F78DD30 /* KlangradarNative */ = {
+			isa = PBXGroup;
+			children = (
+				56F5EA41FEA0097E40342FD7 /* App */,
+				838A31E5FB5BB45C35C71DE2 /* Core */,
+				2EEF0FEB69D1D35CF6D969EB /* DesignSystem */,
+				3FE9EED9D44D487E7E573B07 /* Domain */,
+				70A124EF4B0C253007811D6F /* Features */,
+				72A50E352D7B1705ED7808E4 /* Resources */,
 			);
 			name = KlangradarNative;
+			sourceTree = "<group>";
+		};
+		EF8D6D5256CA4E5107B52254 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				D9B173505C917C96BEB616AA /* iOS */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		F2FB045A4CD1F1B053E5BD2C /* Onboarding */ = {
+			isa = PBXGroup;
+			children = (
+				0BF4DBF846174FE61ECBB49E /* CityPickerStepView.swift */,
+				C7291D88ACD7B35CE290FCC2 /* FollowProfilesStepView.swift */,
+				E2306B27D29BEA70BB20C8A1 /* ForgotPasswordView.swift */,
+				9B0068FF1DAC1E239A284EAB /* InterestsStepView.swift */,
+				514C77B3AE769BD586355413 /* NotificationsStepView.swift */,
+				39ABFEDACB5D11CA53AF52DF /* OnboardingStepScaffold.swift */,
+				79F5C7E0B847FA2617EA66E0 /* OnboardingSummaryView.swift */,
+				840161EEEB6E424A31F40B4B /* OnboardingView.swift */,
+				ED5D2FE81680DDE2224BCAE5 /* PasswordLoginView.swift */,
+				9C97F7FA022924710A5796FD /* PersonalDataStepView.swift */,
+				F8AA5213BBFF83F37B6FE34C /* SignUpStepView.swift */,
+				B9EEDF66B782F41BEE616A4D /* VerifyEmailStepView.swift */,
+				1BFEDC904B41882F2F2FCB47 /* WelcomeStepView.swift */,
+			);
+			name = Onboarding;
+			sourceTree = "<group>";
+		};
+		FB73C86F4AC58D91B791CF0E /* Search */ = {
+			isa = PBXGroup;
+			children = (
+				9AB3FFB35D4BAE0D1226FA09 /* SearchView.swift */,
+				495D136179F05FC8F6DF188A /* SpeechSearchController.swift */,
+			);
+			name = Search;
+			sourceTree = "<group>";
+		};
+		FE60E8FF7400D2D19757E9EF /* Map */ = {
+			isa = PBXGroup;
+			children = (
+				2FEBC5F0764AC68C81769AAF /* VenueMapView.swift */,
+			);
+			name = Map;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		B2E30A88EEB93088C1C03DFB /* KlangradarNative */ = {
+		39CEE6ECBA229E1221296458 /* KlangradarNative */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = B69B6B090354E0F005C25F79 /* Build configuration list for PBXNativeTarget "KlangradarNative" */;
+			buildConfigurationList = 27EF8D90020B8213BD3EA89A /* Build configuration list for PBXNativeTarget "KlangradarNative" */;
 			buildPhases = (
-				5C83DD307F41ADE58D453FDA /* Sources */,
-				1AC21F95938D836ED7DFDD07 /* Frameworks */,
-				C9213CC6CE2A51787A62072C /* Resources */,
+				0B5929F5B0EDE5EFA3F87194 /* Sources */,
+				78B5639CD860E961218A08DE /* Frameworks */,
+				FCF3FAB60E0383C14E34F7D5 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -767,37 +767,37 @@
 			);
 			name = KlangradarNative;
 			productName = KlangradarNative;
-			productReference = 79C7FD434805A89B5DA70672 /* KlangradarNative.app */;
+			productReference = 9248A88CFE77B8421812B44B /* KlangradarNative.app */;
 			productType = "com.apple.product-type.application";
 		};
-		C1E0ED272C27DA0E4A6E2D9C /* KlangradarNativeTests */ = {
+		3CC2DB2A721892F684DE285C /* KlangradarNativeTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 3015C51FB227C1EAFC9ACC87 /* Build configuration list for PBXNativeTarget "KlangradarNativeTests" */;
+			buildConfigurationList = 8509AEF3863DAE7EDAFAAC3D /* Build configuration list for PBXNativeTarget "KlangradarNativeTests" */;
 			buildPhases = (
-				1F274BE82B958420F936B3BB /* Sources */,
-				8F6CC5AFE0CC990D9933EE99 /* Frameworks */,
-				9579DD4EC9F33CD143035451 /* Resources */,
+				AEC1DEAC90F4AC84D674027F /* Sources */,
+				479C523C3B59CE1A9E8641A4 /* Frameworks */,
+				2E0B48D84541E50606A63C5C /* Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				97D9CBA2ABEA08640DBF732E /* PBXTargetDependency */,
+				C7C8BF5EAFF3B47876B6318F /* PBXTargetDependency */,
 			);
 			name = KlangradarNativeTests;
 			productName = KlangradarNativeTests;
-			productReference = 3BCFBFB5EE1D83BC0107334F /* KlangradarNativeTests.xctest */;
+			productReference = B5C12CAEBA694A6E81A0022E /* KlangradarNativeTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		45B841E8481848AD3DE8467A /* Project object */ = {
+		5E2271DA4C31809B2B349631 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
 				LastSwiftUpdateCheck = 2660;
 				LastUpgradeCheck = 2660;
 			};
-			buildConfigurationList = 314A81569D84F2A2E9B52E96 /* Build configuration list for PBXProject "KlangradarNative" */;
+			buildConfigurationList = 82201F8F7ABBB93E74FA7599 /* Build configuration list for PBXProject "KlangradarNative" */;
 			compatibilityVersion = "Xcode 3.2";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -805,242 +805,212 @@
 				en,
 				Base,
 			);
-			mainGroup = A3F7F94875CA40F486570ACF;
+			mainGroup = 6C261AA0DE289AC6CA535EAA;
 			minimizedProjectReferenceProxies = 0;
 			preferredProjectObjectVersion = 100;
-			productRefGroup = E45D80BAA2F537A02D07ED64 /* Products */;
+			productRefGroup = 1E0FE893DB11A71EFE816061 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				B2E30A88EEB93088C1C03DFB /* KlangradarNative */,
-				C1E0ED272C27DA0E4A6E2D9C /* KlangradarNativeTests */,
+				39CEE6ECBA229E1221296458 /* KlangradarNative */,
+				3CC2DB2A721892F684DE285C /* KlangradarNativeTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		9579DD4EC9F33CD143035451 /* Resources */ = {
+		2E0B48D84541E50606A63C5C /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		C9213CC6CE2A51787A62072C /* Resources */ = {
+		FCF3FAB60E0383C14E34F7D5 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				0A1C85F5F3300009D74FA5BE /* Assets.xcassets in Resources */,
+				4183D0B9FE7B680EA318FB44 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		1F274BE82B958420F936B3BB /* Sources */ = {
+		0B5929F5B0EDE5EFA3F87194 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				56D9A78AA61F51A4E7523736 /* CityRegionOptionTests.swift in Sources */,
-				ED4A90FB4A47F7989D7F9718 /* ConcertEventTests.swift in Sources */,
-				0612AFB5684115B67E706514 /* EditorialCropMathTests.swift in Sources */,
-				159DCD479C4766AD5A39E667 /* EditorialProgramOCRTests.swift in Sources */,
-				FEEC515534C74EE79F9F11A2 /* EditorialRepositoryDeleteTests.swift in Sources */,
-				90CADCE3CAEAEF9558393C24 /* VenueLocationTests.swift in Sources */,
+				CEBC84C9E1F3A64B57A23177 /* AppDelegate.swift in Sources */,
+				9634277045FBFF21C3969668 /* AppEnvironment.swift in Sources */,
+				04855143319B585895F70DE4 /* KlangradarNativeApp.swift in Sources */,
+				978BF9E53A45F0CDDB17ED55 /* RootTabView.swift in Sources */,
+				0091622962ACA1D0D5584BDA /* AttendanceConfirmationPrompt.swift in Sources */,
+				E4E3DDC85DA0D1B4455B7D06 /* AttendanceLocationMonitor.swift in Sources */,
+				5AA3238817BEBF0C800352F1 /* AuthService.swift in Sources */,
+				70FAEC2BD293F7F746B39AFA /* AuthSession.swift in Sources */,
+				30FBC524498583E898D6BD49 /* AuthStore.swift in Sources */,
+				D4C742D6B6A8A327EC4D28A6 /* BiometricAuth.swift in Sources */,
+				32DD0CE7970B69B0968CAA67 /* KeychainStore.swift in Sources */,
+				8AFC28BEB40183455E769EA4 /* APIConfiguration.swift in Sources */,
+				9236A4BB5BF7C3E69DC6A8CE /* GenreFilterRouter.swift in Sources */,
+				81003A8FFE663BC8F332C685 /* LocationRequester.swift in Sources */,
+				5EBB2A3A75E6B2003EE9D1CB /* HTTPClient.swift in Sources */,
+				CAC638E8DE6B29393FD2AD46 /* HomeCache.swift in Sources */,
+				4B24DA11C471D55D45CFEB2F /* ImageCache.swift in Sources */,
+				F55751B57A6BC95AA7287F0A /* JSONValue.swift in Sources */,
+				8E9839F45A2BB26A5CE77E59 /* SupabaseRESTClient.swift in Sources */,
+				B6EBD6BFC1E134546921BFB8 /* CityStore.swift in Sources */,
+				2345E074C3C9B64A9F59EDDD /* ContentRepository.swift in Sources */,
+				B36A8F55F96412F42C03FB00 /* EditorialRepository.swift in Sources */,
+				C55216C8D895967686851CD9 /* EventRepository.swift in Sources */,
+				83CDFE4C469BC573E98DA5E5 /* FavoritesCache.swift in Sources */,
+				7A0710D9FE76C31545066838 /* UserRepository.swift in Sources */,
+				B8B1B614A89713AC2EF1D2E6 /* AddToCalendarView.swift in Sources */,
+				2D353DB9CD76A487A230BDB2 /* IcsExport.swift in Sources */,
+				DBE8751BA43EE00000181922 /* CachedAsyncImage.swift in Sources */,
+				A1341167969A67106F1FFF76 /* CroppedAsyncImage.swift in Sources */,
+				3E1F2EAAA35F38B8F3335940 /* EventArtwork.swift in Sources */,
+				D5E60091AE88583512498CE6 /* EventCard.swift in Sources */,
+				8B01FF82890DF58D84FB2564 /* GlassIconButton.swift in Sources */,
+				30B57025FDCCD0DD1A54A0D8 /* HiddenScrollEdgeNavigationBar.swift in Sources */,
+				484863DC99776312B5E67C98 /* LiquidGlassSurface.swift in Sources */,
+				0CA8B6A46EB4135137FDCDB4 /* Haptics.swift in Sources */,
+				C02C7C5D8E7FCC5FDC2796BD /* KlangradarTheme.swift in Sources */,
+				576C9DC636823EEF870E449E /* ConcertEvent.swift in Sources */,
+				0A5CD1F5908FE5F3AA1794FC /* ContentModels.swift in Sources */,
+				A2FD5429CCCFE20359958709 /* SampleData.swift in Sources */,
+				90A8A9FEA5AC7A5EB61499D3 /* VenueLocation.swift in Sources */,
+				03443FD6F69BE43319F6DE20 /* EventCalendarView.swift in Sources */,
+				0C104703976EF1219061AFA4 /* CollectionDetailView.swift in Sources */,
+				3F942CC720C921D92DB5DEA2 /* EntityDetailView.swift in Sources */,
+				660C82213E4044F67D175D39 /* EditorialCreateEntityView.swift in Sources */,
+				473D76E500F928F2319A6540 /* EditorialEntityEditorView.swift in Sources */,
+				433D73A4261546E4DDD11C06 /* EditorialEventEditorView.swift in Sources */,
+				5154ACF409BBB3EFE5BF0327 /* EditorialEventsListView.swift in Sources */,
+				65C0ECEB9352B6BD3EDF1857 /* EditorialImageCropView.swift in Sources */,
+				6D81B5AA14E704A03FB000FB /* EditorialGalleryEditor.swift in Sources */,
+				B6B6315C1739740C8CB345AD /* EditorialImagePickerButtons.swift in Sources */,
+				470522207C7B5A406775F971 /* EditorialMediaTabView.swift in Sources */,
+				757A223BA4C26CB5F8217970 /* EditorialMoreView.swift in Sources */,
+				8B0874A5A359DA5226186175 /* EditorialDocumentScanner.swift in Sources */,
+				CCEBA972B90D644AC72254D4 /* EditorialProgramOCR.swift in Sources */,
+				3E5203A758625F09540C8137 /* EditorialProgramScanView.swift in Sources */,
+				F46EA96044AEA38ACCE3F38E /* EditorialQuickFixView.swift in Sources */,
+				539308D72AD4EF7C5FB8CEE7 /* EditorialReportsTabView.swift in Sources */,
+				4BA3C40CA42E397FAAA53D7A /* EditorialAIAssistantView.swift in Sources */,
+				DB8ED0A4226696A2903A4577 /* EditorialSharedViews.swift in Sources */,
+				171348AA2970D5C5D2A8E5BB /* EditorialGlobalToolbar.swift in Sources */,
+				F7611C7119EA1BE04EC311D8 /* EditorialSearchView.swift in Sources */,
+				F89F04607B9794DFD4E5D259 /* EditorialShellView.swift in Sources */,
+				86EE449856AD2B50D8FC3E49 /* RecentlyEditedStore.swift in Sources */,
+				43438797831E33894EAEBEDA /* EditorialTodayView.swift in Sources */,
+				9ABC16FA4E10915A5EAE5A6C /* EditorialCreateVenueView.swift in Sources */,
+				EDE3611E4AC559876491F924 /* EditorialLocationSearch.swift in Sources */,
+				48DFD4FD3CC2C22758A31708 /* EventDetailView.swift in Sources */,
+				657B87D7324397FAED00EEB2 /* HomeView.swift in Sources */,
+				8BD9C37EE59530E2723B5871 /* HomeViewModel.swift in Sources */,
+				EF84ABFCEB779BC186B5D4C1 /* MarketingAppShellView.swift in Sources */,
+				90E731DCC95E291DE09B5BC5 /* MarketingContentEditorView.swift in Sources */,
+				6FF3A6622CA2EBA2A3456984 /* MarketingContentStore.swift in Sources */,
+				53B6471C2D1A7DA847AC76D7 /* MarketingHomeScreenView.swift in Sources */,
+				43341DAD141857ACAD38A46D /* VenueMapView.swift in Sources */,
+				7FA4E5670C444FF6BAA79AEC /* CityPickerStepView.swift in Sources */,
+				B2906AE3468271AD8A9496D8 /* FollowProfilesStepView.swift in Sources */,
+				863E25605E1A0C3B4B57E1E6 /* ForgotPasswordView.swift in Sources */,
+				FD0A6CC954056970789A47EB /* InterestsStepView.swift in Sources */,
+				DB044B486AB87FC229A9A865 /* NotificationsStepView.swift in Sources */,
+				853C373DF948A8E99655D127 /* OnboardingStepScaffold.swift in Sources */,
+				BA9F762C4CE0B5C578649924 /* OnboardingSummaryView.swift in Sources */,
+				E6E60D804517B983EF290E9B /* OnboardingView.swift in Sources */,
+				E7DB1582D39664BC7759B1C7 /* PasswordLoginView.swift in Sources */,
+				67A37192032C01DCC23B8D15 /* PersonalDataStepView.swift in Sources */,
+				0310A19B16C6A754718CBC62 /* SignUpStepView.swift in Sources */,
+				76E8D47AECAFB3C0B00D6630 /* VerifyEmailStepView.swift in Sources */,
+				267A8A03EA0F4C0CB8A8268E /* WelcomeStepView.swift in Sources */,
+				B51E413E53B328E200B4E4E5 /* AGBView.swift in Sources */,
+				C2FA6EC4847DDF44A0EA19F0 /* DatenschutzView.swift in Sources */,
+				A4BBDFEF91AC74199D05164F /* ImpressumView.swift in Sources */,
+				4EF8CED138D9DFC2EE538185 /* InterestsView.swift in Sources */,
+				9FC99ACCFE10917CFC6462D4 /* NotificationSettingsView.swift in Sources */,
+				B8014F857EC67B45F1FABB6A /* ProfileAvatarEditor.swift in Sources */,
+				5C9757E7493D2827403ED7B0 /* ProfileSocialHub.swift in Sources */,
+				525452D5F52C65ACB1A65EE2 /* ProfileView.swift in Sources */,
+				7CF14E23B7137985AD31C35E /* SearchView.swift in Sources */,
+				58F017BD3FD8E987D5CE2F94 /* SpeechSearchController.swift in Sources */,
+				C8078D14E6A0A039FDC92FA3 /* CitySwitcherView.swift in Sources */,
+				312EB2A0385E9AD9303E48D2 /* ReportContentSheet.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		5C83DD307F41ADE58D453FDA /* Sources */ = {
+		AEC1DEAC90F4AC84D674027F /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				1FB84CF1F289BBF42B8E948F /* AppDelegate.swift in Sources */,
-				FFB3D376E3504D3517E5F05B /* AppEnvironment.swift in Sources */,
-				A845DC4A20EE0BCF3F6346B6 /* KlangradarNativeApp.swift in Sources */,
-				14D87ADCA2E2824CC36EB3AA /* RootTabView.swift in Sources */,
-				5556EBC1A663DD4218F9920D /* AttendanceConfirmationPrompt.swift in Sources */,
-				2FCB6EB3B7B8AEEB74069F7D /* AttendanceLocationMonitor.swift in Sources */,
-				E531838C7154FCE9C83E6D75 /* AuthService.swift in Sources */,
-				F0B736C8158F6E92E1E23542 /* AuthSession.swift in Sources */,
-				33516502D135711BC625EF57 /* AuthStore.swift in Sources */,
-				B091C9295C2C1D1CDAB99B43 /* BiometricAuth.swift in Sources */,
-				CEB204573A08E9B22B6FB2EB /* KeychainStore.swift in Sources */,
-				36E6486613BD9C9BD5070484 /* APIConfiguration.swift in Sources */,
-				0C7900C51641737EA08E253B /* GenreFilterRouter.swift in Sources */,
-				0696478D67C95F6AA97A1214 /* LocationRequester.swift in Sources */,
-				C14500F3A7A394FB12A24732 /* HTTPClient.swift in Sources */,
-				667DF761F351320E59B7F0A1 /* HomeCache.swift in Sources */,
-				D78284A4F36DDDCB434DFF40 /* ImageCache.swift in Sources */,
-				6FFD7836A2997709D473D6F2 /* JSONValue.swift in Sources */,
-				08E2FD972EFFB3A68C1CA5D9 /* SupabaseRESTClient.swift in Sources */,
-				60EAE2EAA194DFD9F5056373 /* CityStore.swift in Sources */,
-				D24BA145ED81A733B1D91D26 /* ContentRepository.swift in Sources */,
-				40265F58F390EA436BF31CE5 /* EditorialRepository.swift in Sources */,
-				684BEC649E0F796219A153B8 /* EventRepository.swift in Sources */,
-				6D120F4C31C68D2C80018E6E /* FavoritesCache.swift in Sources */,
-				FAF7FC3D9FACEC0515F73966 /* UserRepository.swift in Sources */,
-				647551D76E29162A414BF5DB /* AddToCalendarView.swift in Sources */,
-				288CB63F512B90B926060AFD /* IcsExport.swift in Sources */,
-				9DFBFE140FF69534071B33D2 /* CachedAsyncImage.swift in Sources */,
-				71AF8756BFF019348803434C /* CroppedAsyncImage.swift in Sources */,
-				F8ADABB2E4EA31403324A911 /* EventArtwork.swift in Sources */,
-				3BFA27424D5B311738899D47 /* EventCard.swift in Sources */,
-				3889ABE49D1044EE66A9C66C /* GlassIconButton.swift in Sources */,
-				BAFE8D61D80EA0C9B2A94FB1 /* HiddenScrollEdgeNavigationBar.swift in Sources */,
-				649C21AEDC1129C91F1EA398 /* LiquidGlassSurface.swift in Sources */,
-				894D1BFEAD454ECD1FE6C0B1 /* Haptics.swift in Sources */,
-				EF908A0A480324F13520C4A1 /* KlangradarTheme.swift in Sources */,
-				96D54D4BB6C23E8528690D43 /* ConcertEvent.swift in Sources */,
-				03A4C409039542C0A902C1F7 /* ContentModels.swift in Sources */,
-				91FDEE29585ED1A9A12B81C9 /* SampleData.swift in Sources */,
-				1C07617EABC9393843AD3225 /* VenueLocation.swift in Sources */,
-				07A6CC4196C76B4CDB6D7965 /* EventCalendarView.swift in Sources */,
-				FBFE67C2FDB23B168518961A /* CollectionDetailView.swift in Sources */,
-				7C0B30D9C74C75967AD4BB52 /* EntityDetailView.swift in Sources */,
-				1F55D82BDA5955E7EDC9511D /* EditorialCreateEntityView.swift in Sources */,
-				2DCACB83DE6A743219C91FCC /* EditorialEntityEditorView.swift in Sources */,
-				F7AC15BEC33AAD4DB95EE932 /* EditorialEventEditorView.swift in Sources */,
-				8CC880B911F0C8E976813CD5 /* EditorialEventsListView.swift in Sources */,
-				55784074AA6001B5F5F06000 /* EditorialImageCropView.swift in Sources */,
-				8E25A515757197FE9444E0F0 /* EditorialGalleryEditor.swift in Sources */,
-				41FA2E12133B9EC65AAF9351 /* EditorialImagePickerButtons.swift in Sources */,
-				415628C494CD80C8324B9741 /* EditorialMediaTabView.swift in Sources */,
-				EF75168F497F0C06A68F16B5 /* EditorialMoreView.swift in Sources */,
-				EF41917DDD0D279E381976B5 /* EditorialDocumentScanner.swift in Sources */,
-				CD1936207977BB35CC64FCE7 /* EditorialProgramOCR.swift in Sources */,
-				8194B8024CED3CCEA862394D /* EditorialProgramScanView.swift in Sources */,
-				97CCC4591C8E5BE4C9A64326 /* EditorialQuickFixView.swift in Sources */,
-				7E1145FDE2DA0895E0A6261C /* EditorialReportsTabView.swift in Sources */,
-				8B3028977E8E8C49118E7B0F /* EditorialAIAssistantView.swift in Sources */,
-				3BBDFF1190DEC7A1F030E64D /* EditorialSharedViews.swift in Sources */,
-				2E01DF4E2483B4F5AD68D756 /* EditorialGlobalToolbar.swift in Sources */,
-				DB4AF9F207A74C0BB396A3C8 /* EditorialSearchView.swift in Sources */,
-				5C53A83EE716E7847402ADE1 /* EditorialShellView.swift in Sources */,
-				50836ED1E5B0B3BC2E8110CD /* RecentlyEditedStore.swift in Sources */,
-				32A3F605FF27B89DD3FD9A70 /* EditorialTodayView.swift in Sources */,
-				3DF2A44E221CAED8A11A47EC /* EditorialCreateVenueView.swift in Sources */,
-				A13042338132E314D83E5769 /* EditorialLocationSearch.swift in Sources */,
-				97193F78FB4C598998F0055B /* EventDetailView.swift in Sources */,
-				92863AB3209F11BC9849F6E7 /* HomeView.swift in Sources */,
-				79189642216C39532A1BEA48 /* HomeViewModel.swift in Sources */,
-				B752DF187A58345E6FE5580E /* MarketingAppShellView.swift in Sources */,
-				5D6898B0119191F43B55DDB7 /* MarketingContentEditorView.swift in Sources */,
-				E9E3442B44871A05226FAA2F /* MarketingContentStore.swift in Sources */,
-				3A4D4452ACA8F6737F1E0038 /* MarketingHomeScreenView.swift in Sources */,
-				7A9B605099AD90B5B46E8F55 /* VenueMapView.swift in Sources */,
-				3C4088969CA5F8A4E92B75E8 /* CityPickerStepView.swift in Sources */,
-				38ED60681ABC1404CFA35BA6 /* FollowProfilesStepView.swift in Sources */,
-				66939DBF7B005531DCE03E91 /* ForgotPasswordView.swift in Sources */,
-				6AA71C33A30EAAD14CFBA0A0 /* InterestsStepView.swift in Sources */,
-				876123950C575DD399E57E77 /* NotificationsStepView.swift in Sources */,
-				26C9152C864AC22962FB3DFC /* OnboardingStepScaffold.swift in Sources */,
-				DB0A6127CE3C79BF0064D4AF /* OnboardingSummaryView.swift in Sources */,
-				D73CA795700C9A437E7B8C47 /* OnboardingView.swift in Sources */,
-				F3A467D4FB9883768B26C6D6 /* PasswordLoginView.swift in Sources */,
-				99ED7E329C98FD1A9BF40DEA /* PersonalDataStepView.swift in Sources */,
-				AAD8D95544E7363FB44403C8 /* SignUpStepView.swift in Sources */,
-				C81A24A0DC2F634A684C3FD5 /* VerifyEmailStepView.swift in Sources */,
-				A23C610D2A71B0693CD0F15D /* WelcomeStepView.swift in Sources */,
-				44C9FE7552950FB75BABDBA1 /* AGBView.swift in Sources */,
-				8A85BBABCEED62BAEA19BD59 /* DatenschutzView.swift in Sources */,
-				C69952DD8F6172F081F5495D /* ImpressumView.swift in Sources */,
-				94E3F8676F770144279E63F2 /* InterestsView.swift in Sources */,
-				96C828010BDF2E84DD41F994 /* NotificationSettingsView.swift in Sources */,
-				12C2EEDF9E0D382970EADE48 /* ProfileAvatarEditor.swift in Sources */,
-				3242EA5B422DB5653AB5CB48 /* ProfileSocialHub.swift in Sources */,
-				DCA46335D361EA76C928925D /* ProfileView.swift in Sources */,
-				2E9BEF69B9164F6DEFCAF00C /* SearchView.swift in Sources */,
-				99FF89899DA660FD5984496F /* SpeechSearchController.swift in Sources */,
-				E52ED9DF200027D4E7C8190D /* CitySwitcherView.swift in Sources */,
-				3D974E7FA9F913B16FB0D9DD /* ReportContentSheet.swift in Sources */,
+				FFB27BAD98A265C35DB5942E /* CityRegionOptionTests.swift in Sources */,
+				C03F1A8DBA0D6B18523DD7A0 /* ConcertEventTests.swift in Sources */,
+				6861DD1A79A87FA19ECD1533 /* EditorialCropMathTests.swift in Sources */,
+				3255264DD1EE79D8855781D0 /* EditorialProgramOCRTests.swift in Sources */,
+				D56161006330B60790D7A7E6 /* EditorialRepositoryDeleteTests.swift in Sources */,
+				E1BD6563A1DBC55DE3D9B5E1 /* VenueLocationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		97D9CBA2ABEA08640DBF732E /* PBXTargetDependency */ = {
+		C7C8BF5EAFF3B47876B6318F /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			name = KlangradarNative;
-			target = B2E30A88EEB93088C1C03DFB /* KlangradarNative */;
-			targetProxy = 93B774B4D42F31818AA3FEEE /* PBXContainerItemProxy */;
+			target = 39CEE6ECBA229E1221296458 /* KlangradarNative */;
+			targetProxy = 3CB73C2A131A994A56BA3D62 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-		1BAC99E78146124745DFDC3B /* Release */ = {
+		29F3C4F3F3F16AA6A658391E /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				CLANG_ANALYZER_NONNULL = YES;
-				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
-				CLANG_CXX_LIBRARY = "libc++";
-				CLANG_ENABLE_MODULES = YES;
-				CLANG_ENABLE_OBJC_ARC = YES;
-				CLANG_ENABLE_OBJC_WEAK = YES;
-				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
-				CLANG_WARN_BOOL_CONVERSION = YES;
-				CLANG_WARN_COMMA = YES;
-				CLANG_WARN_CONSTANT_CONVERSION = YES;
-				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
-				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
-				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
-				CLANG_WARN_EMPTY_BODY = YES;
-				CLANG_WARN_ENUM_CONVERSION = YES;
-				CLANG_WARN_INFINITE_RECURSION = YES;
-				CLANG_WARN_INT_CONVERSION = YES;
-				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
-				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
-				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
-				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
-				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
-				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
-				CLANG_WARN_STRICT_PROTOTYPES = YES;
-				CLANG_WARN_SUSPICIOUS_MOVE = YES;
-				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
-				CLANG_WARN_UNREACHABLE_CODE = YES;
-				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				COPY_PHASE_STRIP = NO;
-				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				ENABLE_NS_ASSERTIONS = NO;
-				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				GCC_C_LANGUAGE_STANDARD = gnu11;
-				GCC_NO_COMMON_BLOCKS = YES;
-				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
-				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
-				GCC_WARN_UNDECLARED_SELECTOR = YES;
-				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
-				GCC_WARN_UNUSED_FUNCTION = YES;
-				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MTL_ENABLE_DEBUG_INFO = NO;
-				MTL_FAST_MATH = YES;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_COMPILATION_MODE = wholemodule;
-				SWIFT_OPTIMIZATION_LEVEL = "-O";
-				SWIFT_VERSION = 5.0;
-			};
-			name = Release;
-		};
-		7776728993B67BE78AD4B820 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "";
+				DEVELOPMENT_TEAM = DVH3MYQ64A;
+				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Klangradar;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
+				INFOPLIST_KEY_NSCalendarsWriteOnlyAccessUsageDescription = "Klangradar legt Konzerte nur nach deiner Bestätigung in deinem Kalender an.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Klangradar nutzt die Kamera, um ein Profilbild aufzunehmen.";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "Klangradar nutzt Face ID, um deinen Account zu schützen.";
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Klangradar erkennt automatisch, wenn du bei einem gemerkten Konzert bist, und fragt dich dann per Benachrichtigung, ob du es als besucht markieren möchtest.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Klangradar nutzt deinen Standort, um Konzerte in deiner Nähe zu zeigen.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Klangradar nutzt das Mikrofon nur, wenn du die Sprachsuche startest.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Klangradar nutzt deine Fotomediathek, um ein Profilbild auszuwählen.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Klangradar wandelt deine Sucheingabe in Text um.";
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				PRODUCT_BUNDLE_IDENTIFIER = de.klangradar.native.tests;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = de.klangradar.native;
+				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 6.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/KlangradarNative.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/KlangradarNative";
+				TARGETED_DEVICE_FAMILY = "1,2";
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
 		};
-		8E2DA7C29CB9332A849B1CFC /* Debug */ = {
+		6B5E44BDCAC130B6868FA700 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -1102,7 +1072,7 @@
 			};
 			name = Debug;
 		};
-		B5CA4626651E6AF7041E3125 /* Debug */ = {
+		6BFB1DE8CB3D5FDE00366BB1 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -1118,49 +1088,79 @@
 			};
 			name = Debug;
 		};
-		C27EEAA4A835DFD084293787 /* Release */ = {
+		A57E91FC1830EA7608AF961D /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				BUNDLE_LOADER = "$(TEST_HOST)";
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "";
-				DEVELOPMENT_TEAM = DVH3MYQ64A;
-				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = Klangradar;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
-				INFOPLIST_KEY_NSCalendarsWriteOnlyAccessUsageDescription = "Klangradar legt Konzerte nur nach deiner Bestätigung in deinem Kalender an.";
-				INFOPLIST_KEY_NSCameraUsageDescription = "Klangradar nutzt die Kamera, um ein Profilbild aufzunehmen.";
-				INFOPLIST_KEY_NSFaceIDUsageDescription = "Klangradar nutzt Face ID, um deinen Account zu schützen.";
-				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Klangradar erkennt automatisch, wenn du bei einem gemerkten Konzert bist, und fragt dich dann per Benachrichtigung, ob du es als besucht markieren möchtest.";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Klangradar nutzt deinen Standort, um Konzerte in deiner Nähe zu zeigen.";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Klangradar nutzt das Mikrofon nur, wenn du die Sprachsuche startest.";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Klangradar nutzt deine Fotomediathek, um ein Profilbild auszuwählen.";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Klangradar wandelt deine Sucheingabe in Text um.";
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = de.klangradar.native;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = de.klangradar.native.tests;
 				SDKROOT = iphoneos;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SUPPORTS_MACCATALYST = NO;
-				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 6.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/KlangradarNative.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/KlangradarNative";
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
 		};
-		E56A80BC13364B7D374536C2 /* Debug */ = {
+		B3F927F31A34B8CD8218477B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		E2155D4272EB99066CAD6D16 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -1204,34 +1204,34 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		3015C51FB227C1EAFC9ACC87 /* Build configuration list for PBXNativeTarget "KlangradarNativeTests" */ = {
+		27EF8D90020B8213BD3EA89A /* Build configuration list for PBXNativeTarget "KlangradarNative" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				7776728993B67BE78AD4B820 /* Release */,
-				B5CA4626651E6AF7041E3125 /* Debug */,
+				29F3C4F3F3F16AA6A658391E /* Release */,
+				E2155D4272EB99066CAD6D16 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		314A81569D84F2A2E9B52E96 /* Build configuration list for PBXProject "KlangradarNative" */ = {
+		82201F8F7ABBB93E74FA7599 /* Build configuration list for PBXProject "KlangradarNative" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				8E2DA7C29CB9332A849B1CFC /* Debug */,
-				1BAC99E78146124745DFDC3B /* Release */,
+				6B5E44BDCAC130B6868FA700 /* Debug */,
+				B3F927F31A34B8CD8218477B /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		B69B6B090354E0F005C25F79 /* Build configuration list for PBXNativeTarget "KlangradarNative" */ = {
+		8509AEF3863DAE7EDAFAAC3D /* Build configuration list for PBXNativeTarget "KlangradarNativeTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				C27EEAA4A835DFD084293787 /* Release */,
-				E56A80BC13364B7D374536C2 /* Debug */,
+				A57E91FC1830EA7608AF961D /* Release */,
+				6BFB1DE8CB3D5FDE00366BB1 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};
-	rootObject = 45B841E8481848AD3DE8467A /* Project object */;
+	rootObject = 5E2271DA4C31809B2B349631 /* Project object */;
 }
