@@ -154,6 +154,7 @@ const DIFFABLE_FIELDS = [
   "price_max",
   "is_free",
   "website_url",
+  "ticket_url",
   "image_urls",
 ] as const;
 
@@ -215,7 +216,7 @@ export async function upsertRawEvent(
       const { data: existing, error } = await supabase
         .from("events")
         .select(
-          "id, title, description_de, start_datetime, end_datetime, price_min, price_max, is_free, website_url, image_urls, content_hash, primary_image_id",
+          "id, title, description_de, start_datetime, end_datetime, price_min, price_max, is_free, website_url, ticket_url, image_urls, content_hash, primary_image_id",
         )
         .eq("source_id", source.id)
         .eq("external_id", raw.externalId)
@@ -255,7 +256,7 @@ export async function upsertRawEvent(
       const { data: existing, error } = await supabase
         .from("events")
         .select(
-          "id, title, description_de, start_datetime, end_datetime, price_min, price_max, is_free, website_url, image_urls, content_hash, primary_image_id",
+          "id, title, description_de, start_datetime, end_datetime, price_min, price_max, is_free, website_url, ticket_url, image_urls, content_hash, primary_image_id",
         )
         .eq("id", match.id)
         .maybeSingle();
@@ -307,6 +308,7 @@ export async function upsertRawEvent(
         price_max: raw.priceMax,
         is_free: raw.isFree ?? false,
         website_url: raw.url,
+        ticket_url: raw.ticketUrl ?? null,
         // image_urls bewusst leer statt raw.imageUrl direkt zu übernehmen —
         // attachCoverImage() unten füllt es erst, wenn das Bild die
         // Mindestauflösung der Pipeline besteht (siehe dortiger Kommentar).
@@ -750,6 +752,7 @@ function buildUpdatePayload(raw: RawEvent): Record<string, unknown> {
   if (raw.priceMax !== null) payload.price_max = raw.priceMax;
   if (raw.isFree !== null) payload.is_free = raw.isFree;
   if (raw.url !== null) payload.website_url = raw.url;
+  if (raw.ticketUrl != null) payload.ticket_url = raw.ticketUrl;
   if (raw.attributionNotice != null) payload.attribution_notice = raw.attributionNotice;
   if (raw.attributionLicenseUrl != null) payload.attribution_license_url = raw.attributionLicenseUrl;
   return payload;
