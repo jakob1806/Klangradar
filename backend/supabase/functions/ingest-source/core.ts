@@ -18,6 +18,7 @@
 // on schedule. This file's only purpose is to make that impossible again:
 // no top-level Deno.serve() anywhere in this module.
 
+import { jsonApiNextUrl, parseJsonApi } from "./parsers/json_api.ts";
 import { parseBayernCloud } from "./parsers/bayerncloud.ts";
 import { fetchBrsoConcertsJson, parseBrso } from "./parsers/brso.ts";
 import { fetchGaertnerplatzSchedule } from "./parsers/gaertnerplatz.ts";
@@ -235,7 +236,10 @@ export async function runIngestion(
     : source.type === "gaertnerplatz" && typeof config.writeBatchSize !== "number";
   if (
     !responseEtag && !responseLastModified && httpCache.lastBodyHash === bodyHash &&
-    pendingWriteOffset === 0 && !theaterNeedsBatchInitialization
+    pendingWriteOffset === 0 && !theaterNeedsBatchInitialization &&
+    // Paginierte JSON-APIs: der Hash deckt nur Seite 1 ab, neue Termine auf
+    // Folgeseiten würden sonst unbemerkt bleiben.
+    !(source.type === "api" && config.parser === "json_api" && config.nextPath)
   ) {
     if (source.type === "staatsoper" && config.cleanupVersion !== 1) {
       const accepted = new Set(
@@ -319,9 +323,29 @@ export async function runIngestion(
         }
         break;
       }
-      case "api":
-        parsed = parseBayernCloud(responseBody);
+      case "api": {
+        if (config.parser !== "json_api") {
+          parsed = parseBayernCloud(responseBody);
+          break;
+        }
+        parsed = parseJsonApi(responseBody, config);
+        // Paginierung über config.nextPath, begrenzt durch config.maxPages.
+        const maxPages = typeof config.maxPages === "number" ? Math.min(config.maxPages, 80) : 50;
+        let pageBody = responseBody;
+        for (let page = 1; page < maxPages; page++) {
+          const nextUrl = jsonApiNextUrl(pageBody, config);
+          if (!nextUrl) break;
+          const nextRes = await fetch(nextUrl, { headers });
+          if (!nextRes.ok) {
+            parsed.errors.push(`Folgeseite ${nextUrl}: HTTP ${nextRes.status}`);
+            break;
+          }
+          pageBody = await nextRes.text();
+          const next = parseJsonApi(pageBody, config);
+          parsed = { events: [...parsed.events, ...next.events], errors: [...parsed.errors, ...next.errors] };
+        }
         break;
+      }
       case "brso":
         parsed = parseBrso(responseBody);
         break;
@@ -337,10 +361,19 @@ export async function runIngestion(
         parsed = { events: [], errors: [`unhandled source type '${source.type}'`] };
     }
   } catch (err) {
+    await clearBodyHash(supabase, source.id, config);
     const message = `parser threw: ${err instanceof Error ? err.message : String(err)}`;
     await finishRun(supabase, run.id, "failed", { events_found: 0 }, [message]);
     await touchSource(supabase, source.id, false);
     return result({ status: "failed", error: message }, 500);
+  }
+
+  // Der Body-Hash wurde oben schon VOR dem Parsen gespeichert. Lieferte der
+  // Parser nichts als Fehler, würde der nächste Lauf sonst als
+  // "skipped_unchanged" übersprungen und die Quelle bliebe dauerhaft leer,
+  // obwohl sie nie erfolgreich verarbeitet wurde (so fror alteoper.de ein).
+  if (parsed.events.length === 0 && parsed.errors.length > 0) {
+    await clearBodyHash(supabase, source.id, config);
   }
 
   // Große Saisonlisten in fortsetzbare Batches teilen. Der Cursor lebt in
@@ -773,4 +806,14 @@ async function adjustCrawlFrequency(
     : Math.min(MAX_CRAWL_FREQUENCY_MINUTES, Math.round(current * 2));
   if (next === current) return;
   await supabase.from("sources").update({ crawl_frequency_minutes: next }).eq("id", sourceId);
+}
+
+async function clearBodyHash(
+  supabase: any,
+  sourceId: string,
+  config: Record<string, unknown>,
+): Promise<void> {
+  const httpCache = { ...((config.httpCache ?? {}) as Record<string, unknown>) };
+  delete httpCache.lastBodyHash;
+  await supabase.from("sources").update({ config: { ...config, httpCache } }).eq("id", sourceId);
 }
