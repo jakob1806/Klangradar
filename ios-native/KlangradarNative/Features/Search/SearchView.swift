@@ -192,15 +192,14 @@ struct SearchView: View {
             } else {
                 Text("Ergebnisse")
                     .font(.title2.bold())
-                LazyVStack(spacing: 0) {
+                LazyVStack(spacing: 10) {
                     ForEach(visibleHits) { hit in
                         resultRow(hit)
-                        if hit.id != visibleHits.last?.id { Divider().padding(.leading, 66) }
+                            .padding(.horizontal, 12)
+                            .background(.regularMaterial, in: .rect(cornerRadius: 18, style: .continuous))
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 14)
-                .background(.regularMaterial, in: .rect(cornerRadius: 24))
             }
         }
     }
@@ -421,13 +420,11 @@ struct SearchView: View {
             .simultaneousGesture(TapGesture().onEnded { Haptics.light() })
             .buttonStyle(.plain)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, 8)
         } else if let event = events.first(where: { $0.id.uuidString == hit.id || $0.slug == hit.slug }) {
             NavigationLink(value: event) { SearchEventRow(event: event) }
                 .simultaneousGesture(TapGesture().onEnded { Haptics.light() })
                 .buttonStyle(.plain)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 8)
         } else {
             resultLabel(title: hit.title, subtitle: hit.subtitle, image: "magnifyingglass")
                 .padding(.vertical, 12)
@@ -742,24 +739,26 @@ private struct SearchEventRow: View {
     var body: some View {
         HStack(spacing: 12) {
             EventArtwork(event: event)
-                .frame(width: 60, height: 60)
+                .frame(width: 56, height: 56)
                 .clipped()
-                .clipShape(.rect(cornerRadius: 12))
-            VStack(alignment: .leading, spacing: 3) {
+                .clipShape(.rect(cornerRadius: 12, style: .continuous))
+            VStack(alignment: .leading, spacing: 4) {
                 Text(event.title)
-                    .font(.headline)
+                    .font(.subheadline.weight(.semibold))
                     .multilineTextAlignment(.leading)
-                    .lineLimit(2, reservesSpace: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Text(event.dateLine)
+                    .lineLimit(2)
+                Label(event.dateLine, systemImage: "calendar")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .labelStyle(.titleAndIcon)
                     .lineLimit(1)
-                    .frame(maxWidth: .infinity, alignment: .leading)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            Image(systemName: "chevron.right")
+                .font(.caption.bold())
+                .foregroundStyle(.tertiary)
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(.rect)
     }

@@ -73,17 +73,22 @@ final class SpeechSearchController: NSObject, ObservableObject {
             guard format.sampleRate > 0, format.channelCount > 0 else {
                 throw SpeechSearchError.invalidAudioFormat
             }
-            input.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in request.append(buffer) }
+            // Der Tap läuft auf dem Audio-Thread. Würde die Closure hier (in
+            // einer @MainActor-Klasse) entstehen, erbt sie die Main-Actor-
+            // Isolation und die Laufzeit bricht beim Aufruf von einem
+            // fremden Thread hart ab (Absturz beim Tippen auf das Mikrofon).
+            input.installTap(onBus: 0, bufferSize: 1024, format: format, block: Self.makeTapBlock(for: request))
             hasInstalledTap = true
             audioEngine.prepare()
             try audioEngine.start()
             isRecording = true
-            recognitionTask = recognizer.recognitionTask(with: request) { [weak self] result, error in
-                Task { @MainActor in
-                    if let result { query.wrappedValue = result.bestTranscription.formattedString }
-                    if error != nil || result?.isFinal == true { self?.stop() }
+            recognitionTask = recognizer.recognitionTask(
+                with: request,
+                resultHandler: Self.makeResultHandler { [weak self] text, finished in
+                    if let text { query.wrappedValue = text }
+                    if finished { self?.stop() }
                 }
-            }
+            )
         } catch {
             errorMessage = "Die Aufnahme konnte nicht gestartet werden."
             stop()
@@ -106,6 +111,22 @@ final class SpeechSearchController: NSObject, ObservableObject {
     }
 
     func dismissError() { errorMessage = nil }
+
+    private nonisolated static func makeTapBlock(
+        for request: SFSpeechAudioBufferRecognitionRequest
+    ) -> (AVAudioPCMBuffer, AVAudioTime) -> Void {
+        { buffer, _ in request.append(buffer) }
+    }
+
+    private nonisolated static func makeResultHandler(
+        _ deliver: @escaping @MainActor (String?, Bool) -> Void
+    ) -> @Sendable (SFSpeechRecognitionResult?, Error?) -> Void {
+        { result, error in
+            let text = result?.bestTranscription.formattedString
+            let finished = error != nil || result?.isFinal == true
+            Task { @MainActor in deliver(text, finished) }
+        }
+    }
 }
 
 private enum SpeechSearchError: Error {

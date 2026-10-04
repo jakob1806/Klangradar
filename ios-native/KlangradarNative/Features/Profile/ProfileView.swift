@@ -508,7 +508,7 @@ struct KlangradarCoachView: View {
             case .chat: chat
             }
         }
-        .background { Color(uiColor: .systemGroupedBackground).ignoresSafeArea() }
+        .background { Color.clear }
         .navigationTitle("Klangradar KI")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -539,7 +539,7 @@ struct KlangradarCoachView: View {
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer(); Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(.tertiary)
-                    }.padding(16).background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 20, style: .continuous))
+                    }.padding(16).background(.thinMaterial, in: .rect(cornerRadius: 20, style: .continuous))
                 }.buttonStyle(.plain)
 
                 if let dashboard {
@@ -547,7 +547,7 @@ struct KlangradarCoachView: View {
                     lensGrid(dashboard)
                     if dashboard.signalQuality == "low" {
                         Label("Ich lerne dich noch kennen. Empfehlungen basieren aktuell vor allem auf deinen bestätigten Interessen und gespeicherten Events.", systemImage: "info.circle")
-                            .font(.footnote).foregroundStyle(.secondary).padding(14).background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 16))
+                            .font(.footnote).foregroundStyle(.secondary).padding(14).background(.thinMaterial, in: .rect(cornerRadius: 16))
                     }
                     if !dashboard.insights.isEmpty {
                         Text("Für dich jetzt").font(.title2.bold()).padding(.top, 4)
@@ -588,7 +588,7 @@ struct KlangradarCoachView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(KlangradarTheme.accent)
         }.padding(20)
-            .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 22, style: .continuous))
+            .background(.thinMaterial, in: .rect(cornerRadius: 22, style: .continuous))
     }
 
     private func lensGrid(_ value: CoachDashboard) -> some View {
@@ -607,7 +607,7 @@ struct KlangradarCoachView: View {
             Text(value).font(.subheadline.weight(.semibold))
             Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(2)
         }.frame(maxWidth: .infinity, minHeight: 118, alignment: .leading).padding(15)
-            .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 20, style: .continuous))
+            .background(.thinMaterial, in: .rect(cornerRadius: 20, style: .continuous))
     }
 
     private func insightCard(_ insight: CoachInsight) -> some View {
@@ -617,7 +617,7 @@ struct KlangradarCoachView: View {
             if let action = insight.actions.first, action.string("type") == "ask_coach", let prompt = action.string("prompt") {
                 Button("Mit der KI planen") { draft = prompt; selectedSection = .chat; sendTask = Task { await send() } }.buttonStyle(.bordered)
             }
-        }.padding(16).background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 20, style: .continuous))
+        }.padding(16).background(.thinMaterial, in: .rect(cornerRadius: 20, style: .continuous))
     }
 
     private func trendCard(_ trend: JSONObject) -> some View {
@@ -629,7 +629,7 @@ struct KlangradarCoachView: View {
             Text([rating.map { "Ø Bewertung \($0.formatted(.number.precision(.fractionLength(1))))/5" }, energy.map { "Energieveränderung \($0 >= 0 ? "+" : "")\($0.formatted(.number.precision(.fractionLength(1))))" }].compactMap { $0 }.joined(separator: " · "))
                 .font(.subheadline)
             Text("Zusammenhang aus \(sample) Reflexionen – keine Kausalitätsaussage.").font(.caption).foregroundStyle(.secondary)
-        }.frame(maxWidth: .infinity, alignment: .leading).padding(16).background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 18))
+        }.frame(maxWidth: .infinity, alignment: .leading).padding(16).background(.thinMaterial, in: .rect(cornerRadius: 18))
     }
 
     private var chat: some View {
@@ -638,7 +638,7 @@ struct KlangradarCoachView: View {
                 LazyVStack(alignment: .leading, spacing: 13) {
                     ForEach(messages) { message in
                         VStack(alignment: message.user ? .trailing : .leading, spacing: 8) {
-                            HStack { if message.user { Spacer(minLength: 45) }; Text(message.text).padding(.horizontal, 14).padding(.vertical, 11).background(message.user ? KlangradarTheme.accent : Color(uiColor: .secondarySystemGroupedBackground)).foregroundStyle(message.user ? .white : .primary).clipShape(.rect(cornerRadius: 18, style: .continuous)); if !message.user { Spacer(minLength: 45) } }
+                            HStack { if message.user { Spacer(minLength: 45) }; Text(message.text).padding(.horizontal, 14).padding(.vertical, 11).background(message.user ? AnyShapeStyle(KlangradarTheme.accent) : AnyShapeStyle(.thinMaterial)).foregroundStyle(message.user ? .white : .primary).clipShape(.rect(cornerRadius: 18, style: .continuous)); if !message.user { Spacer(minLength: 45) } }
                             if !message.events.isEmpty { eventCarousel(message.events, isAlternatives: message.eventsAreAlternatives) }
                         }
                         .frame(maxWidth: .infinity, alignment: message.user ? .trailing : .leading)
@@ -698,7 +698,7 @@ struct KlangradarCoachView: View {
                             .padding(.horizontal, 16)
                             .padding(.vertical, 13)
                             .frame(minHeight: 50)
-                            .background(Color(uiColor: .secondarySystemBackground), in: .rect(cornerRadius: 22, style: .continuous))
+                            .background(.thinMaterial, in: .rect(cornerRadius: 22, style: .continuous))
                             .overlay {
                                 RoundedRectangle(cornerRadius: 22, style: .continuous)
                                     .stroke(Color.primary.opacity(0.08), lineWidth: 1)
@@ -724,7 +724,7 @@ struct KlangradarCoachView: View {
                     .padding(.bottom, 10)
                 }
                 .padding(.top, 10)
-                .background(.regularMaterial)
+                .background(.clear)
                 .overlay(alignment: .top) { Divider().opacity(0.45) }
             }
             .onChange(of: messages.count) { _, _ in withAnimation { proxy.scrollTo("coach-bottom") } }
@@ -793,7 +793,7 @@ struct KlangradarCoachView: View {
             .padding(10)
         }
         .frame(width: 172, alignment: .leading)
-        .background(Color(uiColor: .secondarySystemGroupedBackground))
+        .background(.thinMaterial)
         .clipShape(.rect(cornerRadius: 16, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -903,7 +903,7 @@ private struct CoachCheckinSheet: View {
                                     }
                                     .frame(maxWidth: .infinity, minHeight: 74)
                                     .foregroundStyle(mood == value ? .white : .primary)
-                                    .background(mood == value ? AnyShapeStyle(KlangradarTheme.accent) : AnyShapeStyle(Color(uiColor: .secondarySystemGroupedBackground)), in: .rect(cornerRadius: 16, style: .continuous))
+                                    .background(mood == value ? AnyShapeStyle(KlangradarTheme.accent) : AnyShapeStyle(.thinMaterial), in: .rect(cornerRadius: 16, style: .continuous))
                                 }.buttonStyle(.plain)
                             }
                         }
@@ -921,7 +921,7 @@ private struct CoachCheckinSheet: View {
                             Divider().padding(.leading, 12)
                             Stepper("Budget: \(Int(budget)) €", value: $budget, in: 0...500, step: 10).padding(12)
                         }
-                        .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 16, style: .continuous))
+                        .background(.thinMaterial, in: .rect(cornerRadius: 16, style: .continuous))
 
                         LazyVGrid(columns: [.init(.adaptive(minimum: 80), spacing: 8)], spacing: 8) {
                             ForEach(companions, id: \.0) { value, label, icon in
@@ -932,7 +932,7 @@ private struct CoachCheckinSheet: View {
                                     }
                                     .frame(maxWidth: .infinity, minHeight: 56)
                                     .foregroundStyle(companion == value ? .white : .primary)
-                                    .background(companion == value ? AnyShapeStyle(KlangradarTheme.accent) : AnyShapeStyle(Color(uiColor: .secondarySystemGroupedBackground)), in: .rect(cornerRadius: 12, style: .continuous))
+                                    .background(companion == value ? AnyShapeStyle(KlangradarTheme.accent) : AnyShapeStyle(.thinMaterial), in: .rect(cornerRadius: 12, style: .continuous))
                                 }.buttonStyle(.plain)
                             }
                         }
