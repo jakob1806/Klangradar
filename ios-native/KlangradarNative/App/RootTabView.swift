@@ -189,41 +189,38 @@ struct RootTabView: View {
         .sheet(isPresented: $auth.isCompletingPasswordRecovery) {
             PasswordResetCompletionView(auth: auth)
         }
-        .sheet(isPresented: $showsCoach) {
-            if let repository = environment.restClient.map(UserRepository.init(client:)) {
-                NavigationStack {
-                    KlangradarCoachView(
-                        auth: auth,
-                        repository: repository,
-                        eventRepository: environment.events,
-                        contentRepository: environment.content,
-                        startsInChat: true,
-                        showsDismissButton: true
-                    )
+        .overlay {
+            if showsCoach, let repository = environment.restClient.map(UserRepository.init(client:)) {
+                // Eigenes Panel statt .sheet: unter iOS 26 werden Sheets mit
+                // Teil-Detents als schwebende, eingerückte Karte gezeigt
+                // (Hintergrund seitlich/unten sichtbar). Das Panel füllt die
+                // volle Breite und reicht bis zum unteren Bildschirmrand.
+                CoachPanel(isPresented: $showsCoach) {
+                    NavigationStack {
+                        KlangradarCoachView(
+                            auth: auth,
+                            repository: repository,
+                            eventRepository: environment.events,
+                            contentRepository: environment.content,
+                            startsInChat: true,
+                            showsDismissButton: false
+                        )
+                        .modifier(ClearNavigationContainerBackground())
+                        .toolbarBackground(.hidden, for: .navigationBar)
+                        .toolbar {
+                            ToolbarItem(placement: .topBarTrailing) {
+                                Button("Fertig") { showsCoach = false }.fontWeight(.semibold)
+                            }
+                        }
+                    }
+                    .environmentObject(favorites)
+                    .environmentObject(cityStore)
                 }
-                // KlangradarCoachView liest @EnvironmentObject CityStore (für
-                // die Stadt-Vorgabe an die KI) — .sheet()-Inhalte erben die
-                // Environment-Objects der präsentierenden View NICHT
-                // zuverlässig (gleiches Muster wie FollowStore beim
-                // fullScreenCover oben). Ohne dieses Reattach stürzt die
-                // App beim Öffnen der Klangradar KI zuverlässig mit
-                // "No ObservableObject of type CityStore found" ab.
-                .environmentObject(favorites)
-                .environmentObject(cityStore)
-                .presentationCornerRadius(28)
-                // Nutzerfeedback (mehrfach): auf iPad blieb links/rechts ein
-                // Rand, Hintergrund sichtbar — sowohl bei .presentationSizing
-                // (.page) mit Detents (Detents erzwingen dort die
-                // freischwebende "Form"-Karte, Sizing wird ignoriert) als
-                // auch beim früheren Verzicht auf Detents (dann keine
-                // ziehbare Halbhöhe mehr). Die eigentlich richtige Lösung:
-                // .page.fitted(horizontal: false, vertical: true) — "page"
-                // füllt die Breite kantenbündig, "fitted(vertical: true)"
-                // lässt NUR die Höhe dem gewählten Detent folgen. Funktioniert
-                // size-class-unabhängig, kein Branching mehr nötig.
-                .modifier(CoachSheetPresentation())
+                .zIndex(50)
+                .transition(.move(edge: .bottom))
             }
         }
+        .animation(.spring(duration: 0.35, bounce: 0.05), value: showsCoach)
         .alert("Link konnte nicht geöffnet werden", isPresented: callbackErrorBinding) {
             Button("OK", role: .cancel) { auth.callbackErrorMessage = nil }
         } message: {
@@ -329,20 +326,63 @@ struct RootTabView: View {
 // ab iOS 18, ein reiner `if #available`-Ausdruck als ViewModifier-Body lässt
 // sich nicht direkt inline in eine Modifier-Kette schreiben, deshalb als
 // eigener Typ.
-private struct CoachSheetPresentation: ViewModifier {
+private struct ClearNavigationContainerBackground: ViewModifier {
     func body(content: Content) -> some View {
         if #available(iOS 18.0, *) {
-            content
-                .presentationSizing(.page.fitted(horizontal: false, vertical: true))
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
-                .presentationBackgroundInteraction(.enabled(upThrough: .medium))
+            content.containerBackground(for: .navigation) { Color.clear }
         } else {
             content
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
-                .presentationBackgroundInteraction(.enabled(upThrough: .medium))
         }
+    }
+}
+
+private struct CoachPanel<Content: View>: View {
+    @Binding var isPresented: Bool
+    @ViewBuilder let content: Content
+    @State private var expanded = false
+    @State private var dragOffset: CGFloat = 0
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        GeometryReader { geo in
+            let height = geo.size.height * (expanded ? 0.94 : 0.58) + geo.safeAreaInsets.bottom
+            VStack(spacing: 0) {
+                Capsule()
+                    .fill(.secondary.opacity(0.45))
+                    .frame(width: 38, height: 5)
+                    .padding(.top, 8).padding(.bottom, 4)
+                    .frame(maxWidth: .infinity)
+                    .contentShape(.rect)
+                    .gesture(handleDrag)
+                content
+            }
+            .frame(width: geo.size.width, height: height, alignment: .top)
+            .background {
+                UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28, style: .continuous)
+                    .fill(KlangradarTheme.accent.opacity(colorScheme == .dark ? 0.18 : 0.10))
+                    .background { KlangradarBackground().clipShape(UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28, style: .continuous)) }
+                    .shadow(color: .black.opacity(0.18), radius: 16, y: -4)
+                    .ignoresSafeArea(edges: .bottom)
+            }
+            .clipShape(UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28, style: .continuous))
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+            .offset(y: max(dragOffset, 0))
+            .ignoresSafeArea(edges: .bottom)
+            .animation(.spring(duration: 0.3), value: expanded)
+        }
+    }
+
+    private var handleDrag: some Gesture {
+        DragGesture()
+            .onChanged { dragOffset = $0.translation.height }
+            .onEnded { value in
+                let t = value.translation.height
+                withAnimation(.spring(duration: 0.3)) {
+                    if t > 110 { if expanded { expanded = false } else { isPresented = false } }
+                    else if t < -70 { expanded = true }
+                    dragOffset = 0
+                }
+            }
     }
 }
 
