@@ -15,6 +15,8 @@
 
 import { parseHTML } from "npm:linkedom@0.18.4";
 import { isAllowedByRobots, USER_AGENT } from "../_shared/robots.ts";
+import { requireInternalAuth } from "../_shared/internalAuth.ts";
+import { isPublicImageUrl } from "../_shared/imageValidation.ts";
 import { parseSchemaOrg } from "../ingest-source/parsers/schema_org.ts";
 import { parseIcal } from "../ingest-source/parsers/ical.ts";
 import { parseRss } from "../ingest-source/parsers/rss.ts";
@@ -24,6 +26,11 @@ import { extractEventsWithLlm } from "../extract-event-from-url/llm.ts";
 const PREVIEW_LIMIT = 5;
 
 Deno.serve(async (req) => {
+  // Vorher ohne jede Prüfung: jeder mit dem öffentlichen Anon-Key konnte
+  // beliebige URLs abrufen lassen (SSRF) und LLM-Kosten verursachen.
+  const unauthorized = await requireInternalAuth(req);
+  if (unauthorized) return unauthorized;
+
   let body: { url?: unknown };
   try {
     body = await req.json();
@@ -37,6 +44,10 @@ Deno.serve(async (req) => {
     new URL(url);
   } catch {
     return jsonResponse({ error: `"${url}" ist keine gültige URL` }, 400);
+  }
+  // Prüft http(s) und blockt localhost/private/Link-Local-Adressen (SSRF).
+  if (!isPublicImageUrl(url)) {
+    return jsonResponse({ status: "blocked", error: "Nur öffentliche http(s)-URLs sind erlaubt." }, 400);
   }
 
   const allowed = await isAllowedByRobots(url);
