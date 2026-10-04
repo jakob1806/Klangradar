@@ -187,6 +187,7 @@ struct OnboardingSearchField: View {
                     Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Eingabe löschen")
             }
         }
         .padding(.horizontal, 12)
