@@ -9,6 +9,7 @@ struct EventCalendarView: View {
     @State private var selectedDate = Date.now
     @State private var visibleMonth = Date.now
     @State private var events: [ConcertEvent] = []
+    @State private var loadFailed = false
 
     private var selectedEvents: [ConcertEvent] {
         events.filter { $0.startDate.map { KlangradarDateTime.calendar.isDate($0, inSameDayAs: selectedDate) } ?? false }
@@ -27,7 +28,9 @@ struct EventCalendarView: View {
                     Text(KlangradarDateTime.string(selectedDate, format: "EEEE, d. MMMM"))
                         .font(.title2.bold())
 
-                    if selectedEvents.isEmpty {
+                    if loadFailed && events.isEmpty {
+                        LoadFailureView { Task { await loadEvents() } }
+                    } else if selectedEvents.isEmpty {
                         ContentUnavailableView("Keine Konzerte", systemImage: "calendar.badge.minus", description: Text("Für diesen Tag sind keine Veranstaltungen verfügbar."))
                     } else {
                         LiquidGlassSurface(cornerRadius: 24) {
@@ -64,18 +67,26 @@ struct EventCalendarView: View {
             }
             .navigationDestination(for: ConcertEvent.self) { EventDetailView(event: $0, repository: repository, contentRepository: contentRepository) }
             .navigationDestination(for: EntityRoute.self) { EntityDetailView(route: $0, repository: contentRepository) }
-            .task { await loadEvents() }
-            .onChange(of: cityStore.selectedCity) { _, _ in
-                Task { await loadEvents() }
-            }
+            // .task(id:) bricht eine laufende Ladung bei Stadtwechsel ab, sodass
+            // eine späte Antwort der alten Stadt die neue nicht überschreibt.
+            .task(id: cityStore.selectedCity?.id) { await loadEvents() }
+            .refreshable { await loadEvents() }
         }
         .environment(\.locale, Locale(identifier: "de_DE"))
     }
 
     private func loadEvents() async {
-        let basic = (try? await repository.allUpcomingEvents(regionID: cityStore.selectedCity?.id)) ?? []
-        events = basic
-        if let enriched = try? await repository.enrichingImages(in: basic) { events = enriched }
+        do {
+            let basic = try await repository.allUpcomingEvents(regionID: cityStore.selectedCity?.id)
+            try Task.checkCancellation()
+            loadFailed = false
+            events = basic
+            if let enriched = try? await repository.enrichingImages(in: basic), !Task.isCancelled { events = enriched }
+        } catch is CancellationError {
+            return
+        } catch {
+            if !Task.isCancelled { loadFailed = true }
+        }
     }
 }
 
