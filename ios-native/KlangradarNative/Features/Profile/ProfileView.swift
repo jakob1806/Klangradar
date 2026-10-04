@@ -466,6 +466,10 @@ struct KlangradarCoachView: View {
     @State private var draft = ""
     @State private var retryDraft: String?
     @State private var isLoading = false
+    // Eigenes Flag fürs Senden: loadDashboard() setzte bisher dasselbe isLoading,
+    // dadurch wurde jedes Senden (z. B. per Vorschlag) still verworfen und der
+    // Pfeil zeigte schon das Stopp-Quadrat, solange das Dashboard lud.
+    @State private var isSending = false
     // Nutzerfeedback: der Senden-Button soll sich während des Wartens auf
     // die Antwort in ein Stopp-Quadrat verwandeln (wie beim Senden einer
     // Anfrage an Claude) statt nur einen "denkt nach"-Text zu zeigen --
@@ -675,7 +679,7 @@ struct KlangradarCoachView: View {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 8) {
                                 ForEach(suggestedPrompts, id: \.self) { prompt in
-                                    Button { draft = prompt; sendTask = Task { await send() } } label: {
+                                    Button { sendTask = Task { await send(prompt) } } label: {
                                         Text(prompt)
                                             .font(.subheadline.weight(.medium))
                                             .padding(.horizontal, 13)
@@ -705,20 +709,20 @@ struct KlangradarCoachView: View {
                             }
 
                         Button {
-                            if isLoading {
+                            if isSending {
                                 sendTask?.cancel()
                             } else {
                                 sendTask = Task { await send() }
                             }
                         } label: {
-                            Image(systemName: isLoading ? "square.fill" : "arrow.up")
-                                .font(.system(size: isLoading ? 15 : 17, weight: .bold))
+                            Image(systemName: isSending ? "square.fill" : "arrow.up")
+                                .font(.system(size: isSending ? 15 : 17, weight: .bold))
                                 .foregroundStyle(.white)
                                 .frame(width: 50, height: 50)
                                 .background(KlangradarTheme.accent, in: Circle())
                         }
                         .buttonStyle(CoachSendButtonStyle())
-                        .disabled(!isLoading && draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .disabled(!isSending && draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
                     .padding(.horizontal, 14)
                     .padding(.bottom, 10)
@@ -815,11 +819,15 @@ struct KlangradarCoachView: View {
         do { dashboard = try await repository.coachDashboard(token: token); errorMessage = nil } catch { errorMessage = coachErrorDescription(error) }
     }
 
-    @MainActor private func send() async {
-        let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, !isLoading, let repository, let token = auth.accessToken else { return }
-        draft = ""; retryDraft = text; isLoading = true; errorMessage = nil; messages.append(.init(text: text, user: true)); memoryProposal = nil; goalProposal = nil
-        defer { isLoading = false }
+    @MainActor private func send(_ prompt: String? = nil) async {
+        let text = (prompt ?? draft).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, !isSending else { return }
+        guard let repository, let token = auth.accessToken else {
+            errorMessage = "Bitte melde dich an, damit die Klangradar KI deine Daten sicher verwenden kann."
+            return
+        }
+        draft = ""; retryDraft = text; isSending = true; errorMessage = nil; messages.append(.init(text: text, user: true)); memoryProposal = nil; goalProposal = nil
+        defer { isSending = false }
         do {
             let reply = try await repository.askCoach(message: text, conversationID: conversationID, cityName: cityStore.selectedCity?.name, token: token)
             guard !Task.isCancelled else { return }

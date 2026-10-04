@@ -195,7 +195,7 @@ struct RootTabView: View {
                 // Teil-Detents als schwebende, eingerückte Karte gezeigt
                 // (Hintergrund seitlich/unten sichtbar). Das Panel füllt die
                 // volle Breite und reicht bis zum unteren Bildschirmrand.
-                CoachPanel(isPresented: $showsCoach) {
+                CoachPanel(title: "Klangradar KI", isPresented: $showsCoach) {
                     NavigationStack {
                         KlangradarCoachView(
                             auth: auth,
@@ -206,12 +206,7 @@ struct RootTabView: View {
                             showsDismissButton: false
                         )
                         .modifier(ClearNavigationContainerBackground())
-                        .toolbarBackground(.hidden, for: .navigationBar)
-                        .toolbar {
-                            ToolbarItem(placement: .topBarTrailing) {
-                                Button("Fertig") { showsCoach = false }.fontWeight(.semibold)
-                            }
-                        }
+                        .toolbar(.hidden, for: .navigationBar)
                     }
                     .environmentObject(favorites)
                     .environmentObject(cityStore)
@@ -337,52 +332,89 @@ private struct ClearNavigationContainerBackground: ViewModifier {
 }
 
 private struct CoachPanel<Content: View>: View {
+    let title: String
     @Binding var isPresented: Bool
     @ViewBuilder let content: Content
     @State private var expanded = false
-    @State private var dragOffset: CGFloat = 0
+    @State private var dragTranslation: CGFloat = 0
     @Environment(\.colorScheme) private var colorScheme
+
+    private let shape = UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28, style: .continuous)
 
     var body: some View {
         GeometryReader { geo in
-            let height = geo.size.height * (expanded ? 0.94 : 0.58) + geo.safeAreaInsets.bottom
+            let halfHeight = geo.size.height * 0.58 + geo.safeAreaInsets.bottom
+            let fullHeight = geo.size.height * 0.94 + geo.safeAreaInsets.bottom
+            let base = expanded ? fullHeight : halfHeight
+            // Höhe folgt dem Finger stufenlos; nach oben bis zur vollen Höhe.
+            let height = min(max(base - dragTranslation, 80), fullHeight)
             VStack(spacing: 0) {
-                Capsule()
-                    .fill(.secondary.opacity(0.45))
-                    .frame(width: 38, height: 5)
-                    .padding(.top, 8).padding(.bottom, 4)
-                    .frame(maxWidth: .infinity)
-                    .contentShape(.rect)
-                    .gesture(handleDrag)
+                header(halfHeight: halfHeight, fullHeight: fullHeight, base: base)
                 content
             }
             .frame(width: geo.size.width, height: height, alignment: .top)
             .background {
-                UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28, style: .continuous)
+                shape
                     .fill(KlangradarTheme.accent.opacity(colorScheme == .dark ? 0.18 : 0.10))
-                    .background { KlangradarBackground().clipShape(UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28, style: .continuous)) }
+                    .background { KlangradarBackground().clipShape(shape) }
                     .shadow(color: .black.opacity(0.18), radius: 16, y: -4)
                     .ignoresSafeArea(edges: .bottom)
             }
-            .clipShape(UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28, style: .continuous))
+            .clipShape(shape)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-            .offset(y: max(dragOffset, 0))
             .ignoresSafeArea(edges: .bottom)
-            .animation(.spring(duration: 0.3), value: expanded)
         }
     }
 
-    private var handleDrag: some Gesture {
-        DragGesture()
-            .onChanged { dragOffset = $0.translation.height }
-            .onEnded { value in
-                let t = value.translation.height
-                withAnimation(.spring(duration: 0.3)) {
-                    if t > 110 { if expanded { expanded = false } else { isPresented = false } }
-                    else if t < -70 { expanded = true }
-                    dragOffset = 0
+    // Griff + Titelzeile bilden EINEN einheitlichen Kopfbereich (kein
+    // Navigationsleisten-Streifen mehr) und sind zugleich die Ziehfläche.
+    private func header(halfHeight: CGFloat, fullHeight: CGFloat, base: CGFloat) -> some View {
+        VStack(spacing: 0) {
+            Capsule()
+                .fill(.secondary.opacity(0.45))
+                .frame(width: 38, height: 5)
+                .padding(.top, 8)
+            ZStack {
+                Text(title).font(.headline)
+                HStack {
+                    Spacer()
+                    Button("Fertig") { isPresented = false }
+                        .fontWeight(.semibold)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 7)
+                        .glassPill()
                 }
             }
+            .padding(.horizontal, 16)
+            .padding(.top, 6)
+            .padding(.bottom, 8)
+        }
+        .frame(maxWidth: .infinity)
+        .contentShape(.rect)
+        .gesture(
+            DragGesture(minimumDistance: 6)
+                .onChanged { dragTranslation = $0.translation.height }
+                .onEnded { value in
+                    let final = min(max(base - value.translation.height, 0), fullHeight)
+                    let projected = min(max(base - value.predictedEndTranslation.height, 0), fullHeight)
+                    withAnimation(.spring(duration: 0.3)) {
+                        if projected < halfHeight * 0.7 { isPresented = false }
+                        else if final > (halfHeight + fullHeight) / 2 || projected > (halfHeight + fullHeight) / 2 { expanded = true }
+                        else { expanded = false }
+                        dragTranslation = 0
+                    }
+                }
+        )
+    }
+}
+
+private extension View {
+    @ViewBuilder func glassPill() -> some View {
+        if #available(iOS 26.0, *) {
+            self.glassEffect(.regular.interactive(), in: Capsule())
+        } else {
+            self.background(.thinMaterial, in: Capsule())
+        }
     }
 }
 
