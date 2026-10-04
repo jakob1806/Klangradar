@@ -1532,7 +1532,11 @@ class _TicketBar extends StatelessWidget {
     // "Tickets kaufen" nur, wenn ein Kauf über den Link plausibel ist —
     // bei ausverkauft/nur Abendkasse wäre das irreführend, der Link bleibt
     // aber (führt oft trotzdem zu Restkarten-/Wartelisten-Infos).
-    final buttonLabel = soldOut || boxOfficeOnly
+    // Ohne echte ticket_url ist der Link nur die Veranstaltungsseite —
+    // "Tickets kaufen" wäre dann ein Versprechen, das die Seite nicht
+    // zwingend einlöst.
+    final hasTicketUrl = (event['ticket_url'] as String?)?.isNotEmpty == true;
+    final buttonLabel = soldOut || boxOfficeOnly || !hasTicketUrl
         ? l10n.eventGoToPage
         : l10n.eventBuyTickets;
 
