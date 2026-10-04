@@ -16,10 +16,13 @@ SOURCE_SECRETS="$PROJECT_DIR/Config/Secrets.plist"
 
 cd "$PROJECT_DIR"
 
-# Build-Nummer = Anzahl der Commits auf dem ausgecheckten Stand (steigt mit
-# jedem Merge automatisch, ist eindeutig und reproduzierbar). Sie erscheint in
-# der App unter Profil -> Version/Build.
-BUILD_NUMBER=$(git -C "$PROJECT_DIR" rev-list --count HEAD 2>/dev/null || echo 1)
+# Build-Nummer: lokaler, bei jedem erfolgreichen Deploy um 1 steigender Zähler
+# (~/.klangradar-build-number = zuletzt installierte Nummer). Die sichtbare
+# Version wird daraus abgeleitet: 723 -> 7.2.3, 724 -> 7.2.4, 730 -> 7.3.0.
+BUILD_COUNTER_FILE="$HOME/.klangradar-build-number"
+LAST_BUILD=$(cat "$BUILD_COUNTER_FILE" 2>/dev/null || echo 722)
+BUILD_NUMBER=$((LAST_BUILD + 1))
+MARKETING_VERSION_VALUE="$((BUILD_NUMBER / 100)).$(((BUILD_NUMBER / 10) % 10)).$((BUILD_NUMBER % 10))"
 
 timestamp() {
     date "+%H:%M:%S"
@@ -31,7 +34,7 @@ log() {
 
 echo ""
 log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-log "🚀 Neuer Klangradar-Deploy · Build $BUILD_NUMBER"
+log "🚀 Neuer Klangradar-Deploy · Version $MARKETING_VERSION_VALUE (Build $BUILD_NUMBER)"
 log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
@@ -127,6 +130,7 @@ xcodebuild \
 -derivedDataPath "$DERIVED_DATA" \
 -allowProvisioningUpdates \
 CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+MARKETING_VERSION="$MARKETING_VERSION_VALUE" \
 build >"$BUILD_LOG" 2>&1
 
 BUILD_STATUS=$?
@@ -220,6 +224,7 @@ if [ $INSTALL_STATUS -ne 0 ]; then
 fi
 
 log "✅ Installation erfolgreich."
+echo "$BUILD_NUMBER" > "$BUILD_COUNTER_FILE"
 
 echo ""
 
@@ -259,7 +264,7 @@ log "✅ Klangradar wurde gestartet."
 
 echo ""
 log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-log "✅ DEPLOY ABGESCHLOSSEN · Build $BUILD_NUMBER"
+log "✅ DEPLOY ABGESCHLOSSEN · Version $MARKETING_VERSION_VALUE (Build $BUILD_NUMBER)"
 log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
