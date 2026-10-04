@@ -903,7 +903,11 @@ struct EventDetailView: View {
 
     @ViewBuilder private func ticketButton(_ value: JSONObject) -> some View {
         let rawURL = value.string("ticket_url") ?? value.string("website_url")
-        let unavailable = value.string("remaining_tickets_status") == "sold_out"
+        // Ohne echte ticket_url ist der Link nur die Veranstaltungsseite —
+        // "Tickets kaufen" wäre dann ein Versprechen, das die Seite nicht
+        // zwingend einlöst (Parität zur Flutter-App).
+        let hasTicketURL = !(value.string("ticket_url") ?? "").isEmpty
+        let unavailable = value.string("remaining_tickets_status") == "sold_out" || !hasTicketURL
         if let rawURL, let url = URL(string: rawURL) {
             Link(destination: url) {
                 Label(unavailable ? "Zur Veranstaltungsseite" : "Tickets kaufen", systemImage: "ticket")
