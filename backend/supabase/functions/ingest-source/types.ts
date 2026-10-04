@@ -20,6 +20,9 @@ export interface RawEvent {
   /** Raum/Buehne innerhalb der Venue, ohne eine eigene Venue anzulegen. */
   venueDetail?: string | null;
   url: string | null;
+  /** Direkter Kauflink der Quelle (Ticketshop), falls geliefert — nur dann
+   * setzen, wenn die URL wirklich zum Kauf führt, nicht die Eventseite. */
+  ticketUrl?: string | null;
   imageUrl: string | null;
   priceMin: number | null;
   priceMax: number | null;
