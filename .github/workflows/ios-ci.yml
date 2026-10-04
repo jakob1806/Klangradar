@@ -1,0 +1,52 @@
+name: iOS CI
+
+# Gleiches Muster wie flutter-ci.yml: kein paths-Filter auf dem Trigger,
+# sondern ein "changes"-Job, damit der Check auf jedem PR einen Status liefert.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      ios: ${{ steps.filter.outputs.ios }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            ios:
+              - 'ios-native/**'
+              - '.github/workflows/ios-ci.yml'
+
+  build-and-test:
+    needs: changes
+    if: needs.changes.outputs.ios == 'true'
+    runs-on: macos-26
+    defaults:
+      run:
+        working-directory: ios-native
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Neueste Xcode-Version wählen
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
+          sudo xcode-select -s "$XCODE"
+          xcodebuild -version
+
+      - name: Simulator ermitteln
+        run: |
+          NAME=$(xcrun simctl list devices available | grep -oE 'iPhone [0-9A-Za-z ]+ \(' | head -1 | sed 's/ ($//')
+          echo "SIM_NAME=$NAME" >> "$GITHUB_ENV"
+
+      - name: Build und Tests
+        run: |
+          xcodebuild test \
+            -project KlangradarNative.xcodeproj \
+            -scheme KlangradarNative \
+            -destination "platform=iOS Simulator,name=$SIM_NAME" \
+            CODE_SIGNING_ALLOWED=NO

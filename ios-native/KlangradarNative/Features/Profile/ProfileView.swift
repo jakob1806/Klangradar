@@ -779,6 +779,7 @@ struct KlangradarCoachView: View {
                         .padding(7)
                         .background(.black.opacity(0.32), in: .circle)
                 }
+                .accessibilityLabel(favorites.ids.contains(event.id) ? "Von Favoriten entfernen" : "Zu Favoriten hinzufügen")
                 .padding(6)
             }
             VStack(alignment: .leading, spacing: 3) {
