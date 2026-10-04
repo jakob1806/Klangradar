@@ -17,6 +17,28 @@ import { isAllowedByRobots, USER_AGENT } from "./robots.ts";
 
 const MAX_CHARS = 6000;
 
+// Überschriften von Empfehlungs-/Karussell-Abschnitten am Seitenende, die die
+// Besetzung/das Programm ANDERER Veranstaltungen einblenden. Live-Fund
+// (mphil.de, 2026-10-04): "Further Events" unter jedem Konzert — die KI-
+// Programmextraktion bekam diesen Text mit und übernahm Werke fremder
+// Konzerte bzw. erzeugte Dubletten.
+const RELATED_SECTION_HEADING =
+  /^(further events|more events|related events|weitere veranstaltungen|weitere konzerte|weitere termine|ähnliche (?:konzerte|veranstaltungen)|das könnte (?:sie|dich) auch interessieren)\s*:?$/i;
+
+/** Schneidet den Text ab der ersten Empfehlungs-Überschrift ab. Erst ab einer
+ * Mindestposition, damit ein gleichnamiger Menüpunkt in der Navigation am
+ * Seitenanfang nicht den ganzen Inhalt entfernt. */
+export function stripRelatedSections(text: string, minPosition = 300): string {
+  let offset = 0;
+  for (const line of text.split("\n")) {
+    if (offset >= minPosition && RELATED_SECTION_HEADING.test(line.trim())) {
+      return text.slice(0, offset).trimEnd();
+    }
+    offset += line.length + 1;
+  }
+  return text;
+}
+
 /** Lädt `pageUrl` (robots.txt-geprüft) und liefert bereinigten sichtbaren
  * Text, oder null bei robots.txt-Sperre/jedem Fetch-Fehler — Aufrufer
  * behandeln null wie "kein zusätzlicher Kontext verfügbar", nie einen
@@ -74,5 +96,6 @@ export async function fetchPageText(pageUrl: string): Promise<string | null> {
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 
-  return text ? text.slice(0, MAX_CHARS) : null;
+  const withoutRelated = stripRelatedSections(text);
+  return withoutRelated ? withoutRelated.slice(0, MAX_CHARS) : null;
 }

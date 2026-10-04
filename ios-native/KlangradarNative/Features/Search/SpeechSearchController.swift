@@ -35,21 +35,12 @@ final class SpeechSearchController: NSObject, ObservableObject {
             errorMessage = "Die Spracherkennung ist momentan nicht verfügbar."
             return
         }
-        let speechStatus = await withCheckedContinuation { continuation in
-            SFSpeechRecognizer.requestAuthorization { continuation.resume(returning: $0) }
-        }
+        let speechStatus = await Self.requestSpeechAuthorization()
         guard speechStatus == .authorized else {
             errorMessage = "Bitte erlaube Klangradar die Spracherkennung in den iPhone-Einstellungen."
             return
         }
-        let microphoneAllowed: Bool
-        if #available(iOS 17.0, *) {
-            microphoneAllowed = await AVAudioApplication.requestRecordPermission()
-        } else {
-            microphoneAllowed = await withCheckedContinuation { continuation in
-                AVAudioSession.sharedInstance().requestRecordPermission { continuation.resume(returning: $0) }
-            }
-        }
+        let microphoneAllowed = await Self.requestMicrophonePermission()
         guard microphoneAllowed else {
             errorMessage = "Bitte erlaube Klangradar den Mikrofonzugriff in den iPhone-Einstellungen."
             return
@@ -111,6 +102,27 @@ final class SpeechSearchController: NSObject, ObservableObject {
     }
 
     func dismissError() { errorMessage = nil }
+
+    // Die System-Callbacks der Berechtigungsabfragen kommen auf einer
+    // TCC-/XPC-Queue, nicht auf dem Main Actor. Closures, die in dieser
+    // @MainActor-Klasse entstehen, erben dessen Isolation und lösen beim
+    // Aufruf von dort eine Isolation-Prüfung aus, die die App sofort beendet
+    // (Crash-Report: _dispatch_assert_queue_fail in
+    // SpeechSearchController.start). Deshalb nonisolated erzeugen.
+    private nonisolated static func requestSpeechAuthorization() async -> SFSpeechRecognizerAuthorizationStatus {
+        await withCheckedContinuation { continuation in
+            SFSpeechRecognizer.requestAuthorization { continuation.resume(returning: $0) }
+        }
+    }
+
+    private nonisolated static func requestMicrophonePermission() async -> Bool {
+        if #available(iOS 17.0, *) {
+            return await AVAudioApplication.requestRecordPermission()
+        }
+        return await withCheckedContinuation { continuation in
+            AVAudioSession.sharedInstance().requestRecordPermission { continuation.resume(returning: $0) }
+        }
+    }
 
     private nonisolated static func makeTapBlock(
         for request: SFSpeechAudioBufferRecognitionRequest

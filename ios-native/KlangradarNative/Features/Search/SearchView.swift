@@ -482,6 +482,16 @@ struct SearchView: View {
     }
 
     private func loadEventsAndCategories() async {
+        // Schneller Erstaufbau: "Konzerte entdecken" brauchte bisher die
+        // komplette, seitenweise geladene Terminliste plus Bild-Anreicherung
+        // und erschien deshalb erst sehr spät (Nutzerfeedback). Eine kleine
+        // Auswahl reicht für die 8 Karten; die vollständige Liste (Suche,
+        // Genre-/Inspirations-Filter) ersetzt sie anschließend im Hintergrund.
+        if events.isEmpty,
+           let quick = try? await eventRepository.upcomingEvents(limit: 40, regionID: cityStore.selectedCity?.id),
+           !quick.isEmpty {
+            events = (try? await eventRepository.enrichingImages(in: quick)) ?? quick
+        }
         do {
             async let loadedEvents = eventRepository.allUpcomingEvents(regionID: cityStore.selectedCity?.id)
             async let categories = try? eventRepository.inspirationCategories()
