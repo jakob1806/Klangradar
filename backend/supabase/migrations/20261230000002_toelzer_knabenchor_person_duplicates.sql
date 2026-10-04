@@ -36,6 +36,16 @@ where ep.person_id = '73c99391-d90d-4ea7-824a-76befd31f20f'
     where other.event_id = ep.event_id and other.ensemble_id = 'cddeab2f-a6bb-47d2-a12f-3145d1697d02'
   );
 delete from event_participants where person_id = '73c99391-d90d-4ea7-824a-76befd31f20f';
+-- Deploy-Fix (2026-10-04): der erste Lauf schlug mit einer FK-Verletzung fehl
+-- (entity_candidates.created_person_id verwies noch auf die Person; per
+-- anon-Key wegen RLS unsichtbar, daher bei der Vorprüfung übersehen). Die
+-- nicht kaskadierenden Verweise auf persons (entity_candidates, sources,
+-- works) werden jetzt vor jedem Löschen gelöst. Die Migration war nie
+-- angewendet (Transaktion zurückgerollt), daher direkte Korrektur.
+update entity_candidates set created_person_id = null, created_ensemble_id = coalesce(created_ensemble_id, 'cddeab2f-a6bb-47d2-a12f-3145d1697d02')
+  where created_person_id = '73c99391-d90d-4ea7-824a-76befd31f20f';
+update sources set person_id = null where person_id = '73c99391-d90d-4ea7-824a-76befd31f20f';
+update works set composer_id = null where composer_id = '73c99391-d90d-4ea7-824a-76befd31f20f';
 delete from persons where id = '73c99391-d90d-4ea7-824a-76befd31f20f';
 
 -- Person "Solist des Tölzer Knabenchors" (87d57ec1-77fe-4f97-b6c1-917c60e02e1e)
@@ -59,6 +69,10 @@ where ep.person_id = '87d57ec1-77fe-4f97-b6c1-917c60e02e1e'
     where other.event_id = ep.event_id and other.ensemble_id = 'cddeab2f-a6bb-47d2-a12f-3145d1697d02'
   );
 delete from event_participants where person_id = '87d57ec1-77fe-4f97-b6c1-917c60e02e1e';
+update entity_candidates set created_person_id = null, created_ensemble_id = coalesce(created_ensemble_id, 'cddeab2f-a6bb-47d2-a12f-3145d1697d02')
+  where created_person_id = '87d57ec1-77fe-4f97-b6c1-917c60e02e1e';
+update sources set person_id = null where person_id = '87d57ec1-77fe-4f97-b6c1-917c60e02e1e';
+update works set composer_id = null where composer_id = '87d57ec1-77fe-4f97-b6c1-917c60e02e1e';
 delete from persons where id = '87d57ec1-77fe-4f97-b6c1-917c60e02e1e';
 
 -- Die von 20261217000005 bewusst stehen gelassene Ensemble-Dublette
@@ -84,4 +98,10 @@ where ep.ensemble_id = 'be1b4064-8e88-46ff-a74c-4e21439983a9'
     where other.event_id = ep.event_id and other.ensemble_id = 'cddeab2f-a6bb-47d2-a12f-3145d1697d02'
   );
 delete from event_participants where ensemble_id = 'be1b4064-8e88-46ff-a74c-4e21439983a9';
+update entity_candidates set created_ensemble_id = 'cddeab2f-a6bb-47d2-a12f-3145d1697d02' where created_ensemble_id = 'be1b4064-8e88-46ff-a74c-4e21439983a9';
+update sources set ensemble_id = 'cddeab2f-a6bb-47d2-a12f-3145d1697d02' where ensemble_id = 'be1b4064-8e88-46ff-a74c-4e21439983a9';
+update ensembles set parent_ensemble_id = 'cddeab2f-a6bb-47d2-a12f-3145d1697d02' where parent_ensemble_id = 'be1b4064-8e88-46ff-a74c-4e21439983a9';
+delete from user_favorite_ensembles f where f.ensemble_id = 'be1b4064-8e88-46ff-a74c-4e21439983a9'
+  and exists (select 1 from user_favorite_ensembles g where g.user_id = f.user_id and g.ensemble_id = 'cddeab2f-a6bb-47d2-a12f-3145d1697d02');
+update user_favorite_ensembles set ensemble_id = 'cddeab2f-a6bb-47d2-a12f-3145d1697d02' where ensemble_id = 'be1b4064-8e88-46ff-a74c-4e21439983a9';
 delete from ensembles where id = 'be1b4064-8e88-46ff-a74c-4e21439983a9';
