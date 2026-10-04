@@ -16,6 +16,11 @@ SOURCE_SECRETS="$PROJECT_DIR/Config/Secrets.plist"
 
 cd "$PROJECT_DIR"
 
+# Build-Nummer = Anzahl der Commits auf dem ausgecheckten Stand (steigt mit
+# jedem Merge automatisch, ist eindeutig und reproduzierbar). Sie erscheint in
+# der App unter Profil -> Version/Build.
+BUILD_NUMBER=$(git -C "$PROJECT_DIR" rev-list --count HEAD 2>/dev/null || echo 1)
+
 timestamp() {
     date "+%H:%M:%S"
 }
@@ -26,7 +31,7 @@ log() {
 
 echo ""
 log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-log "🚀 Neuer Klangradar-Deploy"
+log "🚀 Neuer Klangradar-Deploy · Build $BUILD_NUMBER"
 log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
@@ -64,9 +69,25 @@ echo ""
 
 log "🔎 Suche $DEVICE_NAME …"
 
-DEVICE_LIST=$(xcrun devicectl list devices 2>&1)
+# devicectl zeigt in der Tabelle je nach Version UDID oder CoreDevice-ID —
+# daher per JSON gegen die CoreDevice-Kennung prüfen.
+DEVICE_JSON="/tmp/klangradar-devices.json"
+xcrun devicectl list devices --json-output "$DEVICE_JSON" >/dev/null 2>&1
+DEVICE_STATE=$(python3 - "$DEVICE_JSON" "$DEVICE_ID" <<'PY'
+import json, sys
+try:
+    devices = json.load(open(sys.argv[1]))["result"]["devices"]
+except Exception:
+    print("missing"); sys.exit()
+for d in devices:
+    if d.get("identifier") == sys.argv[2]:
+        print(d.get("connectionProperties", {}).get("tunnelState", "unknown")); break
+else:
+    print("missing")
+PY
+)
 
-if ! echo "$DEVICE_LIST" | grep -q "$DEVICE_ID"; then
+if [ "$DEVICE_STATE" = "missing" ]; then
     log "❌ iPhone nicht gefunden."
     echo ""
     log "   → Ist das iPhone eingeschaltet?"
@@ -76,8 +97,8 @@ if ! echo "$DEVICE_LIST" | grep -q "$DEVICE_ID"; then
     exit 2
 fi
 
-if ! echo "$DEVICE_LIST" | grep "$DEVICE_ID" | grep -q "connected"; then
-    log "⚠️ iPhone gefunden, aber nicht verbunden."
+if [ "$DEVICE_STATE" != "connected" ]; then
+    log "⚠️ iPhone gefunden, aber nicht verbunden ($DEVICE_STATE)."
     echo ""
     log "   → iPhone entsperren."
     log "   → WLAN/Bluetooth-Verbindung prüfen."
@@ -105,6 +126,7 @@ xcodebuild \
 -destination "id=$DEVICE_ID" \
 -derivedDataPath "$DERIVED_DATA" \
 -allowProvisioningUpdates \
+CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
 build >"$BUILD_LOG" 2>&1
 
 BUILD_STATUS=$?
@@ -237,7 +259,7 @@ log "✅ Klangradar wurde gestartet."
 
 echo ""
 log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-log "✅ DEPLOY ABGESCHLOSSEN"
+log "✅ DEPLOY ABGESCHLOSSEN · Build $BUILD_NUMBER"
 log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
