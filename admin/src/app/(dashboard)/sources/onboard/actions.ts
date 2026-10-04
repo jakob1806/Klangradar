@@ -19,6 +19,7 @@ export async function probeSource(_prevState: ProbeResult, formData: FormData): 
         "Content-Type": "application/json",
         apikey: anonKey ?? "",
         Authorization: `Bearer ${anonKey ?? ""}`,
+        "x-internal-secret": process.env.INTERNAL_FUNCTION_SECRET ?? "",
       },
       body: JSON.stringify({ url }),
     });
