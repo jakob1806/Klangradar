@@ -344,6 +344,7 @@ struct EditorialEventEditorView: View {
                                     Image(systemName: "xmark.circle.fill")
                                 }
                                 .buttonStyle(.plain)
+                                .accessibilityLabel("Genre \(genre.title) entfernen")
                             }
                             .font(.caption.weight(.medium))
                             .padding(.horizontal, 9).padding(.vertical, 6)
