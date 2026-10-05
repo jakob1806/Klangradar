@@ -6,6 +6,15 @@ import { redirect } from "next/navigation";
 import { getStripe } from "@/lib/stripe";
 import { getPromotableEvents } from "./promotable-events";
 
+export async function cancelPromotion(promotionId: string): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("cancel_promotion", { p_promotion_id: promotionId });
+  if (error) return { error: error.message };
+  revalidatePath("/veranstalter/promote");
+  revalidatePath("/veranstalter/finanzen");
+  return {};
+}
+
 const PLACEMENTS = new Set(["standard", "featured", "local_spotlight", "homepage_feature", "push"]);
 
 export async function requestPromotion(formData: FormData): Promise<{ error?: string; success?: true }> {

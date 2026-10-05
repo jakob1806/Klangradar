@@ -8,7 +8,7 @@ import { Button } from "@/components/organizer/ui/button";
 
 type EventOption = { id: string; title: string; startLabel: string; venueName: string | null; imageUrl: string | null; sourceLabel: string };
 
-export function PromotionEventPicker({ events }: { events: EventOption[] }) {
+export function PromotionEventPicker({ events, onSelect }: { events: EventOption[]; onSelect?: (event: EventOption | null) => void }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [query, setQuery] = useState("");
@@ -40,7 +40,10 @@ export function PromotionEventPicker({ events }: { events: EventOption[] }) {
             <button
               key={event.id}
               type="button"
-              onClick={() => setSelectedId(event.id)}
+              onClick={() => {
+                setSelectedId(event.id);
+                onSelect?.(event);
+              }}
               className={`flex overflow-hidden rounded-xl border text-left transition ${active ? "border-[#2D2A6E] bg-[#2D2A6E]/[0.04] ring-1 ring-[#2D2A6E]" : "border-[#15131a]/10 bg-white hover:border-[#2D2A6E]"}`}
             >
               <div className="relative m-3 h-16 w-20 shrink-0 overflow-hidden rounded-lg bg-[#15131a]/[0.04]">
