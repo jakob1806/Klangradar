@@ -166,7 +166,7 @@ export default async function MediaPage() {
       <div className="rounded-2xl border border-black/[0.06] bg-gradient-to-br from-white to-neutral-50 p-5 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#0071e3]">Redaktion</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#2D2A6E]">Redaktion</p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">Bilderfreigabe</h1>
           <p className="mt-1 max-w-2xl text-sm text-neutral-500">
             Bildvorschläge prüfen, bequem auswählen und einzeln oder gesammelt freigeben. Ein Klick auf Bild
@@ -191,7 +191,7 @@ export default async function MediaPage() {
           </div>
           <Link
             href="/image-research?type=person&missing=1"
-            className="mt-5 block rounded-xl bg-[#0071e3] px-4 py-2.5 text-center text-sm font-medium text-white transition-colors hover:bg-[#0077ed]"
+            className="mt-5 block rounded-xl bg-[#2D2A6E] px-4 py-2.5 text-center text-sm font-medium text-white transition-colors hover:bg-[#38358a]"
           >
             Fehlende Personenbilder bearbeiten
           </Link>
@@ -210,7 +210,7 @@ export default async function MediaPage() {
           </div>
           <Link
             href="/image-research?type=ensemble&missing=1"
-            className="mt-5 block rounded-xl bg-[#0071e3] px-4 py-2.5 text-center text-sm font-medium text-white transition-colors hover:bg-[#0077ed]"
+            className="mt-5 block rounded-xl bg-[#2D2A6E] px-4 py-2.5 text-center text-sm font-medium text-white transition-colors hover:bg-[#38358a]"
           >
             Fehlende Ensemblebilder bearbeiten
           </Link>
@@ -229,7 +229,7 @@ export default async function MediaPage() {
           </div>
           <Link
             href="/image-research?type=venue&missing=1"
-            className="mt-5 block rounded-xl bg-[#0071e3] px-4 py-2.5 text-center text-sm font-medium text-white transition-colors hover:bg-[#0077ed]"
+            className="mt-5 block rounded-xl bg-[#2D2A6E] px-4 py-2.5 text-center text-sm font-medium text-white transition-colors hover:bg-[#38358a]"
           >
             Fehlende Venuebilder bearbeiten
           </Link>
@@ -248,7 +248,7 @@ export default async function MediaPage() {
           </div>
           <Link
             href="/image-research?type=event&missing=1"
-            className="mt-5 block rounded-xl bg-[#0071e3] px-4 py-2.5 text-center text-sm font-medium text-white transition-colors hover:bg-[#0077ed]"
+            className="mt-5 block rounded-xl bg-[#2D2A6E] px-4 py-2.5 text-center text-sm font-medium text-white transition-colors hover:bg-[#38358a]"
           >
             Fehlende Eventbilder bearbeiten
           </Link>
@@ -325,19 +325,19 @@ export default async function MediaPage() {
                     {image.confidence_score !== null && <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-neutral-600">{Math.round(image.confidence_score * 100)} % Sicherheit</span>}
                   </div>
                   <div className="mt-3 flex gap-3 text-xs font-medium">
-                    <a href={image.source_url} target="_blank" rel="noreferrer" className="text-[#0071e3] hover:underline">Bildquelle öffnen ↗</a>
-                    {image.source_page_url && <a href={image.source_page_url} target="_blank" rel="noreferrer" className="text-[#0071e3] hover:underline">Quellseite ↗</a>}
+                    <a href={image.source_url} target="_blank" rel="noreferrer" className="text-[#2D2A6E] hover:underline">Bildquelle öffnen ↗</a>
+                    {image.source_page_url && <a href={image.source_page_url} target="_blank" rel="noreferrer" className="text-[#2D2A6E] hover:underline">Quellseite ↗</a>}
                   </div>
                   {image.warnings?.map((warning) => <p key={warning} className="mt-1 text-xs text-amber-700">⚠ {warning}</p>)}
                   <details className="mt-4 rounded-xl border border-black/[0.07] bg-neutral-50/70">
                     <summary className="cursor-pointer list-none px-3 py-2 text-xs font-medium text-neutral-700">Lizenzdetails und Metadaten bearbeiten</summary>
                   <form action={updateImageMetadata} className="grid grid-cols-2 gap-2 border-t border-black/[0.06] p-3">
                     <input type="hidden" name="imageId" value={image.id} />
-                    <input name="photographer" defaultValue={image.photographer ?? ""} placeholder="Fotograf" className="rounded-md border border-black/10 px-2 py-1 text-xs focus:border-[#0071e3] outline-none" />
-                    <input name="credits" defaultValue={image.credits ?? ""} placeholder="Credit-Text" className="rounded-md border border-black/10 px-2 py-1 text-xs focus:border-[#0071e3] outline-none" />
-                    <input name="licenseName" defaultValue={image.license_name ?? ""} placeholder="Lizenz" className="rounded-md border border-black/10 px-2 py-1 text-xs focus:border-[#0071e3] outline-none" />
-                    <input name="licenseUrl" defaultValue={image.license_url ?? ""} placeholder="Lizenz-URL" className="rounded-md border border-black/10 px-2 py-1 text-xs focus:border-[#0071e3] outline-none" />
-                    <input name="confidenceScore" type="number" min="0" max="1" step="0.01" defaultValue={image.confidence_score ?? ""} placeholder="Confidence 0–1" className="rounded-md border border-black/10 px-2 py-1 text-xs focus:border-[#0071e3] outline-none" />
+                    <input name="photographer" defaultValue={image.photographer ?? ""} placeholder="Fotograf" className="rounded-md border border-black/10 px-2 py-1 text-xs focus:border-[#2D2A6E] outline-none" />
+                    <input name="credits" defaultValue={image.credits ?? ""} placeholder="Credit-Text" className="rounded-md border border-black/10 px-2 py-1 text-xs focus:border-[#2D2A6E] outline-none" />
+                    <input name="licenseName" defaultValue={image.license_name ?? ""} placeholder="Lizenz" className="rounded-md border border-black/10 px-2 py-1 text-xs focus:border-[#2D2A6E] outline-none" />
+                    <input name="licenseUrl" defaultValue={image.license_url ?? ""} placeholder="Lizenz-URL" className="rounded-md border border-black/10 px-2 py-1 text-xs focus:border-[#2D2A6E] outline-none" />
+                    <input name="confidenceScore" type="number" min="0" max="1" step="0.01" defaultValue={image.confidence_score ?? ""} placeholder="Confidence 0–1" className="rounded-md border border-black/10 px-2 py-1 text-xs focus:border-[#2D2A6E] outline-none" />
                     <button type="submit" className="rounded-md border border-black/10 px-2 py-1 text-xs font-medium hover:bg-black/[0.04]">Metadaten speichern</button>
                   </form>
                   </details>

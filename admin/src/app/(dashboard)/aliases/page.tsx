@@ -73,7 +73,7 @@ export default async function AliasesPage({ searchParams }: { searchParams: Prom
       </p>
       <nav className="mt-5 flex flex-wrap gap-2">
         {(Object.entries(TYPES) as [AliasEntityType, (typeof TYPES)[AliasEntityType]][]).map(([key, item]) => (
-          <Link key={key} href={`/aliases?type=${key}`} className={`rounded-full px-4 py-2 text-sm font-medium ${key === type ? "bg-[#0071e3] text-white" : "bg-black/[0.05] text-neutral-700 hover:bg-black/[0.08]"}`}>
+          <Link key={key} href={`/aliases?type=${key}`} className={`rounded-full px-4 py-2 text-sm font-medium ${key === type ? "bg-[#2D2A6E] text-white" : "bg-black/[0.05] text-neutral-700 hover:bg-black/[0.08]"}`}>
             {item.label}
           </Link>
         ))}

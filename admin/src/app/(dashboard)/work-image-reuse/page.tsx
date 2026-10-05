@@ -103,7 +103,7 @@ export default async function WorkImageReusePage() {
                           {flag.event ? (
                             <Link
                               href={`/events/${flag.event.id}`}
-                              className="text-sm font-semibold text-neutral-900 hover:text-[#0071e3]"
+                              className="text-sm font-semibold text-neutral-900 hover:text-[#2D2A6E]"
                             >
                               {flag.event.title}
                             </Link>
@@ -131,7 +131,7 @@ export default async function WorkImageReusePage() {
                       {flag.event && (
                         <Link
                           href={`/events/${flag.event.id}`}
-                          className="text-xs font-medium text-neutral-700 hover:text-[#0071e3]"
+                          className="text-xs font-medium text-neutral-700 hover:text-[#2D2A6E]"
                         >
                           Bearbeiten →
                         </Link>

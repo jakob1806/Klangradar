@@ -96,9 +96,9 @@ export function MediaSelectableCard({ id, children }: { id: string; children: Re
           toggle(id);
         }
       }}
-      className={`group relative overflow-hidden rounded-2xl border bg-white shadow-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0071e3] focus-visible:ring-offset-2 ${
+      className={`group relative overflow-hidden rounded-2xl border bg-white shadow-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2D2A6E] focus-visible:ring-offset-2 ${
         isSelected
-          ? "border-[#0071e3] bg-blue-50/30 shadow-md ring-2 ring-[#0071e3]/20"
+          ? "border-[#2D2A6E] bg-blue-50/30 shadow-md ring-2 ring-[#2D2A6E]/20"
           : "border-black/[0.07] hover:-translate-y-0.5 hover:border-black/[0.14] hover:shadow-md"
       }`}
     >
@@ -107,7 +107,7 @@ export function MediaSelectableCard({ id, children }: { id: string; children: Re
         onClick={(event) => { event.stopPropagation(); toggle(id); }}
         className={`absolute right-3 top-3 z-10 flex h-9 items-center gap-2 rounded-full border px-3 text-xs font-semibold shadow-sm backdrop-blur transition-colors ${
           isSelected
-            ? "border-[#0071e3] bg-[#0071e3] text-white"
+            ? "border-[#2D2A6E] bg-[#2D2A6E] text-white"
             : "border-white/70 bg-white/90 text-neutral-700 hover:bg-white"
         }`}
         aria-label={isSelected ? "Auswahl aufheben" : "Bild auswählen"}

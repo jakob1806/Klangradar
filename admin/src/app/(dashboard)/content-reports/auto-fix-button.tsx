@@ -62,7 +62,7 @@ export function AutoFixButton({
         type="button"
         disabled={pending}
         onClick={handleClick}
-        className="rounded-lg bg-[#0071e3] px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[#0077ed] disabled:opacity-50"
+        className="rounded-lg bg-[#2D2A6E] px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[#38358a] disabled:opacity-50"
       >
         {pending ? "Prüfe & fixe…" : alreadyTried ? "Erneut versuchen" : "Automatisch fixen"}
       </button>

@@ -25,7 +25,7 @@
      Vorgabe für Navigations-Chrome, keine Liquid-Glass-Erfindung. Bewusst
      NICHT auf dichten Datentabellen (Skill: "nie mehrere durchscheinende
      Flächen übereinanderstapeln — Lesbarkeit bricht zusammen").
-   - EINE Akzentfarbe (Prinzip "Craft"/"Simplicity"): Apple-Blau #0071e3.
+   - EINE Akzentfarbe (Prinzip "Craft"/"Simplicity"): Apple-Blau #2D2A6E.
    - 8 Prinzipien (Purpose/Agency/Responsibility/Familiarity/Flexibility/
      Simplicity/Craft/Delight): direkte, spezifische Beschriftungen statt
      vager Labels; Fehler inline statt erst bei Submit; jedes Element muss
@@ -34,8 +34,8 @@
    (Tailwind v4s Build-Schritt) verwirft eigene :root-Variablen beim
    Minifizieren kommentarlos, live geprüft. */
 :root {
-  --background: #f5f5f7;
-  --foreground: #1d1d1f;
+  --background: #F5F5F1;
+  --foreground: #18181B;
   color-scheme: light;
 }
 
@@ -53,7 +53,7 @@ body {
   font-weight: 600;
   letter-spacing: 0.03em;
   text-transform: uppercase;
-  color: #86868b;
+  color: #A1A1AA;
 }
 
 .type-heading {
@@ -69,16 +69,14 @@ body {
 }
 
 body {
-  background:
-    radial-gradient(circle at 70% -10%, rgba(0, 113, 227, 0.07), transparent 28rem),
-    var(--background);
+  background: var(--background);
   color: var(--foreground);
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, "Segoe UI", Roboto, sans-serif;
   letter-spacing: -0.006em;
 }
 
 ::selection {
-  background: rgba(0, 113, 227, 0.18);
+  background: rgba(45, 42, 110, 0.18);
 }
 
 * {
@@ -93,16 +91,15 @@ body {
 }
 
 .dashboard-main {
-  background: rgba(245, 245, 247, 0.72);
-  color: #1d1d1f;
+  background: rgba(245, 245, 241, 0.72);
+  color: #18181B;
 }
 
 .dashboard-topbar {
   height: 3.75rem;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.055);
-  background: rgba(250, 250, 252, 0.76);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.7) inset;
-  backdrop-filter: saturate(180%) blur(22px);
+  border-bottom: 1px solid rgba(24, 24, 27, 0.06);
+  background: rgba(245, 245, 241, 0.9);
+  backdrop-filter: blur(20px);
 }
 
 .dashboard-content {
@@ -130,11 +127,9 @@ body {
   flex-direction: column;
   gap: 1.25rem;
   overflow: hidden;
-  border-right: 1px solid rgba(0, 0, 0, 0.065);
-  background: rgba(238, 238, 242, 0.78);
+  border-right: 1px solid rgba(24, 24, 27, 0.06);
+  background: #ffffff;
   padding: 1.25rem 0.75rem 0.9rem;
-  box-shadow: 1px 0 0 rgba(255, 255, 255, 0.55) inset;
-  backdrop-filter: saturate(170%) blur(24px);
 }
 
 .dashboard-brand {
@@ -151,7 +146,7 @@ body {
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  border-radius: 0.68rem;
+  border-radius: 9px;
   overflow: hidden;
   background: white;
   box-shadow: 0 5px 14px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.045);
@@ -183,9 +178,9 @@ body {
   display: flex;
   min-height: 2rem;
   align-items: center;
-  border-radius: 0.55rem;
-  padding: 0.4rem 0.65rem;
-  color: #3a3a3c;
+  border-radius: 10px;
+  padding: 0.4rem 0.75rem;
+  color: #71717A;
   font-size: 0.8125rem;
   font-weight: 500;
   line-height: 1.2;
@@ -193,19 +188,20 @@ body {
 }
 
 .dashboard-nav-item:hover {
-  background: rgba(0, 0, 0, 0.045);
-  color: #1d1d1f;
+  background: #EEEEE9;
+  color: #18181B;
 }
 
 .dashboard-nav-item-active {
-  background: #0071e3;
-  box-shadow: 0 2px 7px rgba(0, 90, 180, 0.2), 0 1px 0 rgba(255, 255, 255, 0.2) inset;
-  color: white;
+  background: #ECEBFA;
+  box-shadow: none;
+  color: #2D2A6E;
+  font-weight: 600;
 }
 
 .dashboard-nav-item-active:hover {
-  background: #0879e8;
-  color: white;
+  background: #ECEBFA;
+  color: #2D2A6E;
 }
 
 .dashboard-account {
@@ -234,11 +230,11 @@ body {
 
 .dashboard-sign-out {
   min-height: 2rem;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 0.55rem;
-  background: rgba(255, 255, 255, 0.68);
+  border: 1px solid rgba(21, 19, 26, 0.15);
+  border-radius: 999px;
+  background: #ffffff;
   padding: 0.35rem 0.72rem;
-  color: #0071e3;
+  color: #2D2A6E;
   font-size: 0.78rem;
   font-weight: 600;
   transition: background-color 140ms ease, color 140ms ease;
@@ -246,12 +242,12 @@ body {
 
 .dashboard-sign-out:hover {
   background: white;
-  color: #0064c8;
+  color: #38358a;
 }
 
 /* Typografie und wiederkehrende Inhaltsflaechen --------------------------- */
 .dashboard-content h1 {
-  color: #1d1d1f;
+  color: #18181B;
   font-size: clamp(1.55rem, 2vw, 1.85rem);
   font-weight: 650;
   line-height: 1.15;
@@ -259,7 +255,7 @@ body {
 }
 
 .dashboard-content h2 {
-  color: #1d1d1f;
+  color: #18181B;
   font-weight: 620;
   letter-spacing: -0.015em;
 }
@@ -273,7 +269,7 @@ body {
 }
 
 .dashboard-content .rounded-xl {
-  border-radius: 0.9rem;
+  border-radius: 1rem;
 }
 
 .dashboard-content .rounded-lg,
@@ -305,7 +301,7 @@ body {
   border-radius: 0.65rem !important;
   background-color: rgba(255, 255, 255, 0.96);
   box-shadow: 0 1px 1px rgba(0, 0, 0, 0.025), 0 1px 0 rgba(255, 255, 255, 0.7) inset;
-  color: #1d1d1f;
+  color: #18181B;
   transition: border-color 140ms ease, box-shadow 140ms ease, background-color 140ms ease;
 }
 
@@ -313,8 +309,8 @@ body {
 .dashboard-content select:focus,
 .dashboard-content textarea:focus,
 .admin-login-card input:focus {
-  border-color: #0071e3 !important;
-  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.14);
+  border-color: #2D2A6E !important;
+  box-shadow: 0 0 0 3px rgba(45, 42, 110, 0.14);
   outline: none;
 }
 
@@ -326,7 +322,7 @@ body {
 
 .dashboard-content input[type="checkbox"],
 .dashboard-content input[type="radio"] {
-  accent-color: #0071e3;
+  accent-color: #2D2A6E;
 }
 
 .dashboard-content button,
@@ -344,14 +340,15 @@ body {
 .dashboard-content button[class*="bg-neutral-900"],
 .dashboard-content a[class*="bg-neutral-900"],
 .admin-login-card button[class*="bg-neutral-900"] {
-  background: #0071e3 !important;
-  box-shadow: 0 2px 7px rgba(0, 91, 182, 0.18);
+  background: #2D2A6E !important;
+  border-radius: 999px !important;
+  box-shadow: none;
 }
 
 .dashboard-content button[class*="bg-neutral-900"]:hover,
 .dashboard-content a[class*="bg-neutral-900"]:hover,
 .admin-login-card button[class*="bg-neutral-900"]:hover {
-  background: #0077ed !important;
+  background: #38358a !important;
 }
 
 /* Tabellen wirken wie eine einzige ruhige Inhaltsflaeche, nicht wie ein
@@ -362,7 +359,7 @@ body {
 }
 
 .dashboard-content thead {
-  background: rgba(245, 245, 247, 0.78);
+  background: rgba(245, 245, 241, 0.78);
 }
 
 .dashboard-content thead th {
@@ -375,7 +372,7 @@ body {
 }
 
 .dashboard-content tbody tr:hover {
-  background: rgba(0, 113, 227, 0.028);
+  background: rgba(45, 42, 110, 0.028);
 }
 
 .dashboard-content tbody td {
@@ -391,9 +388,7 @@ body {
 /* Login gehoert visuell zum selben Produkt statt wie ein nacktes Formular
    vor dem Dashboard zu wirken. */
 .admin-login-shell {
-  background:
-    radial-gradient(circle at 50% 12%, rgba(0, 113, 227, 0.11), transparent 25rem),
-    linear-gradient(180deg, #fafafd, #f1f1f4);
+  background: #F5F5F1;
 }
 
 .admin-login-card {
@@ -402,8 +397,7 @@ body {
   background: rgba(255, 255, 255, 0.82);
   padding: 2rem;
   box-shadow: 0 22px 65px rgba(0, 0, 0, 0.08), 0 1px 0 rgba(255, 255, 255, 0.8) inset;
-  backdrop-filter: saturate(170%) blur(24px);
-}
+  }
 
 .mobile-dashboard-header {
   position: sticky;

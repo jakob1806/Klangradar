@@ -100,7 +100,7 @@ export default async function EventGroupsPage() {
                     confirmMessage={`${s.groups.length} Gruppen zu "${s.targetTitle}" zusammenführen?`}
                     label={`Zusammenführen (${s.groups.length} Gruppen)`}
                     pendingLabel="Führe zusammen…"
-                    className="rounded-lg bg-[#0071e3] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[#0077ed] disabled:opacity-50"
+                    className="rounded-lg bg-[#2D2A6E] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[#38358a] disabled:opacity-50"
                   />
                 </div>
                 <ul className="mt-2 flex flex-col gap-1 text-sm text-neutral-600">

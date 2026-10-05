@@ -70,7 +70,7 @@ export function GroupParticipantImporter({
                     type="checkbox"
                     name={`selected_${index}`}
                     defaultChecked
-                    className="mt-1 h-4 w-4 accent-[#0071e3]"
+                    className="mt-1 h-4 w-4 accent-[#2D2A6E]"
                     aria-label={`${participant.name} übernehmen`}
                   />
                   <div className="min-w-0 flex-1">

@@ -70,7 +70,7 @@ export default async function EnsemblesPage({ searchParams }: { searchParams: Pr
         >
           Familien verwalten
         </Link>
-        <Link href="/ensembles/new" className="rounded-lg bg-[#0071e3] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#0077ed]">Neu anlegen</Link>
+        <Link href="/ensembles/new" className="rounded-lg bg-[#2D2A6E] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#38358a]">Neu anlegen</Link>
       </div>
 
       {error && (
@@ -81,7 +81,7 @@ export default async function EnsemblesPage({ searchParams }: { searchParams: Pr
         <BioSelectionProvider>
           <div className="mt-6">
             <div className="mb-4 flex gap-2">
-              <Link href="/ensembles?ansicht=aktiv" className={`px-3 py-1.5 text-sm ${ansicht !== "technisch" ? "bg-[#0071e3] text-white" : "bg-neutral-100 text-neutral-600"}`}>Aktive Ensembles</Link>
+              <Link href="/ensembles?ansicht=aktiv" className={`px-3 py-1.5 text-sm ${ansicht !== "technisch" ? "bg-[#2D2A6E] text-white" : "bg-neutral-100 text-neutral-600"}`}>Aktive Ensembles</Link>
               <Link href="/ensembles?ansicht=technisch" className={`px-3 py-1.5 text-sm ${ansicht === "technisch" ? "bg-amber-600 text-white" : "bg-neutral-100 text-neutral-600"}`}>Technische Sammelbegriffe</Link>
             </div>
             <div className="flex items-center justify-between">
@@ -148,7 +148,7 @@ export default async function EnsemblesPage({ searchParams }: { searchParams: Pr
                         <td className="px-4 py-3 text-right">
                           <Link
                             href={`/ensembles/${ensemble.id}`}
-                            className="text-sm font-medium text-neutral-700 hover:text-[#0071e3]"
+                            className="text-sm font-medium text-neutral-700 hover:text-[#2D2A6E]"
                           >
                             Bearbeiten
                           </Link>

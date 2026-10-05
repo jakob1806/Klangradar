@@ -84,7 +84,7 @@ export function LowConfidenceTable({ events }: { events: LowConfidenceEvent[] })
               type="button"
               disabled={pending}
               onClick={() => runBulk("clear")}
-              className="rounded-lg bg-[#0071e3] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[#0077ed] disabled:opacity-50"
+              className="rounded-lg bg-[#2D2A6E] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[#38358a] disabled:opacity-50"
             >
               Als geprüft markieren
             </button>

@@ -77,7 +77,7 @@ export function ImageResearchClient({
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           placeholder="Name filtern…"
-          className="rounded-lg border border-black/10 px-3 py-1.5 text-sm outline-none focus:border-[#0071e3]"
+          className="rounded-lg border border-black/10 px-3 py-1.5 text-sm outline-none focus:border-[#2D2A6E]"
         />
         <label className="flex items-center gap-1.5 text-sm text-neutral-600">
           <input
@@ -108,7 +108,7 @@ export function ImageResearchClient({
           <button
             type="button"
             onClick={() => setPhase("workflow")}
-            className="ml-auto rounded-lg bg-[#0071e3] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#0077ed]"
+            className="ml-auto rounded-lg bg-[#2D2A6E] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#38358a]"
           >
             {selected.size} ausgewählt — Bilder recherchieren →
           </button>
@@ -176,7 +176,7 @@ function ImageWorkflow({
         <button
           type="button"
           onClick={onBack}
-          className="mt-4 rounded-lg bg-[#0071e3] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#0077ed]"
+          className="mt-4 rounded-lg bg-[#2D2A6E] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#38358a]"
         >
           Zurück zur Auswahl
         </button>
@@ -375,7 +375,7 @@ function ImageStep({
               type="button"
               disabled={busy}
               onClick={handleTakeOver}
-              className="mt-3 rounded-lg bg-[#0071e3] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#0077ed] disabled:opacity-50"
+              className="mt-3 rounded-lg bg-[#2D2A6E] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#38358a] disabled:opacity-50"
             >
               {busy ? "Speichere…" : "Übernehmen & weiter"}
             </button>
@@ -391,7 +391,7 @@ function ImageStep({
               value={urlInput}
               onChange={(e) => setUrlInput(e.target.value)}
               placeholder="https://…"
-              className="flex-1 rounded-lg border border-black/10 px-3 py-1.5 text-sm outline-none focus:border-[#0071e3]"
+              className="flex-1 rounded-lg border border-black/10 px-3 py-1.5 text-sm outline-none focus:border-[#2D2A6E]"
             />
             <button
               type="button"
@@ -437,7 +437,7 @@ function ImageStep({
                 type="button"
                 disabled={busy}
                 onClick={handleUploadSelected}
-                className="rounded-lg bg-[#0071e3] px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[#0077ed] disabled:opacity-50"
+                className="rounded-lg bg-[#2D2A6E] px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[#38358a] disabled:opacity-50"
               >
                 {busy ? "Lade hoch…" : `${selectedFiles.length} Datei(en) hochladen`}
               </button>

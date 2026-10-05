@@ -69,7 +69,7 @@ export default async function WichtigPage() {
       </div>
 
       <Link href="/knowledge-graph" className="group mt-8 grid overflow-hidden rounded-2xl bg-[#f1ede5] p-6 transition hover:bg-[#eee8dc] sm:grid-cols-[1fr_auto] sm:items-end sm:p-7">
-        <div><p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8b2635]">Klangradar Datenbank</p><h2 className="mt-2 max-w-xl text-2xl font-semibold tracking-[-0.04em] text-[#1d1d1f]">Den Knowledge Graph pflegen und erkunden</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-[#6f6a63]">{(workCount ?? 0).toLocaleString("de-DE")} Werke sind über {(graphLinkCount ?? 0).toLocaleString("de-DE")} Programme mit Aufführungen, Personen, Ensembles und Orten verbunden.</p></div>
+        <div><p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8b2635]">Klangradar Datenbank</p><h2 className="mt-2 max-w-xl text-2xl font-semibold tracking-[-0.04em] text-[#18181B]">Den Knowledge Graph pflegen und erkunden</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-[#6f6a63]">{(workCount ?? 0).toLocaleString("de-DE")} Werke sind über {(graphLinkCount ?? 0).toLocaleString("de-DE")} Programme mit Aufführungen, Personen, Ensembles und Orten verbunden.</p></div>
         <span className="mt-5 text-sm font-semibold text-[#8b2635] transition-transform group-hover:translate-x-1 sm:mt-0">Graph öffnen →</span>
       </Link>
     </div>

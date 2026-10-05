@@ -31,7 +31,7 @@ export default async function EditorialCollectionsPage() {
         </div>
         <Link
           href="/editorial-collections/new"
-          className="rounded-lg bg-[#0071e3] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#0077ed]"
+          className="rounded-lg bg-[#2D2A6E] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#38358a]"
         >
           Neu anlegen
         </Link>

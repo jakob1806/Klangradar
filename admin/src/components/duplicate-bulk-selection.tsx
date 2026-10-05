@@ -128,7 +128,7 @@ export function DuplicateSelectCheckbox({ id, label }: { id: string; label: stri
         type="checkbox"
         checked={context.selected.has(id)}
         onChange={() => context.toggle(id)}
-        className="h-4 w-4 rounded border-neutral-300 accent-[#0071e3]"
+        className="h-4 w-4 rounded border-neutral-300 accent-[#2D2A6E]"
       />
       <span className="sr-only">{label} auswählen</span>
       Auswählen
