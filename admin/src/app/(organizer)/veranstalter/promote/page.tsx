@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { formatMunichDateTime } from "@/lib/munich-time";
 import { PromotionRequestForm } from "./promotion-request-form";
 import { PromotionCheckoutButton } from "./promotion-checkout-button";
+import { PromotionCancelButton } from "./promotion-cancel-button";
 import { getPromotableEvents } from "./promotable-events";
 import { getStripe } from "@/lib/stripe";
 import { PageHeader, PageBody } from "@/components/organizer/page-header";
@@ -93,6 +94,11 @@ export default async function PromotePage() {
                       {promotion.status === "payment_pending" && (
                         <div className="mt-2">
                           <PromotionCheckoutButton promotionId={promotion.id} />
+                        </div>
+                      )}
+                      {(promotion.status === "pending" || promotion.status === "payment_pending") && (
+                        <div className="mt-2">
+                          <PromotionCancelButton promotionId={promotion.id} />
                         </div>
                       )}
                     </TableCell>
