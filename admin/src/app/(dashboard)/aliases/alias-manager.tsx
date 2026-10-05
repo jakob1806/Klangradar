@@ -37,7 +37,7 @@ export function AliasManager({ type, entities }: { type: AliasEntityType; entiti
                 Hauptschreibweise
                 <input name="canonical_name" defaultValue={entity.name} required className="mt-1 w-full rounded-lg border border-black/10 px-3 py-2 text-sm text-neutral-950" />
               </label>
-              <button className="rounded-lg bg-[#0071e3] px-3 py-2 text-sm font-medium text-white hover:bg-[#0077ed]">Hauptschreibweise speichern</button>
+              <button className="rounded-lg bg-[#2D2A6E] px-3 py-2 text-sm font-medium text-white hover:bg-[#38358a]">Hauptschreibweise speichern</button>
             </form>
 
             <div className="mt-3 flex flex-wrap gap-2">

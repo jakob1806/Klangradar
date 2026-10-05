@@ -199,13 +199,13 @@ export default async function EventsPage({
         <div className="flex items-center gap-3">
           <Link
             href="/events/from-url"
-            className="rounded-lg border border-black/10 bg-white px-4 py-2 text-sm font-medium text-[#1d1d1f] transition-colors hover:bg-black/[0.04]"
+            className="rounded-lg border border-black/10 bg-white px-4 py-2 text-sm font-medium text-[#18181B] transition-colors hover:bg-black/[0.04]"
           >
             Von URL hinzufügen
           </Link>
           <Link
             href="/events/new"
-            className="rounded-lg bg-[#0071e3] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#0077ed]"
+            className="rounded-lg bg-[#2D2A6E] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#38358a]"
           >
             Neu anlegen
           </Link>
@@ -222,7 +222,7 @@ export default async function EventsPage({
               href={`/events?${qs({ status: tab.value })}`}
               className={`px-4 py-2 text-sm font-medium border-b-2 -mb-0.5 ${
                 isActive
-                  ? "border-[#0071e3] text-neutral-900"
+                  ? "border-[#2D2A6E] text-neutral-900"
                   : "border-transparent text-neutral-500 hover:text-neutral-700"
               }`}
             >
@@ -239,7 +239,7 @@ export default async function EventsPage({
           name="q"
           defaultValue={q}
           placeholder="Event, Venue, Ensemble oder Person suchen…"
-          className="w-full max-w-xs rounded-lg border border-black/10 px-3 py-2 text-sm outline-none focus:border-[#0071e3]"
+          className="w-full max-w-xs rounded-lg border border-black/10 px-3 py-2 text-sm outline-none focus:border-[#2D2A6E]"
         />
         <button
           type="submit"
@@ -250,7 +250,7 @@ export default async function EventsPage({
         {q && (
           <Link
             href={`/events?status=${status}`}
-            className="text-sm font-medium text-neutral-500 hover:text-[#0071e3]"
+            className="text-sm font-medium text-neutral-500 hover:text-[#2D2A6E]"
           >
             Zurücksetzen
           </Link>
@@ -327,7 +327,7 @@ export default async function EventsPage({
                           {event.status === "draft" && <PublishRowButton eventId={event.id} />}
                           <Link
                             href={`/events/${event.id}`}
-                            className="text-sm font-medium text-neutral-700 hover:text-[#0071e3]"
+                            className="text-sm font-medium text-neutral-700 hover:text-[#2D2A6E]"
                           >
                             Bearbeiten
                           </Link>

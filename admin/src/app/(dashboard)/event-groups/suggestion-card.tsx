@@ -50,7 +50,7 @@ export function SuggestionCard({ suggestion }: { suggestion: SuggestedGroup }) {
             type="button"
             disabled={pending || selectedIds.length < 2}
             onClick={handleCreate}
-            className="rounded-lg bg-[#0071e3] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[#0077ed] disabled:opacity-50"
+            className="rounded-lg bg-[#2D2A6E] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[#38358a] disabled:opacity-50"
           >
             {pending ? "Lege an…" : `Ausgewählte als Gruppe anlegen (${selectedIds.length})`}
           </button>
@@ -71,14 +71,14 @@ export function SuggestionCard({ suggestion }: { suggestion: SuggestedGroup }) {
               type="checkbox"
               checked={checked.has(e.id)}
               onChange={() => toggle(e.id)}
-              className="mt-1 accent-[#0071e3]"
+              className="mt-1 accent-[#2D2A6E]"
             />
             <span>
               {formatMunichDateTime(e.start_datetime)}
               {e.venueName && <span className="text-neutral-400"> · {e.venueName}</span>}
               {e.works.length > 0 && (
                 <details className="ml-1 inline-block align-middle">
-                  <summary className="inline cursor-pointer text-xs font-medium text-[#0071e3]">Programm</summary>
+                  <summary className="inline cursor-pointer text-xs font-medium text-[#2D2A6E]">Programm</summary>
                   <span className="ml-1 text-xs text-neutral-500">{e.works.join(" · ")}</span>
                 </details>
               )}

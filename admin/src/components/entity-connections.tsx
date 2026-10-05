@@ -61,7 +61,7 @@ export async function EntityConnections({ kind, id }: { kind: EntityKind; id: st
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8b2635]">Knowledge Graph</p>
-          <h2 id="connections-heading" className="mt-1 text-lg font-semibold tracking-[-0.025em] text-[#1d1d1f]">Verbindungen & nächste Termine</h2>
+          <h2 id="connections-heading" className="mt-1 text-lg font-semibold tracking-[-0.025em] text-[#18181B]">Verbindungen & nächste Termine</h2>
         </div>
         <Link href="/knowledge-graph" className="text-xs font-semibold text-[#8b2635] hover:underline">Im Graph erkunden →</Link>
       </div>
@@ -77,7 +77,7 @@ export async function EntityConnections({ kind, id }: { kind: EntityKind; id: st
               {upcoming.map((event) => (
                 <li key={event.id} className="grid gap-1 py-3 sm:grid-cols-[8.5rem_minmax(0,1fr)] sm:gap-4">
                   <time className="font-mono text-[11px] tabular-nums text-[#77736d]">{formatMunichDateTime(event.start_datetime)}</time>
-                  <div className="min-w-0"><Link href={`/events/${event.id}`} className="block truncate text-sm font-medium text-[#1d1d1f] hover:text-[#8b2635]">{event.title}</Link><p className="mt-0.5 truncate text-xs text-[#86827b]">{event.venues?.name ?? "Venue noch offen"}</p></div>
+                  <div className="min-w-0"><Link href={`/events/${event.id}`} className="block truncate text-sm font-medium text-[#18181B] hover:text-[#8b2635]">{event.title}</Link><p className="mt-0.5 truncate text-xs text-[#86827b]">{event.venues?.name ?? "Venue noch offen"}</p></div>
                 </li>
               ))}
             </ol>
@@ -91,7 +91,7 @@ export async function EntityConnections({ kind, id }: { kind: EntityKind; id: st
           </div>
           {works.length ? (
             <ul className="divide-y divide-black/[0.07]">
-              {works.map((work) => <li key={work.id} className="py-3"><Link href={`/works/${work.id}`} className="text-sm font-medium text-[#1d1d1f] hover:text-[#8b2635]">{work.title}</Link><p className="mt-0.5 text-xs text-[#86827b]">{[work.composer?.full_name, work.catalog_number].filter(Boolean).join(" · ") || "Urheberschaft noch offen"}</p></li>)}
+              {works.map((work) => <li key={work.id} className="py-3"><Link href={`/works/${work.id}`} className="text-sm font-medium text-[#18181B] hover:text-[#8b2635]">{work.title}</Link><p className="mt-0.5 text-xs text-[#86827b]">{[work.composer?.full_name, work.catalog_number].filter(Boolean).join(" · ") || "Urheberschaft noch offen"}</p></li>)}
             </ul>
           ) : <p className="py-6 text-sm text-[#86827b]">Noch keine Werke über Programme verbunden.</p>}
         </div>

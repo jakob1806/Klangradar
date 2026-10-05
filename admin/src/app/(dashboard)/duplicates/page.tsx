@@ -97,7 +97,7 @@ export default async function DuplicatesPage({
             href={`/duplicates?type=${tab.type}`}
             className={`px-3 py-2 text-sm font-medium ${
               tab.type === activeType
-                ? "border-b-2 border-[#0071e3] text-[#0071e3]"
+                ? "border-b-2 border-[#2D2A6E] text-[#2D2A6E]"
                 : "text-neutral-500 hover:text-neutral-800"
             }`}
           >

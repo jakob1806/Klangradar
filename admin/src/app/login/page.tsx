@@ -75,14 +75,14 @@ function LoginForm() {
       >
         {isOrganizerLogin && (
           <div className="flex-1 text-center sm:text-left">
-            <p className="type-label text-[#0071e3]">Klangradar für Veranstalter</p>
-            <h1 className="type-heading mt-2 text-2xl text-[#1d1d1f] sm:text-3xl">
+            <p className="type-label text-[#2D2A6E]">Klangradar für Veranstalter</p>
+            <h1 className="type-heading mt-2 text-2xl text-[#18181B] sm:text-3xl">
               Deine Events, deine Reichweite.
             </h1>
-            <p className="mt-3 text-sm text-[#48484a]">
+            <p className="mt-3 text-sm text-[#52525B]">
               Ein Login genügt, um deine Institution, Venue oder dein Ensemble selbst zu verwalten.
             </p>
-            <ul className="mt-5 flex flex-col gap-2.5 text-sm text-[#48484a]">
+            <ul className="mt-5 flex flex-col gap-2.5 text-sm text-[#52525B]">
               <li className="flex items-center gap-2 justify-center sm:justify-start">
                 <span aria-hidden="true">🎫</span> Eigene Events anlegen, bearbeiten und bewerben
               </li>

@@ -118,8 +118,8 @@ export default async function ImageResearchPage({
             href={`/image-research?type=${t}${onlyMissing ? "&missing=1" : ""}`}
             className={`px-3 py-1.5 type-label ${
               t === entityType
-                ? "rounded-lg bg-[#0071e3] !text-white"
-                : "rounded-lg border-2 border-transparent !text-neutral-500 hover:!text-[#1d1d1f] hover:bg-black/[0.04]"
+                ? "rounded-lg bg-[#2D2A6E] !text-white"
+                : "rounded-lg border-2 border-transparent !text-neutral-500 hover:!text-[#18181B] hover:bg-black/[0.04]"
             }`}
           >
             {TYPE_LABEL[t]}

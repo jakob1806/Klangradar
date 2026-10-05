@@ -43,16 +43,16 @@ export default async function TodosPage() {
           name="title"
           required
           placeholder="Titel"
-          className="rounded-lg border border-black/10 px-3 py-2 text-sm outline-none focus:border-[#0071e3]"
+          className="rounded-lg border border-black/10 px-3 py-2 text-sm outline-none focus:border-[#2D2A6E]"
         />
         <textarea
           name="description"
           required
           rows={3}
           placeholder="Genaue Beschreibung"
-          className="rounded-lg border border-black/10 px-3 py-2 text-sm outline-none focus:border-[#0071e3]"
+          className="rounded-lg border border-black/10 px-3 py-2 text-sm outline-none focus:border-[#2D2A6E]"
         />
-        <button className="self-start rounded-lg bg-[#0071e3] px-4 py-2 text-sm font-medium text-white hover:bg-[#0068d1]">
+        <button className="self-start rounded-lg bg-[#2D2A6E] px-4 py-2 text-sm font-medium text-white hover:bg-[#0068d1]">
           To-Do anlegen
         </button>
       </form>

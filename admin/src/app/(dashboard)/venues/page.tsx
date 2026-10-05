@@ -49,7 +49,7 @@ export default async function VenuesPage() {
         </div>
         <Link
           href="/venues/new"
-          className="rounded-lg bg-[#0071e3] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#0077ed]"
+          className="rounded-lg bg-[#2D2A6E] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#38358a]"
         >
           Neu anlegen
         </Link>
@@ -128,7 +128,7 @@ export default async function VenuesPage() {
                           <ImageStatusBadge hasImage={!!venue.photo_url} />
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <Link href={`/venues/${venue.id}`} className="text-sm font-medium text-neutral-700 hover:text-[#0071e3]">
+                          <Link href={`/venues/${venue.id}`} className="text-sm font-medium text-neutral-700 hover:text-[#2D2A6E]">
                             Bearbeiten
                           </Link>
                         </td>

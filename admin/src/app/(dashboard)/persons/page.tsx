@@ -89,7 +89,7 @@ export default async function PersonsPage() {
           </Link>
           <Link
             href="/persons/new"
-            className="rounded-lg bg-[#0071e3] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#0077ed]"
+            className="rounded-lg bg-[#2D2A6E] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#38358a]"
           >
             Neu anlegen
           </Link>
@@ -167,7 +167,7 @@ export default async function PersonsPage() {
                         <td className="px-4 py-3 text-right">
                           <Link
                             href={`/persons/${person.id}`}
-                            className="text-sm font-medium text-neutral-700 hover:text-[#0071e3]"
+                            className="text-sm font-medium text-neutral-700 hover:text-[#2D2A6E]"
                           >
                             Bearbeiten
                           </Link>

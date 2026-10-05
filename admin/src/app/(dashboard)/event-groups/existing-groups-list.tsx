@@ -51,7 +51,7 @@ export function ExistingGroupsList({ groups }: { groups: GroupRow[] }) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Gruppen durchsuchen (Titel, Termin, Venue)…"
-          className="w-full max-w-sm rounded-lg border border-black/[0.08] bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-[#0071e3] focus:outline-none focus:ring-[3px] focus:ring-[rgba(0,113,227,0.14)]"
+          className="w-full max-w-sm rounded-lg border border-black/[0.08] bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-[#2D2A6E] focus:outline-none focus:ring-[3px] focus:ring-[rgba(0,113,227,0.14)]"
         />
       </div>
 
@@ -103,7 +103,7 @@ export function ExistingGroupsList({ groups }: { groups: GroupRow[] }) {
                     {e.venues?.name && <span className="text-neutral-400"> · {e.venues.name}</span>}
                     {e.works.length > 0 && (
                       <details className="ml-1 inline-block align-middle">
-                        <summary className="inline cursor-pointer text-xs font-medium text-[#0071e3]">Programm</summary>
+                        <summary className="inline cursor-pointer text-xs font-medium text-[#2D2A6E]">Programm</summary>
                         <span className="ml-1 text-xs text-neutral-500">{e.works.join(" · ")}</span>
                       </details>
                     )}

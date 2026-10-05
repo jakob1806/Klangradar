@@ -124,7 +124,7 @@ export async function CityQualitySection() {
       <Section title="Venues ohne Stadt" count={venuesMissingCity?.length ?? 0} emptyLabel="Alle Venues haben eine Stadt.">
         {venuesMissingCity?.map((v) => (
           <li key={v.venue_id}>
-            <a href={`/venues/${v.venue_id}`} className="text-[#0071e3] hover:underline">
+            <a href={`/venues/${v.venue_id}`} className="text-[#2D2A6E] hover:underline">
               {v.name}
             </a>{" "}
             — {v.address_city}
@@ -135,7 +135,7 @@ export async function CityQualitySection() {
       <Section title="Events ohne Stadt" count={eventsMissingCity?.length ?? 0} emptyLabel="Alle Events haben eine Stadt.">
         {eventsMissingCity?.map((e) => (
           <li key={e.event_id}>
-            <a href={`/events/${e.event_id}`} className="text-[#0071e3] hover:underline">
+            <a href={`/events/${e.event_id}`} className="text-[#2D2A6E] hover:underline">
               {e.title}
             </a>
           </li>
@@ -149,7 +149,7 @@ export async function CityQualitySection() {
       >
         {cityMismatches?.map((m) => (
           <li key={m.event_id}>
-            <a href={`/events/${m.event_id}`} className="text-[#0071e3] hover:underline">
+            <a href={`/events/${m.event_id}`} className="text-[#2D2A6E] hover:underline">
               {m.title}
             </a>{" "}
             — Venue {m.venue_name}
@@ -164,7 +164,7 @@ export async function CityQualitySection() {
       >
         {coordinateMismatches?.map((m) => (
           <li key={m.venue_id}>
-            <a href={`/venues/${m.venue_id}`} className="text-[#0071e3] hover:underline">
+            <a href={`/venues/${m.venue_id}`} className="text-[#2D2A6E] hover:underline">
               {m.name}
             </a>{" "}
             — {m.distance_km} km von {m.city_slug} (Radius {m.search_radius_km} km)
@@ -179,11 +179,11 @@ export async function CityQualitySection() {
       >
         {duplicateVenues?.map((d) => (
           <li key={`${d.venue_id_a}-${d.venue_id_b}`}>
-            <a href={`/venues/${d.venue_id_a}`} className="text-[#0071e3] hover:underline">
+            <a href={`/venues/${d.venue_id_a}`} className="text-[#2D2A6E] hover:underline">
               {d.name_a}
             </a>{" "}
             ↔{" "}
-            <a href={`/venues/${d.venue_id_b}`} className="text-[#0071e3] hover:underline">
+            <a href={`/venues/${d.venue_id_b}`} className="text-[#2D2A6E] hover:underline">
               {d.name_b}
             </a>{" "}
             ({Math.round(d.name_similarity * 100)}% ähnlich)
@@ -198,7 +198,7 @@ export async function CityQualitySection() {
       >
         {sourcesMissingCity?.map((s) => (
           <li key={s.source_id}>
-            <a href={`/sources/${s.source_id}`} className="text-[#0071e3] hover:underline">
+            <a href={`/sources/${s.source_id}`} className="text-[#2D2A6E] hover:underline">
               {s.name}
             </a>
           </li>
@@ -212,7 +212,7 @@ export async function CityQualitySection() {
       >
         {sourcesLowYield?.map((s) => (
           <li key={s.source_id}>
-            <a href={`/sources/${s.source_id}`} className="text-[#0071e3] hover:underline">
+            <a href={`/sources/${s.source_id}`} className="text-[#2D2A6E] hover:underline">
               {s.name}
             </a>
           </li>
