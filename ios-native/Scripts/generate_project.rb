@@ -94,8 +94,28 @@ add_files(
   [".swift"]
 )
 
+# Version/Build kommen aus dem lokalen Deploy-Zähler (~/.klangradar-build-number,
+# siehe deploy-iphone.sh): 723 -> 7.2.3. Als Build-Phase, damit die Nummer auch
+# bei Builds aus Xcode oder mit anderen Skripten stimmt (sonst gilt der
+# Projekt-Standard 1.0). Deploy-Builds übergeben CURRENT_PROJECT_VERSION
+# explizit (= Zähler + 1) und haben Vorrang vor dem Zählerstand.
+version_phase = app_target.new_shell_script_build_phase("Version aus Build-Zähler")
+version_phase.always_out_of_date = "1"
+version_phase.shell_script = <<~'SH'
+  BUILD="${CURRENT_PROJECT_VERSION}"
+  COUNTER="$HOME/.klangradar-build-number"
+  if [ "$BUILD" = "1" ] && [ -f "$COUNTER" ]; then BUILD=$(cat "$COUNTER"); fi
+  case "$BUILD" in ''|*[!0-9]*) exit 0 ;; esac
+  if [ "$BUILD" -le 1 ]; then exit 0; fi
+  VERSION="$((BUILD / 100)).$(((BUILD / 10) % 10)).$((BUILD % 10))"
+  PLIST="${TARGET_BUILD_DIR}/${INFOPLIST_PATH}"
+  /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD" "$PLIST"
+  /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$PLIST"
+SH
+
 app_target.build_configurations.each do |config|
   config.build_settings.merge!(
+    "ENABLE_USER_SCRIPT_SANDBOXING" => "NO",
     "ASSETCATALOG_COMPILER_APPICON_NAME" => "AppIcon",
     "ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME" => "AccentColor",
     "CODE_SIGN_STYLE" => "Automatic",
