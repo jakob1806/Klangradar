@@ -21,7 +21,7 @@ const PLACEMENT_TITLE: Record<string, string> = {
 };
 
 /** Vereinfachte Simulation der App: pro Platzierungsart der betreffende
- * Bereich, das gewählte Event an der geplanten Stelle (markiert "Anzeige"),
+ * Bereich, das gewählte Event an der geplanten Stelle (klein als "Anzeige" gekennzeichnet, wie in der App),
  * der Rest sind Platzhalter. Keine Live-Daten, nur zur Orientierung. */
 export function PlacementPreview({ placement, event }: { placement: string; event: PreviewEvent | null }) {
   const e: PreviewEvent = event ?? { title: "Dein Event", startLabel: "Datum · Uhrzeit", venueName: "Veranstaltungsort", imageUrl: null };
@@ -39,7 +39,7 @@ export function PlacementPreview({ placement, event }: { placement: string; even
         {placement === "push" && <LockScreen event={e} />}
       </Phone>
       <p className="max-w-[260px] text-center text-[11px] leading-4 text-[#726c78]">
-        Vereinfachte Darstellung. Die genaue Position kann je nach Saison, Stadt und Auslastung leicht abweichen.
+        Nachgebaut nach der iOS-App; Dummies füllen den Rest. Die genaue Position kann je nach Saison, Stadt und Auslastung leicht abweichen.
       </p>
     </div>
   );
@@ -68,9 +68,10 @@ function Cover({ event, className = "" }: { event: PreviewEvent; className?: str
   );
 }
 
-function AdBadge({ light }: { light?: boolean }) {
+/** Wie in der App (EventArtwork): winziges "Anzeige"-Label oben links in der Kachel. */
+function AdBadge({ small }: { small?: boolean }) {
   return (
-    <span className={`rounded-full px-2 py-[2px] text-[8px] font-bold uppercase tracking-wider ${light ? "bg-white/85 text-[#2D2A6E]" : "bg-[#2D2A6E] text-white"}`}>
+    <span className={`rounded-full bg-black/50 font-bold text-white ${small ? "px-1 py-[1px] text-[5px]" : "px-1.5 py-[2px] text-[7px]"}`}>
       Anzeige
     </span>
   );
@@ -112,8 +113,8 @@ function PromotedCard({ event, wide }: { event: PreviewEvent; wide?: boolean }) 
   return (
     <div className={`${wide ? "w-[150px]" : "w-[104px]"} shrink-0`}>
       <div className="relative">
-        <Cover event={event} className={`${wide ? "h-[92px]" : "h-[64px]"} rounded-xl ring-2 ring-[#2D2A6E]`} />
-        <span className="absolute left-1.5 top-1.5"><AdBadge light /></span>
+        <Cover event={event} className={`${wide ? "h-[92px]" : "h-[64px]"} rounded-xl`} />
+        <span className="absolute left-1.5 top-1.5"><AdBadge /></span>
       </div>
       <p className="mt-1.5 line-clamp-2 text-[9px] font-bold leading-3 text-[#18181B]">{event.title}</p>
       <p className="line-clamp-1 text-[8px] text-[#18181B]/55">{event.startLabel}</p>
@@ -125,10 +126,10 @@ function HomeHero({ event }: { event: PreviewEvent }) {
   return (
     <div className="h-full">
       <AppHeader />
-      <div className="relative mx-3 h-[190px] overflow-hidden rounded-[22px] ring-2 ring-[#2D2A6E]">
+      <div className="relative mx-3 h-[190px] overflow-hidden rounded-[24px]">
         <Cover event={event} className="absolute inset-0" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
-        <span className="absolute left-3 top-3"><AdBadge light /></span>
+        <span className="absolute left-3 top-3"><AdBadge /></span>
         <div className="absolute inset-x-3 bottom-3 text-white">
           <p className="text-[8px] font-bold uppercase tracking-widest text-white/85">{event.startLabel}</p>
           <p className="line-clamp-2 text-[14px] font-bold leading-4">{event.title}</p>
@@ -151,10 +152,7 @@ function LocalSpotlight({ event }: { event: PreviewEvent }) {
       <div className="mx-3 h-[78px] rounded-[18px] bg-[#18181B]/[0.07]" />
       <p className="mt-4 px-4 text-[11px] font-extrabold text-[#18181B]">Heute in München</p>
       <div className="mt-2 flex gap-2 overflow-hidden px-4"><DummyCard /><DummyCard /><DummyCard /></div>
-      <div className="mt-4 flex items-center justify-between px-4">
-        <p className="text-[11px] font-extrabold text-[#18181B]">Local Spotlight · München</p>
-        <AdBadge />
-      </div>
+      <p className="mt-4 px-4 text-[11px] font-extrabold text-[#18181B]">Local Spotlight · München</p>
       <div className="mt-2 flex gap-2 overflow-hidden px-4"><PromotedCard event={event} wide /><DummyCard /></div>
       <p className="mt-4 px-4 text-[11px] font-extrabold text-[#18181B]">Beliebt in München</p>
       <div className="mt-2 flex gap-2 overflow-hidden px-4"><DummyCard /><DummyCard /><DummyCard /></div>
@@ -172,15 +170,14 @@ function FeaturedDiscover({ event }: { event: PreviewEvent }) {
       <div className="mt-2 grid grid-cols-2 gap-2 px-3">
         <div className="h-[46px] rounded-xl bg-[#6366f1]/70" /><div className="h-[46px] rounded-xl bg-[#d946ef]/70" />
       </div>
-      <div className="mt-3 flex items-center justify-between px-4">
-        <p className="text-[11px] font-extrabold text-[#18181B]">Konzerte entdecken</p>
-        <AdBadge />
-      </div>
+      <p className="mt-3 px-4 text-[11px] font-extrabold text-[#18181B]">Konzerte entdecken</p>
       <div className="mt-2 flex gap-2 overflow-hidden px-3">
         <div className="w-[150px] shrink-0">
           <div className="relative">
-            <Cover event={event} className="h-[190px] rounded-[18px] ring-2 ring-[#2D2A6E]" />
+            <Cover event={event} className="h-[184px] rounded-[18px]" />
             <div className="absolute inset-0 rounded-[18px] bg-gradient-to-t from-black/75 via-transparent to-transparent" />
+            <span className="absolute left-2 top-2"><AdBadge /></span>
+            <span className="absolute right-2 top-2 flex size-4 items-center justify-center rounded-full bg-black/30 text-[8px] text-white">♡</span>
             <div className="absolute inset-x-2.5 bottom-2.5 text-white">
               <p className="line-clamp-2 text-[11px] font-bold leading-[13px]">{event.title}</p>
               <p className="mt-0.5 line-clamp-1 text-[8px] text-white/85">{event.startLabel}</p>
@@ -200,13 +197,15 @@ function StandardList({ event }: { event: PreviewEvent }) {
       <AppHeader />
       <p className="px-4 pb-2 pt-1 text-[11px] font-extrabold text-[#18181B]">Demnächst in München</p>
       <div className="flex flex-col gap-2 px-3">
-        <div className="relative flex items-center gap-2.5 rounded-2xl bg-white p-2 ring-2 ring-[#2D2A6E]">
-          <Cover event={event} className="h-[52px] w-[52px] shrink-0 rounded-xl" />
-          <div className="min-w-0 flex-1 pt-3">
+        <div className="relative flex items-center gap-2.5 rounded-2xl bg-white p-2">
+          <div className="relative shrink-0">
+            <Cover event={event} className="h-[52px] w-[52px] rounded-xl" />
+            <span className="absolute left-0.5 top-0.5"><AdBadge small /></span>
+          </div>
+          <div className="min-w-0 flex-1">
             <p className="line-clamp-2 text-[10px] font-bold leading-3 text-[#18181B]">{event.title}</p>
             <p className="mt-0.5 line-clamp-1 text-[8px] text-[#18181B]/55">{event.startLabel}{event.venueName ? ` · ${event.venueName}` : ""}</p>
           </div>
-          <span className="absolute right-2 top-1.5"><AdBadge /></span>
         </div>
         {DUMMIES.map((d) => (
           <div key={d.title} className="flex items-center gap-2.5 rounded-2xl bg-white/80 p-2">
