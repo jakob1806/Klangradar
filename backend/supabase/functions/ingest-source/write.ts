@@ -4,6 +4,7 @@
 // Duplicate-Candidate ist, oder komplett neu angelegt wird. Siehe
 // docs/06-mvp-plan.md "Ingestion-Pipeline (Basis)" für den Gesamtkontext.
 
+import { detectTitleStatus } from "./cancellation.ts";
 import { findEventMatch, resolveVenue } from "./matching.ts";
 import type { RawEvent } from "./types.ts";
 import { detectEventCoverImage } from "../_shared/coverImageDetection.ts";
@@ -313,7 +314,8 @@ export async function upsertRawEvent(
         // attachCoverImage() unten füllt es erst, wenn das Bild die
         // Mindestauflösung der Pipeline besteht (siehe dortiger Kommentar).
         image_urls: [],
-        status: source.config?.autoPublish === true ? "scheduled" : "draft",
+        // Titel wie "ABGESAGT: …" -> sofort als abgesagt/verschoben anlegen.
+        status: detectTitleStatus(raw.title) ?? (source.config?.autoPublish === true ? "scheduled" : "draft"),
         source_id: source.id,
         external_id: raw.externalId,
         content_hash: contentHash,
@@ -381,7 +383,15 @@ async function applyUpdate(
 
   const { error: updateError } = await supabase
     .from("events")
-    .update({ ...updates, content_hash: contentHash, last_verified_at: nowIso, last_seen_at: nowIso })
+    .update({
+      ...updates,
+      // Fehlt der Marker später im Titel, bleibt der Status unverändert
+      // (Redaktion entscheidet) — nur das Hinzukommen setzt ihn.
+      ...(detectTitleStatus(raw.title) ? { status: detectTitleStatus(raw.title) } : {}),
+      content_hash: contentHash,
+      last_verified_at: nowIso,
+      last_seen_at: nowIso,
+    })
     .eq("id", existing.id);
 
   if (updateError) {
