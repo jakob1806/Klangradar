@@ -76,8 +76,26 @@ struct FullScreenImageViewer: View {
 
 struct EventArtwork: View {
     let event: ConcertEvent
+    @ObservedObject private var promoted = PromotedEventsStore.shared
 
     var body: some View {
+        artwork
+            .overlay(alignment: .topLeading) {
+                if promoted.ids.contains(event.id) {
+                    // Bewusst winzig: Kennzeichnung als Werbung, ohne die
+                    // Kachel zu dominieren.
+                    Text("Anzeige")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2.5)
+                        .background(.black.opacity(0.5), in: .capsule)
+                        .padding(7)
+                }
+            }
+    }
+
+    private var artwork: some View {
         CachedAsyncImage(url: event.primaryImageURL) { phase in
             switch phase {
             case let .success(image):
