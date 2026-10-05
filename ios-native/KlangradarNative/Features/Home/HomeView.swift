@@ -528,16 +528,24 @@ private struct CollectionRail: View {
             Text("Redaktionelle Sammlungen")
                 .font(.title2.bold())
                 .padding(.horizontal, KlangradarTheme.pagePadding)
+            // Feste Höhe + nicht-lazy: Auf dem Gerät erschien nur die Überschrift
+            // mit einer Lücke (Zeile mit Höhe 0), solange der Lazy-Stack noch
+            // nichts realisiert hatte. Es gibt nur wenige Sammlungen, Lazy-
+            // Aufbau bringt hier nichts.
             ScrollView(.horizontal) {
-                LazyHStack(spacing: 16) {
+                HStack(spacing: 16) {
                     ForEach(collections) { collection in
                         NavigationLink(value: collection) {
                             VStack(alignment: .leading, spacing: 8) {
                                 AsyncImage(url: collection.coverImageURL) { image in
                                     image.resizable().scaledToFill()
                                 } placeholder: {
-                                    Rectangle().fill(.quaternary)
-                                        .overlay { Image(systemName: "sparkles") }
+                                    LinearGradient(
+                                        colors: [KlangradarTheme.accent.opacity(0.35), KlangradarTheme.accent.opacity(0.15)],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                    .overlay { Image(systemName: "sparkles").font(.title).foregroundStyle(.white.opacity(0.8)) }
                                 }
                                 .frame(width: 280, height: 160)
                                 .clipped()
@@ -557,6 +565,7 @@ private struct CollectionRail: View {
                 }
                 .padding(.horizontal, KlangradarTheme.pagePadding)
             }
+            .frame(height: 222)
             .scrollIndicators(.hidden)
         }
     }
