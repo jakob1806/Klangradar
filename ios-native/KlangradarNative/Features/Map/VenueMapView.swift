@@ -19,6 +19,10 @@ struct VenueMapView: View {
     @State private var showsFilter = false
     @State private var onlyWithEvents = false
     @State private var filterText = ""
+    // Tag-Filter: nur Orte mit mindestens einer Veranstaltung am gewählten Tag.
+    @State private var dayFilterEnabled = false
+    @State private var dayFilterDate = Date()
+    @State private var venueIDsOnDay: Set<UUID>?
     @State private var position: MapCameraPosition = .region(Self.munichRegion)
     @State private var locationRequester = LocationRequester()
     @State private var locationError: String?
@@ -37,6 +41,7 @@ struct VenueMapView: View {
         venues.filter { venue in
             (!onlyWithEvents || venue.upcomingEventCount > 0)
                 && (filterText.isEmpty || venue.name.localizedStandardContains(filterText))
+                && (!dayFilterEnabled || venueIDsOnDay?.contains(venue.id) ?? true)
         }
     }
 
@@ -67,6 +72,7 @@ struct VenueMapView: View {
         }
         .sheet(isPresented: $showsFilter) { filterSheet }
         .task { await loadVenues() }
+        .task(id: dayFilterKey) { await loadDayFilter() }
         .onChange(of: cityStore.selectedCity) { _, _ in
             hasAutoFitCamera = false
             Task { await loadVenues() }
@@ -114,6 +120,7 @@ struct VenueMapView: View {
         }
         .mapStyle(.standard(elevation: .realistic))
             .overlay(alignment: .top) {
+                VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 12) {
                 Button { showsFilter = true } label: {
                     Label("Filter", systemImage: "line.3.horizontal.decrease")
@@ -156,6 +163,8 @@ struct VenueMapView: View {
                     .accessibilityLabel("Meinen Standort anzeigen")
                 }
                 .padding(.horizontal, 16)
+                if dayFilterEnabled { dayFilterChip.padding(.horizontal, 16) }
+                }
                 .padding(.top, 10)
             }
             .navigationTitle("Karte")
@@ -164,6 +173,48 @@ struct VenueMapView: View {
             .onChange(of: selectedVenueID) { _, id in
                 selectedVenue = venues.first { $0.id == id }
             }
+    }
+
+    private var dayFilterKey: String {
+        dayFilterEnabled ? "\(KlangradarDateTime.calendar.startOfDay(for: dayFilterDate).timeIntervalSince1970)" : "aus"
+    }
+
+    @MainActor private func loadDayFilter() async {
+        guard dayFilterEnabled else {
+            // Filter aus: wieder alle Orte zeigen.
+            if venueIDsOnDay != nil { fitCamera(to: venues, animated: true) }
+            venueIDsOnDay = nil
+            return
+        }
+        venueIDsOnDay = nil
+        let ids = try? await repository.venueIDs(withEventsOn: dayFilterDate)
+        guard !Task.isCancelled else { return }
+        venueIDsOnDay = ids ?? []
+        // Kamera auf die Treffer des gewählten Tags zoomen.
+        fitCamera(to: filteredVenues, animated: true)
+    }
+
+    /// Aktiver Tag-Filter als Glas-Chip über der Karte; ✕ deaktiviert ihn.
+    private var dayFilterChip: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "calendar")
+            Text(KlangradarDateTime.string(dayFilterDate, format: "EEE, d. MMM"))
+            Text(venueIDsOnDay != nil ? "· \(filteredVenues.count) Orte" : "· lädt …")
+                .foregroundStyle(.secondary)
+            Button {
+                Haptics.light()
+                withAnimation(.snappy) { dayFilterEnabled = false }
+            } label: {
+                Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+            }
+            .accessibilityLabel("Tag-Filter entfernen")
+        }
+        .font(.subheadline.weight(.medium))
+        .padding(.horizontal, 14)
+        .frame(height: 36)
+        .background { LiquidGlassSurface(cornerRadius: 18, isInteractive: true) { Color.clear } }
+        .fixedSize()
+        .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .topLeading)))
     }
 
     @MainActor private func loadVenues() async {
@@ -194,8 +245,13 @@ struct VenueMapView: View {
     @MainActor private func fitCameraToVenuesIfNeeded() {
         guard !hasAutoFitCamera, !venues.isEmpty else { return }
         hasAutoFitCamera = true
-        let lats = venues.map(\.coordinate.latitude)
-        let lons = venues.map(\.coordinate.longitude)
+        fitCamera(to: venues)
+    }
+
+    @MainActor private func fitCamera(to targets: [VenueLocation], animated: Bool = false) {
+        guard !targets.isEmpty else { return }
+        let lats = targets.map(\.coordinate.latitude)
+        let lons = targets.map(\.coordinate.longitude)
         guard let minLat = lats.min(), let maxLat = lats.max(),
               let minLon = lons.min(), let maxLon = lons.max() else { return }
         let center = CLLocationCoordinate2D(
@@ -203,10 +259,15 @@ struct VenueMapView: View {
             longitude: (minLon + maxLon) / 2
         )
         let span = MKCoordinateSpan(
-            latitudeDelta: max((maxLat - minLat) * 1.3, 0.12),
-            longitudeDelta: max((maxLon - minLon) * 1.3, 0.12)
+            latitudeDelta: max((maxLat - minLat) * 1.4, 0.02),
+            longitudeDelta: max((maxLon - minLon) * 1.4, 0.02)
         )
-        position = .region(MKCoordinateRegion(center: center, span: span))
+        let region = MKCoordinateRegion(center: center, span: span)
+        if animated {
+            withAnimation(.easeInOut(duration: 0.5)) { position = .region(region) }
+        } else {
+            position = .region(region)
+        }
     }
 
     private func groupTitle(for group: [VenueLocation]) -> String {
@@ -216,10 +277,34 @@ struct VenueMapView: View {
     private var filterSheet: some View {
         NavigationStack {
             Form {
-                Toggle("Nur Orte mit kommenden Konzerten", isOn: $onlyWithEvents)
-                TextField("Konzertort suchen", text: $filterText)
+                Section {
+                    Toggle("Nur Orte mit kommenden Konzerten", isOn: $onlyWithEvents)
+                    TextField("Konzertort suchen", text: $filterText)
+                }
+                Section {
+                    Toggle("Nach Tag filtern", isOn: $dayFilterEnabled.animation(.snappy))
+                    if dayFilterEnabled {
+                        DatePicker(
+                            "Tag",
+                            selection: $dayFilterDate,
+                            in: Date()...,
+                            displayedComponents: .date
+                        )
+                        .datePickerStyle(.graphical)
+                        .environment(\.locale, Locale(identifier: "de_DE"))
+                        .tint(KlangradarTheme.accent)
+                    }
+                } header: {
+                    Text("Tag")
+                } footer: {
+                    Text(dayFilterEnabled
+                        ? "Die Karte zeigt nur Orte mit einer Veranstaltung am gewählten Tag."
+                        : "Wähle einen Tag, um nur Orte mit einer Veranstaltung an diesem Tag zu sehen.")
+                }
             }
+            .scrollContentBackground(.hidden)
             .navigationTitle("Kartenfilter")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     // Generated by Claude Code — sehr dezenter Tick beim
@@ -229,7 +314,11 @@ struct VenueMapView: View {
                 }
             }
         }
-        .presentationDetents([.height(230)])
+        // Liquid Glass: ab iOS 26 zeigt das Sheet automatisch Glas; davor
+        // dünnes Material statt opakem Formular-Grau.
+        .presentationDetents([.medium, .large])
+        .presentationBackground(.regularMaterial)
+        .presentationDragIndicator(.visible)
     }
 }
 
