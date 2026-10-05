@@ -126,7 +126,7 @@ export default async function QualitaetspruefungPage({
     return (
       <div className="mx-auto max-w-6xl p-6 lg:p-8">
         <div className="rounded-2xl border border-black/[0.06] bg-gradient-to-br from-white to-neutral-50 p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#0071e3]">Redaktion</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#2D2A6E]">Redaktion</p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Qualitätsprüfung</h1>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-neutral-500">
             Strukturelle Stadt-Konsistenzprüfungen: fehlende oder widersprüchliche Stadtzuordnungen bei Venues,
@@ -150,9 +150,9 @@ export default async function QualitaetspruefungPage({
           ))}
           <Link
             href="/qualitaetspruefung?type=city"
-            className="flex items-center gap-3 rounded-xl border border-[#0071e3]/30 bg-blue-50 px-3 py-3 text-sm font-medium text-[#0064c8] shadow-sm"
+            className="flex items-center gap-3 rounded-xl border border-[#2D2A6E]/30 bg-blue-50 px-3 py-3 text-sm font-medium text-[#38358a] shadow-sm"
           >
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#0071e3] text-xs font-semibold text-white">S</span>
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#2D2A6E] text-xs font-semibold text-white">S</span>
             <span className="min-w-0 flex-1">Städte</span>
           </Link>
         </div>
@@ -189,7 +189,7 @@ export default async function QualitaetspruefungPage({
       <div className="rounded-2xl border border-black/[0.06] bg-gradient-to-br from-white to-neutral-50 p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#0071e3]">Redaktion</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#2D2A6E]">Redaktion</p>
             <h1 className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Qualitätsprüfung</h1>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-neutral-500">{TAB_DESCRIPTION[activeType]}</p>
           </div>
@@ -219,13 +219,13 @@ export default async function QualitaetspruefungPage({
             href={`/qualitaetspruefung?type=${tab.type}`}
             className={`flex items-center gap-3 rounded-xl border px-3 py-3 text-sm font-medium transition-all ${
               tab.type === activeType
-                ? "border-[#0071e3]/30 bg-blue-50 text-[#0064c8] shadow-sm"
+                ? "border-[#2D2A6E]/30 bg-blue-50 text-[#38358a] shadow-sm"
                 : "border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300 hover:text-neutral-900"
             }`}
           >
             <span
               className={`flex h-8 w-8 items-center justify-center rounded-lg text-xs font-semibold ${
-                tab.type === activeType ? "bg-[#0071e3] text-white" : "bg-neutral-100 text-neutral-500"
+                tab.type === activeType ? "bg-[#2D2A6E] text-white" : "bg-neutral-100 text-neutral-500"
               }`}
             >
               {TYPE_ICON[tab.type]}
@@ -263,7 +263,7 @@ export default async function QualitaetspruefungPage({
                     <div className="flex flex-wrap items-center gap-2">
                       <Link
                         href={`/${ENTITY_ROUTE[activeType]}/${flag.entity_id}`}
-                        className="text-base font-semibold text-neutral-950 hover:text-[#0071e3]"
+                        className="text-base font-semibold text-neutral-950 hover:text-[#2D2A6E]"
                       >
                         {flag.display_name || "(kein Name)"}
                       </Link>
@@ -315,7 +315,7 @@ export default async function QualitaetspruefungPage({
                     <EntityAuditSelectCheckbox id={flag.id} label={flag.display_name || "Eintrag"} />
                     <Link
                       href={`/${ENTITY_ROUTE[activeType]}/${flag.entity_id}`}
-                      className="text-xs font-medium text-neutral-700 hover:text-[#0071e3]"
+                      className="text-xs font-medium text-neutral-700 hover:text-[#2D2A6E]"
                     >
                       Bearbeiten →
                     </Link>

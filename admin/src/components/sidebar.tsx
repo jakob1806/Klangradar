@@ -103,8 +103,8 @@ export function Sidebar({ userEmail }: { userEmail?: string }) {
           <Image src="/app-logo.svg" alt="" width={40} height={40} priority />
         </span>
         <span className="min-w-0">
-          <span className="block truncate text-[15px] font-semibold tracking-[-0.014em] text-[#1d1d1f]">Klangradar</span>
-          <span className="mt-0.5 block truncate text-[11px] text-[#86868b]">Redaktions-Dashboard</span>
+          <span className="block truncate text-[15px] font-extrabold tracking-tight text-[#18181B]">Klangradar</span>
+          <span className="mt-0.5 block truncate text-[11px] text-[#A1A1AA]">Redaktions-Dashboard</span>
         </span>
       </div>
       <nav className="dashboard-sidebar-nav">
@@ -138,8 +138,8 @@ export function Sidebar({ userEmail }: { userEmail?: string }) {
         <div className="dashboard-account" title={userEmail}>
           <span className="dashboard-account-avatar" aria-hidden="true">{userEmail.slice(0, 1).toUpperCase()}</span>
           <span className="min-w-0">
-            <span className="block text-[10px] font-semibold uppercase tracking-[0.06em] text-[#86868b]">Angemeldet</span>
-            <span className="block truncate text-[11px] text-[#424245]">{userEmail}</span>
+            <span className="block text-[10px] font-semibold uppercase tracking-[0.06em] text-[#A1A1AA]">Angemeldet</span>
+            <span className="block truncate text-[11px] text-[#52525B]">{userEmail}</span>
           </span>
         </div>
       )}

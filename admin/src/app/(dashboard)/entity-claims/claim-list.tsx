@@ -62,7 +62,7 @@ export function ClaimList({ claims }: { claims: UiClaim[] }) {
                 </td>
                 <td className="px-4 py-3 text-neutral-600">
                   {claim.verificationEmail && <p>{claim.verificationEmail}</p>}
-                  {claim.evidenceUrl && <a href={claim.evidenceUrl} target="_blank" rel="noreferrer" className="text-[#0071e3] hover:underline">Nachweis öffnen ↗</a>}
+                  {claim.evidenceUrl && <a href={claim.evidenceUrl} target="_blank" rel="noreferrer" className="text-[#2D2A6E] hover:underline">Nachweis öffnen ↗</a>}
                 </td>
                 <td className="px-4 py-3 tabular-nums text-neutral-500">{formatDate(claim.createdAt)}</td>
                 <td className="px-4 py-3">

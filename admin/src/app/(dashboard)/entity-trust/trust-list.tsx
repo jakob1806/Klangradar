@@ -87,7 +87,7 @@ function TrustRow({ entity }: { entity: UiTrustEntity }) {
               type="button"
               disabled={pending}
               onClick={() => run(() => setTrustLevel(entity.entityType, entity.entityId, "verified"), "verified")}
-              className="text-sm font-medium text-[#0071e3] hover:underline disabled:opacity-50"
+              className="text-sm font-medium text-[#2D2A6E] hover:underline disabled:opacity-50"
             >
               Verifizieren
             </button>
@@ -97,7 +97,7 @@ function TrustRow({ entity }: { entity: UiTrustEntity }) {
               type="button"
               disabled={pending}
               onClick={() => run(() => setTrustLevel(entity.entityType, entity.entityId, "official"), "official")}
-              className="text-sm font-medium text-[#0071e3] hover:underline disabled:opacity-50"
+              className="text-sm font-medium text-[#2D2A6E] hover:underline disabled:opacity-50"
             >
               Als offiziell markieren
             </button>

@@ -29,7 +29,7 @@ export function AutoFixAllButton({ platform }: { platform: "flutter" | "native" 
         type="button"
         disabled={pending}
         onClick={handleClick}
-        className="rounded-lg bg-[#0071e3] px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-[#0077ed] disabled:opacity-50"
+        className="rounded-lg bg-[#2D2A6E] px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-[#38358a] disabled:opacity-50"
       >
         {pending ? "Reparaturen laufen…" : "Alle offenen reparieren"}
       </button>

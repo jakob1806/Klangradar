@@ -6,6 +6,7 @@ import { MobileTableAdapter } from "@/components/mobile-table-adapter";
 import { SignOutButton } from "@/components/sign-out-button";
 import { CityFilterSwitcher } from "@/components/city-filter-switcher";
 import { createClient } from "@/lib/supabase/server";
+import { bodySans } from "../(organizer)/fonts";
 import { getActiveCityFilter, getCityFilterOptions } from "@/lib/city-filter";
 
 export default async function DashboardLayout({
@@ -23,7 +24,7 @@ export default async function DashboardLayout({
   ] = await Promise.all([supabase.auth.getUser(), getCityFilterOptions(), getActiveCityFilter()]);
 
   return (
-    <div className="dashboard-shell flex min-h-full">
+    <div className={`dashboard-shell ${bodySans.variable} flex min-h-full font-[family-name:var(--font-organizer-body)]`}>
       <MobileTableAdapter />
       <div className="hidden shrink-0 md:flex">
         <Sidebar userEmail={user?.email} />
@@ -37,13 +38,13 @@ export default async function DashboardLayout({
       <main className="dashboard-main min-w-0 flex-1">
         <div className="dashboard-topbar sticky top-0 z-30 hidden items-center justify-between px-8 md:flex">
           <div>
-            <p className="text-[13px] font-semibold tracking-tight text-[#1d1d1f]">Klangradar Redaktion</p>
-            <p className="text-[11px] text-[#86868b]">Inhalte zentral verwalten</p>
+            <p className="text-[13px] font-semibold tracking-tight text-[#18181B]">Klangradar Redaktion</p>
+            <p className="text-[11px] text-[#A1A1AA]">Inhalte zentral verwalten</p>
           </div>
           <div className="flex items-center gap-4">
             <Link
               href="/veranstalter"
-              className="rounded-full border border-black/10 px-3 py-1.5 text-xs font-semibold text-[#48484a] transition hover:bg-black/[0.04] hover:text-[#1d1d1f]"
+              className="rounded-full border border-[#15131a]/15 bg-white px-3 py-1.5 text-xs font-semibold text-[#18181B] transition hover:bg-[#15131a]/[0.03]"
             >
               Veranstalterportal
             </Link>

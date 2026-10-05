@@ -175,7 +175,7 @@ export function BulkActionBar() {
             if (e.key === "Escape") setNamingGroup(false);
           }}
           placeholder="z.B. Produktionstitel"
-          className="flex-1 rounded-md border border-neutral-300 px-3 py-1.5 text-sm outline-none focus:border-[#0071e3]"
+          className="flex-1 rounded-md border border-neutral-300 px-3 py-1.5 text-sm outline-none focus:border-[#2D2A6E]"
         />
         <button
           type="button"

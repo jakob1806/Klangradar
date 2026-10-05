@@ -222,8 +222,8 @@ export function WorkImageManualLink() {
                 key={work.id}
                 type="button"
                 onClick={() => handleSelect(work, true)}
-                className={`flex min-w-0 items-center gap-3 rounded-lg border p-2.5 text-left transition-colors hover:border-[#0071e3]/40 hover:bg-blue-50/40 ${
-                  selected?.id === work.id ? "border-[#0071e3] bg-blue-50" : "border-neutral-200 bg-white"
+                className={`flex min-w-0 items-center gap-3 rounded-lg border p-2.5 text-left transition-colors hover:border-[#2D2A6E]/40 hover:bg-blue-50/40 ${
+                  selected?.id === work.id ? "border-[#2D2A6E] bg-blue-50" : "border-neutral-200 bg-white"
                 }`}
               >
                 {work.previewUrl ? (
@@ -243,7 +243,7 @@ export function WorkImageManualLink() {
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium text-neutral-900">{work.title}</span>
                   {work.composerName && <span className="block truncate text-xs text-neutral-500">{work.composerName}</span>}
-                  <span className="mt-1 block text-xs font-medium text-[#0071e3]">
+                  <span className="mt-1 block text-xs font-medium text-[#2D2A6E]">
                     {work.imageCount} {work.imageCount === 1 ? "Bild" : "Bilder"} · Bearbeiten
                   </span>
                 </span>

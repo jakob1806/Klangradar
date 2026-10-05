@@ -88,7 +88,7 @@ export function BioResearchWorkflow({
         </p>
         <Link
           href={entityType === "person" ? "/persons" : entityType === "ensemble" ? "/ensembles" : "/venues"}
-          className="mt-4 inline-block rounded-lg bg-[#0071e3] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#0077ed]"
+          className="mt-4 inline-block rounded-lg bg-[#2D2A6E] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#38358a]"
         >
           Zurück zur Liste
         </Link>
@@ -225,7 +225,7 @@ function BioStep({
           onChange={(e) => setDraft(e.target.value)}
           rows={8}
           placeholder="Noch kein Text — recherchiert oder manuell eintragen."
-          className="mt-2 w-full rounded-lg border border-black/10 p-3 text-sm outline-none focus:border-[#0071e3]"
+          className="mt-2 w-full rounded-lg border border-black/10 p-3 text-sm outline-none focus:border-[#2D2A6E]"
         />
 
         <div className="mt-3 flex items-center gap-3">
@@ -233,7 +233,7 @@ function BioStep({
             type="button"
             disabled={saving || !draft.trim()}
             onClick={handleTakeOver}
-            className="rounded-lg bg-[#0071e3] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#0077ed] disabled:opacity-50"
+            className="rounded-lg bg-[#2D2A6E] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#38358a] disabled:opacity-50"
           >
             {saving ? "Speichere…" : "Übernehmen & weiter"}
           </button>

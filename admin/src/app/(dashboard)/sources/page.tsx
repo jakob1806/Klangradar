@@ -56,19 +56,19 @@ export default async function SourcesPage() {
         <div className="flex gap-3">
           <Link
             href="/sources/discover"
-            className="rounded-lg border border-black/10 bg-white px-4 py-2 text-sm font-medium text-[#1d1d1f] transition-colors hover:bg-black/[0.04]"
+            className="rounded-lg border border-black/10 bg-white px-4 py-2 text-sm font-medium text-[#18181B] transition-colors hover:bg-black/[0.04]"
           >
             Neue Quellen entdecken
           </Link>
           <Link
             href="/sources/onboard"
-            className="rounded-lg border border-black/10 bg-white px-4 py-2 text-sm font-medium text-[#1d1d1f] transition-colors hover:bg-black/[0.04]"
+            className="rounded-lg border border-black/10 bg-white px-4 py-2 text-sm font-medium text-[#18181B] transition-colors hover:bg-black/[0.04]"
           >
             Neue Quelle testen
           </Link>
           <Link
             href="/sources/new"
-            className="rounded-lg bg-[#0071e3] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#0077ed]"
+            className="rounded-lg bg-[#2D2A6E] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#38358a]"
           >
             Neu anlegen
           </Link>
@@ -109,7 +109,7 @@ export default async function SourcesPage() {
                         : "—"}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <Link href={`/sources/${source.id}`} className="text-sm font-medium text-neutral-700 hover:text-[#0071e3]">
+                      <Link href={`/sources/${source.id}`} className="text-sm font-medium text-neutral-700 hover:text-[#2D2A6E]">
                         Bearbeiten
                       </Link>
                     </td>

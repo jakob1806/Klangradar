@@ -70,7 +70,7 @@ export function EntityAuditStructuralActions({
               key={action.repair}
               type="button"
               onClick={() => setConfirming(action.repair)}
-              className="rounded-lg bg-[#0071e3] px-3 py-2 font-semibold text-white hover:bg-[#0068d1]"
+              className="rounded-lg bg-[#2D2A6E] px-3 py-2 font-semibold text-white hover:bg-[#0068d1]"
             >
               {action.label}
             </button>

@@ -42,10 +42,10 @@ export function GenrePicker({
             }
           }}
           placeholder="Genre suchen oder neu eingeben …"
-          className="min-w-0 flex-1 rounded-xl border border-black/10 bg-neutral-50 px-3 py-2 text-sm outline-none focus:border-[#0071e3] focus:ring-2 focus:ring-[#0071e3]/15"
+          className="min-w-0 flex-1 rounded-xl border border-black/10 bg-neutral-50 px-3 py-2 text-sm outline-none focus:border-[#2D2A6E] focus:ring-2 focus:ring-[#2D2A6E]/15"
         />
         {needle && !exactExists && (
-          <button type="button" onClick={addGenre} className="rounded-xl bg-[#0071e3] px-3 py-2 text-sm font-medium text-white">
+          <button type="button" onClick={addGenre} className="rounded-xl bg-[#2D2A6E] px-3 py-2 text-sm font-medium text-white">
             „{query.trim()}“ anlegen
           </button>
         )}
@@ -62,7 +62,7 @@ export function GenrePicker({
                 if (active) next.delete(genre.id); else next.add(genre.id);
                 return next;
               })}
-              className={`rounded-full px-3 py-1.5 text-sm transition-colors ${active ? "bg-[#0071e3] text-white" : "bg-black/[0.05] text-neutral-700 hover:bg-black/[0.09]"}`}
+              className={`rounded-full px-3 py-1.5 text-sm transition-colors ${active ? "bg-[#2D2A6E] text-white" : "bg-black/[0.05] text-neutral-700 hover:bg-black/[0.09]"}`}
             >
               {active ? "✓ " : ""}{genre.label_de}
             </button>
