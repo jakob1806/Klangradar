@@ -11,6 +11,9 @@ protocol ContentRepository: Sendable {
     /// `p_city_id`-Default (München), siehe venueLocations(cityID:)-Doku.
     func venueLocations(cityID: UUID?) async throws -> [VenueLocation]
     func venueEvents(venueID: UUID, limit: Int) async throws -> [ConcertEvent]
+    /// IDs der Orte, an denen am angegebenen Kalendertag (Europe/Berlin) eine
+    /// Veranstaltung stattfindet -- Grundlage des Tag-Filters der Karte.
+    func venueIDs(withEventsOn day: Date) async throws -> Set<UUID>
 }
 
 struct LiveContentRepository: ContentRepository {
@@ -318,6 +321,32 @@ struct LiveContentRepository: ContentRepository {
                 latitude: latitude,
                 longitude: longitude
             )
+        }
+    }
+
+    func venueIDs(withEventsOn day: Date) async throws -> Set<UUID> {
+        let calendar = KlangradarDateTime.calendar
+        let start = calendar.startOfDay(for: day)
+        guard let end = calendar.date(byAdding: .day, value: 1, to: start) else { return [] }
+        let formatter = ISO8601DateFormatter()
+        var ids = Set<UUID>()
+        var offset = 0
+        let pageSize = 1000
+        while true {
+            let rows: [JSONObject] = try await client.get(table: "events", queryItems: [
+                URLQueryItem(name: "select", value: "venue_id"),
+                URLQueryItem(name: "status", value: "neq.draft"),
+                URLQueryItem(name: "venue_id", value: "not.is.null"),
+                URLQueryItem(name: "start_datetime", value: "gte.\(formatter.string(from: start))"),
+                URLQueryItem(name: "and", value: "(start_datetime.lt.\(formatter.string(from: end)))"),
+                URLQueryItem(name: "limit", value: String(pageSize)),
+                URLQueryItem(name: "offset", value: String(offset))
+            ])
+            for row in rows {
+                if let id = row.string("venue_id").flatMap(UUID.init(uuidString:)) { ids.insert(id) }
+            }
+            if rows.count < pageSize { return ids }
+            offset += pageSize
         }
     }
 
@@ -642,5 +671,12 @@ struct PreviewContentRepository: ContentRepository {
     func venueLocations(cityID: UUID?) async throws -> [VenueLocation] { SampleData.venues }
     func venueEvents(venueID: UUID, limit: Int) async throws -> [ConcertEvent] {
         Array(SampleData.events.filter { $0.venues?.id == venueID }.prefix(limit))
+    }
+    func venueIDs(withEventsOn day: Date) async throws -> Set<UUID> {
+        let calendar = KlangradarDateTime.calendar
+        return Set(SampleData.events.compactMap { event in
+            guard let start = event.startDate, calendar.isDate(start, inSameDayAs: day) else { return nil }
+            return event.venues?.id
+        })
     }
 }

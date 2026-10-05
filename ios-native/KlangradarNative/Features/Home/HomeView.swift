@@ -427,7 +427,9 @@ struct HomeView: View {
         let dominant = Dictionary(grouping: labels, by: { $0 }).max { $0.value.count < $1.value.count }?.key
         guard let dominant else { return ("Mehr von dem, was du magst", []) }
         let matches = events.filter { $0.genreLabels.contains(dominant) && !favorites.ids.contains($0.id) }
-        return ("Mehr \(dominant) für dich", Array(matches.prefix(14)))
+        // Genre-Labels stammen kleingeschrieben aus der Datenbank ("konzert").
+        let displayName = dominant.prefix(1).uppercased() + dominant.dropFirst()
+        return ("Mehr \(displayName) für dich", Array(matches.prefix(14)))
     }
 
     private func entitySpotlight(from events: [ConcertEvent]) -> (title: String, events: [ConcertEvent]) {
