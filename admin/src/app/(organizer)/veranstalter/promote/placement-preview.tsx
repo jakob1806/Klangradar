@@ -1,240 +1,190 @@
 "use client";
 
 import Image from "next/image";
-import type { ReactNode } from "react";
 
 export type PreviewEvent = { title: string; startLabel: string; venueName: string | null; imageUrl: string | null };
 
-const DUMMIES = [
-  { title: "Sinfoniekonzert", meta: "Fr., 18. Okt. · Philharmonie" },
-  { title: "Liederabend", meta: "Sa., 19. Okt. · Prinzregententheater" },
-  { title: "Orgelkonzert", meta: "So., 20. Okt. · St. Michael" },
-  { title: "Kammermusik", meta: "Mo., 21. Okt. · Gasteig" },
-];
-
 const PLACEMENT_TITLE: Record<string, string> = {
-  standard: "Event-Liste",
-  featured: "Entdecken-Bereich",
-  local_spotlight: "Startseite · Local Spotlight",
-  homepage_feature: "Startseite · Hero-Platzierung",
+  standard: "Kalender · Tagesliste",
+  featured: "Suche · Konzerte entdecken",
+  local_spotlight: "Home · Heute in München",
+  homepage_feature: "Home · Hero-Platzierung",
   push: "Push-Benachrichtigung",
 };
 
-/** Vereinfachte Simulation der App: pro Platzierungsart der betreffende
- * Bereich, das gewählte Event an der geplanten Stelle (klein als "Anzeige" gekennzeichnet, wie in der App),
- * der Rest sind Platzhalter. Keine Live-Daten, nur zur Orientierung. */
+// Echte Screenshots der nativen iOS-App (public/app-preview/*.jpg, 920 px
+// breit, Seitenverhältnis 920×2000). Die Umgebung (Navigation, Tab-Leiste,
+// übrige Kacheln = "Dummies") ist unverändert die App; nur die beworbene
+// Kachel wird mit dem gewählten Event überlagert. Alle Maße unten sind
+// Pixel des 920-px-Screenshots und werden in Prozent umgerechnet.
+const W = 920;
+const H = 2000;
+const pct = (v: number, base: number) => `${(v / base) * 100}%`;
+// 1 Screenshot-Pixel in "cqw" (Container-Breite) — Schriftgrößen skalieren
+// so exakt mit dem Screenshot.
+const px = (v: number) => `${(v / W) * 100}cqw`;
+
+type Slot = { shot: string; x: number; y: number; w: number; h: number; bg?: string };
+const SLOTS: Record<string, Slot> = {
+  homepage_feature: { shot: "home", x: 46, y: 284, w: 828, h: 512 },
+  local_spotlight: { shot: "home", x: 36, y: 962, w: 468, h: 450, bg: "#F6F9FE" },
+  featured: { shot: "search", x: 46, y: 739, w: 544, h: 668 },
+  standard: { shot: "calendar", x: 52, y: 1214, w: 816, h: 176, bg: "#FCFDFE" },
+};
+
+/** Vorschau: pro Platzierungsart der echte App-Bereich, das gewählte Event an
+ * der geplanten Stelle (klein als "Anzeige" gekennzeichnet), drumherum die
+ * übrigen App-Inhalte als Dummies. */
 export function PlacementPreview({ placement, event }: { placement: string; event: PreviewEvent | null }) {
-  const e: PreviewEvent = event ?? { title: "Dein Event", startLabel: "Datum · Uhrzeit", venueName: "Veranstaltungsort", imageUrl: null };
+  const e: PreviewEvent = event ?? { title: "Dein Event", startLabel: "Mo., 5. Okt. 20:00", venueName: "Veranstaltungsort", imageUrl: null };
+  const slot = SLOTS[placement];
   return (
     <div className="flex flex-col items-center gap-3">
       <div className="text-center">
         <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#2D2A6E]">Vorschau</p>
         <p className="text-sm font-semibold text-[#15131a]">{PLACEMENT_TITLE[placement] ?? placement}</p>
       </div>
-      <Phone dark={placement === "push"}>
-        {placement === "standard" && <StandardList event={e} />}
-        {placement === "featured" && <FeaturedDiscover event={e} />}
-        {placement === "local_spotlight" && <LocalSpotlight event={e} />}
-        {placement === "homepage_feature" && <HomeHero event={e} />}
-        {placement === "push" && <LockScreen event={e} />}
-      </Phone>
+      <div className="w-[280px] rounded-[40px] bg-[#18181B] p-[7px] shadow-[0_18px_40px_-12px_rgba(24,24,27,0.45)]">
+        <div className="overflow-hidden rounded-[33px] bg-white">
+          {slot ? (
+            <div className="relative" style={{ containerType: "inline-size", aspectRatio: `${W} / ${H}` }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={`/app-preview/${slot.shot}.jpg`} alt="" className="absolute inset-0 size-full" />
+              <div
+                className="absolute overflow-hidden"
+                style={{ left: pct(slot.x, W), top: pct(slot.y, H), width: pct(slot.w, W), height: pct(slot.h, H), background: slot.bg }}
+              >
+                {placement === "homepage_feature" && <Hero event={e} />}
+                {placement === "local_spotlight" && <RailCard event={e} />}
+                {placement === "featured" && <DiscoveryCard event={e} />}
+                {placement === "standard" && <CalendarRow event={e} />}
+              </div>
+            </div>
+          ) : (
+            <LockScreen event={e} />
+          )}
+        </div>
+      </div>
       <p className="max-w-[260px] text-center text-[11px] leading-4 text-[#726c78]">
-        Nachgebaut nach der iOS-App; Dummies füllen den Rest. Die genaue Position kann je nach Saison, Stadt und Auslastung leicht abweichen.
+        Screenshot der Klangradar-iOS-App; nur deine Kachel ist ersetzt. Die genaue Position kann je nach Saison, Stadt und Auslastung abweichen.
       </p>
     </div>
   );
 }
 
-function Phone({ children, dark }: { children: ReactNode; dark?: boolean }) {
-  return (
-    <div className="w-[262px] rounded-[38px] bg-[#18181B] p-[7px] shadow-[0_18px_40px_-12px_rgba(24,24,27,0.45)]">
-      <div className={`relative h-[500px] overflow-hidden rounded-[32px] ${dark ? "bg-gradient-to-b from-[#3b3a6e] via-[#26254f] to-[#15142f]" : "bg-[#f4f8fd]"}`}>
-        <div className="absolute left-1/2 top-2 z-20 h-[18px] w-[72px] -translate-x-1/2 rounded-full bg-black" />
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function Bar({ w = "100%", h = 8, className = "" }: { w?: string; h?: number; className?: string }) {
-  return <div className={`rounded-full bg-[#18181B]/10 ${className}`} style={{ width: w, height: h }} />;
-}
-
 function Cover({ event, className = "" }: { event: PreviewEvent; className?: string }) {
   return (
-    <div className={`relative overflow-hidden bg-gradient-to-br from-[#2D2A6E] to-[#6a67c9] ${className}`}>
-      {event.imageUrl && <Image src={event.imageUrl} alt="" fill sizes="260px" className="object-cover" unoptimized />}
+    <div className={`${className.includes("absolute") ? "" : "relative"} overflow-hidden bg-gradient-to-br from-[#1b1a4a] to-[#2D2A6E] ${className}`}>
+      {event.imageUrl && <Image src={event.imageUrl} alt="" fill sizes="300px" className="object-cover" unoptimized />}
     </div>
   );
 }
 
-/** Wie in der App (EventArtwork): winziges "Anzeige"-Label oben links in der Kachel. */
-function AdBadge({ small }: { small?: boolean }) {
+// Wie EventArtwork in der App: winziges "Anzeige"-Label oben links.
+function AdBadge({ left = 7, top = 7 }: { left?: number; top?: number }) {
   return (
-    <span className={`rounded-full bg-black/50 font-bold text-white ${small ? "px-1 py-[1px] text-[5px]" : "px-1.5 py-[2px] text-[7px]"}`}>
+    <span
+      className="absolute font-bold text-white"
+      style={{ left: px(left), top: px(top), fontSize: px(21), padding: `${px(6)} ${px(14)}`, background: "rgba(0,0,0,.5)", borderRadius: 999, lineHeight: 1 }}
+    >
       Anzeige
     </span>
   );
 }
 
-function AppHeader() {
+function Heart({ right = 14, top = 14 }: { right?: number; top?: number }) {
   return (
-    <div className="flex items-center justify-between px-4 pb-2 pt-10">
-      <span className="text-[13px] font-extrabold text-[#18181B]">Klangradar</span>
-      <span className="rounded-full border border-[#18181B]/10 bg-white px-2 py-[3px] text-[8px] font-semibold text-[#0b5d93]">München ⌄</span>
-    </div>
+    <span
+      className="absolute flex items-center justify-center text-white"
+      style={{ right: px(right), top: px(top), width: px(56), height: px(56), borderRadius: 999, background: "rgba(0,0,0,.32)", fontSize: px(30) }}
+    >
+      ♡
+    </span>
   );
 }
 
-function TabBar({ active }: { active: number }) {
-  const labels = ["Home", "Suche", "Karte", "Kalender", "Profil"];
+// HeroEventView in HomeView.swift
+function Hero({ event }: { event: PreviewEvent }) {
   return (
-    <div className="absolute inset-x-3 bottom-3 flex justify-between rounded-full border border-[#18181B]/10 bg-white/90 px-3 py-2 shadow-sm backdrop-blur">
-      {labels.map((label, i) => (
-        <span key={label} className={`text-[8px] font-semibold ${i === active ? "text-[#0b5d93]" : "text-[#18181B]/55"}`}>
-          {label}
-        </span>
-      ))}
-    </div>
-  );
-}
-
-function DummyCard() {
-  return (
-    <div className="w-[104px] shrink-0">
-      <div className="h-[64px] rounded-xl bg-[#18181B]/[0.07]" />
-      <Bar w="80%" h={7} className="mt-2" />
-      <Bar w="60%" h={6} className="mt-1.5 opacity-70" />
-    </div>
-  );
-}
-
-function PromotedCard({ event, wide }: { event: PreviewEvent; wide?: boolean }) {
-  return (
-    <div className={`${wide ? "w-[150px]" : "w-[104px]"} shrink-0`}>
-      <div className="relative">
-        <Cover event={event} className={`${wide ? "h-[92px]" : "h-[64px]"} rounded-xl`} />
-        <span className="absolute left-1.5 top-1.5"><AdBadge /></span>
+    <div className="relative size-full" style={{ borderRadius: px(55) }}>
+      <Cover event={event} className="absolute inset-0" />
+      <div className="absolute inset-x-0 bottom-0" style={{ height: "72%", background: "linear-gradient(to bottom, transparent 0%, rgba(0,0,0,.16) 28%, rgba(0,0,0,.86) 100%)" }} />
+      <AdBadge left={18} top={18} />
+      <div className="absolute inset-x-0 bottom-0 text-white" style={{ padding: px(41), textShadow: "0 2px 7px rgba(0,0,0,.34)" }}>
+        <p className="font-bold uppercase" style={{ fontSize: px(28), letterSpacing: px(1.8), opacity: 0.9 }}>{event.startLabel}</p>
+        <p className="line-clamp-2 font-bold leading-[1.15]" style={{ fontSize: px(49), marginTop: px(14) }}>{event.title}</p>
+        <p className="line-clamp-1 font-medium" style={{ fontSize: px(36), marginTop: px(14), opacity: 0.78 }}>📍 {event.venueName}</p>
       </div>
-      <p className="mt-1.5 line-clamp-2 text-[9px] font-bold leading-3 text-[#18181B]">{event.title}</p>
-      <p className="line-clamp-1 text-[8px] text-[#18181B]/55">{event.startLabel}</p>
     </div>
   );
 }
 
-function HomeHero({ event }: { event: PreviewEvent }) {
+// EventCard in Home-Rails (Bild 448×250, darunter Titel und Datum)
+function RailCard({ event }: { event: PreviewEvent }) {
   return (
-    <div className="h-full">
-      <AppHeader />
-      <div className="relative mx-3 h-[190px] overflow-hidden rounded-[24px]">
-        <Cover event={event} className="absolute inset-0" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
-        <span className="absolute left-3 top-3"><AdBadge /></span>
-        <div className="absolute inset-x-3 bottom-3 text-white">
-          <p className="text-[8px] font-bold uppercase tracking-widest text-white/85">{event.startLabel}</p>
-          <p className="line-clamp-2 text-[14px] font-bold leading-4">{event.title}</p>
-          <p className="mt-0.5 line-clamp-1 text-[9px] text-white/85">{event.venueName}</p>
-        </div>
+    <div className="relative size-full">
+      <div className="absolute" style={{ left: px(10), top: px(9), width: px(448), height: px(250) }}>
+        <Cover event={event} className="size-full" />
+        <AdBadge left={0} top={0} />
+        <Heart />
       </div>
-      <p className="mt-4 px-4 text-[11px] font-extrabold text-[#18181B]">Heute in München</p>
-      <div className="mt-2 flex gap-2 overflow-hidden px-4"><DummyCard /><DummyCard /><DummyCard /></div>
-      <p className="mt-4 px-4 text-[11px] font-extrabold text-[#18181B]">Für dich</p>
-      <div className="mt-2 flex gap-2 overflow-hidden px-4"><DummyCard /><DummyCard /><DummyCard /></div>
-      <TabBar active={0} />
+      <div className="absolute" style={{ left: px(10), top: px(285), width: px(448) }}>
+        <p className="line-clamp-2 font-semibold leading-[1.22]" style={{ fontSize: px(42), color: "#000" }}>{event.title}</p>
+        <p className="line-clamp-1" style={{ fontSize: px(36), color: "#8a8a8f", marginTop: px(8) }}>{event.startLabel}{event.venueName ? ` · ${event.venueName}` : ""}</p>
+      </div>
     </div>
   );
 }
 
-function LocalSpotlight({ event }: { event: PreviewEvent }) {
+// SearchDiscoveryEventCard in SearchView.swift (238×292 pt)
+function DiscoveryCard({ event }: { event: PreviewEvent }) {
   return (
-    <div className="h-full">
-      <AppHeader />
-      <div className="mx-3 h-[78px] rounded-[18px] bg-[#18181B]/[0.07]" />
-      <p className="mt-4 px-4 text-[11px] font-extrabold text-[#18181B]">Heute in München</p>
-      <div className="mt-2 flex gap-2 overflow-hidden px-4"><DummyCard /><DummyCard /><DummyCard /></div>
-      <p className="mt-4 px-4 text-[11px] font-extrabold text-[#18181B]">Local Spotlight · München</p>
-      <div className="mt-2 flex gap-2 overflow-hidden px-4"><PromotedCard event={event} wide /><DummyCard /></div>
-      <p className="mt-4 px-4 text-[11px] font-extrabold text-[#18181B]">Beliebt in München</p>
-      <div className="mt-2 flex gap-2 overflow-hidden px-4"><DummyCard /><DummyCard /><DummyCard /></div>
-      <TabBar active={0} />
+    <div className="relative size-full" style={{ borderRadius: px(50), boxShadow: "0 6px 12px rgba(0,0,0,.12)" }}>
+      <Cover event={event} className="absolute inset-0" />
+      <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, transparent, rgba(0,0,0,.18), rgba(0,0,0,.92))" }} />
+      <AdBadge left={18} top={18} />
+      <Heart right={22} top={22} />
+      <div className="absolute inset-x-0 bottom-0 text-white" style={{ padding: px(37) }}>
+        <p className="line-clamp-3 font-bold leading-[1.2]" style={{ fontSize: px(46) }}>{event.title}</p>
+        <p className="line-clamp-2" style={{ fontSize: px(36), marginTop: px(12), opacity: 0.78 }}>{event.startLabel}{event.venueName ? ` · ${event.venueName}` : ""}</p>
+      </div>
     </div>
   );
 }
 
-function FeaturedDiscover({ event }: { event: PreviewEvent }) {
+// CalendarEventRow in EventCalendarView.swift
+function CalendarRow({ event }: { event: PreviewEvent }) {
+  const time = event.startLabel.match(/\d{1,2}:\d{2}/)?.[0] ?? "";
   return (
-    <div className="h-full">
-      <div className="px-4 pb-2 pt-10 text-[13px] font-extrabold text-[#18181B]">Suche</div>
-      <div className="mx-3 flex h-[28px] items-center rounded-full bg-[#18181B]/[0.07] px-3"><Bar w="45%" h={6} /></div>
-      <p className="mt-3 px-4 text-[11px] font-extrabold text-[#18181B]">Alles entdecken</p>
-      <div className="mt-2 grid grid-cols-2 gap-2 px-3">
-        <div className="h-[46px] rounded-xl bg-[#6366f1]/70" /><div className="h-[46px] rounded-xl bg-[#d946ef]/70" />
+    <div className="relative size-full">
+      <div className="absolute overflow-hidden" style={{ left: px(24), top: px(29), width: px(118), height: px(118), borderRadius: px(28) }}>
+        <Cover event={event} className="size-full" />
+        <AdBadge left={0} top={0} />
       </div>
-      <p className="mt-3 px-4 text-[11px] font-extrabold text-[#18181B]">Konzerte entdecken</p>
-      <div className="mt-2 flex gap-2 overflow-hidden px-3">
-        <div className="w-[150px] shrink-0">
-          <div className="relative">
-            <Cover event={event} className="h-[184px] rounded-[18px]" />
-            <div className="absolute inset-0 rounded-[18px] bg-gradient-to-t from-black/75 via-transparent to-transparent" />
-            <span className="absolute left-2 top-2"><AdBadge /></span>
-            <span className="absolute right-2 top-2 flex size-4 items-center justify-center rounded-full bg-black/30 text-[8px] text-white">♡</span>
-            <div className="absolute inset-x-2.5 bottom-2.5 text-white">
-              <p className="line-clamp-2 text-[11px] font-bold leading-[13px]">{event.title}</p>
-              <p className="mt-0.5 line-clamp-1 text-[8px] text-white/85">{event.startLabel}</p>
-            </div>
-          </div>
-        </div>
-        <div className="w-[150px] shrink-0"><div className="h-[190px] rounded-[18px] bg-[#18181B]/[0.07]" /></div>
+      <div className="absolute" style={{ left: px(171), top: px(18), right: px(64) }}>
+        <p className="font-bold" style={{ fontSize: px(32), color: "#1a5f9a" }}>{time || "–"}</p>
+        <p className="line-clamp-2 font-semibold leading-[1.15]" style={{ fontSize: px(44), color: "#000", marginTop: px(6) }}>{event.title}</p>
+        <p className="line-clamp-1" style={{ fontSize: px(34), color: "#8a8a8f", marginTop: px(6) }}>{event.venueName}</p>
       </div>
-      <TabBar active={1} />
+      <span className="absolute text-[#c4c4c8]" style={{ right: px(26), top: px(70), fontSize: px(40) }}>›</span>
     </div>
   );
 }
 
-function StandardList({ event }: { event: PreviewEvent }) {
-  return (
-    <div className="h-full">
-      <AppHeader />
-      <p className="px-4 pb-2 pt-1 text-[11px] font-extrabold text-[#18181B]">Demnächst in München</p>
-      <div className="flex flex-col gap-2 px-3">
-        <div className="relative flex items-center gap-2.5 rounded-2xl bg-white p-2">
-          <div className="relative shrink-0">
-            <Cover event={event} className="h-[52px] w-[52px] rounded-xl" />
-            <span className="absolute left-0.5 top-0.5"><AdBadge small /></span>
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="line-clamp-2 text-[10px] font-bold leading-3 text-[#18181B]">{event.title}</p>
-            <p className="mt-0.5 line-clamp-1 text-[8px] text-[#18181B]/55">{event.startLabel}{event.venueName ? ` · ${event.venueName}` : ""}</p>
-          </div>
-        </div>
-        {DUMMIES.map((d) => (
-          <div key={d.title} className="flex items-center gap-2.5 rounded-2xl bg-white/80 p-2">
-            <div className="h-[52px] w-[52px] shrink-0 rounded-xl bg-[#18181B]/[0.07]" />
-            <div className="min-w-0 flex-1"><Bar w="70%" h={8} /><Bar w="90%" h={6} className="mt-2 opacity-70" /></div>
-          </div>
-        ))}
-      </div>
-      <TabBar active={0} />
-    </div>
-  );
-}
-
+// Push: iOS-Systemoberfläche (Sperrbildschirm), kein Teil der App-UI.
 function LockScreen({ event }: { event: PreviewEvent }) {
   return (
-    <div className="flex h-full flex-col items-center text-white">
+    <div className="flex h-[560px] flex-col items-center bg-gradient-to-b from-[#3b3a6e] via-[#26254f] to-[#15142f] text-white">
       <p className="mt-14 text-[11px] font-semibold text-white/80">Montag, 5. Oktober</p>
       <p className="text-[54px] font-light leading-[58px]">9:41</p>
       <div className="mt-8 w-[236px] rounded-[20px] bg-white/20 p-3 backdrop-blur">
         <div className="flex items-center gap-2">
-          <span className="flex h-[18px] w-[18px] items-center justify-center rounded-[5px] bg-[#2D2A6E] text-[10px] font-extrabold text-white">K</span>
+          <Image src="/app-logo.svg" alt="" width={18} height={18} className="rounded-[5px]" />
           <span className="text-[9px] font-semibold uppercase tracking-wide text-white/80">Klangradar</span>
           <span className="ml-auto text-[9px] text-white/70">jetzt</span>
         </div>
         <p className="mt-1.5 line-clamp-2 text-[11px] font-bold leading-4">Neu für dich: {event.title}</p>
         <p className="mt-0.5 line-clamp-2 text-[10px] leading-[13px] text-white/90">{event.startLabel}{event.venueName ? ` · ${event.venueName}` : ""}</p>
-      </div>
-      <div className="mt-2 w-[236px] rounded-[20px] bg-white/10 p-3 opacity-60">
-        <Bar w="50%" h={7} className="bg-white/40" /><Bar w="80%" h={6} className="mt-2 bg-white/30" />
       </div>
     </div>
   );
