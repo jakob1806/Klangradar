@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import { PageHeader, PageBody } from "@/components/organizer/page-header";
 import { Card } from "@/components/organizer/ui/card";
 import { Input } from "@/components/organizer/ui/input";
+import { loadGalleryImages, pageRange } from "@/lib/library-images";
+import { LibraryPagination } from "../pagination";
 
 export const dynamic = "force-dynamic";
 
@@ -20,25 +22,29 @@ export default async function LibraryEntitiesPage({
   searchParams,
 }: {
   params: Promise<{ kind: string }>;
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; page?: string }>;
 }) {
   const { kind } = await params;
-  const { q = "" } = await searchParams;
+  const { q = "", page: pageParam } = await searchParams;
+  const page = Math.max(1, Number.parseInt(pageParam ?? "1", 10) || 1);
+  const { from, to } = pageRange(page);
   if (!(kind in CONFIG)) notFound();
   const config = CONFIG[kind as Kind];
   const supabase = await createClient();
   let request = supabase
     .from(config.table)
-    .select(`id, ${config.name}, ${config.image}, ${config.text}`)
+    .select(`id, ${config.name}, ${config.image}, ${config.text}`, { count: "exact" })
     .order(config.name)
-    .limit(60);
+    .range(from, to);
   if (q.trim()) request = request.ilike(config.name, `%${q.trim()}%`);
-  const { data } = await request;
-  const rows = (data ?? []) as Array<Record<string, string | null>>;
+  const { data, count } = await request;
+  const rows = (data ?? []) as unknown as Array<Record<string, string | null>>;
+  const gallery = await loadGalleryImages(supabase, rows.map((row) => row.id as string));
+  const imageFor = (row: Record<string, string | null>) => gallery.get(row.id as string) ?? row[config.image];
 
   return (
     <div>
-      <PageHeader eyebrow="Bibliothek" title={config.title} />
+      <PageHeader eyebrow="Bibliothek" title={config.title} description={`${(count ?? 0).toLocaleString("de-DE")} Einträge${q.trim() ? " für diese Suche" : ""}.`} />
       <PageBody>
         <div className="mb-6 flex items-center">
           <Link href="/veranstalter/bibliothek" className="text-sm font-medium text-[#2D2A6E] hover:underline">
@@ -53,8 +59,8 @@ export default async function LibraryEntitiesPage({
             <Link key={row.id} href={`/veranstalter/bibliothek/${kind}/${row.id}`} className="group block">
               <Card className="overflow-hidden transition hover:shadow-md">
                 <div className="relative aspect-[4/3] bg-[#15131a]/[0.03]">
-                  {row[config.image] ? (
-                    <Image src={row[config.image]!} alt="" fill className="object-cover" sizes="33vw" unoptimized />
+                  {imageFor(row) ? (
+                    <Image src={imageFor(row)!} alt="" fill className="object-cover" sizes="33vw" unoptimized />
                   ) : (
                     <span className="absolute inset-0 flex items-center justify-center text-3xl font-semibold text-[#726c78]">
                       {row[config.name]?.slice(0, 1)}
@@ -69,6 +75,7 @@ export default async function LibraryEntitiesPage({
             </Link>
           ))}
         </div>
+        <LibraryPagination basePath={`/veranstalter/bibliothek/${kind}`} q={q.trim()} page={page} total={count ?? 0} />
         {!rows.length && <p className="mt-8 text-sm text-[#726c78]">Keine passenden Einträge gefunden.</p>}
       </PageBody>
     </div>
