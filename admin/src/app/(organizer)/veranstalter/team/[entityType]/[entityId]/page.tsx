@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { NAME_COLUMN_FOR_ENTITY_TYPE, TABLE_FOR_ENTITY_TYPE, type ClaimableEntityType } from "@/lib/entity-tables";
 import { TeamMemberActions } from "./team-member-actions";
+import { InvitationRowActions, InviteForm } from "./invite-form";
 import { PageHeader, PageBody } from "@/components/organizer/page-header";
 import { Card, CardContent } from "@/components/organizer/ui/card";
 import { Table, TableBody, TableRow, TableCell } from "@/components/organizer/ui/table";
@@ -22,6 +23,15 @@ const ROLE_LABEL: Record<string, string> = {
   marketing: "Marketing",
   finance: "Finanzen",
 };
+
+interface InvitationRow {
+  id: string;
+  email: string;
+  role: "owner" | "editor" | "marketing" | "finance";
+  status: "pending" | "declined";
+  created_at: string;
+  expires_at: string;
+}
 
 interface ClaimRow {
   id: string;
@@ -79,6 +89,19 @@ export default async function TeamPage({
   const { data: profiles } = await supabase.from("profiles").select("id, display_name").in("id", userIds);
   const nameByUserId = new Map((profiles ?? []).map((p) => [p.id as string, (p.display_name as string | null) ?? (p.id as string)]));
 
+  const { data: invitationRows } = isOwner
+    ? await supabase
+        .from("team_invitations")
+        .select("id, email, role, status, created_at, expires_at")
+        .eq("entity_type", entityType)
+        .eq("entity_id", entityId)
+        .in("status", ["pending", "declined"])
+        .order("created_at", { ascending: false })
+        .returns<InvitationRow[]>()
+    : { data: [] as InvitationRow[] };
+  const openInvitations = (invitationRows ?? []).filter((i) => i.status === "pending");
+  const declinedInvitations = (invitationRows ?? []).filter((i) => i.status === "declined");
+
   const pending = allClaims.filter((c) => c.status === "pending");
   const approved = allClaims.filter((c) => c.status === "approved");
   const rejected = allClaims.filter((c) => c.status === "rejected");
@@ -95,6 +118,52 @@ export default async function TeamPage({
         }
       />
       <PageBody className="mx-auto flex max-w-3xl flex-col gap-8">
+        {isOwner && <InviteForm entityType={entityType} entityId={entityId} />}
+
+        {isOwner && openInvitations.length > 0 && (
+          <section className="flex flex-col gap-3">
+            <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#726c78]">
+              Offene Einladungen ({openInvitations.length})
+            </h2>
+            <Table>
+              <TableBody>
+                {openInvitations.map((invitation) => {
+                  const expired = new Date(invitation.expires_at) < new Date();
+                  return (
+                    <TableRow key={invitation.id}>
+                      <TableCell className="font-medium">{invitation.email}</TableCell>
+                      <TableCell className="text-[#726c78]">{ROLE_LABEL[invitation.role] ?? invitation.role}</TableCell>
+                      <TableCell className="text-[#726c78]">{expired ? "Abgelaufen" : "Wartet auf Antwort"}</TableCell>
+                      <TableCell className="text-right">
+                        <InvitationRowActions invitationId={invitation.id} />
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </section>
+        )}
+
+        {isOwner && declinedInvitations.length > 0 && (
+          <section className="flex flex-col gap-3">
+            <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#726c78]">
+              Abgelehnte Einladungen ({declinedInvitations.length})
+            </h2>
+            <Table>
+              <TableBody>
+                {declinedInvitations.map((invitation) => (
+                  <TableRow key={invitation.id}>
+                    <TableCell className="font-medium">{invitation.email}</TableCell>
+                    <TableCell className="text-[#726c78]">{ROLE_LABEL[invitation.role] ?? invitation.role}</TableCell>
+                    <TableCell className="text-[#726c78]">Abgelehnt</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </section>
+        )}
+
         {pending.length > 0 && (
           <section className="flex flex-col gap-3">
             <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#726c78]">Offene Anfragen ({pending.length})</h2>

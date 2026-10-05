@@ -18,7 +18,7 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirectTo") ?? "/events";
-  const isOrganizerLogin = redirectTo.startsWith("/veranstalter");
+  const isOrganizerLogin = redirectTo.startsWith("/veranstalter") || redirectTo.startsWith("/einladung");
 
   const [step, setStep] = useState<"email" | "code">("email");
   const [email, setEmail] = useState("");
