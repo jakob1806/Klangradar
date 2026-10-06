@@ -69,6 +69,7 @@ actor AuthService {
     /// z.B. `URLError` bei fehlender Verbindung) oder 5xx-Serverfehler sagen
     /// nichts über die Gültigkeit des Tokens aus.
     private func isAuthRejection(_ error: Error) -> Bool {
+        if case let AuthServiceError.rejected(status, _) = error { return status == 400 || status == 401 }
         guard case let APIError.httpStatus(status, _) = error else { return false }
         return status == 400 || status == 401
     }
@@ -303,7 +304,11 @@ actor AuthService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         let (data, response) = try await client.data(for: request)
         guard 200..<300 ~= response.statusCode else {
-            throw AuthServiceError.server(Self.errorMessage(from: data, statusCode: response.statusCode))
+            // Statuscode mitführen: Ohne ihn erkennt restoreOrCreateSession()
+            // einen abgelehnten Refresh-Token ("Refresh Token Not Found")
+            // nie als solchen und ließe die tote Session ewig in der
+            // Keychain liegen — Anmeldung dauerhaft blockiert.
+            throw AuthServiceError.rejected(status: response.statusCode, message: Self.errorMessage(from: data, statusCode: response.statusCode))
         }
         return data
     }
@@ -360,9 +365,11 @@ private struct AuthErrorResponse: Decodable {
 private enum AuthServiceError: LocalizedError {
     case invalidCallback
     case server(String)
+    case rejected(status: Int, message: String)
 
     var errorDescription: String? {
         switch self {
+        case let .rejected(_, message): message
         case .invalidCallback: "Der Anmeldelink ist ungültig oder unvollständig. Fordere bitte einen neuen Link an."
         case let .server(message): message
         }
