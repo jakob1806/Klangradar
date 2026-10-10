@@ -78,7 +78,7 @@ export default async function TeamPage({
   const myClaim = allClaims.find((c) => c.user_id === user!.id);
   if (!myClaim || myClaim.status !== "approved") {
     return (
-      <div className="mx-auto max-w-xl px-6 py-16 text-center text-[#726c78]">
+      <div className="mx-auto max-w-xl px-6 py-16 text-center text-[#6B6B6B]">
         Du hast keinen genehmigten Zugriff auf dieses Team.
       </div>
     );
@@ -122,7 +122,7 @@ export default async function TeamPage({
 
         {isOwner && openInvitations.length > 0 && (
           <section className="flex flex-col gap-3">
-            <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#726c78]">
+            <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#6B6B6B]">
               Offene Einladungen ({openInvitations.length})
             </h2>
             <Table>
@@ -132,8 +132,8 @@ export default async function TeamPage({
                   return (
                     <TableRow key={invitation.id}>
                       <TableCell className="font-medium">{invitation.email}</TableCell>
-                      <TableCell className="text-[#726c78]">{ROLE_LABEL[invitation.role] ?? invitation.role}</TableCell>
-                      <TableCell className="text-[#726c78]">{expired ? "Abgelaufen" : "Wartet auf Antwort"}</TableCell>
+                      <TableCell className="text-[#6B6B6B]">{ROLE_LABEL[invitation.role] ?? invitation.role}</TableCell>
+                      <TableCell className="text-[#6B6B6B]">{expired ? "Abgelaufen" : "Wartet auf Antwort"}</TableCell>
                       <TableCell className="text-right">
                         <InvitationRowActions invitationId={invitation.id} />
                       </TableCell>
@@ -147,7 +147,7 @@ export default async function TeamPage({
 
         {isOwner && declinedInvitations.length > 0 && (
           <section className="flex flex-col gap-3">
-            <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#726c78]">
+            <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#6B6B6B]">
               Abgelehnte Einladungen ({declinedInvitations.length})
             </h2>
             <Table>
@@ -155,8 +155,8 @@ export default async function TeamPage({
                 {declinedInvitations.map((invitation) => (
                   <TableRow key={invitation.id}>
                     <TableCell className="font-medium">{invitation.email}</TableCell>
-                    <TableCell className="text-[#726c78]">{ROLE_LABEL[invitation.role] ?? invitation.role}</TableCell>
-                    <TableCell className="text-[#726c78]">Abgelehnt</TableCell>
+                    <TableCell className="text-[#6B6B6B]">{ROLE_LABEL[invitation.role] ?? invitation.role}</TableCell>
+                    <TableCell className="text-[#6B6B6B]">Abgelehnt</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -166,19 +166,19 @@ export default async function TeamPage({
 
         {pending.length > 0 && (
           <section className="flex flex-col gap-3">
-            <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#726c78]">Offene Anfragen ({pending.length})</h2>
+            <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#6B6B6B]">Offene Anfragen ({pending.length})</h2>
             <TeamTable claims={pending} nameByUserId={nameByUserId} isOwner={isOwner} />
           </section>
         )}
 
         <section className="flex flex-col gap-3">
-          <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#726c78]">Aktive Mitglieder ({approved.length})</h2>
+          <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#6B6B6B]">Aktive Mitglieder ({approved.length})</h2>
           <TeamTable claims={approved} nameByUserId={nameByUserId} isOwner={isOwner} />
         </section>
 
         {rejected.length > 0 && (
           <section className="flex flex-col gap-3">
-            <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#726c78]">Abgelehnt/Entfernt ({rejected.length})</h2>
+            <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#6B6B6B]">Abgelehnt/Entfernt ({rejected.length})</h2>
             <TeamTable claims={rejected} nameByUserId={nameByUserId} isOwner={false} />
           </section>
         )}
@@ -199,7 +199,7 @@ function TeamTable({
   if (claims.length === 0) {
     return (
       <Card>
-        <CardContent className="pt-5 text-sm text-[#726c78]">Keine Einträge.</CardContent>
+        <CardContent className="pt-5 text-sm text-[#6B6B6B]">Keine Einträge.</CardContent>
       </Card>
     );
   }
@@ -210,8 +210,8 @@ function TeamTable({
         {claims.map((claim) => (
           <TableRow key={claim.id}>
             <TableCell className="font-medium">{nameByUserId.get(claim.user_id) ?? claim.user_id}</TableCell>
-            <TableCell className="text-[#726c78]">{ROLE_LABEL[claim.role] ?? claim.role}</TableCell>
-            <TableCell className="text-[#726c78]">{STATUS_LABEL[claim.status]}</TableCell>
+            <TableCell className="text-[#6B6B6B]">{ROLE_LABEL[claim.role] ?? claim.role}</TableCell>
+            <TableCell className="text-[#6B6B6B]">{STATUS_LABEL[claim.status]}</TableCell>
             <TableCell className="text-right">{isOwner && <TeamMemberActions claimId={claim.id} status={claim.status} role={claim.role} />}</TableCell>
           </TableRow>
         ))}

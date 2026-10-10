@@ -42,14 +42,14 @@ export default async function SeriesPage() {
         />
 
         <section className="flex flex-col gap-3">
-          <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#726c78]">Meine Serien</h2>
+          <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#6B6B6B]">Meine Serien</h2>
           {error ? (
             <Card>
               <CardContent className="pt-5 text-sm text-amber-700">Die Serien sind nach der nächsten Datenbank-Aktualisierung verfügbar.</CardContent>
             </Card>
           ) : series.length === 0 ? (
             <Card>
-              <CardContent className="pt-5 text-sm text-[#726c78]">Noch keine Serie angelegt.</CardContent>
+              <CardContent className="pt-5 text-sm text-[#6B6B6B]">Noch keine Serie angelegt.</CardContent>
             </Card>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">
@@ -57,9 +57,9 @@ export default async function SeriesPage() {
                 <Card key={item.id} className="overflow-hidden">
                   {item.image_url && <img src={item.image_url} alt="" className="h-28 w-full object-cover" />}
                   <CardContent className="pt-5">
-                    <h3 className="font-semibold text-[#15131a]">{item.title}</h3>
-                    {item.description_de && <p className="mt-1 line-clamp-2 text-sm text-[#4a4550]">{item.description_de}</p>}
-                    <p className="mt-3 text-xs font-medium text-[#726c78]">
+                    <h3 className="font-semibold text-[#111111]">{item.title}</h3>
+                    {item.description_de && <p className="mt-1 line-clamp-2 text-sm text-[#4A4A4A]">{item.description_de}</p>}
+                    <p className="mt-3 text-xs font-medium text-[#6B6B6B]">
                       {item.events?.length ?? 0} Termin{(item.events?.length ?? 0) === 1 ? "" : "e"}
                     </p>
                     {item.events?.slice(0, 3).map((event) => (

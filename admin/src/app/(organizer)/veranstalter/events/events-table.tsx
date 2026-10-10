@@ -59,7 +59,7 @@ export function EventsTable({ events }: { events: ListedEventRow[] }) {
         <select
           value={status}
           onChange={(e) => setStatus(e.target.value)}
-          className="h-9 rounded-lg border border-black/10 bg-white px-3 text-sm text-[#15131a] focus-visible:border-[#2D2A6E] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2D2A6E]/25"
+          className="h-9 rounded-lg border border-black/10 bg-white px-3 text-sm text-[#111111] focus-visible:border-[#2D2A6E] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2D2A6E]/25"
         >
           <option value="all">Alle Status</option>
           {statuses.map((s) => (
@@ -71,7 +71,7 @@ export function EventsTable({ events }: { events: ListedEventRow[] }) {
       </div>
 
       {filtered.length === 0 ? (
-        <p className="py-6 text-sm text-[#726c78]">Keine Events für diese Suche/diesen Filter.</p>
+        <p className="py-6 text-sm text-[#6B6B6B]">Keine Events für diese Suche/diesen Filter.</p>
       ) : (
         <Table>
           <TableHeader>
@@ -89,17 +89,17 @@ export function EventsTable({ events }: { events: ListedEventRow[] }) {
             {filtered.map((event) => (
               <TableRow key={event.id}>
                 <TableCell>
-                  <div className="relative h-12 w-16 overflow-hidden rounded-md bg-[#15131a]/[0.04]">
+                  <div className="relative h-12 w-16 overflow-hidden rounded-md bg-[#111111]/[0.04]">
                     {event.imageUrl && <Image src={event.imageUrl} alt="" fill className="object-cover" sizes="64px" unoptimized />}
                   </div>
                 </TableCell>
                 <TableCell className="font-medium">{event.title}</TableCell>
-                <TableCell className="text-[#4a4550]">{event.venueName ?? "—"}</TableCell>
-                <TableCell className="tabular-nums text-[#4a4550]">{formatMunichDateTime(event.start_datetime)}</TableCell>
+                <TableCell className="text-[#4A4A4A]">{event.venueName ?? "—"}</TableCell>
+                <TableCell className="tabular-nums text-[#4A4A4A]">{formatMunichDateTime(event.start_datetime)}</TableCell>
                 <TableCell>
                   <Badge>{STATUS_LABEL[event.status] ?? event.status}</Badge>
                 </TableCell>
-                <TableCell className="text-xs text-[#726c78]" title={event.source === "claimed" ? "Termin eines beanspruchten Profils (Venue/Person/Ensemble), nicht selbst angelegt" : undefined}>
+                <TableCell className="text-xs text-[#6B6B6B]" title={event.source === "claimed" ? "Termin eines beanspruchten Profils (Venue/Person/Ensemble), nicht selbst angelegt" : undefined}>
                   {event.source === "own" ? "Eigenes Event" : event.sourceLabel}
                 </TableCell>
                 <TableCell className="text-right">

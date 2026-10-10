@@ -41,23 +41,23 @@ export function EventPreviewCard({ preview }: { preview: EventPreviewData }) {
 
   return (
     <Card className="overflow-hidden">
-      <div className="relative aspect-[16/9] bg-[#15131a]/[0.04]">
+      <div className="relative aspect-[16/9] bg-[#111111]/[0.04]">
         {preview.imageUrl ? (
           <Image src={preview.imageUrl} alt="" fill className="object-cover" sizes="320px" unoptimized />
         ) : (
-          <div className="flex h-full items-end bg-gradient-to-br from-[#2D2A6E]/10 to-[#15131a]/[0.04] p-4">
-            <span className="text-xs font-medium text-[#4a4550]">Klangradar</span>
+          <div className="flex h-full items-end bg-gradient-to-br from-[#2D2A6E]/10 to-[#111111]/[0.04] p-4">
+            <span className="text-xs font-medium text-[#4A4A4A]">Klangradar</span>
           </div>
         )}
       </div>
       <div className="p-4">
         <p className="text-xs font-semibold text-[#2D2A6E]">{start ?? "Datum folgt"}</p>
-        <h3 className="mt-1.5 text-base font-semibold leading-tight text-[#15131a]">{preview.title || "Titel deines Events"}</h3>
-        {preview.subtitle && <p className="mt-1 text-sm text-[#4a4550]">{preview.subtitle}</p>}
-        <div className="mt-3 space-y-1 border-t border-[#15131a]/[0.08] pt-3 text-sm">
-          <p className="font-medium text-[#15131a]">{preview.venueName || "Venue wird noch bekanntgegeben"}</p>
-          <p className="text-[#4a4550]">{price ?? "Preisinformation folgt"}</p>
-          {preview.doorsInfo && <p className="text-[#4a4550]">{preview.doorsInfo}</p>}
+        <h3 className="mt-1.5 text-base font-semibold leading-tight text-[#111111]">{preview.title || "Titel deines Events"}</h3>
+        {preview.subtitle && <p className="mt-1 text-sm text-[#4A4A4A]">{preview.subtitle}</p>}
+        <div className="mt-3 space-y-1 border-t border-[#111111]/[0.08] pt-3 text-sm">
+          <p className="font-medium text-[#111111]">{preview.venueName || "Venue wird noch bekanntgegeben"}</p>
+          <p className="text-[#4A4A4A]">{price ?? "Preisinformation folgt"}</p>
+          {preview.doorsInfo && <p className="text-[#4A4A4A]">{preview.doorsInfo}</p>}
         </div>
       </div>
     </Card>

@@ -43,9 +43,9 @@ export function PlacementPreview({ placement, event }: { placement: string; even
     <div className="flex flex-col items-center gap-3">
       <div className="text-center">
         <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#2D2A6E]">Vorschau</p>
-        <p className="text-sm font-semibold text-[#15131a]">{PLACEMENT_TITLE[placement] ?? placement}</p>
+        <p className="text-sm font-semibold text-[#111111]">{PLACEMENT_TITLE[placement] ?? placement}</p>
       </div>
-      <div className="w-[280px] rounded-[40px] bg-[#18181B] p-[7px] shadow-[0_18px_40px_-12px_rgba(24,24,27,0.45)]">
+      <div className="w-[280px] rounded-[40px] bg-[#111111] p-[7px] shadow-[0_18px_40px_-12px_rgba(24,24,27,0.45)]">
         <div className="overflow-hidden rounded-[33px] bg-white">
           {slot ? (
             <div className="relative" style={{ containerType: "inline-size", aspectRatio: `${W} / ${H}` }}>
@@ -66,7 +66,7 @@ export function PlacementPreview({ placement, event }: { placement: string; even
           )}
         </div>
       </div>
-      <p className="max-w-[260px] text-center text-[11px] leading-4 text-[#726c78]">
+      <p className="max-w-[260px] text-center text-[11px] leading-4 text-[#6B6B6B]">
         Screenshot der Klangradar-iOS-App; nur deine Kachel ist ersetzt. Die genaue Position kann je nach Saison, Stadt und Auslastung abweichen.
       </p>
     </div>

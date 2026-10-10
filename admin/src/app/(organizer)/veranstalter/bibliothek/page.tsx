@@ -96,7 +96,7 @@ export default async function LibraryPage() {
                   )}
                 </div>
                 <div className="p-5">
-                  <p className="text-sm leading-6 text-[#4a4550]">{section.text}</p>
+                  <p className="text-sm leading-6 text-[#4A4A4A]">{section.text}</p>
                   <p className="mt-3 text-sm font-medium text-[#2D2A6E]">Durchsuchen →</p>
                 </div>
               </Card>

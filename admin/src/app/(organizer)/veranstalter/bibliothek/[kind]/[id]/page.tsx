@@ -32,41 +32,41 @@ export default async function LibraryEntityDetailPage({ params }: { params: Prom
         ← {kind}
       </Link>
       <Card className="mt-5 overflow-hidden">
-        <div className="relative aspect-[16/8] bg-[#15131a]/[0.03]">
+        <div className="relative aspect-[16/8] bg-[#111111]/[0.03]">
           {gallery[0] ? (
             <Image src={gallery[0]} alt="" fill priority className="object-cover" sizes="896px" unoptimized />
           ) : (
-            <span className="absolute inset-0 flex items-center justify-center text-6xl font-semibold text-[#726c78]">
+            <span className="absolute inset-0 flex items-center justify-center text-6xl font-semibold text-[#6B6B6B]">
               {String(row[config.name]).slice(0, 1)}
             </span>
           )}
         </div>
         <div className="p-6 sm:p-9">
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#2D2A6E]">{config.label}</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-[#15131a]">{String(row[config.name])}</h1>
-          <div className="mt-6 grid gap-4 border-y border-[#15131a]/[0.08] py-5 sm:grid-cols-2">
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-[#111111]">{String(row[config.name])}</h1>
+          <div className="mt-6 grid gap-4 border-y border-[#111111]/[0.08] py-5 sm:grid-cols-2">
             {config.extra.map(
               (field) =>
                 row[field] !== null &&
                 row[field] !== undefined && (
                   <div key={field}>
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-[#726c78]">{field.replaceAll("_", " ")}</p>
-                    <p className="mt-1 text-[#15131a]">{String(row[field])}</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-[#6B6B6B]">{field.replaceAll("_", " ")}</p>
+                    <p className="mt-1 text-[#111111]">{String(row[field])}</p>
                   </div>
                 )
             )}
           </div>
           {row[config.bio] ? (
             <section className="mt-8">
-              <h2 className="text-lg font-semibold text-[#15131a]">Biographie & Informationen</h2>
-              <p className="mt-3 whitespace-pre-wrap leading-7 text-[#4a4550]">{String(row[config.bio])}</p>
+              <h2 className="text-lg font-semibold text-[#111111]">Biographie & Informationen</h2>
+              <p className="mt-3 whitespace-pre-wrap leading-7 text-[#4A4A4A]">{String(row[config.bio])}</p>
             </section>
           ) : (
-            <p className="mt-8 text-sm text-[#726c78]">Zu diesem Eintrag liegt noch keine ausführliche Beschreibung vor.</p>
+            <p className="mt-8 text-sm text-[#6B6B6B]">Zu diesem Eintrag liegt noch keine ausführliche Beschreibung vor.</p>
           )}
           {gallery.length > 1 && (
             <section className="mt-8">
-              <h2 className="text-lg font-semibold text-[#15131a]">Bilder</h2>
+              <h2 className="text-lg font-semibold text-[#111111]">Bilder</h2>
               <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
                 {gallery.slice(1).map((src, index) => (
                   <div key={`${src}-${index}`} className="relative aspect-square overflow-hidden rounded-lg">

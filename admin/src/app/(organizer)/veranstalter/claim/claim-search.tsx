@@ -90,9 +90,9 @@ export function ClaimSearch() {
         {!selected && query.trim().length >= 2 && (
           <div className="absolute inset-x-0 top-full z-10 mt-1 max-h-80 overflow-y-auto rounded-lg border border-black/10 bg-white shadow-lg">
             {isPending && matches.length === 0 ? (
-              <p className="px-3 py-3 text-sm text-[#726c78]">Suche…</p>
+              <p className="px-3 py-3 text-sm text-[#6B6B6B]">Suche…</p>
             ) : matches.length === 0 ? (
-              <p className="px-3 py-3 text-sm text-[#726c78]">Keine Treffer für „{query}“.</p>
+              <p className="px-3 py-3 text-sm text-[#6B6B6B]">Keine Treffer für „{query}“.</p>
             ) : (
               matches.map((m) => (
                 <button
@@ -102,12 +102,12 @@ export function ClaimSearch() {
                     setSelected(m);
                     setQuery(m.name);
                   }}
-                  className="flex w-full items-center gap-3 px-3 py-2 text-left transition hover:bg-[#F5F5F1]"
+                  className="flex w-full items-center gap-3 px-3 py-2 text-left transition hover:bg-[#FAFAFA]"
                 >
                   <Thumbnail match={m} />
                   <span className="flex flex-col">
-                    <span className="text-sm font-medium text-[#15131a]">{m.name}</span>
-                    <span className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[#A1A1AA]">{TYPE_LABEL[m.type]}</span>
+                    <span className="text-sm font-medium text-[#111111]">{m.name}</span>
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.04em] text-[#8A8A8A]">{TYPE_LABEL[m.type]}</span>
                   </span>
                 </button>
               ))

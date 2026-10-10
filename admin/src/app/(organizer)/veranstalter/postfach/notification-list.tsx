@@ -46,7 +46,7 @@ export function NotificationList({ notifications }: { notifications: Notificatio
             type="button"
             onClick={() => setOnlyUnread((v) => !v)}
             className={`h-8 rounded-full border px-3 text-xs font-semibold transition ${
-              onlyUnread ? "border-[#2D2A6E] bg-[#ECEBFA] text-[#2D2A6E]" : "border-black/10 bg-white text-[#4a4550] hover:bg-[#F5F5F1]"
+              onlyUnread ? "border-[#2D2A6E] bg-[#ECEBFA] text-[#2D2A6E]" : "border-black/10 bg-white text-[#4A4A4A] hover:bg-[#FAFAFA]"
             }`}
           >
             Nur ungelesen
@@ -55,7 +55,7 @@ export function NotificationList({ notifications }: { notifications: Notificatio
             <select
               value={type}
               onChange={(e) => setType(e.target.value)}
-              className="h-8 rounded-full border border-black/10 bg-white px-3 text-xs font-semibold text-[#4a4550] focus-visible:border-[#2D2A6E] focus-visible:outline-none"
+              className="h-8 rounded-full border border-black/10 bg-white px-3 text-xs font-semibold text-[#4A4A4A] focus-visible:border-[#2D2A6E] focus-visible:outline-none"
             >
               <option value="all">Alle Typen</option>
               {types.map((t) => (
@@ -69,7 +69,7 @@ export function NotificationList({ notifications }: { notifications: Notificatio
       )}
 
       {notifications.length > 0 && filtered.length === 0 && (
-        <p className="py-6 text-sm text-[#726c78]">Keine Benachrichtigungen für diesen Filter.</p>
+        <p className="py-6 text-sm text-[#6B6B6B]">Keine Benachrichtigungen für diesen Filter.</p>
       )}
 
       <div className="flex flex-col gap-2">
@@ -81,11 +81,11 @@ export function NotificationList({ notifications }: { notifications: Notificatio
                   <div className="flex flex-col gap-1">
                     <div className="flex items-center gap-2">
                       {!notification.read_at && <Badge variant="accent">Neu</Badge>}
-                      <span className="text-sm font-semibold text-[#15131a]">{notification.title}</span>
+                      <span className="text-sm font-semibold text-[#111111]">{notification.title}</span>
                     </div>
-                    {notification.body && <p className="text-[13px] text-[#4a4550]">{notification.body}</p>}
+                    {notification.body && <p className="text-[13px] text-[#4A4A4A]">{notification.body}</p>}
                   </div>
-                  <span className="shrink-0 text-xs text-[#726c78]">{dateFormatter.format(new Date(notification.created_at))}</span>
+                  <span className="shrink-0 text-xs text-[#6B6B6B]">{dateFormatter.format(new Date(notification.created_at))}</span>
                 </CardContent>
               </Card>
             </button>

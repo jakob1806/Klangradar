@@ -30,7 +30,8 @@ export function CityFilterSwitcher({
           router.refresh();
         });
       }}
-      className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 disabled:opacity-50"
+      aria-label="Stadt filtern"
+      className="rounded-lg border border-[#DADADA] bg-white px-3 py-1.5 text-[13px] font-medium text-[#111111] transition-colors hover:border-[#111111] disabled:opacity-50"
     >
       <option value={ALL_CITIES}>Alle Städte</option>
       {cities.map((c) => (

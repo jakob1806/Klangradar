@@ -16,7 +16,7 @@ export function DeclineOnlyButton({ token }: { token: string }) {
             if (result && "error" in result) setError(result.error);
           })
         }
-        className="h-12 w-full rounded-full border border-[#15131a]/15 bg-white px-6 text-[15px] font-bold text-[#15131a] transition hover:bg-[#15131a]/[0.03] disabled:opacity-50"
+        className="h-12 w-full rounded-full border border-[#111111]/15 bg-white px-6 text-[15px] font-bold text-[#111111] transition hover:bg-[#111111]/[0.03] disabled:opacity-50"
       >
         Ablehnen
       </button>

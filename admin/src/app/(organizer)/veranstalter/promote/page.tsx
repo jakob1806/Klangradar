@@ -66,10 +66,10 @@ export default async function PromotePage() {
           </CardContent>
         </Card>
         <section className="flex flex-col gap-3">
-          <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#726c78]">Meine Anfragen</h2>
+          <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#6B6B6B]">Meine Anfragen</h2>
           {promotions.length === 0 ? (
             <Card>
-              <CardContent className="pt-5 text-sm text-[#726c78]">Noch keine Promotionen beantragt.</CardContent>
+              <CardContent className="pt-5 text-sm text-[#6B6B6B]">Noch keine Promotionen beantragt.</CardContent>
             </Card>
           ) : (
             <Table>
@@ -84,11 +84,11 @@ export default async function PromotePage() {
               <TableBody>
                 {promotions.map((promotion) => (
                   <TableRow key={promotion.id}>
-                    <TableCell className="font-medium text-[#15131a]">
+                    <TableCell className="font-medium text-[#111111]">
                       <span className="block">{promotion.events?.title ?? "Gelöschtes Event"}</span>
-                      <span className="text-xs font-normal text-[#726c78]">{promotion.events && formatMunichDateTime(promotion.events.start_datetime)}</span>
+                      <span className="text-xs font-normal text-[#6B6B6B]">{promotion.events && formatMunichDateTime(promotion.events.start_datetime)}</span>
                     </TableCell>
-                    <TableCell className="text-[#4a4550]">{PLACEMENT_LABEL[promotion.placement] ?? promotion.placement}</TableCell>
+                    <TableCell className="text-[#4A4A4A]">{PLACEMENT_LABEL[promotion.placement] ?? promotion.placement}</TableCell>
                     <TableCell>
                       <Badge variant={statusVariant(promotion.status)}>{STATUS_LABEL[promotion.status] ?? promotion.status}</Badge>
                       {promotion.status === "payment_pending" && (
@@ -102,7 +102,7 @@ export default async function PromotePage() {
                         </div>
                       )}
                     </TableCell>
-                    <TableCell className="max-w-xs text-[#726c78]">{promotion.reviewer_note ?? promotion.requester_note ?? "—"}</TableCell>
+                    <TableCell className="max-w-xs text-[#6B6B6B]">{promotion.reviewer_note ?? promotion.requester_note ?? "—"}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

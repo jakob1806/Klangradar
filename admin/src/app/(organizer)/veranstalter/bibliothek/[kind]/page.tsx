@@ -58,25 +58,25 @@ export default async function LibraryEntitiesPage({
           {rows.map((row) => (
             <Link key={row.id} href={`/veranstalter/bibliothek/${kind}/${row.id}`} className="group block">
               <Card className="overflow-hidden transition hover:shadow-md">
-                <div className="relative aspect-[4/3] bg-[#15131a]/[0.03]">
+                <div className="relative aspect-[4/3] bg-[#111111]/[0.03]">
                   {imageFor(row) ? (
                     <Image src={imageFor(row)!} alt="" fill className="object-cover" sizes="33vw" unoptimized />
                   ) : (
-                    <span className="absolute inset-0 flex items-center justify-center text-3xl font-semibold text-[#726c78]">
+                    <span className="absolute inset-0 flex items-center justify-center text-3xl font-semibold text-[#6B6B6B]">
                       {row[config.name]?.slice(0, 1)}
                     </span>
                   )}
                 </div>
                 <div className="p-4">
-                  <h2 className="font-semibold text-[#15131a] group-hover:text-[#2D2A6E]">{row[config.name]}</h2>
-                  {row[config.text] && <p className="mt-2 line-clamp-2 text-sm leading-5 text-[#726c78]">{row[config.text]}</p>}
+                  <h2 className="font-semibold text-[#111111] group-hover:text-[#2D2A6E]">{row[config.name]}</h2>
+                  {row[config.text] && <p className="mt-2 line-clamp-2 text-sm leading-5 text-[#6B6B6B]">{row[config.text]}</p>}
                 </div>
               </Card>
             </Link>
           ))}
         </div>
         <LibraryPagination basePath={`/veranstalter/bibliothek/${kind}`} q={q.trim()} page={page} total={count ?? 0} />
-        {!rows.length && <p className="mt-8 text-sm text-[#726c78]">Keine passenden Einträge gefunden.</p>}
+        {!rows.length && <p className="mt-8 text-sm text-[#6B6B6B]">Keine passenden Einträge gefunden.</p>}
       </PageBody>
     </div>
   );

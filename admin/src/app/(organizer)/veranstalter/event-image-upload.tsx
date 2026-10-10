@@ -12,9 +12,9 @@ export function EventImageUpload({ eventId, userId }: { eventId: string; userId:
       <CardDescription>JPEG, PNG oder WebP, maximal 5 MB.</CardDescription>
     </CardHeader>
     <CardContent className="flex flex-wrap items-center gap-2">
-      <input ref={ref} type="file" accept="image/jpeg,image/png,image/webp" className="text-sm text-[#4a4550]" />
+      <input ref={ref} type="file" accept="image/jpeg,image/png,image/webp" className="text-sm text-[#4A4A4A]" />
       <Button type="button" disabled={busy} onClick={upload} size="sm">{busy ? "Lädt hoch…" : "Bild hinzufügen"}</Button>
-      {message && <p className="w-full text-sm text-[#4a4550]">{message}</p>}
+      {message && <p className="w-full text-sm text-[#4A4A4A]">{message}</p>}
     </CardContent>
   </Card>
 ); }

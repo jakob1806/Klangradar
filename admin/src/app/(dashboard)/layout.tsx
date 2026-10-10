@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { Sidebar } from "@/components/sidebar";
+import { DashboardBreadcrumb } from "@/components/dashboard-breadcrumb";
 import type { Metadata } from "next";
 import { MobileNavigation } from "@/components/mobile-navigation";
 import { MobileTableAdapter } from "@/components/mobile-table-adapter";
 import { SignOutButton } from "@/components/sign-out-button";
 import { CityFilterSwitcher } from "@/components/city-filter-switcher";
 import { createClient } from "@/lib/supabase/server";
-import { bodySans } from "../(organizer)/fonts";
 import { getActiveCityFilter, getCityFilterOptions } from "@/lib/city-filter";
 
 export default async function DashboardLayout({
@@ -24,7 +24,7 @@ export default async function DashboardLayout({
   ] = await Promise.all([supabase.auth.getUser(), getCityFilterOptions(), getActiveCityFilter()]);
 
   return (
-    <div className={`dashboard-shell ${bodySans.variable} flex min-h-full font-[family-name:var(--font-organizer-body)]`}>
+    <div className="dashboard-shell flex min-h-full">
       <MobileTableAdapter />
       <div className="hidden shrink-0 md:flex">
         <Sidebar userEmail={user?.email} />
@@ -36,15 +36,12 @@ export default async function DashboardLayout({
         <SignOutButton />
       </div>
       <main className="dashboard-main min-w-0 flex-1">
-        <div className="dashboard-topbar sticky top-0 z-30 hidden items-center justify-between px-8 md:flex">
-          <div>
-            <p className="text-[13px] font-semibold tracking-tight text-[#18181B]">Klangradar Redaktion</p>
-            <p className="text-[11px] text-[#A1A1AA]">Inhalte zentral verwalten</p>
-          </div>
-          <div className="flex items-center gap-4">
+        <div className="dashboard-topbar sticky top-0 z-30 hidden items-center justify-between gap-6 px-8 md:flex">
+          <DashboardBreadcrumb />
+          <div className="flex items-center gap-3">
             <Link
               href="/veranstalter"
-              className="rounded-full border border-[#15131a]/15 bg-white px-3 py-1.5 text-xs font-semibold text-[#18181B] transition hover:bg-[#15131a]/[0.03]"
+              className="rounded-lg border border-[#DADADA] bg-white px-3 py-1.5 text-[13px] font-medium text-[#111111] hover:border-[#111111]"
             >
               Veranstalterportal
             </Link>

@@ -39,7 +39,7 @@ export function DialogContent({
         {...props}
       >
         {children}
-        <DialogPrimitive.Close className="absolute right-4 top-4 rounded-full p-1 text-[#726c78] transition hover:bg-black/[0.05] hover:text-[#15131a] focus-visible:outline-none">
+        <DialogPrimitive.Close className="absolute right-4 top-4 rounded-full p-1 text-[#6B6B6B] transition hover:bg-black/[0.05] hover:text-[#111111] focus-visible:outline-none">
           <X className="size-4" />
           <span className="sr-only">Schließen</span>
         </DialogPrimitive.Close>
@@ -57,9 +57,9 @@ export function DialogFooter({ className, ...props }: React.HTMLAttributes<HTMLD
 }
 
 export function DialogTitle({ className, ...props }: React.ComponentProps<typeof DialogPrimitive.Title>) {
-  return <DialogPrimitive.Title className={cn("text-lg font-semibold tracking-tight text-[#15131a]", className)} {...props} />;
+  return <DialogPrimitive.Title className={cn("text-lg font-semibold tracking-tight text-[#111111]", className)} {...props} />;
 }
 
 export function DialogDescription({ className, ...props }: React.ComponentProps<typeof DialogPrimitive.Description>) {
-  return <DialogPrimitive.Description className={cn("text-sm text-[#726c78]", className)} {...props} />;
+  return <DialogPrimitive.Description className={cn("text-sm text-[#6B6B6B]", className)} {...props} />;
 }

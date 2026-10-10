@@ -11,15 +11,15 @@ import { cn } from "@/lib/utils";
 // lightningcss-Minifizierung verwirft eigene :root-Variablen beim Build
 // kommentarlos (siehe Begründung in globals.css).
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full text-sm font-semibold transition disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2D2A6E]/35 [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2D2A6E]/35 [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        default: "bg-[#2D2A6E] text-white hover:bg-[#38358a] active:bg-[#211f57]",
-        secondary: "bg-[#15131a]/[0.05] text-[#15131a] hover:bg-[#15131a]/[0.09]",
-        outline: "border border-[#15131a]/15 bg-white text-[#15131a] hover:bg-[#15131a]/[0.03]",
-        ghost: "text-[#15131a] hover:bg-[#15131a]/[0.05]",
-        destructive: "bg-[#BE185D] text-white hover:bg-[#a91551]",
+        default: "bg-[#2D2A6E] text-white hover:bg-[#1F1D52]",
+        secondary: "bg-[#F3F3F3] text-[#111111] hover:bg-[#EAEAEA]",
+        outline: "border border-[#DADADA] bg-white text-[#111111] hover:border-[#111111]",
+        ghost: "text-[#111111] hover:bg-[#FAFAFA]",
+        destructive: "bg-[#B42318] text-white hover:bg-[#912018]",
         link: "text-[#2D2A6E] underline-offset-4 hover:underline",
       },
       size: {

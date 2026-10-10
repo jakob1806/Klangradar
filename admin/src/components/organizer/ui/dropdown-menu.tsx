@@ -40,7 +40,7 @@ export function DropdownMenuItem({
   return (
     <DropdownMenuPrimitive.Item
       className={cn(
-        "flex cursor-pointer select-none items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm text-[#15131a] outline-none transition data-[highlighted]:bg-black/[0.05] data-[disabled]:pointer-events-none data-[disabled]:opacity-40",
+        "flex cursor-pointer select-none items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm text-[#111111] outline-none transition data-[highlighted]:bg-black/[0.05] data-[disabled]:pointer-events-none data-[disabled]:opacity-40",
         inset && "pl-8",
         className
       )}
@@ -58,7 +58,7 @@ export function DropdownMenuCheckboxItem({
   return (
     <DropdownMenuPrimitive.CheckboxItem
       className={cn(
-        "relative flex cursor-pointer select-none items-center rounded-lg py-1.5 pl-8 pr-2.5 text-sm text-[#15131a] outline-none transition data-[highlighted]:bg-black/[0.05]",
+        "relative flex cursor-pointer select-none items-center rounded-lg py-1.5 pl-8 pr-2.5 text-sm text-[#111111] outline-none transition data-[highlighted]:bg-black/[0.05]",
         className
       )}
       checked={checked}
@@ -82,7 +82,7 @@ export function DropdownMenuRadioItem({
   return (
     <DropdownMenuPrimitive.RadioItem
       className={cn(
-        "relative flex cursor-pointer select-none items-center rounded-lg py-1.5 pl-8 pr-2.5 text-sm text-[#15131a] outline-none transition data-[highlighted]:bg-black/[0.05]",
+        "relative flex cursor-pointer select-none items-center rounded-lg py-1.5 pl-8 pr-2.5 text-sm text-[#111111] outline-none transition data-[highlighted]:bg-black/[0.05]",
         className
       )}
       {...props}
@@ -104,7 +104,7 @@ export function DropdownMenuLabel({
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Label> & { inset?: boolean }) {
   return (
     <DropdownMenuPrimitive.Label
-      className={cn("px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-[#726c78]", inset && "pl-8", className)}
+      className={cn("px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-[#6B6B6B]", inset && "pl-8", className)}
       {...props}
     />
   );
@@ -123,7 +123,7 @@ export function DropdownMenuSubTrigger({
   return (
     <DropdownMenuPrimitive.SubTrigger
       className={cn(
-        "flex cursor-pointer select-none items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm text-[#15131a] outline-none data-[highlighted]:bg-black/[0.05] data-[state=open]:bg-black/[0.05]",
+        "flex cursor-pointer select-none items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm text-[#111111] outline-none data-[highlighted]:bg-black/[0.05] data-[state=open]:bg-black/[0.05]",
         inset && "pl-8",
         className
       )}
