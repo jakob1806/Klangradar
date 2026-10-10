@@ -194,8 +194,8 @@ function ImageWorkflow({
       </div>
       <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-neutral-100">
         <div
-          className="h-full rounded-full bg-neutral-900 transition-all duration-300"
-          style={{ width: `${(index / entities.length) * 100}%` }}
+          className="spring-transform h-full w-full origin-left bg-neutral-900"
+          style={{ transform: `scaleX(${entities.length ? index / entities.length : 0})` }}
         />
       </div>
       <ImageStep

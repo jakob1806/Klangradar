@@ -618,3 +618,9 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Federn für transform-Änderungen (z. B. Fortschrittsbalken per scaleX):
+   springt nicht linear, übernimmt bei neuem Zielwert die aktuelle Position. */
+.spring-transform {
+  transition: transform 450ms linear(0, 0.121, 0.336, 0.536, 0.69, 0.8, 0.873, 0.921, 0.952, 0.971, 0.982, 0.99, 0.994, 0.996, 0.998, 0.999, 0.999, 1, 1);
+}
