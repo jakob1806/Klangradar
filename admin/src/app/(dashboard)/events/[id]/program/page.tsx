@@ -1,7 +1,8 @@
+import { EntitySearch } from "./entity-search";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { Field, Select, TextInput } from "@/components/form-fields";
+import { Field, TextInput } from "@/components/form-fields";
 import { SubmitButton } from "@/components/submit-button";
 import { DeleteButton } from "@/components/delete-button";
 import {
@@ -52,9 +53,6 @@ export default async function EventProgramPage({
     { data: event },
     { data: program },
     { data: participants },
-    { data: works },
-    { data: persons },
-    { data: ensembles },
   ] = await Promise.all([
     supabase.from("events").select("id, title").eq("id", id).maybeSingle(),
     supabase
@@ -68,13 +66,6 @@ export default async function EventProgramPage({
       .select("id, role, role_label, persons(full_name), ensembles(name)")
       .eq("event_id", id)
       .returns<ParticipantRow[]>(),
-    supabase
-      .from("works")
-      .select("id, title, composer:persons(full_name)")
-      .order("title")
-      .returns<{ id: string; title: string; composer: { full_name: string } | null }[]>(),
-    supabase.from("persons").select("id, full_name").order("full_name"),
-    supabase.from("ensembles").select("id, name").eq("is_resolution_placeholder", false).eq("is_family_root", false).order("name"),
   ]);
 
   if (!event) notFound();
@@ -140,17 +131,7 @@ export default async function EventProgramPage({
           <div className="mt-6 flex flex-col gap-4 rounded-lg border border-neutral-200 bg-white p-4">
             <form action={boundAddExistingWork} className="flex flex-col gap-2">
               <Field label="Vorhandenes Werk hinzufügen">
-                <Select name="work_id" required defaultValue="">
-                  <option value="" disabled>
-                    Werk wählen…
-                  </option>
-                  {works?.map((w) => (
-                    <option key={w.id} value={w.id}>
-                      {w.title}
-                      {w.composer ? ` — ${w.composer.full_name}` : ""}
-                    </option>
-                  ))}
-                </Select>
+                <EntitySearch kind="work" name="work_id" placeholder="Werk suchen …" required />
               </Field>
               <label className="flex items-center gap-2 text-xs text-neutral-600">
                 <input type="checkbox" name="after_intermission" />
@@ -164,14 +145,7 @@ export default async function EventProgramPage({
             <form action={boundCreateWorkAndAdd} className="flex flex-col gap-2">
               <p className="text-xs font-medium text-neutral-600">Neues Werk anlegen & hinzufügen</p>
               <TextInput name="title" placeholder="Titel" required />
-              <Select name="composer_id" defaultValue="">
-                <option value="">Komponist:in (optional)</option>
-                {persons?.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.full_name}
-                  </option>
-                ))}
-              </Select>
+              <EntitySearch kind="person" name="composer_id" placeholder="Komponist:in suchen (optional) …" />
               <TextInput name="catalog_number" placeholder="Werkverzeichnis-Nr. (optional, z. B. BWV 244)" />
               <label className="flex items-center gap-2 text-xs text-neutral-600">
                 <input type="checkbox" name="after_intermission_new" />
@@ -221,16 +195,7 @@ export default async function EventProgramPage({
           <div className="mt-4 flex flex-col gap-4 rounded-lg border border-neutral-200 bg-white p-4">
             <form action={boundAddParticipant} className="flex flex-col gap-2">
               <p className="text-xs font-medium text-neutral-600">Vorhandene Person hinzufügen</p>
-              <Select name="person_id" required defaultValue="">
-                <option value="" disabled>
-                  Person wählen…
-                </option>
-                {persons?.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.full_name}
-                  </option>
-                ))}
-              </Select>
+              <EntitySearch kind="person" name="person_id" placeholder="Person suchen …" required />
               <TextInput name="role_label" placeholder="Rolle (frei, z. B. Lady Macbeth oder Basssolist)" maxLength={160} list="manual-role-suggestions" />
               <SubmitButton>Hinzufügen</SubmitButton>
             </form>
@@ -251,16 +216,7 @@ export default async function EventProgramPage({
 
             <form action={boundAddParticipant} className="flex flex-col gap-2">
               <p className="text-xs font-medium text-neutral-600">Vorhandenes Ensemble hinzufügen</p>
-              <Select name="ensemble_id" required defaultValue="">
-                <option value="" disabled>
-                  Ensemble wählen…
-                </option>
-                {ensembles?.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.name}
-                  </option>
-                ))}
-              </Select>
+              <EntitySearch kind="ensemble" name="ensemble_id" placeholder="Ensemble suchen …" required />
               <TextInput name="role_label" placeholder="Rolle/Funktion (frei, optional)" maxLength={160} list="manual-role-suggestions" />
               <SubmitButton>Hinzufügen</SubmitButton>
             </form>
