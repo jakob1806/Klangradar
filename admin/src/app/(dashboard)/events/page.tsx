@@ -46,7 +46,7 @@ const STATUS_TABS = [
 export default async function EventsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; page?: string; q?: string }>;
+  searchParams: Promise<{ status?: string; page?: string; q?: string; zeit?: string }>;
 }) {
   const params = await searchParams;
   // Entwürfe zuerst als Default: das ist review-pflichtiger Content aus der
@@ -55,6 +55,13 @@ export default async function EventsPage({
   // komplett aus der sichtbaren Liste verdrängt hätte.
   const status = params.status ?? "draft";
   const q = (params.q ?? "").trim();
+  // Nutzerfeedback: "Geplant (2251)" zählte auch längst vergangene Termine
+  // (Status bleibt nach dem Konzert "scheduled"), obwohl die Seite
+  // "Kommende Events" heißt — die Website zeigte dadurch scheinbar zu wenige.
+  // Standard sind jetzt nur kommende Termine (wie App und Website),
+  // vergangene bleiben über den Umschalter erreichbar und bearbeitbar.
+  const zeit = params.zeit === "vergangen" ? "vergangen" : "kommend";
+  const nowIso = new Date().toISOString();
   const page = Math.max(1, parseInt(params.page ?? "1", 10) || 1);
   const from = (page - 1) * PAGE_SIZE;
   const to = from + PAGE_SIZE - 1;
@@ -118,12 +125,13 @@ export default async function EventsPage({
   if (cityFilter.cityId) {
     query = query.eq("city_id", cityFilter.cityId);
   }
+  query = zeit === "kommend" ? query.gte("start_datetime", nowIso) : query.lt("start_datetime", nowIso);
   // PostgREST kann kein `in ()` ausführen. Eine leere, intelligente Suche
   // wird deshalb bewusst ohne Datenbankabfrage als leeres Ergebnis gezeigt.
   const { data, error, count } = matchingEventIds?.length === 0
     ? { data: [] as EventRow[], error: null, count: 0 }
     : await query
-      .order("start_datetime", { ascending: true })
+      .order("start_datetime", { ascending: zeit === "kommend" })
       .range(from, to)
       .returns<EventRow[]>();
 
@@ -168,6 +176,7 @@ export default async function EventsPage({
     let q = supabase.from("events").select("id", { count: "exact", head: true });
     if (status) q = q.eq("status", status);
     if (cityFilter.cityId) q = q.eq("city_id", cityFilter.cityId);
+    q = zeit === "kommend" ? q.gte("start_datetime", nowIso) : q.lt("start_datetime", nowIso);
     const { count } = await q;
     return count ?? 0;
   }
@@ -182,9 +191,11 @@ export default async function EventsPage({
   const countByStatus = new Map(countByStatusEntries);
 
   const totalPages = count ? Math.ceil(count / PAGE_SIZE) : 1;
-  const qs = (overrides: { status?: string }) => {
+  const qs = (overrides: { status?: string; zeit?: string }) => {
     const p = new URLSearchParams();
     p.set("status", overrides.status ?? status);
+    const z = overrides.zeit ?? zeit;
+    if (z === "vergangen") p.set("zeit", z);
     if (q) p.set("q", q);
     return p.toString();
   };
@@ -194,7 +205,9 @@ export default async function EventsPage({
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Veranstaltungen</h1>
-          <p className="text-sm text-neutral-500">Kommende Events, redaktionell prüfbar.</p>
+          <p className="text-sm text-neutral-500">
+            {zeit === "kommend" ? "Kommende Events, redaktionell prüfbar." : "Vergangene Events, weiterhin bearbeitbar."}
+          </p>
         </div>
         <div className="flex items-center gap-3">
           <Link
@@ -212,7 +225,7 @@ export default async function EventsPage({
         </div>
       </div>
 
-      <div className="mb-4 flex items-center gap-1 border-b border-black/[0.06]">
+      <div className="mb-4 flex flex-wrap items-center gap-1 border-b border-black/[0.06]">
         {STATUS_TABS.map((tab) => {
           const tabCount = tab.value === "all" ? totalCount : (countByStatus.get(tab.value) ?? 0);
           const isActive = status === tab.value;
@@ -230,10 +243,25 @@ export default async function EventsPage({
             </Link>
           );
         })}
+        <div className="ml-auto flex items-center gap-1 pb-1 text-sm" role="group" aria-label="Zeitraum">
+          {(["kommend", "vergangen"] as const).map((value) => (
+            <Link
+              key={value}
+              href={`/events?${qs({ zeit: value })}`}
+              aria-current={zeit === value ? "page" : undefined}
+              className={`rounded-lg px-3 py-1.5 font-medium ${
+                zeit === value ? "bg-[#F3F3F7] text-[#2D2A6E]" : "text-neutral-500 hover:text-neutral-800"
+              }`}
+            >
+              {value === "kommend" ? "Kommende" : "Vergangene"}
+            </Link>
+          ))}
+        </div>
       </div>
 
       <form method="get" action="/events" className="mb-4 flex items-center gap-2">
         <input type="hidden" name="status" value={status} />
+        {zeit === "vergangen" && <input type="hidden" name="zeit" value="vergangen" />}
         <input
           type="search"
           name="q"
@@ -249,7 +277,7 @@ export default async function EventsPage({
         </button>
         {q && (
           <Link
-            href={`/events?status=${status}`}
+            href={`/events?status=${status}${zeit === "vergangen" ? "&zeit=vergangen" : ""}`}
             className="text-sm font-medium text-neutral-500 hover:text-[#2D2A6E]"
           >
             Zurücksetzen
