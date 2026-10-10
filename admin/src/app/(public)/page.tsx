@@ -24,13 +24,6 @@ export const metadata: Metadata = {
 // kommen live aus der Datenbank und fallen bei einem Fehler weg.
 const CITIES = ["München", "Berlin", "Hamburg", "Wien", "Frankfurt"];
 
-const CITY_ROWS = [
-  { name: "München", venues: "Nationaltheater · Isarphilharmonie · Herkulessaal · Gärtnerplatztheater" },
-  { name: "Berlin", venues: "Philharmonie · Konzerthaus · Komische Oper · Deutsche Oper" },
-  { name: "Hamburg", venues: "Elbphilharmonie · Laeiszhalle · Staatsoper" },
-  { name: "Wien", venues: "Musikverein · Konzerthaus · Staatsoper · Theater an der Wien" },
-  { name: "Frankfurt", venues: "Alte Oper · Oper Frankfurt" },
-];
 
 const STAT_COLUMNS: Record<number, string> = { 1: "sm:grid-cols-1", 2: "sm:grid-cols-2", 3: "sm:grid-cols-3", 4: "sm:grid-cols-4" };
 
@@ -52,7 +45,9 @@ async function loadStats() {
         .from("events")
         .select("id", { count: "exact", head: true })
         .gte("start_datetime", now)
-        .in("status", ["scheduled", "sold_out"]),
+        // Gleiche Definition wie die App (EventRepository.fetchEvents):
+        // nur status=scheduled, Beginn ab jetzt.
+        .eq("status", "scheduled"),
       supabase.from("persons").select("id", { count: "exact", head: true }),
       supabase.from("ensembles").select("id", { count: "exact", head: true }),
     ]);
@@ -137,10 +132,6 @@ export default async function PublicHomePage() {
       {/* Hero */}
       <section className="mx-auto flex max-w-6xl flex-col items-center gap-16 px-6 pb-24 pt-16 md:flex-row md:gap-10 md:pt-24">
         <div className="flex flex-1 flex-col items-start gap-7">
-          <span className="fw-rise inline-flex items-center gap-2 rounded-full border border-[#EAEAEA] px-3 py-1 text-[13px] text-[#4A4A4A]">
-            <span className="fw-pulse-dot size-1.5 rounded-full bg-[#2D2A6E]" aria-hidden="true" />
-            Die Klassik-App für iPhone
-          </span>
           <h1
             className="fw-rise text-[clamp(2.5rem,5vw,4.25rem)] font-semibold leading-[1.02] tracking-[-0.045em] text-[#111111]"
             style={{ animationDelay: "80ms" }}
@@ -297,14 +288,13 @@ export default async function PublicHomePage() {
             </h2>
           </Reveal>
           <ul className="mt-12 border-t border-[#EAEAEA]">
-            {CITY_ROWS.map((city, index) => (
-              <Reveal key={city.name} delayMs={index * 70}>
-                <li className="group grid grid-cols-[3rem_minmax(0,1fr)] items-baseline gap-4 border-b border-[#EAEAEA] py-5 sm:grid-cols-[3rem_minmax(0,16rem)_minmax(0,1fr)]">
+            {CITIES.map((city, index) => (
+              <Reveal key={city} delayMs={index * 70}>
+                <li className="group grid grid-cols-[3rem_minmax(0,1fr)] items-baseline gap-4 border-b border-[#EAEAEA] py-5">
                   <span className="font-[family-name:var(--font-geist-mono)] text-[13px] text-[#8A8A8A]">0{index + 1}</span>
                   <span className="text-[clamp(1.6rem,3vw,2.5rem)] font-semibold tracking-[-0.035em] text-[#111111] transition-[color,transform] duration-300 group-hover:translate-x-2 group-hover:text-[#2D2A6E]">
-                    {city.name}
+                    {city}
                   </span>
-                  <span className="col-start-2 text-[15px] text-[#6B6B6B] sm:col-start-auto">{city.venues}</span>
                 </li>
               </Reveal>
             ))}
