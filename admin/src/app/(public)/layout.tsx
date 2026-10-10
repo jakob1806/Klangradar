@@ -34,7 +34,7 @@ export default async function PublicLayout({ children }: { children: React.React
   return (
     <div className="flex min-h-screen flex-col bg-white text-[#111111]">
       <header className="sticky top-0 z-20 border-b border-[#EAEAEA] bg-white">
-        <div className="mx-auto flex h-16 max-w-5xl items-center justify-between gap-4 px-6">
+        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-6">
           <Link href="/" className="flex items-center gap-2.5">
             <span className="dashboard-brand-mark" aria-hidden="true">
               <Image src="/app-logo.svg" alt="" width={34} height={34} />
@@ -42,9 +42,6 @@ export default async function PublicLayout({ children }: { children: React.React
             <span className="text-[15px] font-semibold tracking-[-0.01em]">Klangradar</span>
           </Link>
           <nav aria-label="Hauptnavigation" className="flex items-center gap-2">
-            <Link href="/#veranstalter" className="fw-link hidden px-2 py-1 text-[14px] text-[#4A4A4A] hover:text-[#111111] sm:inline">
-              Für Veranstalter
-            </Link>
             <Link
               href="/veranstalter"
               className="hidden rounded-lg border border-[#DADADA] px-4 py-2 text-[14px] font-medium text-[#111111] hover:border-[#111111] sm:inline-flex"
@@ -64,7 +61,7 @@ export default async function PublicLayout({ children }: { children: React.React
       <main className="flex-1">{children}</main>
 
       <footer className="border-t border-[#EAEAEA]">
-        <div className="mx-auto flex max-w-5xl flex-col gap-4 px-6 py-10 text-[13px] text-[#6B6B6B] sm:flex-row sm:items-center sm:justify-between">
+        <div className="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-10 text-[13px] text-[#6B6B6B] sm:flex-row sm:items-center sm:justify-between">
           <span>© {new Date().getFullYear()} Klangradar</span>
           <nav aria-label="Rechtliches" className="flex gap-6">
             <Link href="/impressum" className="fw-link hover:text-[#111111]">
