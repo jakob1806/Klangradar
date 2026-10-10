@@ -96,7 +96,7 @@ export function MediaSelectableCard({ id, children }: { id: string; children: Re
           toggle(id);
         }
       }}
-      className={`group relative overflow-hidden rounded-2xl border bg-white shadow-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2D2A6E] focus-visible:ring-offset-2 ${
+      className={`group relative overflow-hidden rounded-2xl border bg-white shadow-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2D2A6E] focus-visible:ring-offset-2 ${
         isSelected
           ? "border-[#2D2A6E] bg-blue-50/30 shadow-md ring-2 ring-[#2D2A6E]/20"
           : "border-black/[0.07] hover:-translate-y-0.5 hover:border-black/[0.14] hover:shadow-md"

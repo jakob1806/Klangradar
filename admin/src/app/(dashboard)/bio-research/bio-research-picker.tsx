@@ -249,7 +249,7 @@ function ImageProgressCard({
         {processed}<span className="ml-1 text-sm font-normal text-neutral-400">/ {total} geprüft</span>
       </p>
       <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-neutral-100" aria-label={`${percentage} Prozent geprüft`}>
-        <div className="spring-transform h-full w-full origin-left bg-[#2D2A6E]" style={{ transform: `scaleX(${percentage / 100})` }} />
+        <div className="h-full rounded-full bg-[#2D2A6E] transition-all" style={{ width: `${percentage}%` }} />
       </div>
       <p className="mt-1.5 text-xs text-neutral-400">
         {percentage}% geprüft · {published} veröffentlicht · {candidates} warten auf Freigabe
@@ -296,7 +296,7 @@ function SummaryCard({
         {value}<span className="ml-1 text-sm font-normal text-neutral-400">/ {total}</span>
       </p>
       <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-neutral-100" aria-label={`${percentage} Prozent abgeschlossen`}>
-        <div className="spring-transform h-full w-full origin-left bg-[#2D2A6E]" style={{ transform: `scaleX(${percentage / 100})` }} />
+        <div className="h-full rounded-full bg-[#2D2A6E] transition-all" style={{ width: `${percentage}%` }} />
       </div>
       <p className="mt-1.5 text-xs text-neutral-400">{percentage}% abgeschlossen</p>
     </div>
