@@ -139,7 +139,7 @@ export default async function QualitaetspruefungPage({
             <Link
               key={tab.type}
               href={`/qualitaetspruefung?type=${tab.type}`}
-              className="flex items-center gap-3 rounded-xl border border-neutral-200 bg-white px-3 py-3 text-sm font-medium text-neutral-600 transition hover:border-neutral-300 hover:text-neutral-900"
+              className="flex items-center gap-3 rounded-xl border border-neutral-200 bg-white px-3 py-3 text-sm font-medium text-neutral-600 transition-all hover:border-neutral-300 hover:text-neutral-900"
             >
               <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-100 text-xs font-semibold text-neutral-500">
                 {TYPE_ICON[tab.type]}
@@ -217,7 +217,7 @@ export default async function QualitaetspruefungPage({
           <Link
             key={tab.type}
             href={`/qualitaetspruefung?type=${tab.type}`}
-            className={`flex items-center gap-3 rounded-xl border px-3 py-3 text-sm font-medium transition ${
+            className={`flex items-center gap-3 rounded-xl border px-3 py-3 text-sm font-medium transition-all ${
               tab.type === activeType
                 ? "border-[#2D2A6E]/30 bg-blue-50 text-[#38358a] shadow-sm"
                 : "border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300 hover:text-neutral-900"
@@ -236,7 +236,7 @@ export default async function QualitaetspruefungPage({
         ))}
         <Link
           href="/qualitaetspruefung?type=city"
-          className="flex items-center gap-3 rounded-xl border border-neutral-200 bg-white px-3 py-3 text-sm font-medium text-neutral-600 transition hover:border-neutral-300 hover:text-neutral-900"
+          className="flex items-center gap-3 rounded-xl border border-neutral-200 bg-white px-3 py-3 text-sm font-medium text-neutral-600 transition-all hover:border-neutral-300 hover:text-neutral-900"
         >
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-100 text-xs font-semibold text-neutral-500">
             S
