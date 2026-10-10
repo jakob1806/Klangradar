@@ -8,7 +8,7 @@ import { Button } from "@/components/organizer/ui/button";
 type Entry = { id: string; name: string; type: "person" | "ensemble" };
 
 const selectClassName =
-  "flex h-9 w-full rounded-lg border border-black/10 bg-white px-3 text-sm text-[#15131a] transition focus-visible:border-[#2D2A6E] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2D2A6E]/25 disabled:cursor-not-allowed disabled:opacity-50";
+  "flex h-9 w-full rounded-lg border border-black/10 bg-white px-3 text-sm text-[#111111] transition focus-visible:border-[#2D2A6E] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2D2A6E]/25 disabled:cursor-not-allowed disabled:opacity-50";
 
 export function RosterForm({ organizers, entries }: { organizers: { id: string; name: string }[]; entries: Entry[] }) {
   const [type, setType] = useState<"person" | "ensemble">("person");

@@ -33,10 +33,10 @@ export default async function AgencyPage() {
       <PageBody className="mx-auto flex max-w-5xl flex-col gap-10">
         <RosterForm organizers={organizers} entries={entries} />
         <section className="flex flex-col gap-3">
-          <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#726c78]">Mein Roster</h2>
+          <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#6B6B6B]">Mein Roster</h2>
           {roster.length === 0 ? (
             <Card>
-              <CardContent className="pt-5 text-sm text-[#726c78]">Noch keine Künstler oder Ensembles hinzugefügt.</CardContent>
+              <CardContent className="pt-5 text-sm text-[#6B6B6B]">Noch keine Künstler oder Ensembles hinzugefügt.</CardContent>
             </Card>
           ) : (
             <Table>
@@ -47,7 +47,7 @@ export default async function AgencyPage() {
                     <TableCell>
                       <Badge>{item.entity_type === "person" ? "Person" : "Ensemble"}</Badge>
                     </TableCell>
-                    <TableCell className="text-[#726c78]">{organizerById.get(item.organizer_id)}</TableCell>
+                    <TableCell className="text-[#6B6B6B]">{organizerById.get(item.organizer_id)}</TableCell>
                     <TableCell className="text-right">
                       <ConfirmButton
                         action={removeRosterEntry.bind(null, item.id)}

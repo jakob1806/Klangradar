@@ -19,7 +19,7 @@ export default async function TeamIndexPage() {
       <PageBody className="mx-auto max-w-3xl">
         {organizers.length === 0 ? (
           <Card>
-            <CardContent className="pt-5 text-sm text-[#726c78]">
+            <CardContent className="pt-5 text-sm text-[#6B6B6B]">
               Du verwaltest aktuell keine Institution. Unter Beanspruchen kannst du eine bestehende Institution beanspruchen oder
               eine neue anlegen.
             </CardContent>
@@ -30,7 +30,7 @@ export default async function TeamIndexPage() {
               <Link key={organizer.id} href={`/veranstalter/team/organizer/${organizer.id}`}>
                 <Card className="transition hover:border-[#2D2A6E]/30">
                   <CardContent className="flex items-center justify-between pt-5">
-                    <span className="text-sm font-semibold text-[#15131a]">{organizer.name}</span>
+                    <span className="text-sm font-semibold text-[#111111]">{organizer.name}</span>
                     <span className="flex items-center gap-1 text-sm font-semibold text-[#2D2A6E]">
                       Team verwalten <ArrowRight className="size-3.5" />
                     </span>

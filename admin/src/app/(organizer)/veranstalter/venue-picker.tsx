@@ -71,7 +71,7 @@ export function VenuePicker({
         placeholder="Venue suchen…"
       />
       {open && results.length > 0 && (
-        <ul className="absolute z-10 mt-1 w-full overflow-hidden rounded-xl border border-[#15131a]/[0.08] bg-white shadow-lg">
+        <ul className="absolute z-10 mt-1 w-full overflow-hidden rounded-xl border border-[#111111]/[0.08] bg-white shadow-lg">
           {results.map((venue) => (
             <li key={venue.id}>
               <button
@@ -82,7 +82,7 @@ export function VenuePicker({
                   setOpen(false);
                   onSelect?.(venue);
                 }}
-                className="block w-full px-3 py-2 text-left text-sm text-[#15131a] hover:bg-[#2D2A6E]/[0.05]"
+                className="block w-full px-3 py-2 text-left text-sm text-[#111111] hover:bg-[#2D2A6E]/[0.05]"
               >
                 {venue.name}
               </button>

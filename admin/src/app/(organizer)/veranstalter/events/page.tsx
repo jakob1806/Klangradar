@@ -139,7 +139,7 @@ export default async function VeranstalterEventsPage({
         <Link
           href="/veranstalter/events"
           className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
-            !showsPast ? "bg-[#2D2A6E] text-white" : "bg-[#2D2A6E]/5 text-[#726c78] hover:bg-[#2D2A6E]/10"
+            !showsPast ? "bg-[#2D2A6E] text-white" : "bg-[#2D2A6E]/5 text-[#6B6B6B] hover:bg-[#2D2A6E]/10"
           }`}
         >
           Kommend
@@ -147,7 +147,7 @@ export default async function VeranstalterEventsPage({
         <Link
           href="/veranstalter/events?zeitraum=vergangen"
           className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
-            showsPast ? "bg-[#2D2A6E] text-white" : "bg-[#2D2A6E]/5 text-[#726c78] hover:bg-[#2D2A6E]/10"
+            showsPast ? "bg-[#2D2A6E] text-white" : "bg-[#2D2A6E]/5 text-[#6B6B6B] hover:bg-[#2D2A6E]/10"
           }`}
         >
           Vergangen
@@ -161,7 +161,7 @@ export default async function VeranstalterEventsPage({
         )}
         {events.length === 0 ? (
           <Card>
-            <CardContent className="pt-5 text-sm text-[#726c78]">
+            <CardContent className="pt-5 text-sm text-[#6B6B6B]">
               {organizerIds.length === 0 && profileClaims.length === 0 ? (
                 <>Noch keine Events. Beanspruche zuerst ein Profil unter <Link href="/veranstalter/claim" className="font-semibold text-[#2D2A6E] hover:underline">Beanspruchen</Link>.</>
               ) : (

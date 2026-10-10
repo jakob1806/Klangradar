@@ -19,7 +19,7 @@ export function MobileNavigation({ children }: { children: ReactNode }) {
           aria-expanded={open}
           aria-controls="mobile-dashboard-navigation"
           onClick={() => setOpen((current) => !current)}
-          className="inline-flex size-11 shrink-0 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-800 shadow-sm"
+          className="inline-flex size-11 shrink-0 items-center justify-center rounded-lg border border-[#EAEAEA] bg-white text-[#111111]"
         >
           <span aria-hidden="true" className="flex w-5 flex-col gap-1.5">
             <span className="h-0.5 w-full rounded bg-current" />
@@ -40,7 +40,7 @@ export function MobileNavigation({ children }: { children: ReactNode }) {
         <div
           id="mobile-dashboard-navigation"
           onClick={closeAfterNavigation}
-          className="mobile-navigation-panel absolute inset-x-3 top-[calc(100%-1px)] z-50 max-h-[min(72vh,38rem)] overflow-y-auto overscroll-contain rounded-b-xl border border-neutral-200 bg-white p-3 shadow-xl"
+          className="mobile-navigation-panel fw-rise absolute inset-x-3 top-[calc(100%-1px)] z-50 max-h-[min(72vh,38rem)] overflow-y-auto overscroll-contain rounded-b-xl border border-[#EAEAEA] bg-white p-3"
         >
           {children}
         </div>

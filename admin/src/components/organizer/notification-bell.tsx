@@ -18,7 +18,7 @@ export async function NotificationBell() {
   return (
     <Link
       href="/veranstalter/postfach"
-      className="relative flex size-9 items-center justify-center rounded-full text-[#4a4550] transition hover:bg-black/[0.05] hover:text-[#15131a]"
+      className="relative flex size-9 items-center justify-center rounded-full text-[#4A4A4A] transition hover:bg-black/[0.05] hover:text-[#111111]"
       aria-label={unread > 0 ? `Postfach, ${unread} ungelesen` : "Postfach"}
     >
       <Bell className="size-[18px]" />

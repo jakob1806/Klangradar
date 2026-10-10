@@ -6,7 +6,6 @@ import { SidebarNavigation } from "@/components/organizer/sidebar-nav";
 import { MobileSidebarTrigger } from "@/components/organizer/mobile-sidebar";
 import { NotificationBell } from "@/components/organizer/notification-bell";
 import { UserMenu } from "@/components/organizer/user-menu";
-import { bodySans } from "./fonts";
 
 // Eigenes Chrome statt (dashboard)/layout.tsx — die Redaktions-Sidebar dort
 // ist auf interne Redaktion zugeschnitten. Feste, helle Sidebar (Desktop) +
@@ -20,25 +19,25 @@ export default async function OrganizerLayout({ children }: { children: React.Re
   } = await supabase.auth.getUser();
 
   return (
-    <div className={`${bodySans.variable} flex min-h-screen bg-[#F5F5F1] font-[family-name:var(--font-organizer-body)]`}>
-      <aside className="fixed inset-y-0 left-0 hidden w-64 flex-col border-r border-[#18181B]/[0.06] bg-white lg:flex">
-        <Link href="/veranstalter" className="flex items-center gap-2.5 px-5 py-6">
-          <Image src="/app-logo.svg" alt="Klangradar" width={32} height={32} className="rounded-[9px]" />
-          <span className="flex flex-col leading-none">
-            <span className="text-[15px] font-extrabold tracking-tight text-[#18181B]">Klangradar</span>
-            <span className="text-[11px] text-[#A1A1AA]">Veranstalter-Portal</span>
+    <div className="flex min-h-screen bg-white">
+      <aside className="fixed inset-y-0 left-0 hidden w-64 flex-col border-r border-[#EAEAEA] bg-white lg:flex">
+        <Link href="/veranstalter" className="flex items-center gap-2.5 px-5 py-5">
+          <Image src="/app-logo.svg" alt="Klangradar" width={30} height={30} className="rounded-[8px] border border-[#EAEAEA]" />
+          <span className="flex flex-col leading-tight">
+            <span className="text-[14px] font-semibold tracking-tight text-[#111111]">Klangradar</span>
+            <span className="text-[12px] text-[#6B6B6B]">Veranstalter</span>
           </span>
         </Link>
         <SidebarNavigation />
       </aside>
 
-      <div className="flex min-h-screen flex-1 flex-col lg:pl-64">
-        <header className="sticky top-0 z-10 flex items-center justify-between border-b border-[#18181B]/[0.06] bg-[#F5F5F1]/90 px-5 py-3 backdrop-blur-xl lg:px-10">
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col lg:pl-64">
+        <header className="sticky top-0 z-10 flex h-14 items-center justify-between border-b border-[#EAEAEA] bg-white px-5 lg:px-10">
           <div className="flex items-center gap-2 lg:hidden">
             <MobileSidebarTrigger />
-            <Image src="/app-logo.svg" alt="" width={26} height={26} />
+            <Image src="/app-logo.svg" alt="" width={26} height={26} className="rounded-[7px]" />
           </div>
-          <span className="hidden text-sm text-[#71717A] lg:block">{user?.email}</span>
+          <span className="hidden truncate text-[13px] text-[#6B6B6B] lg:block">{user?.email}</span>
           <div className="flex items-center gap-1">
             <Suspense fallback={<div className="size-9" />}>
               <NotificationBell />
@@ -47,7 +46,7 @@ export default async function OrganizerLayout({ children }: { children: React.Re
           </div>
         </header>
 
-        <main className="flex-1">{children}</main>
+        <main className="organizer-content flex-1">{children}</main>
       </div>
     </div>
   );

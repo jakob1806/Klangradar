@@ -59,7 +59,7 @@ export default async function EditEntityProfilePage({
 
   if (!claim) {
     return (
-      <div className="mx-auto max-w-xl px-6 py-16 text-center text-[#726c78]">
+      <div className="mx-auto max-w-xl px-6 py-16 text-center text-[#6B6B6B]">
         Du hast keinen genehmigten Zugriff auf dieses Profil.
       </div>
     );
@@ -152,7 +152,7 @@ export default async function EditEntityProfilePage({
                   )}
                 </div>
               ))}
-              <p className="text-xs text-[#726c78]">Dein Claim ist bestätigt. Änderungen werden sofort veröffentlicht.</p>
+              <p className="text-xs text-[#6B6B6B]">Dein Claim ist bestätigt. Änderungen werden sofort veröffentlicht.</p>
               <div>
                 <SubmitButton>Änderungen veröffentlichen</SubmitButton>
               </div>
@@ -163,8 +163,8 @@ export default async function EditEntityProfilePage({
           <div className="flex flex-col gap-4">
             <Separator />
             <div>
-              <h2 className="mb-1 text-[15px] font-semibold text-[#15131a]">Runder Ausschnitt für App-Miniaturen</h2>
-              <p className="mb-4 text-sm text-[#726c78]">Lege fest, welcher Bereich deines Hauptbilds in runden Profilbildern erscheint.</p>
+              <h2 className="mb-1 text-[15px] font-semibold text-[#111111]">Runder Ausschnitt für App-Miniaturen</h2>
+              <p className="mb-4 text-sm text-[#6B6B6B]">Lege fest, welcher Bereich deines Hauptbilds in runden Profilbildern erscheint.</p>
               <AvatarCropButton
                 entityType={`${galleryOrigin}s` as "persons" | "ensembles" | "venues"}
                 entityId={entityId}

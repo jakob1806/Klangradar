@@ -25,7 +25,7 @@ export default async function NewOrganizerEventPage() {
         <PageBody>
           <Card>
             <CardContent className="flex flex-col items-center gap-3 pt-5 text-center">
-              <p className="text-[#4a4550]">
+              <p className="text-[#4A4A4A]">
                 Du hast noch kein genehmigtes Profil. Beanspruche zuerst eine Institution, Venue, Person oder ein Ensemble.
               </p>
               <Link href="/veranstalter/claim" className="font-semibold text-[#2D2A6E] hover:underline">

@@ -11,7 +11,7 @@ import { Label } from "@/components/organizer/ui/label";
 import { Input, Textarea } from "@/components/organizer/ui/input";
 
 const selectClass =
-  "flex h-9 w-full items-center rounded-lg border border-black/10 bg-white px-3 text-sm text-[#15131a] transition focus:border-[#2D2A6E] focus:outline-none focus:ring-2 focus:ring-[#2D2A6E]/25 disabled:cursor-not-allowed disabled:opacity-50";
+  "flex h-9 w-full items-center rounded-lg border border-black/10 bg-white px-3 text-sm text-[#111111] transition focus:border-[#2D2A6E] focus:outline-none focus:ring-2 focus:ring-[#2D2A6E]/25 disabled:cursor-not-allowed disabled:opacity-50";
 
 function Field({
   label,
@@ -31,7 +31,7 @@ function Field({
         {required && <span className="text-[#BE185D]"> *</span>}
       </Label>
       {children}
-      {hint && <span className="text-xs text-[#726c78]">{hint}</span>}
+      {hint && <span className="text-xs text-[#6B6B6B]">{hint}</span>}
     </div>
   );
 }
@@ -193,7 +193,7 @@ export function OrganizerEventForm({
         </Field>
       </div>
 
-      <label className="flex items-center gap-2 text-sm text-[#4a4550]">
+      <label className="flex items-center gap-2 text-sm text-[#4A4A4A]">
         <input type="checkbox" name="has_intermission" defaultChecked={initial?.has_intermission} className="size-4 rounded border-black/20 text-[#2D2A6E] focus:ring-[#2D2A6E]/25" />
         Mit Pause
       </label>
@@ -239,7 +239,7 @@ export function OrganizerEventForm({
         </Field>
       </div>
 
-      <label className="flex items-center gap-2 text-sm text-[#4a4550]">
+      <label className="flex items-center gap-2 text-sm text-[#4A4A4A]">
         <input type="checkbox" name="is_free" defaultChecked={initial?.is_free} className="size-4 rounded border-black/20 text-[#2D2A6E] focus:ring-[#2D2A6E]/25" />
         Kostenlos
       </label>
@@ -285,12 +285,12 @@ export function OrganizerEventForm({
       </div>
 
       {!initial && (
-        <p className="text-xs text-[#726c78]">
+        <p className="text-xs text-[#6B6B6B]">
           Dein Event wird als Entwurf angelegt und erscheint erst nach redaktioneller Prüfung öffentlich.
         </p>
       )}
       {initial && (
-        <p className="text-xs text-[#726c78]">
+        <p className="text-xs text-[#6B6B6B]">
           Änderungen an einem bereits veröffentlichten Event sind sofort sichtbar, ohne erneute Prüfung.
         </p>
       )}
@@ -307,7 +307,7 @@ export function OrganizerEventForm({
     </form>
 
     <div className="lg:sticky lg:top-6 lg:self-start">
-      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#726c78]">Vorschau</p>
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#6B6B6B]">Vorschau</p>
       <EventPreviewCard preview={preview} />
     </div>
     </div>

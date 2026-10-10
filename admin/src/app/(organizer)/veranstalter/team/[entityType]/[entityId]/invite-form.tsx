@@ -31,10 +31,10 @@ export function InviteForm({ entityType, entityId }: { entityType: string; entit
   }
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-3 rounded-2xl border border-[#15131a]/[0.07] bg-white p-5">
+    <form onSubmit={submit} className="flex flex-col gap-3 rounded-2xl border border-[#111111]/[0.07] bg-white p-5">
       <div className="flex flex-col gap-1">
-        <h2 className="text-[15px] font-bold text-[#18181B]">Mitglied einladen</h2>
-        <p className="text-[13px] text-[#726c78]">
+        <h2 className="text-[15px] font-bold text-[#111111]">Mitglied einladen</h2>
+        <p className="text-[13px] text-[#6B6B6B]">
           Die Person erhält eine E-Mail mit einem Link und kann die Einladung auf einer eigenen Seite annehmen oder ablehnen.
         </p>
       </div>
@@ -64,7 +64,7 @@ export function InviteForm({ entityType, entityId }: { entityType: string; entit
           <Mail /> {isPending ? "Sende…" : "Einladung senden"}
         </Button>
       </div>
-      <p className="text-[12px] text-[#A1A1AA]">{INVITE_ROLE_DESCRIPTION[role]}</p>
+      <p className="text-[12px] text-[#8A8A8A]">{INVITE_ROLE_DESCRIPTION[role]}</p>
       {feedback && (
         <p className={`text-sm ${feedback.ok ? "text-[#175f3c]" : "text-[#a91551]"}`} role="status">
           {feedback.text}
@@ -79,7 +79,7 @@ export function InvitationRowActions({ invitationId }: { invitationId: string })
   const [isPending, startTransition] = useTransition();
   return (
     <div className="flex items-center justify-end gap-3">
-      {note && <span className="text-xs text-[#726c78]">{note}</span>}
+      {note && <span className="text-xs text-[#6B6B6B]">{note}</span>}
       <button
         disabled={isPending}
         className="text-sm font-medium text-[#2D2A6E] hover:underline disabled:opacity-50"

@@ -35,7 +35,7 @@ export function UserMenu({ email }: { email: string | null }) {
         </Avatar>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        {email && <DropdownMenuLabel className="truncate normal-case tracking-normal text-[#15131a]">{email}</DropdownMenuLabel>}
+        {email && <DropdownMenuLabel className="truncate normal-case tracking-normal text-[#111111]">{email}</DropdownMenuLabel>}
         <DropdownMenuSeparator />
         <DropdownMenuItem disabled={pending} onSelect={handleSignOut} className="text-[#BE185D]">
           {pending ? "Abmelden…" : "Abmelden"}

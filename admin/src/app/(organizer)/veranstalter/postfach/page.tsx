@@ -41,7 +41,7 @@ export default async function PostfachPage() {
       <PageBody className="mx-auto max-w-3xl">
         {error && (
           <Card>
-            <CardContent className="pt-5 text-sm text-[#726c78]">
+            <CardContent className="pt-5 text-sm text-[#6B6B6B]">
               Das Postfach ist nach der nächsten Datenbank-Aktualisierung verfügbar.
             </CardContent>
           </Card>
@@ -49,7 +49,7 @@ export default async function PostfachPage() {
 
         {!error && notifications.length === 0 && (
           <Card>
-            <CardContent className="pt-5 text-sm text-[#726c78]">
+            <CardContent className="pt-5 text-sm text-[#6B6B6B]">
               Noch keine Benachrichtigungen — hier erscheinen z.B. Claim-Entscheidungen und Promotion-Freigaben.
             </CardContent>
           </Card>

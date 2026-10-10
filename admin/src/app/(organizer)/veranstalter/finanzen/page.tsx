@@ -41,9 +41,9 @@ function SummaryCard({ label, value, hint }: { label: string; value: string; hin
   return (
     <Card>
       <CardContent className="pt-5">
-        <p className="text-sm text-[#726c78]">{label}</p>
-        <p className="mt-1 text-3xl font-semibold tracking-tight text-[#15131a]">{value}</p>
-        <p className="mt-2 text-xs leading-5 text-[#726c78]">{hint}</p>
+        <p className="text-sm text-[#6B6B6B]">{label}</p>
+        <p className="mt-1 text-3xl font-semibold tracking-tight text-[#111111]">{value}</p>
+        <p className="mt-2 text-xs leading-5 text-[#6B6B6B]">{hint}</p>
       </CardContent>
     </Card>
   );
@@ -93,16 +93,16 @@ export default async function FinancesPage({ searchParams }: { searchParams: Pro
               <p className="mt-4 rounded-xl bg-[#fdf1e3] px-4 py-3 text-sm text-[#8a5a0c]">{invoiceError}</p>
             )}
             {unknownHistoricalAmounts > 0 && (
-              <p className="mt-4 text-xs leading-5 text-[#726c78]">
+              <p className="mt-4 text-xs leading-5 text-[#6B6B6B]">
                 Für {unknownHistoricalAmounts} frühere Zahlung{unknownHistoricalAmounts === 1 ? "" : "en"} wurde der Betrag noch nicht gespeichert. Neue Zahlungen werden automatisch vollständig erfasst.
               </p>
             )}
 
             <section className="mt-10 flex flex-col gap-3">
-              <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#726c78]">Kampagnenkosten</h2>
+              <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#6B6B6B]">Kampagnenkosten</h2>
               {promotions.length === 0 ? (
                 <Card>
-                  <CardContent className="pt-5 text-sm text-[#726c78]">Noch keine Promotionen gebucht.</CardContent>
+                  <CardContent className="pt-5 text-sm text-[#6B6B6B]">Noch keine Promotionen gebucht.</CardContent>
                 </Card>
               ) : (
                 <Table>
@@ -119,19 +119,19 @@ export default async function FinancesPage({ searchParams }: { searchParams: Pro
                     {promotions.map((promotion) => (
                       <TableRow key={promotion.id}>
                         <TableCell>
-                          <p className="font-medium text-[#15131a]">{PLACEMENT_LABEL[promotion.placement] ?? promotion.placement}</p>
-                          <p className="mt-0.5 text-xs text-[#726c78]">{promotion.events?.title ?? "Gelöschtes Event"}</p>
+                          <p className="font-medium text-[#111111]">{PLACEMENT_LABEL[promotion.placement] ?? promotion.placement}</p>
+                          <p className="mt-0.5 text-xs text-[#6B6B6B]">{promotion.events?.title ?? "Gelöschtes Event"}</p>
                         </TableCell>
-                        <TableCell className="text-[#4a4550]">{promotion.events ? formatMunichDateTime(promotion.events.start_datetime) : "—"}</TableCell>
-                        <TableCell className="text-[#4a4550]">{promotion.payment_status === "paid" ? "Bezahlt" : promotion.status === "payment_pending" ? "Ausstehend" : "Noch nicht fällig"}</TableCell>
-                        <TableCell className="text-right font-medium tabular-nums text-[#15131a]">{formatAmount(promotion.payment_amount_cents, promotion.payment_currency)}</TableCell>
+                        <TableCell className="text-[#4A4A4A]">{promotion.events ? formatMunichDateTime(promotion.events.start_datetime) : "—"}</TableCell>
+                        <TableCell className="text-[#4A4A4A]">{promotion.payment_status === "paid" ? "Bezahlt" : promotion.status === "payment_pending" ? "Ausstehend" : "Noch nicht fällig"}</TableCell>
+                        <TableCell className="text-right font-medium tabular-nums text-[#111111]">{formatAmount(promotion.payment_amount_cents, promotion.payment_currency)}</TableCell>
                         <TableCell className="text-right">
                           {promotion.payment_status === "paid" && promotion.payment_amount_cents !== null ? (
                             <a className="text-sm font-medium text-[#2D2A6E] underline" href={`/veranstalter/finanzen/rechnung/${promotion.id}`} target="_blank" rel="noreferrer">
                               {invoiceNumbers.get(promotion.id) ?? "Rechnung erstellen"} (PDF)
                             </a>
                           ) : (
-                            <span className="text-xs text-[#726c78]">—</span>
+                            <span className="text-xs text-[#6B6B6B]">—</span>
                           )}
                         </TableCell>
                       </TableRow>
@@ -142,10 +142,10 @@ export default async function FinancesPage({ searchParams }: { searchParams: Pro
             </section>
 
             <section className="mt-10 flex flex-col gap-3">
-              <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#726c78]">Rechnungsanschrift</h2>
+              <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#6B6B6B]">Rechnungsanschrift</h2>
               <Card>
                 <CardContent className="pt-5">
-                  <p className="mb-4 text-xs leading-5 text-[#726c78]">Wird für Rechnungen bezahlter Promotionen benötigt und ist nur für dich und die Klangradar-Redaktion sichtbar. Bereits ausgestellte Rechnungen ändern sich nachträglich nicht.</p>
+                  <p className="mb-4 text-xs leading-5 text-[#6B6B6B]">Wird für Rechnungen bezahlter Promotionen benötigt und ist nur für dich und die Klangradar-Redaktion sichtbar. Bereits ausgestellte Rechnungen ändern sich nachträglich nicht.</p>
                   <BillingForm initial={billing ?? null} />
                 </CardContent>
               </Card>

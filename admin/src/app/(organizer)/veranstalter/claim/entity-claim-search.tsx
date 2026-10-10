@@ -105,7 +105,7 @@ export async function EntityClaimSearch({
               ))}
             </div>
           ) : (
-            <p className="text-sm text-[#726c78]">
+            <p className="text-sm text-[#6B6B6B]">
               Keine Treffer für „{query}“. Bitte kontaktiere die Redaktion, falls die Einrichtung fehlt.
             </p>
           ))}

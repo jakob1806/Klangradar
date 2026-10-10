@@ -13,14 +13,14 @@ export function SelectTrigger({ className, children, ...props }: React.Component
   return (
     <SelectPrimitive.Trigger
       className={cn(
-        "flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-black/10 bg-white px-3 text-sm text-[#15131a] transition focus:border-[#2D2A6E] focus:outline-none focus:ring-2 focus:ring-[#2D2A6E]/25 disabled:cursor-not-allowed disabled:opacity-50",
+        "flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-black/10 bg-white px-3 text-sm text-[#111111] transition focus:border-[#2D2A6E] focus:outline-none focus:ring-2 focus:ring-[#2D2A6E]/25 disabled:cursor-not-allowed disabled:opacity-50",
         className
       )}
       {...props}
     >
       {children}
       <SelectPrimitive.Icon asChild>
-        <ChevronDown className="size-4 text-[#726c78]" />
+        <ChevronDown className="size-4 text-[#6B6B6B]" />
       </SelectPrimitive.Icon>
     </SelectPrimitive.Trigger>
   );
@@ -48,7 +48,7 @@ export function SelectItem({ className, children, ...props }: React.ComponentPro
   return (
     <SelectPrimitive.Item
       className={cn(
-        "relative flex cursor-pointer select-none items-center rounded-lg py-1.5 pl-8 pr-3 text-sm text-[#15131a] outline-none data-[highlighted]:bg-black/[0.05]",
+        "relative flex cursor-pointer select-none items-center rounded-lg py-1.5 pl-8 pr-3 text-sm text-[#111111] outline-none data-[highlighted]:bg-black/[0.05]",
         className
       )}
       {...props}

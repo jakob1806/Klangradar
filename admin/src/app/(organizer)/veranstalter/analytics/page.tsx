@@ -15,8 +15,8 @@ function MetricCard({ label, value }: { label: string; value: number }) {
   return (
     <Card>
       <CardContent className="pt-5">
-        <p className="text-sm text-[#726c78]">{label}</p>
-        <p className="mt-1 text-3xl font-semibold tracking-tight text-[#15131a]">{value.toLocaleString("de-DE")}</p>
+        <p className="text-sm text-[#6B6B6B]">{label}</p>
+        <p className="mt-1 text-3xl font-semibold tracking-tight text-[#111111]">{value.toLocaleString("de-DE")}</p>
       </CardContent>
     </Card>
   );
@@ -63,20 +63,20 @@ export default async function AnalyticsPage() {
               <MetricCard label="Ticketlink-Klicks" value={totals.ticketClicks} />
               <Card>
                 <CardContent className="pt-5">
-                  <p className="text-sm text-[#726c78]">Ticket-Conversion</p>
-                  <p className="mt-1 text-3xl font-semibold tracking-tight text-[#15131a]">{conversion}</p>
-                  <p className="mt-1 text-xs text-[#726c78]">Ticket-Klicks / Aufrufe</p>
+                  <p className="text-sm text-[#6B6B6B]">Ticket-Conversion</p>
+                  <p className="mt-1 text-3xl font-semibold tracking-tight text-[#111111]">{conversion}</p>
+                  <p className="mt-1 text-xs text-[#6B6B6B]">Ticket-Klicks / Aufrufe</p>
                 </CardContent>
               </Card>
             </div>
             <section className="mt-10 flex flex-col gap-3">
               <div className="flex items-baseline justify-between">
-                <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#726c78]">Nach Veranstaltung</h2>
-                {metrics.length > 0 && <p className="text-xs text-[#726c78]">* Shares werden aktuell noch nicht erfasst.</p>}
+                <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#6B6B6B]">Nach Veranstaltung</h2>
+                {metrics.length > 0 && <p className="text-xs text-[#6B6B6B]">* Shares werden aktuell noch nicht erfasst.</p>}
               </div>
               {metrics.length === 0 ? (
                 <Card>
-                  <CardContent className="pt-5 text-sm text-[#726c78]">Sobald deine Events aufgerufen werden, erscheinen die Kennzahlen hier.</CardContent>
+                  <CardContent className="pt-5 text-sm text-[#6B6B6B]">Sobald deine Events aufgerufen werden, erscheinen die Kennzahlen hier.</CardContent>
                 </Card>
               ) : (
                 <Table>
@@ -94,14 +94,14 @@ export default async function AnalyticsPage() {
                     {metrics.map((item) => (
                       <TableRow key={item.event_id}>
                         <TableCell>
-                          <Link className="font-medium text-[#15131a] hover:text-[#2D2A6E]" href={`/veranstalter/events/${item.event_id}`}>
+                          <Link className="font-medium text-[#111111] hover:text-[#2D2A6E]" href={`/veranstalter/events/${item.event_id}`}>
                             {item.title}
                           </Link>
-                          <span className="mt-0.5 block text-xs text-[#726c78]">{formatMunichDateTime(item.start_datetime)}</span>
+                          <span className="mt-0.5 block text-xs text-[#6B6B6B]">{formatMunichDateTime(item.start_datetime)}</span>
                         </TableCell>
                         <TableCell className="tabular-nums">{item.views}</TableCell>
                         <TableCell className="tabular-nums">{item.saves}</TableCell>
-                        <TableCell className="tabular-nums text-[#a1a1aa]">–</TableCell>
+                        <TableCell className="tabular-nums text-[#8A8A8A]">–</TableCell>
                         <TableCell className="tabular-nums">{item.ticket_clicks}</TableCell>
                         <TableCell className="tabular-nums">{percentage(item.ticket_clicks, item.views)}</TableCell>
                       </TableRow>

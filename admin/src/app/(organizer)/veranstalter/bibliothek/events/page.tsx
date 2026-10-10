@@ -44,22 +44,22 @@ export default async function LibraryEventsPage({ searchParams }: { searchParams
           {(data ?? []).map((event) => (
             <Link key={event.id} href={`/veranstalter/events/discover/${event.id}`} className="group block">
               <Card className="overflow-hidden transition hover:shadow-md">
-                <div className="relative aspect-[16/9] bg-[#15131a]/[0.03]">
+                <div className="relative aspect-[16/9] bg-[#111111]/[0.03]">
                   {images.get(event.id) && (
                     <Image src={images.get(event.id)!} alt="" fill className="object-cover" sizes="33vw" unoptimized />
                   )}
                 </div>
                 <div className="p-4">
-                  <h2 className="font-semibold text-[#15131a] group-hover:text-[#2D2A6E]">{event.title}</h2>
-                  <p className="mt-1 text-sm text-[#726c78]">{event.venues?.name ?? "—"}</p>
-                  <p className="mt-1 text-sm text-[#4a4550]">{formatMunichDateTime(event.start_datetime)}</p>
+                  <h2 className="font-semibold text-[#111111] group-hover:text-[#2D2A6E]">{event.title}</h2>
+                  <p className="mt-1 text-sm text-[#6B6B6B]">{event.venues?.name ?? "—"}</p>
+                  <p className="mt-1 text-sm text-[#4A4A4A]">{formatMunichDateTime(event.start_datetime)}</p>
                 </div>
               </Card>
             </Link>
           ))}
         </div>
         <LibraryPagination basePath="/veranstalter/bibliothek/events" q={q.trim()} page={page} total={count ?? 0} />
-        {!(data ?? []).length && <p className="mt-8 text-sm text-[#726c78]">Keine passenden kommenden Events gefunden.</p>}
+        {!(data ?? []).length && <p className="mt-8 text-sm text-[#6B6B6B]">Keine passenden kommenden Events gefunden.</p>}
       </PageBody>
     </div>
   );

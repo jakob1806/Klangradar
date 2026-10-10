@@ -15,7 +15,7 @@ export function LibraryPagination({ basePath, q, page, total }: { basePath: stri
   return (
     <nav className="mt-8 flex items-center justify-between" aria-label="Seitennavigation">
       {page > 1 ? <Link className={cls} href={href(page - 1)}>← Zurück</Link> : <span />}
-      <span className="text-sm text-[#726c78]">Seite {page} von {pages}</span>
+      <span className="text-sm text-[#6B6B6B]">Seite {page} von {pages}</span>
       {page < pages ? <Link className={cls} href={href(page + 1)}>Weiter →</Link> : <span />}
     </nav>
   );

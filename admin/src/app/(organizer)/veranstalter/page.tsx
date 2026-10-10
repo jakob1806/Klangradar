@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/organizer/ui/card";
 import { Badge } from "@/components/organizer/ui/badge";
 import { Button } from "@/components/organizer/ui/button";
 import { Table, TableBody, TableRow, TableCell } from "@/components/organizer/ui/table";
+import { CountUp } from "@/components/motion/count-up";
 
 export const dynamic = "force-dynamic";
 
@@ -15,9 +16,11 @@ function SummaryCard({ label, value, hint }: { label: string; value: string; hin
   return (
     <Card>
       <CardContent className="pt-5">
-        <p className="text-sm text-[#726c78]">{label}</p>
-        <p className="mt-1 text-3xl font-semibold tracking-tight text-[#15131a]">{value}</p>
-        <p className="mt-2 text-xs leading-5 text-[#726c78]">{hint}</p>
+        <p className="text-sm text-[#6B6B6B]">{label}</p>
+        <p className="mt-1 font-[family-name:var(--font-geist-mono)] text-3xl font-medium tracking-[-0.03em] text-[#111111]">
+          {/^\d+$/.test(value) ? <CountUp value={Number(value)} /> : value}
+        </p>
+        <p className="mt-2 text-xs leading-5 text-[#6B6B6B]">{hint}</p>
       </CardContent>
     </Card>
   );
@@ -118,8 +121,8 @@ export default async function VeranstalterDashboardPage() {
     return (
       <div className="mx-auto flex max-w-xl flex-col items-center gap-4 px-6 py-28 text-center">
         <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#2D2A6E]">Willkommen</span>
-        <h1 className="text-3xl font-semibold tracking-tight text-[#15131a]">Dein Veranstalterportal</h1>
-        <p className="text-[15px] text-[#726c78]">
+        <h1 className="text-3xl font-semibold tracking-tight text-[#111111]">Dein Veranstalterportal</h1>
+        <p className="text-[15px] text-[#6B6B6B]">
           Du verwaltest noch keine Institution, Venue, Person oder kein Ensemble. Beanspruche eine
           bestehende Einrichtung oder lege deine eigene Institution neu an, um loszulegen.
         </p>
@@ -153,14 +156,14 @@ export default async function VeranstalterDashboardPage() {
 
         {pending.length > 0 && (
           <section className="flex flex-col gap-3">
-            <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#726c78]">In Prüfung ({pending.length})</h2>
+            <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#6B6B6B]">In Prüfung ({pending.length})</h2>
             <ClaimList claims={pending} names={names} />
           </section>
         )}
 
         <section className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#726c78]">Genehmigt ({approved.length})</h2>
+            <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#6B6B6B]">Genehmigt ({approved.length})</h2>
             <Link href="/veranstalter/claim" className="text-sm font-semibold text-[#2D2A6E] hover:underline">
               Weitere beanspruchen
             </Link>
@@ -169,14 +172,14 @@ export default async function VeranstalterDashboardPage() {
             <ClaimList claims={approved} names={names} trustLevels={trustLevels} showProfileLink />
           ) : (
             <Card>
-              <CardContent className="pt-5 text-sm text-[#726c78]">Noch keine genehmigten Berechtigungen.</CardContent>
+              <CardContent className="pt-5 text-sm text-[#6B6B6B]">Noch keine genehmigten Berechtigungen.</CardContent>
             </Card>
           )}
         </section>
 
         {rejected.length > 0 && (
           <section className="flex flex-col gap-3">
-            <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#726c78]">Abgelehnt ({rejected.length})</h2>
+            <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#6B6B6B]">Abgelehnt ({rejected.length})</h2>
             <ClaimList claims={rejected} names={names} />
           </section>
         )}
@@ -184,7 +187,7 @@ export default async function VeranstalterDashboardPage() {
         {approvedOrganizerIds.length > 0 && (
           <section className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
-              <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#726c78]">
+              <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#6B6B6B]">
                 Anstehende Events{summary && summary.upcoming_events > upcomingEvents.length ? ` (${upcomingEvents.length} von ${summary.upcoming_events})` : ""}
               </h2>
               <div className="flex items-center gap-4">
@@ -202,8 +205,8 @@ export default async function VeranstalterDashboardPage() {
                   {upcomingEvents.map((event) => (
                     <TableRow key={event.id}>
                       <TableCell className="font-medium">{event.title}</TableCell>
-                      <TableCell className="text-[#4a4550]">{event.venues?.name ?? "—"}</TableCell>
-                      <TableCell className="tabular-nums text-[#4a4550]">{formatMunichDateTime(event.start_datetime)}</TableCell>
+                      <TableCell className="text-[#4A4A4A]">{event.venues?.name ?? "—"}</TableCell>
+                      <TableCell className="tabular-nums text-[#4A4A4A]">{formatMunichDateTime(event.start_datetime)}</TableCell>
                       <TableCell>
                         <Badge>{event.status === "draft" ? "Entwurf" : event.status}</Badge>
                       </TableCell>
@@ -218,7 +221,7 @@ export default async function VeranstalterDashboardPage() {
               </Table>
             ) : (
               <Card>
-                <CardContent className="pt-5 text-sm text-[#726c78]">Noch keine Events angelegt.</CardContent>
+                <CardContent className="pt-5 text-sm text-[#6B6B6B]">Noch keine Events angelegt.</CardContent>
               </Card>
             )}
           </section>
@@ -256,8 +259,8 @@ function ClaimList({
                   )}
                 </span>
               </TableCell>
-              <TableCell className="text-[#726c78]">{ENTITY_TYPE_LABEL[claim.entity_type]}</TableCell>
-              <TableCell className="text-[#726c78]">{STATUS_LABEL[claim.status] ?? claim.status}</TableCell>
+              <TableCell className="text-[#6B6B6B]">{ENTITY_TYPE_LABEL[claim.entity_type]}</TableCell>
+              <TableCell className="text-[#6B6B6B]">{STATUS_LABEL[claim.status] ?? claim.status}</TableCell>
               <TableCell className="text-right">
                 {showProfileLink && (
                   <span className="inline-flex items-center gap-3">

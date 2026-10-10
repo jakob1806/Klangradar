@@ -17,8 +17,8 @@ export function SeriesForm({ organizers, events }: { organizers: { id: string; n
     <Card>
       <CardContent className="pt-5">
         <form action={action}>
-          <h2 className="text-base font-semibold text-[#15131a]">Neue Serie anlegen</h2>
-          <p className="mt-1 text-sm leading-6 text-[#4a4550]">
+          <h2 className="text-base font-semibold text-[#111111]">Neue Serie anlegen</h2>
+          <p className="mt-1 text-sm leading-6 text-[#4A4A4A]">
             Fasse wiederkehrende Termine zusammen. Der Name, die Beschreibung und das Bild dienen als gemeinsame Grundlage; einzelne Events
             können weiterhin ergänzt werden.
           </p>
@@ -33,7 +33,7 @@ export function SeriesForm({ organizers, events }: { organizers: { id: string; n
                 required
                 id="series-organizer"
                 name="organizer_id"
-                className="flex h-9 w-full rounded-lg border border-black/10 bg-white px-3 text-sm text-[#15131a] transition focus-visible:border-[#2D2A6E] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2D2A6E]/25"
+                className="flex h-9 w-full rounded-lg border border-black/10 bg-white px-3 text-sm text-[#111111] transition focus-visible:border-[#2D2A6E] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2D2A6E]/25"
               >
                 <option value="">Bitte wählen</option>
                 {organizers.map((organizer) => (
@@ -53,16 +53,16 @@ export function SeriesForm({ organizers, events }: { organizers: { id: string; n
             <Input id="series-image" name="image_url" type="url" placeholder="https://…" />
           </div>
           <fieldset className="mt-5">
-            <legend className="text-[13px] font-medium text-[#4a4550]">Termine auswählen</legend>
-            <div className="mt-2 max-h-60 divide-y divide-[#15131a]/[0.06] overflow-y-auto rounded-lg border border-[#15131a]/[0.08] bg-white">
+            <legend className="text-[13px] font-medium text-[#4A4A4A]">Termine auswählen</legend>
+            <div className="mt-2 max-h-60 divide-y divide-[#111111]/[0.06] overflow-y-auto rounded-lg border border-[#111111]/[0.08] bg-white">
               {events.length === 0 ? (
-                <p className="px-3 py-4 text-sm text-[#726c78]">Keine kommenden eigenen Termine vorhanden.</p>
+                <p className="px-3 py-4 text-sm text-[#6B6B6B]">Keine kommenden eigenen Termine vorhanden.</p>
               ) : (
                 events.map((event) => (
-                  <label key={event.id} className="flex cursor-pointer items-center gap-3 px-3 py-2.5 text-sm hover:bg-[#15131a]/[0.02]">
+                  <label key={event.id} className="flex cursor-pointer items-center gap-3 px-3 py-2.5 text-sm hover:bg-[#111111]/[0.02]">
                     <input name="event_ids" type="checkbox" value={event.id} />
-                    <span className="min-w-0 flex-1 truncate text-[#15131a]">{event.title}</span>
-                    <span className="text-xs text-[#726c78]">{event.startLabel}</span>
+                    <span className="min-w-0 flex-1 truncate text-[#111111]">{event.title}</span>
+                    <span className="text-xs text-[#6B6B6B]">{event.startLabel}</span>
                   </label>
                 ))
               )}

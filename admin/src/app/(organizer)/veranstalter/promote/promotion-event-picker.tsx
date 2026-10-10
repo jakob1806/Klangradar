@@ -24,8 +24,8 @@ export function PromotionEventPicker({ events, onSelect }: { events: EventOption
       <input type="hidden" name="event_id" value={selectedId ?? ""} required />
       <div className="flex items-end justify-between gap-4">
         <div>
-          <h3 className="text-sm font-medium text-[#15131a]">Event auswählen</h3>
-          <p className="mt-1 text-xs text-[#726c78]">Eigene Events und Termine deiner beanspruchten Profile.</p>
+          <h3 className="text-sm font-medium text-[#111111]">Event auswählen</h3>
+          <p className="mt-1 text-xs text-[#6B6B6B]">Eigene Events und Termine deiner beanspruchten Profile.</p>
         </div>
         {events.length > 6 && (
           <Button type="button" variant="link" size="sm" className="h-auto shrink-0 p-0" onClick={() => setShowAll((value) => !value)}>
@@ -44,18 +44,18 @@ export function PromotionEventPicker({ events, onSelect }: { events: EventOption
                 setSelectedId(event.id);
                 onSelect?.(event);
               }}
-              className={`flex overflow-hidden rounded-xl border text-left transition ${active ? "border-[#2D2A6E] bg-[#2D2A6E]/[0.04] ring-1 ring-[#2D2A6E]" : "border-[#15131a]/10 bg-white hover:border-[#2D2A6E]"}`}
+              className={`flex overflow-hidden rounded-xl border text-left transition ${active ? "border-[#2D2A6E] bg-[#2D2A6E]/[0.04] ring-1 ring-[#2D2A6E]" : "border-[#111111]/10 bg-white hover:border-[#2D2A6E]"}`}
             >
-              <div className="relative m-3 h-16 w-20 shrink-0 overflow-hidden rounded-lg bg-[#15131a]/[0.04]">
+              <div className="relative m-3 h-16 w-20 shrink-0 overflow-hidden rounded-lg bg-[#111111]/[0.04]">
                 {event.imageUrl && <Image src={event.imageUrl} alt="" fill sizes="80px" className="object-cover" unoptimized />}
               </div>
               <span className="min-w-0 py-3 pr-3">
-                <span className="line-clamp-2 block text-sm font-semibold text-[#15131a]">{event.title}</span>
-                <span className="mt-1 block text-xs text-[#4a4550]">
+                <span className="line-clamp-2 block text-sm font-semibold text-[#111111]">{event.title}</span>
+                <span className="mt-1 block text-xs text-[#4A4A4A]">
                   {event.startLabel}
                   {event.venueName ? ` · ${event.venueName}` : ""}
                 </span>
-                <span className="mt-1 block truncate text-xs text-[#726c78]">{event.sourceLabel}</span>
+                <span className="mt-1 block truncate text-xs text-[#6B6B6B]">{event.sourceLabel}</span>
               </span>
             </button>
           );
@@ -64,7 +64,7 @@ export function PromotionEventPicker({ events, onSelect }: { events: EventOption
       {events.length > 6 && (
         <div className="mt-4">
           <Label htmlFor="promotion-event-filter">
-            Event filtern <span className="font-normal text-[#726c78]">(optional)</span>
+            Event filtern <span className="font-normal text-[#6B6B6B]">(optional)</span>
           </Label>
           <Input
             id="promotion-event-filter"
