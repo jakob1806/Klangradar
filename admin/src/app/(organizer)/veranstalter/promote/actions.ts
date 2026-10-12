@@ -4,7 +4,9 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { headers } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { activatePaidPromotion, PRICE_ID_BY_PLACEMENT } from "@/lib/promotion-payment";
+import { activatePaidPromotion, getPlacementPriceLabels, PRICE_ID_BY_PLACEMENT } from "@/lib/promotion-payment";
+import { redaktionEmail, sendPortalEmail } from "@/lib/portal-email";
+import { promotionRequestedEmail, promotionRequestedRedaktionEmail } from "@/lib/notification-emails";
 import { getStripe } from "@/lib/stripe";
 import { getPromotableEvents } from "./promotable-events";
 
@@ -60,6 +62,14 @@ export async function requestPromotion(formData: FormData): Promise<{ error?: st
       requester_note: note || null,
     });
     if (error) return { error: `Die Anfrage konnte nicht gespeichert werden: ${error.message}` };
+
+    const event = events.find((item) => item.id === eventId);
+    const priceLabels = await getPlacementPriceLabels();
+    const info = { eventTitle: event?.title ?? "dein Event", placement, concertAt: event?.startDatetime ?? null, priceLabel: priceLabels[placement] };
+    await Promise.all([
+      sendPortalEmail(user.email, promotionRequestedEmail(info)),
+      sendPortalEmail(redaktionEmail(), promotionRequestedRedaktionEmail({ ...info, requester: user.email ?? "Ein:e Veranstalter:in" })),
+    ]);
 
     revalidatePath("/veranstalter/promote");
     return { success: true };

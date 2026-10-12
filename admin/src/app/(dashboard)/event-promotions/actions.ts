@@ -3,6 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { logSystemAction } from "@/lib/system-log";
+import { accountEmail, sendPortalEmail } from "@/lib/portal-email";
+import { promotionApprovedEmail, promotionRejectedEmail } from "@/lib/notification-emails";
+import { getPlacementPriceLabels } from "@/lib/promotion-payment";
 
 const STATUSES = new Set(["approved", "rejected"]);
 
@@ -19,12 +22,13 @@ export async function reviewPromotion(id: string, status: "approved" | "rejected
   // ein späteres Buchungs-/Abrechnungssystem muss keinen Status umbiegen.
   const { data: promotionData, error: loadError } = await supabase
     .from("event_promotions")
-    .select("id, status, event_id, requested_by, events(title, start_datetime)")
+    .select("id, status, placement, event_id, requested_by, events(title, start_datetime)")
     .eq("id", id)
     .maybeSingle();
   const promotion = promotionData as unknown as {
     id: string;
     status: string;
+    placement: string;
     event_id: string;
     requested_by: string;
     events: { title: string; start_datetime: string } | null;
@@ -72,6 +76,15 @@ export async function reviewPromotion(id: string, status: "approved" | "rejected
   } catch (notificationError) {
     console.error("Konnte Postfach-Benachrichtigung nicht anlegen:", notificationError);
   }
+
+  const info = {
+    eventTitle: promotion.events?.title ?? "dein Event",
+    placement: promotion.placement,
+    concertAt: promotion.events?.start_datetime ?? null,
+    priceLabel: (await getPlacementPriceLabels())[promotion.placement],
+    reviewerNote: reviewerNote.trim() || null,
+  };
+  await sendPortalEmail(await accountEmail(promotion.requested_by), status === "approved" ? promotionApprovedEmail(info) : promotionRejectedEmail(info));
 
   revalidatePath("/event-promotions");
   revalidatePath("/veranstalter/promote");
