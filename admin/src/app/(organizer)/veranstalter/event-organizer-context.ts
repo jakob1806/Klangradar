@@ -1,7 +1,10 @@
+import { cache } from "react";
 import { resolveEntityNames, type ClaimableEntityType } from "@/lib/entity-tables";
 import { createClient } from "@/lib/supabase/server";
 
-export async function getEventOrganizerOptions() {
+// cache(): Layout, Seite und Hilfsfunktionen rufen das pro Request mehrfach
+// auf — inklusive einer RPC pro beanspruchtem Profil. Einmal reicht.
+export const getEventOrganizerOptions = cache(async () => {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return [];
@@ -35,4 +38,4 @@ export async function getEventOrganizerOptions() {
   const ids = [...new Set([...directOrganizerIds, ...generatedIds])];
   const names = await resolveEntityNames(supabase, ids.map((entityId) => ({ entityType: "organizer" as ClaimableEntityType, entityId })));
   return ids.map((id) => ({ id, name: names.get(`organizer:${id}`) ?? "(unbekannt)" }));
-}
+});

@@ -12,8 +12,16 @@ const PUBLIC_PATHS = ["/login", "/auth/callback", "/no-access", "/impressum", "/
 // Falle für eine spätere versehentliche vollständige Öffnung.
 const AUTH_ONLY_PATHS = ["/veranstalter"];
 
+// Webhooks (Stripe) authentifizieren sich per Signatur, nicht per Login.
+// Vorher leitete der Proxy sie auf /login um — Stripe folgt keinen
+// Redirects, bezahlte Promotionen blieben dadurch auf "Zahlung ausstehend".
+const MACHINE_PATHS = ["/api/webhooks/"];
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  if (MACHINE_PATHS.some((path) => pathname.startsWith(path))) {
+    return NextResponse.next();
+  }
   const { response, user, supabase } = await updateSession(request);
 
   // "/" braucht einen exakten Vergleich statt startsWith — sonst wäre
