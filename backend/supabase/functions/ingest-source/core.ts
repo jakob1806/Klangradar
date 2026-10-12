@@ -68,7 +68,7 @@ export async function runIngestion(
   const { data: source, error: sourceError } = await supabase
     .from("sources")
     .select(
-      "id, name, type, url, venue_id, organizer_id, person_id, ensemble_id, config, consecutive_failures, crawl_frequency_minutes, confidence_thresholds",
+      "id, name, type, url, venue_id, organizer_id, person_id, ensemble_id, city_id, config, consecutive_failures, crawl_frequency_minutes, confidence_thresholds",
     )
     .eq("id", sourceId)
     .maybeSingle();
