@@ -6,13 +6,18 @@ struct EventCalendarView: View {
     let auth: AuthStore?
     let userRepository: UserRepository?
     @EnvironmentObject private var cityStore: CityStore
+    @ObservedObject private var promoted = PromotedEventsStore.shared
     @State private var selectedDate = Date.now
     @State private var visibleMonth = Date.now
     @State private var events: [ConcertEvent] = []
     @State private var loadFailed = false
 
     private var selectedEvents: [ConcertEvent] {
-        events.filter { $0.startDate.map { KlangradarDateTime.calendar.isDate($0, inSameDayAs: selectedDate) } ?? false }
+        // Beworbene Events (Platzierung "standard") stehen in ihrer Tagesliste vorn.
+        let day = events.filter { $0.startDate.map { KlangradarDateTime.calendar.isDate($0, inSameDayAs: selectedDate) } ?? false }
+        return promoted.boosting(day, placement: "standard", regionID: cityStore.selectedCity?.id, maxPromoted: 3) { promotedEvent in
+            day.contains { $0.id == promotedEvent.id }
+        }
     }
 
     var body: some View {
