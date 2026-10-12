@@ -60,14 +60,22 @@ export default async function VeranstalterDashboardPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { data: claims } = await supabase
-    .from("entity_claims")
-    .select("id, entity_type, entity_id, status, justification, created_at")
-    .eq("user_id", user!.id)
-    .order("created_at", { ascending: false })
-    .returns<
-      { id: string; entity_type: ClaimableEntityType; entity_id: string; status: string; justification: string | null; created_at: string }[]
-    >();
+  // Parallel statt nacheinander: vorher liefen hier ~8 Abfragen hintereinander.
+  const [{ data: claims }, eventOrganizers, summaryResult, unreadNotificationsResult] = await Promise.all([
+    supabase
+      .from("entity_claims")
+      .select("id, entity_type, entity_id, status, justification, created_at")
+      .eq("user_id", user!.id)
+      .order("created_at", { ascending: false })
+      .returns<
+        { id: string; entity_type: ClaimableEntityType; entity_id: string; status: string; justification: string | null; created_at: string }[]
+      >(),
+    getEventOrganizerOptions(),
+    // organizer_dashboard_summary() bündelt Summen datenschutzkonform
+    // serverseitig, das Postfach zählt sich aus der RLS-gescopten Tabelle.
+    supabase.rpc("organizer_dashboard_summary").returns<{ upcoming_events: number; views_7d: number; ticket_clicks_7d: number }[]>().single(),
+    supabase.from("organizer_notifications").select("id", { count: "exact", head: true }).is("read_at", null),
+  ]);
 
   const allClaims = claims ?? [];
   // Für Profile (Person, Ensemble, Venue) wird im Hintergrund ein technischer
@@ -82,40 +90,29 @@ export default async function VeranstalterDashboardPage() {
     ),
   );
   const refs = visibleClaims.map((c) => ({ entityType: c.entity_type, entityId: c.entity_id }));
-  const [names, trustLevels] = await Promise.all([
+  const approvedOrganizerIds = eventOrganizers.map((organizer) => organizer.id);
+
+  const [names, trustLevels, upcomingResult] = await Promise.all([
     resolveEntityNames(supabase, refs),
     resolveTrustLevels(supabase, refs),
+    approvedOrganizerIds.length > 0
+      ? supabase
+          .from("events")
+          .select("id, title, start_datetime, status, venues(name)")
+          .in("organizer_id", approvedOrganizerIds)
+          // Ohne Datumsfilter standen hier die ältesten vergangenen Termine.
+          .gte("start_datetime", new Date().toISOString())
+          .order("start_datetime", { ascending: true })
+          .limit(10)
+          .returns<EventRow[]>()
+      : Promise.resolve({ data: [] as EventRow[] }),
   ]);
+  const upcomingEvents: EventRow[] = upcomingResult.data ?? [];
 
   const pending = visibleClaims.filter((c) => c.status === "pending");
   const approved = visibleClaims.filter((c) => c.status === "approved");
   const rejected = visibleClaims.filter((c) => c.status === "rejected");
 
-  const eventOrganizers = await getEventOrganizerOptions();
-  const approvedOrganizerIds = eventOrganizers.map((organizer) => organizer.id);
-
-  let upcomingEvents: EventRow[] = [];
-  if (approvedOrganizerIds.length > 0) {
-    const { data } = await supabase
-      .from("events")
-      .select("id, title, start_datetime, status, venues(name)")
-      .in("organizer_id", approvedOrganizerIds)
-      // Ohne Datumsfilter standen hier die ältesten vergangenen Termine.
-      .gte("start_datetime", new Date().toISOString())
-      .order("start_datetime", { ascending: true })
-      .limit(10)
-      .returns<EventRow[]>();
-    upcomingEvents = data ?? [];
-  }
-
-  // Nutzerfeedback: "Dashboard-Kennzahlen" — bislang nur Listen, keine
-  // einzige Zahl auf einen Blick. organizer_dashboard_summary() bündelt
-  // Summen datenschutzkonform serverseitig (siehe Migration), das
-  // Postfach zählt sich direkt aus der bereits RLS-gescopten Tabelle.
-  const [summaryResult, unreadNotificationsResult] = await Promise.all([
-    supabase.rpc("organizer_dashboard_summary").returns<{ upcoming_events: number; views_7d: number; ticket_clicks_7d: number }[]>().single(),
-    supabase.from("organizer_notifications").select("id", { count: "exact", head: true }).is("read_at", null),
-  ]);
   const summary = summaryResult.data;
   const unreadCount = unreadNotificationsResult.count ?? 0;
 

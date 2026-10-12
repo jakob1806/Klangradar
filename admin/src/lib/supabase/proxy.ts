@@ -29,11 +29,15 @@ export async function updateSession(request: NextRequest) {
     },
   );
 
-  // getUser() statt getSession(): validiert den Token gegen den Auth-Server
-  // statt nur das (fälschbare) Cookie zu lesen.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // getClaims() statt getUser(): prüft die JWT-Signatur (bei asymmetrischen
+  // Schlüsseln lokal, ohne Netzwerkaufruf zum Auth-Server) und frischt die
+  // Session-Cookies bei Bedarf auf. getUser() kostete auf JEDEM Request —
+  // auch beim Vorladen von Links — einen Roundtrip zu Supabase Auth und war
+  // ein Hauptgrund für träge Seitenwechsel. Ein gefälschtes Cookie besteht
+  // die Signaturprüfung nicht; Seiten und Actions prüfen weiterhin selbst.
+  const { data } = await supabase.auth.getClaims();
+  const claims = data?.claims;
+  const user = claims?.sub ? { id: claims.sub as string } : null;
 
   return { response, user, supabase };
 }
