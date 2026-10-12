@@ -120,6 +120,7 @@ struct HomeView: View {
     @EnvironmentObject private var favorites: FavoriteStore
     @EnvironmentObject private var follows: FollowStore
     @EnvironmentObject private var cityStore: CityStore
+    @ObservedObject private var promoted = PromotedEventsStore.shared
     private let contentRepository: any ContentRepository
     private let usesPreviewData: Bool
     private let auth: AuthStore?
@@ -250,7 +251,7 @@ struct HomeView: View {
                         previewNotice
                     }
 
-                    if let hero = events.first {
+                    if let hero = heroEvent(from: events) {
                         NavigationLink(value: hero) {
                             HeroEventView(event: hero, height: horizontalSizeClass == .regular ? 280 : 224)
                         }
@@ -287,9 +288,9 @@ struct HomeView: View {
             let spotlight = entitySpotlight(from: events)
             EventRail(title: spotlight.title, events: spotlight.events)
         case .today:
-            EventRail(title: category.title(cityName: cityStore.selectedCity?.name), events: events.dropFirst().filter { $0.startDate.map(KlangradarDateTime.calendar.isDateInToday) ?? false })
+            EventRail(title: category.title(cityName: cityStore.selectedCity?.name), events: withoutHero(events).filter { $0.startDate.map(KlangradarDateTime.calendar.isDateInToday) ?? false })
         case .nextSevenDays:
-            EventRail(title: category.title(cityName: cityStore.selectedCity?.name), events: Array(events.dropFirst().filter(isWithinNextSevenDays).prefix(14)))
+            EventRail(title: category.title(cityName: cityStore.selectedCity?.name), events: Array(promoted.boosting(withoutHero(events).filter(isWithinNextSevenDays), placement: "standard", regionID: cityStore.selectedCity?.id, where: isWithinNextSevenDays).prefix(14)))
         case .weekend:
             EventRail(title: category.title(cityName: cityStore.selectedCity?.name), events: Array(events.filter(isThisWeekend).prefix(14)))
         case .popular:
@@ -307,9 +308,9 @@ struct HomeView: View {
         case .free:
             EventRail(title: category.title(cityName: cityStore.selectedCity?.name), events: Array(events.filter { $0.isFree == true }.prefix(14)))
         case .upcoming:
-            EventRail(title: category.title(cityName: cityStore.selectedCity?.name), events: events.dropFirst().filter { !($0.startDate.map(KlangradarDateTime.calendar.isDateInToday) ?? false) }.sorted { lhs, rhs in
+            EventRail(title: category.title(cityName: cityStore.selectedCity?.name), events: promoted.boosting(withoutHero(events).filter { !($0.startDate.map(KlangradarDateTime.calendar.isDateInToday) ?? false) }.sorted { lhs, rhs in
                 lhs.matchesPersonalization(model.personalizedEntityIDs) && !rhs.matchesPersonalization(model.personalizedEntityIDs)
-            })
+            }, placement: "standard", regionID: cityStore.selectedCity?.id))
         case .followed:
             // Auch ältere gespeicherte Startseiten-Konfigurationen können
             // noch die frühere Sammelkategorie „Gefolgt“ enthalten. Personen
@@ -406,10 +407,27 @@ struct HomeView: View {
         }.prefix(14))
     }
 
+    /// Hero: gebuchtes Homepage-Feature (falls aktiv), sonst das nächste Event.
+    private func heroEvent(from events: [ConcertEvent]) -> ConcertEvent? {
+        promoted.events(for: "homepage_feature", regionID: cityStore.selectedCity?.id).first ?? events.first
+    }
+
+    private func withoutHero(_ events: [ConcertEvent]) -> [ConcertEvent] {
+        let heroID = heroEvent(from: events)?.id
+        return events.filter { $0.id != heroID }
+    }
+
     private func forYouEvents(from events: [ConcertEvent]) -> [ConcertEvent] {
-        let withoutHero = events.filter { $0.id != events.first?.id }
+        let ranked = rankedForYouEvents(from: events)
+        let heroID = heroEvent(from: events)?.id
+        return Array(promoted.boosting(ranked, placement: "local_spotlight", regionID: cityStore.selectedCity?.id, where: { $0.id != heroID }).prefix(14))
+    }
+
+    private func rankedForYouEvents(from events: [ConcertEvent]) -> [ConcertEvent] {
+        let heroID = heroEvent(from: events)?.id
+        let withoutHero = events.filter { $0.id != heroID }
         let personalized = withoutHero.filter { $0.matchesPersonalization(model.personalizedEntityIDs) }
-        let serverRecommended = model.recommendedEvents.filter { $0.id != events.first?.id }
+        let serverRecommended = model.recommendedEvents.filter { $0.id != heroID }
 
         // IDs statt Titel vergleichen: gleichnamige Aufführungen an
         // unterschiedlichen Tagen bleiben eigenständige Empfehlungen.

@@ -150,7 +150,7 @@ struct RootTabView: View {
             }
         }
         .task { await favorites.load() }
-        .task { await PromotedEventsStore.shared.load(client: environment.restClient) }
+        .task { await PromotedEventsStore.shared.load(client: environment.restClient, repository: environment.events) }
         .task { await follows.load() }
         .task { await cityStore.load() }
         .task {
@@ -252,6 +252,7 @@ struct RootTabView: View {
                 Task {
                     await unlockWithBiometricsIfNeeded()
                     await attendanceMonitor.refresh()
+                    await PromotedEventsStore.shared.refreshIfStale(client: environment.restClient, repository: environment.events)
                 }
             }
         }

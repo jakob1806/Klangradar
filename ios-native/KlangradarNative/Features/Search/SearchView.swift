@@ -24,6 +24,7 @@ struct SearchView: View {
     let contentRepository: any ContentRepository
     @EnvironmentObject private var genreFilter: GenreFilterRouter
     @EnvironmentObject private var cityStore: CityStore
+    @ObservedObject private var promoted = PromotedEventsStore.shared
     @State private var query = ""
     @State private var events: [ConcertEvent] = []
     @State private var hits: [SearchHit] = []
@@ -259,6 +260,11 @@ struct SearchView: View {
     /// Konzerte“-Liste. Bevorzugt bebilderte Events und vermeidet direkt
     /// nebeneinander dieselbe Spielstätte bzw. dasselbe Genre.
     private var discoveryEvents: [ConcertEvent] {
+        // Gebuchtes "Featured" steht als erste Karte vorn.
+        Array(promoted.boosting(organicDiscoveryEvents, placement: "featured", regionID: cityStore.selectedCity?.id).prefix(8))
+    }
+
+    private var organicDiscoveryEvents: [ConcertEvent] {
         let upcoming = events
             .filter { ($0.startDate ?? .distantPast) >= Date() }
             .sorted { ($0.startDate ?? .distantFuture) < ($1.startDate ?? .distantFuture) }

@@ -85,8 +85,8 @@ function Cover({ event, className = "" }: { event: PreviewEvent; className?: str
 function AdBadge({ left = 7, top = 7 }: { left?: number; top?: number }) {
   return (
     <span
-      className="absolute font-bold text-white"
-      style={{ left: px(left), top: px(top), fontSize: px(21), padding: `${px(6)} ${px(14)}`, background: "rgba(0,0,0,.5)", borderRadius: 999, lineHeight: 1 }}
+      className="absolute font-medium text-white/90"
+      style={{ left: px(left + 6), top: px(top + 6), fontSize: px(19), padding: `${px(5)} ${px(12)}`, background: "rgba(40,40,40,.38)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", borderRadius: 999, lineHeight: 1 }}
     >
       Anzeige
     </span>

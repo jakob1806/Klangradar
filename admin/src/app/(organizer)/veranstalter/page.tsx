@@ -100,6 +100,8 @@ export default async function VeranstalterDashboardPage() {
       .from("events")
       .select("id, title, start_datetime, status, venues(name)")
       .in("organizer_id", approvedOrganizerIds)
+      // Ohne Datumsfilter standen hier die ältesten vergangenen Termine.
+      .gte("start_datetime", new Date().toISOString())
       .order("start_datetime", { ascending: true })
       .limit(10)
       .returns<EventRow[]>();
