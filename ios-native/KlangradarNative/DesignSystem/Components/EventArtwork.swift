@@ -85,12 +85,14 @@ struct EventArtwork: View {
                     // Bewusst winzig: Kennzeichnung als Werbung, ohne die
                     // Kachel zu dominieren.
                     Text("Anzeige")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2.5)
-                        .background(.black.opacity(0.5), in: .capsule)
-                        .padding(7)
+                        .font(.system(size: 8.5, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.92))
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(.ultraThinMaterial.opacity(0.85), in: .capsule)
+                        .environment(\.colorScheme, .dark)
+                        .padding(6)
+                        .accessibilityLabel("Anzeige")
                 }
             }
     }

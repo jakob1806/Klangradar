@@ -65,9 +65,14 @@ protocol EventRepository: Sendable {
     func events(genreID: UUID, limit: Int) async throws -> [ConcertEvent]
     func inspirationEvents(attributeSlug: String, limit: Int) async throws -> [ConcertEvent]
     func inspirationCategories() async throws -> [InspirationCategory]
+    /// Kommende Events per ID — für beworbene Events, die nicht in der
+    /// normalen (zeitlich begrenzten) Home-Abfrage enthalten sein müssen.
+    func events(ids: [UUID]) async throws -> [ConcertEvent]
 }
 
 extension EventRepository {
+    func events(ids: [UUID]) async throws -> [ConcertEvent] { [] }
+
     func upcomingEvents(limit: Int) async throws -> [ConcertEvent] {
         try await upcomingEvents(limit: limit, regionID: nil)
     }
@@ -98,6 +103,19 @@ struct LiveEventRepository: EventRepository {
     /// dafür muss der Embed als `venues!inner(...)` erfolgen (siehe
     /// app/lib/core/regions/calendar_providers.dart), sonst wird die
     /// eingebettete Tabelle nur mitgeliefert statt gefiltert.
+    func events(ids: [UUID]) async throws -> [ConcertEvent] {
+        guard !ids.isEmpty else { return [] }
+        return try await client.get(table: "events", queryItems: [
+            URLQueryItem(
+                name: "select",
+                value: "id,slug,title,subtitle,start_datetime,venue_detail,image_urls,updated_at,status,category,is_free,venues(id,name,photo_url,city_id),event_genres(genres(id,slug,label_de)),event_participants(persons(id,full_name,photo_url),ensembles(id,name,photo_url))"
+            ),
+            URLQueryItem(name: "id", value: "in.(\(ids.map(\.uuidString).joined(separator: ",")))"),
+            URLQueryItem(name: "status", value: "eq.scheduled"),
+            URLQueryItem(name: "start_datetime", value: "gte.\(ISO8601DateFormatter().string(from: .now))")
+        ])
+    }
+
     private func fetchEvents(limit: Int, offset: Int, regionID: UUID? = nil) async throws -> [ConcertEvent] {
         let venuesEmbed = regionID == nil ? "venues(id,name,photo_url,city_id)" : "venues!inner(id,name,photo_url,city_id)"
         var queryItems = [
