@@ -73,6 +73,7 @@ export const NAV_GROUPS = [
       { href: "/attributes", label: "Attribute & Inspiration" },
       { href: "/tags", label: "Tags" },
       { href: "/regions", label: "Regionen" },
+      { href: "/invoice-settings", label: "Rechnungsstammdaten" },
       { href: "/users", label: "Benutzer" },
     ],
   },
