@@ -90,7 +90,10 @@ export function PromotionRequestForm({ events, priceLabels }: { events: EventOpt
       </div>
       {error && <p className="text-sm text-[#a91551]">{error}</p>}
       {message && <p className="text-sm text-[#175f3c]">{message}</p>}
-      <p className="text-xs leading-5 text-[#6B6B6B]">Ablauf: Anfrage senden → Redaktion prüft die Platzierung → Zahlungslink erhalten → nach erfolgreicher Zahlung wird die Promotion aktiviert.</p>
+      <div className="rounded-xl bg-[#ECEBFA] px-4 py-3 text-[13px] leading-5 text-[#2D2A6E]">
+        <strong>Laufzeit:</strong> Die Promotion läuft ab Zahlungseingang bis zum Konzerttag{selectedEvent ? ` (${selectedEvent.startLabel})` : ""}. Je früher du buchst, desto länger wird dein Event angezeigt.
+      </div>
+      <p className="text-xs leading-5 text-[#6B6B6B]">Ablauf: Anfrage senden → Redaktion prüft die Platzierung (du bekommst eine E-Mail) → Zahlung → die Promotion ist sofort live. Nach dem Konzerttag erhältst du eine Auswertung.</p>
       <Button disabled={pending}>{pending ? "Wird gesendet…" : "Promotion beantragen"}</Button>
     </form>
   );

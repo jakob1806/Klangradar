@@ -4,7 +4,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { ClaimableEntityType } from "@/lib/entity-tables";
-import { getResend } from "@/lib/resend";
+import { redaktionEmail, sendPortalEmail } from "@/lib/portal-email";
+import { claimRequestedEmail, claimRequestedRedaktionEmail } from "@/lib/notification-emails";
+import { resolveEntityNames } from "@/lib/entity-tables";
 
 function claimEvidence(formData: FormData) {
   const verificationEmail = String(formData.get("verification_email") ?? "").trim().toLowerCase();
@@ -51,8 +53,22 @@ export async function requestEntityClaim(entityType: ClaimableEntityType, entity
     }
     throw new Error(error.message);
   }
-  await getResend().emails.send({ from: "Klangradar <noreply@klangradar.com>", to: "redaktion@klangradar.com", subject: "Neue Veranstalter-Claim-Anfrage", html: `<p>Eine neue Claim-Anfrage für <strong>${entityType}</strong> wartet auf Prüfung.</p><p>Antragsteller: ${verificationEmail}</p><p><a href="https://klangradar.com/login?redirectTo=%2Fentity-claims">Im Redaktions-Dashboard öffnen</a></p>` });
+  await notifyClaimRequested(entityType, entityId, user.email, verificationEmail);
 
   revalidatePath("/veranstalter");
   redirect("/veranstalter");
+}
+
+async function notifyClaimRequested(entityType: string, entityId: string, accountMail: string | undefined, verificationEmail: string, knownName?: string) {
+  let entityName = knownName;
+  if (!entityName) {
+    const supabase = await createClient();
+    const names = await resolveEntityNames(supabase, [{ entityType: entityType as "organizer", entityId }]);
+    entityName = names.get(`${entityType}:${entityId}`) ?? "Profil";
+  }
+  const info = { entityType, entityName };
+  await Promise.all([
+    sendPortalEmail([...new Set([accountMail, verificationEmail].filter(Boolean) as string[])], claimRequestedEmail(info)),
+    sendPortalEmail(redaktionEmail(), claimRequestedRedaktionEmail({ ...info, requester: verificationEmail })),
+  ]);
 }

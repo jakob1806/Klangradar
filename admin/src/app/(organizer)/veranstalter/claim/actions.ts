@@ -4,7 +4,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { generateUniqueSlug } from "@/lib/slug";
-import { getResend } from "@/lib/resend";
+import { redaktionEmail, sendPortalEmail } from "@/lib/portal-email";
+import { claimRequestedEmail, claimRequestedRedaktionEmail } from "@/lib/notification-emails";
+import { resolveEntityNames } from "@/lib/entity-tables";
 
 function claimEvidence(formData: FormData) {
   const verificationEmail = String(formData.get("verification_email") ?? "").trim().toLowerCase();
@@ -46,7 +48,7 @@ export async function requestOrganizerClaim(organizerId: string, formData: FormD
     throw new Error(error.message);
   }
 
-  await getResend().emails.send({ from: "Klangradar <noreply@klangradar.com>", to: "redaktion@klangradar.com", subject: "Neue Institution-Claim-Anfrage", html: `<p>Eine Institution-Claim-Anfrage wartet auf Prüfung.</p><p>Antragsteller: ${verificationEmail}</p><p><a href="https://klangradar.com/login?redirectTo=%2Fentity-claims">Im Redaktions-Dashboard öffnen</a></p>` });
+  await notifyClaimRequested("organizer", organizerId, user.email, verificationEmail);
 
   revalidatePath("/veranstalter");
   redirect("/veranstalter");
@@ -86,8 +88,22 @@ export async function createOwnOrganizer(formData: FormData) {
   });
   if (claimError) throw new Error(claimError.message);
 
-  await getResend().emails.send({ from: "Klangradar <noreply@klangradar.com>", to: "redaktion@klangradar.com", subject: "Neue Institution zur Prüfung", html: `<p>Eine neue Institution und ein Claim warten auf Prüfung.</p><p>Antragsteller: ${verificationEmail}</p><p><a href="https://klangradar.com/login?redirectTo=%2Fentity-claims">Im Redaktions-Dashboard öffnen</a></p>` });
+  await notifyClaimRequested("organizer", organizer.id, user.email, verificationEmail, name);
 
   revalidatePath("/veranstalter");
   redirect("/veranstalter");
+}
+
+async function notifyClaimRequested(entityType: string, entityId: string, accountMail: string | undefined, verificationEmail: string, knownName?: string) {
+  let entityName = knownName;
+  if (!entityName) {
+    const supabase = await createClient();
+    const names = await resolveEntityNames(supabase, [{ entityType: entityType as "organizer", entityId }]);
+    entityName = names.get(`${entityType}:${entityId}`) ?? "Profil";
+  }
+  const info = { entityType, entityName };
+  await Promise.all([
+    sendPortalEmail([...new Set([accountMail, verificationEmail].filter(Boolean) as string[])], claimRequestedEmail(info)),
+    sendPortalEmail(redaktionEmail(), claimRequestedRedaktionEmail({ ...info, requester: verificationEmail })),
+  ]);
 }
