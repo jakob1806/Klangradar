@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { ALL_CITIES, type CityFilterOption } from "@/lib/city-filter-types";
@@ -6,7 +7,7 @@ export const CITY_FILTER_COOKIE = "admin_city_filter";
 
 /** Alle Städte für den globalen Umschalter (nicht nur is_active, damit auch
  * die neuen "soft_launch"-Städte schon im Admin sichtbar/wählbar sind). */
-export async function getCityFilterOptions(): Promise<CityFilterOption[]> {
+export const getCityFilterOptions = cache(async (): Promise<CityFilterOption[]> => {
   const supabase = await createClient();
   const { data } = await supabase
     .from("city_regions")
@@ -14,7 +15,7 @@ export async function getCityFilterOptions(): Promise<CityFilterOption[]> {
     .order("sort_order")
     .returns<CityFilterOption[]>();
   return data ?? [];
-}
+});
 
 export interface ActiveCityFilter {
   /** "all" = kein Stadtfilter (Standard), sonst die gewählte Stadt. */

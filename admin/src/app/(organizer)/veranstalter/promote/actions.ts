@@ -2,14 +2,29 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
+import { headers } from "next/headers";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { activatePaidPromotion, PRICE_ID_BY_PLACEMENT } from "@/lib/promotion-payment";
 import { getStripe } from "@/lib/stripe";
 import { getPromotableEvents } from "./promotable-events";
 
 export async function cancelPromotion(promotionId: string): Promise<{ error?: string }> {
   const supabase = await createClient();
+  const { data: before } = await supabase.from("event_promotions").select("stripe_checkout_session_id").eq("id", promotionId).maybeSingle();
   const { error } = await supabase.rpc("cancel_promotion", { p_promotion_id: promotionId });
   if (error) return { error: error.message };
+  // Offenen Checkout ungültig machen, damit nach dem Stornieren nicht doch
+  // noch bezahlt werden kann (der Webhook würde die Zahlung ignorieren).
+  const sessionId = before?.stripe_checkout_session_id as string | null | undefined;
+  if (sessionId) {
+    try {
+      const stripe = getStripe();
+      const session = await stripe.checkout.sessions.retrieve(sessionId);
+      if (session.status === "open") await stripe.checkout.sessions.expire(sessionId);
+    } catch (cause) {
+      console.error("Could not expire checkout session", cause);
+    }
+  }
   revalidatePath("/veranstalter/promote");
   revalidatePath("/veranstalter/finanzen");
   return {};
@@ -54,5 +69,68 @@ export async function requestPromotion(formData: FormData): Promise<{ error?: st
   }
 }
 
-const PRICE_BY_PLACEMENT: Record<string, string> = { standard: "price_1U9otxCkrdnLOI0hTRLkOdoW", featured: "price_1U9ouVCkrdnLOI0hCbzW8jWj", local_spotlight: "price_1U9oukCkrdnLOI0hBkihCzyF", push: "price_1U9ov5CkrdnLOI0hFUwOpA6i", homepage_feature: "price_1U9ovMCkrdnLOI0hqkPMYDag" };
-export async function createPromotionCheckout(promotionId: string) { const supabase = await createClient(); const { data: { user } } = await supabase.auth.getUser(); if (!user) throw new Error("Nicht angemeldet."); const { data: promotion } = await supabase.from("event_promotions").select("id, placement, status, requested_by").eq("id", promotionId).maybeSingle(); if (!promotion || promotion.requested_by !== user.id || promotion.status !== "payment_pending") throw new Error("Diese Promotion kann nicht bezahlt werden."); const price = PRICE_BY_PLACEMENT[promotion.placement as string]; if (!price) throw new Error("Kein Preis hinterlegt."); const origin = process.env.NEXT_PUBLIC_APP_URL ?? "https://klangradar.com"; const session = await getStripe().checkout.sessions.create({ mode: "payment", line_items: [{ price, quantity: 1 }], metadata: { promotion_id: promotionId }, success_url: `${origin}/veranstalter/promote?payment=success`, cancel_url: `${origin}/veranstalter/promote?payment=cancelled` }); if (!session.url) throw new Error("Checkout konnte nicht erstellt werden."); redirect(session.url); }
+/**
+ * Öffnet den Stripe-Checkout für eine freigegebene Promotion. Gibt eine URL
+ * oder eine verständliche Fehlermeldung zurück (vorher: Exception → Next-
+ * Fehlerseite). Eine noch offene Checkout-Session wird wiederverwendet, damit
+ * mehrfaches Klicken nicht zu mehreren bezahlbaren Sessions führt.
+ */
+export async function createPromotionCheckout(promotionId: string): Promise<{ url?: string; error?: string }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Bitte melde dich erneut an." };
+
+  // RLS: sichtbar für Antragsteller:in und Team-Mitglieder mit Marketing-/Finanzrolle.
+  const { data: promotion } = await supabase
+    .from("event_promotions")
+    .select("id, placement, status, stripe_checkout_session_id, events(title, start_datetime)")
+    .eq("id", promotionId)
+    .maybeSingle();
+  const row = promotion as unknown as {
+    id: string; placement: string; status: string; stripe_checkout_session_id: string | null;
+    events: { title: string; start_datetime: string } | null;
+  } | null;
+  if (!row) return { error: "Diese Promotion wurde nicht gefunden oder du hast keinen Zugriff darauf." };
+  if (row.status !== "payment_pending") return { error: "Diese Promotion wartet nicht (mehr) auf eine Zahlung." };
+  if (!row.events || new Date(row.events.start_datetime).getTime() <= Date.now()) {
+    return { error: "Das Event hat bereits begonnen — eine Zahlung ist nicht mehr sinnvoll. Bitte storniere die Anfrage." };
+  }
+  const price = PRICE_ID_BY_PLACEMENT[row.placement];
+  if (!price) return { error: "Für diese Platzierung ist kein Preis hinterlegt. Bitte kontaktiere die Redaktion." };
+
+  try {
+    const stripe = getStripe();
+    if (row.stripe_checkout_session_id) {
+      const existing = await stripe.checkout.sessions.retrieve(row.stripe_checkout_session_id);
+      if (existing.payment_status === "paid") {
+        await activatePaidPromotion(existing);
+        revalidatePath("/veranstalter/promote");
+        return { error: "Diese Promotion ist bereits bezahlt und jetzt aktiv." };
+      }
+      if (existing.status === "open" && existing.url) return { url: existing.url };
+    }
+
+    const headerList = await headers();
+    const host = headerList.get("x-forwarded-host") ?? headerList.get("host");
+    const proto = headerList.get("x-forwarded-proto") ?? "https";
+    const origin = host ? `${proto}://${host}` : (process.env.NEXT_PUBLIC_APP_URL ?? "https://klangradar.com");
+
+    const session = await stripe.checkout.sessions.create({
+      mode: "payment",
+      line_items: [{ price, quantity: 1 }],
+      metadata: { promotion_id: row.id },
+      client_reference_id: row.id,
+      customer_email: user.email ?? undefined,
+      success_url: `${origin}/veranstalter/promote?payment=success&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}/veranstalter/promote?payment=cancelled`,
+    });
+    if (!session.url) return { error: "Der Checkout konnte nicht erstellt werden. Bitte versuche es erneut." };
+
+    // Service-Client: Veranstalter dürfen Zahlungsfelder per RLS nicht selbst setzen.
+    await createAdminClient().from("event_promotions").update({ stripe_checkout_session_id: session.id }).eq("id", row.id).eq("status", "payment_pending");
+    return { url: session.url };
+  } catch (cause) {
+    console.error("Checkout creation failed", cause);
+    return { error: "Die Zahlungsseite konnte gerade nicht geöffnet werden. Bitte versuche es gleich noch einmal." };
+  }
+}
