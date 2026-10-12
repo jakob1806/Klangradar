@@ -55,3 +55,36 @@ Deno.test("parseJsonApi: falscher itemsPath ergibt Fehler statt stillem Nichts",
   assertEquals(r.events.length, 0);
   assertEquals(r.errors.length, 1);
 });
+
+Deno.test("parseJsonApi: Unix-Zeitstempel, urlPath und Spielstätten-Mapping (dso-berlin.de)", () => {
+  const body = JSON.stringify({
+    teaser: [
+      {
+        meta: { id: "24094" },
+        teaser: { title: "DSO@Berlin Art Week", link: { url: "/de/konzert/dso-at-berlin-art-week-13-09-2026/" } },
+        extension: { date: 1789293600, venue: "Philharmonie Berlin, Kammermusiksaal" },
+      },
+      {
+        meta: { id: "1" },
+        teaser: { title: "Tournee", link: { url: "/x/" } },
+        extension: { date: 1789293600, venue: "Laeiszhalle Hamburg" },
+      },
+    ],
+  });
+  const { events, errors } = parseJsonApi(body, {
+    itemsPath: "teaser",
+    idPath: "meta.id",
+    titlePath: "teaser.title",
+    startPath: "extension.date",
+    urlPath: "teaser.link.url",
+    venuePath: "extension.venue",
+    baseUrl: "https://www.dso-berlin.de",
+    venueNameMap: { "Philharmonie Berlin, Kammermusiksaal": "Philharmonie Berlin" },
+    venueAllowlist: ["Philharmonie"],
+  });
+  assertEquals(events.length, 1);
+  assertEquals(errors.length, 1);
+  assertEquals(events[0].startDateTime, "2026-09-13T10:00:00.000Z");
+  assertEquals(events[0].url, "https://www.dso-berlin.de/de/konzert/dso-at-berlin-art-week-13-09-2026/");
+  assertEquals(events[0].venueName, "Philharmonie Berlin");
+});
