@@ -376,6 +376,12 @@ export async function runIngestion(
     await clearBodyHash(supabase, source.id, config);
   }
 
+  // Bereits vergangene Termine nicht (neu) anlegen: Manche Kalender listen
+  // die ganze Saison inklusive zurückliegender Wochen (hfmt-hamburg.de,
+  // mdw.ac.at) — die Klangradar-Datenbank braucht davon nichts.
+  const pastCutoff = Date.now() - 24 * 60 * 60 * 1000;
+  parsed.events = parsed.events.filter((event) => new Date(event.startDateTime).getTime() >= pastCutoff);
+
   // Große Saisonlisten in fortsetzbare Batches teilen. Der Cursor lebt in
   // sources.config; solange er > 0 ist, darf der Body-Hash-Shortcut oben
   // nicht greifen. So überschreitet weder Staatsoper noch Gärtnerplatz das
