@@ -378,6 +378,13 @@ struct UserRepository: Sendable {
         let _: JSONValue = try await client.rpc("delete_my_account", accessToken: token)
     }
 
+    /// Geheimes Token für das Kalender-Abo der gemerkten Konzerte.
+    func calendarFeedToken(token: String) async throws -> String {
+        let value: JSONValue = try await client.rpc("my_calendar_feed_token", accessToken: token)
+        guard case let .string(feedToken) = value else { throw APIError.httpStatus(500, "Kein Kalender-Token") }
+        return feedToken
+    }
+
     func updateHomeLocation(latitude: Double, longitude: Double, token: String) async throws {
         let _: JSONValue = try await client.rpc(
             "update_home_location",

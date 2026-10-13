@@ -266,6 +266,16 @@ struct ProfileView: View {
         return "\(version) (\(build))"
     }
 
+    /// Öffnet das Kalender-Abo (webcal): iOS fragt dann "Abonnieren?" und
+    /// hält die gemerkten Konzerte im Kalender automatisch aktuell.
+    @MainActor
+    private func subscribeCalendar() async {
+        guard let userRepository, let token = auth.accessToken,
+              let feedToken = try? await userRepository.calendarFeedToken(token: token),
+              let url = URL(string: "webcal://klangradar.com/api/calendar/\(feedToken).ics") else { return }
+        await UIApplication.shared.open(url)
+    }
+
     @MainActor
     private func deleteAccount() async {
         guard let userRepository, let token = auth.accessToken else { return }
@@ -334,6 +344,9 @@ struct ProfileView: View {
                         }
                     )
                 )
+            }
+            Button("Gemerkte Konzerte im Kalender abonnieren", systemImage: "calendar.badge.plus") {
+                Task { await subscribeCalendar() }
             }
             Button("Abmelden", role: .destructive) {
                 Task { try? await auth.signOut() }
