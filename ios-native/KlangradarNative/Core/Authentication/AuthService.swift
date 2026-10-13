@@ -1,6 +1,7 @@
 import Foundation
 import AuthenticationServices
 import UIKit
+import CryptoKit
 
 actor AuthService {
     static let callbackScheme = "de.klangradar.native"
@@ -160,8 +161,31 @@ actor AuthService {
         try await signInWithOAuth(provider: "google")
     }
 
+    /// Nativer Apple-Dialog (Face ID, ein Tipp) statt Web-Umweg: Apple
+    /// liefert ein signiertes Identity-Token, das Supabase per id_token-Grant
+    /// in eine Session tauscht. Die Nonce schützt vor Wiederverwendung.
     func signInWithApple() async throws -> AuthSession {
-        try await signInWithOAuth(provider: "apple")
+        let rawNonce = Self.randomNonce()
+        let hashedNonce = SHA256.hash(data: Data(rawNonce.utf8)).map { String(format: "%02x", $0) }.joined()
+        let credential = try await AppleSignInCoordinator.signIn(hashedNonce: hashedNonce)
+        guard let tokenData = credential.identityToken, let idToken = String(data: tokenData, encoding: .utf8) else {
+            throw AuthServiceError.server("Apple hat keine Anmeldedaten geliefert. Bitte versuche es erneut.")
+        }
+        let session = try await performSessionRequest(
+            path: "token?grant_type=id_token",
+            body: ["provider": .string("apple"), "id_token": .string(idToken), "nonce": .string(rawNonce)]
+        )
+        // Den Namen liefert Apple nur bei der allerersten Anmeldung.
+        if let name = credential.fullName, let full = PersonNameComponentsFormatter().string(from: name).nilIfEmpty {
+            try? await updateUser(["data": .object(["full_name": .string(full)])])
+        }
+        return session
+    }
+
+    private static func randomNonce(length: Int = 32) -> String {
+        let charset = Array("0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._")
+        var generator = SystemRandomNumberGenerator()
+        return String((0..<length).map { _ in charset.randomElement(using: &generator)! })
     }
 
     func enabledOAuthProviders() async throws -> Set<String> {
@@ -410,6 +434,55 @@ private final class OAuthWebAuthentication: NSObject, ASWebAuthenticationPresent
         let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
         return scenes.flatMap(\.windows).first(where: \.isKeyWindow) ?? ASPresentationAnchor()
     }
+}
+
+@MainActor
+private final class AppleSignInCoordinator: NSObject, ASAuthorizationControllerDelegate, ASAuthorizationControllerPresentationContextProviding {
+    private var continuation: CheckedContinuation<ASAuthorizationAppleIDCredential, Error>?
+    private static var active: AppleSignInCoordinator?
+
+    static func signIn(hashedNonce: String) async throws -> ASAuthorizationAppleIDCredential {
+        let coordinator = AppleSignInCoordinator()
+        active = coordinator
+        defer { active = nil }
+        return try await withCheckedThrowingContinuation { continuation in
+            coordinator.continuation = continuation
+            let request = ASAuthorizationAppleIDProvider().createRequest()
+            request.requestedScopes = [.fullName, .email]
+            request.nonce = hashedNonce
+            let controller = ASAuthorizationController(authorizationRequests: [request])
+            controller.delegate = coordinator
+            controller.presentationContextProvider = coordinator
+            controller.performRequests()
+        }
+    }
+
+    nonisolated func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
+        let credential = authorization.credential as? ASAuthorizationAppleIDCredential
+        MainActor.assumeIsolated {
+            if let credential { continuation?.resume(returning: credential) }
+            else { continuation?.resume(throwing: CancellationError()) }
+            continuation = nil
+        }
+    }
+
+    nonisolated func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
+        MainActor.assumeIsolated {
+            continuation?.resume(throwing: error)
+            continuation = nil
+        }
+    }
+
+    nonisolated func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+        MainActor.assumeIsolated {
+            let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+            return scenes.flatMap(\.windows).first(where: \.isKeyWindow) ?? ASPresentationAnchor()
+        }
+    }
+}
+
+private extension String {
+    var nilIfEmpty: String? { isEmpty ? nil : self }
 }
 
 private extension JSONDecoder {

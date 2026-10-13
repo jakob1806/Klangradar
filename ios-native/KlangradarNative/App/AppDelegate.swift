@@ -22,6 +22,14 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         return true
     }
 
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        Task { @MainActor in PushRegistration.shared.didRegister(deviceToken: deviceToken) }
+    }
+
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        print("Push-Registrierung fehlgeschlagen: \(error.localizedDescription)")
+    }
+
     // NICHT @MainActor-isoliert implementiert (wie bei AddToCalendarView.
     // Coordinator): UNUserNotificationCenterDelegate selbst ist nicht
     // isoliert, eine MainActor-isolierte Konformität dazu verletzt unter
