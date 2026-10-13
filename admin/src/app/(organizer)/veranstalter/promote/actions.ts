@@ -6,7 +6,7 @@ import { headers } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { activatePaidPromotion, getPlacementPriceLabels, PRICE_ID_BY_PLACEMENT } from "@/lib/promotion-payment";
 import { redaktionEmail, sendPortalEmail } from "@/lib/portal-email";
-import { promotionRequestedEmail, promotionRequestedRedaktionEmail } from "@/lib/notification-emails";
+import { promotionApprovedEmail, promotionRequestedEmail, promotionRequestedRedaktionEmail } from "@/lib/notification-emails";
 import { getStripe } from "@/lib/stripe";
 import { getPromotableEvents } from "./promotable-events";
 
@@ -34,7 +34,7 @@ export async function cancelPromotion(promotionId: string): Promise<{ error?: st
 
 const PLACEMENTS = new Set(["standard", "featured", "local_spotlight", "homepage_feature", "push"]);
 
-export async function requestPromotion(formData: FormData): Promise<{ error?: string; success?: true }> {
+export async function requestPromotion(formData: FormData): Promise<{ error?: string; success?: true; autoApproved?: true }> {
   try {
     const eventId = String(formData.get("event_id") ?? "").trim();
     const placement = String(formData.get("placement") ?? "").trim();
@@ -55,17 +55,35 @@ export async function requestPromotion(formData: FormData): Promise<{ error?: st
       return { error: "Dieses Event ist nicht mehr kommend, nicht veröffentlicht oder gehört nicht zu einem von dir beanspruchten Profil." };
     }
 
-    const { error } = await supabase.from("event_promotions").insert({
+    const { data: inserted, error } = await supabase.from("event_promotions").insert({
       event_id: eventId,
       requested_by: user.id,
       placement,
       requester_note: note || null,
-    });
+    }).select("id").single();
     if (error) return { error: `Die Anfrage konnte nicht gespeichert werden: ${error.message}` };
 
     const event = events.find((item) => item.id === eventId);
     const priceLabels = await getPlacementPriceLabels();
     const info = { eventTitle: event?.title ?? "dein Event", placement, concertAt: event?.startDatetime ?? null, priceLabel: priceLabels[placement] };
+
+    // Standard-Platzierung braucht keine redaktionelle Prüfung: sofort
+    // zahlbar (Service-Client, Veranstalter dürfen den Status per RLS nicht
+    // selbst setzen). Die Redaktion wird nur informiert.
+    if (placement === "standard" && inserted?.id && event && !note) {
+      const { data: approved } = await createAdminClient()
+        .from("event_promotions")
+        .update({ status: "payment_pending", reviewed_at: new Date().toISOString() })
+        .eq("id", inserted.id)
+        .eq("status", "pending")
+        .select("id");
+      if (approved?.length) {
+        await sendPortalEmail(user.email, promotionApprovedEmail({ ...info, reviewerNote: null }));
+        revalidatePath("/veranstalter/promote");
+        return { success: true, autoApproved: true };
+      }
+    }
+
     await Promise.all([
       sendPortalEmail(user.email, promotionRequestedEmail(info)),
       sendPortalEmail(redaktionEmail(), promotionRequestedRedaktionEmail({ ...info, requester: user.email ?? "Ein:e Veranstalter:in" })),

@@ -150,6 +150,7 @@ struct RootTabView: View {
             }
         }
         .task { await favorites.load() }
+        .task { EngagementLogger.shared.configure(client: environment.restClient, auth: environment.auth) }
         .task { await PromotedEventsStore.shared.load(client: environment.restClient, repository: environment.events) }
         .task { await follows.load() }
         .task { await cityStore.load() }

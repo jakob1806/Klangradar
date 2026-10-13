@@ -98,6 +98,7 @@ struct EventDetailView: View {
             Text(attendanceError ?? "Bitte versuche es erneut.")
         }
         .task {
+            EngagementLogger.shared.logView(eventID: event.id)
             do { detail = try await repository.eventDetail(slug: event.slug) }
             catch { loadError = error.localizedDescription }
             isLoading = false
@@ -742,6 +743,7 @@ struct EventDetailView: View {
                                     }.padding(15)
                                 }
                             }.buttonStyle(.plain)
+                            .simultaneousGesture(TapGesture().onEnded { EngagementLogger.shared.logTicketClick(eventID: event.id) })
                         }
                     }
                 }
@@ -918,6 +920,7 @@ struct EventDetailView: View {
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
+            .simultaneousGesture(TapGesture().onEnded { EngagementLogger.shared.logTicketClick(eventID: event.id) })
         } else {
             Button("Keine Ticketseite", systemImage: "ticket") {}
                 .buttonStyle(.bordered)
