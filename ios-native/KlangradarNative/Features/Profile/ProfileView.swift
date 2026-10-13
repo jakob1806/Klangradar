@@ -26,6 +26,9 @@ struct ProfileView: View {
     @EnvironmentObject private var cityStore: CityStore
     @EnvironmentObject private var follows: FollowStore
     @State private var showsLogin = false
+    @State private var showsDeleteAccountConfirmation = false
+    @State private var isDeletingAccount = false
+    @State private var deleteAccountError: String?
     @State private var hasEditorialAccess = false
     @State private var showsEditorialShell = false
     @State private var showsMarketingShell = ProcessInfo.processInfo.environment["KLANGRADAR_MARKETING_CAPTURE"] == "1"
@@ -264,6 +267,19 @@ struct ProfileView: View {
     }
 
     @MainActor
+    private func deleteAccount() async {
+        guard let userRepository, let token = auth.accessToken else { return }
+        isDeletingAccount = true
+        defer { isDeletingAccount = false }
+        do {
+            try await userRepository.deleteAccount(token: token)
+            try? await auth.signOut()
+        } catch {
+            deleteAccountError = error.localizedDescription
+        }
+    }
+
+    @MainActor
     private func checkEditorialAccess() async {
         guard let editorialRepository, let token = auth.accessToken, let userID = auth.userID else {
             hasEditorialAccess = false
@@ -321,6 +337,21 @@ struct ProfileView: View {
             }
             Button("Abmelden", role: .destructive) {
                 Task { try? await auth.signOut() }
+            }
+            Button(isDeletingAccount ? "Konto wird gelöscht …" : "Konto löschen", role: .destructive) {
+                showsDeleteAccountConfirmation = true
+            }
+            .disabled(isDeletingAccount)
+            .confirmationDialog("Konto endgültig löschen?", isPresented: $showsDeleteAccountConfirmation, titleVisibility: .visible) {
+                Button("Konto löschen", role: .destructive) { Task { await deleteAccount() } }
+                Button("Abbrechen", role: .cancel) {}
+            } message: {
+                Text("Dein Konto, Favoriten, Listen, besuchte Konzerte und Einstellungen werden dauerhaft gelöscht. Das kann nicht rückgängig gemacht werden.")
+            }
+            .alert("Konto konnte nicht gelöscht werden", isPresented: Binding(get: { deleteAccountError != nil }, set: { if !$0 { deleteAccountError = nil } })) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(deleteAccountError ?? "")
             }
         case let .failed(message):
             Label(message, systemImage: "exclamationmark.triangle")
