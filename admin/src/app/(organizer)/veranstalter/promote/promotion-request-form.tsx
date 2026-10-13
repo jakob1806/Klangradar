@@ -42,7 +42,7 @@ export function PromotionRequestForm({ events, priceLabels }: { events: EventOpt
               setError(result.error);
               return;
             }
-            setMessage("Deine Anfrage wurde an die Redaktion gesendet.");
+            setMessage(result.autoApproved ? "Standard-Platzierung sofort freigegeben – du kannst unten direkt bezahlen." : "Deine Anfrage wurde an die Redaktion gesendet.");
             (document.getElementById("promotion-request-form") as HTMLFormElement | null)?.reset();
             setChosenPlacement("");
             setSelectedEvent(null);
