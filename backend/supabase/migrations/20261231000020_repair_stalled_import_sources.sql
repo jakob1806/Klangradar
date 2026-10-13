@@ -92,4 +92,4 @@ update sources
 set consecutive_failures = 0
 where status = 'active'
   and consecutive_failures > 0
-  and type in ('scrape', 'api', 'schema_org', 'staatsoper', 'brso', 'gaertnerplatz');
+  and type::text in ('scrape', 'api', 'schema_org', 'staatsoper', 'brso', 'gaertnerplatz');
