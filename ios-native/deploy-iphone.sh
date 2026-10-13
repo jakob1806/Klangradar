@@ -129,6 +129,7 @@ xcodebuild \
 -destination "id=$DEVICE_ID" \
 -derivedDataPath "$DERIVED_DATA" \
 -allowProvisioningUpdates \
+-allowProvisioningDeviceRegistration \
 CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
 MARKETING_VERSION="$MARKETING_VERSION_VALUE" \
 build >"$BUILD_LOG" 2>&1
