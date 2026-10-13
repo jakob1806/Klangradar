@@ -49,7 +49,9 @@ struct NotificationsStepView: View {
     private func requestPermission() async {
         isWorking = true
         defer { isWorking = false }
-        _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound])
+        if (try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound])) == true {
+            await PushRegistration.shared.registerIfAuthorized()
+        }
         onFinished()
     }
 }

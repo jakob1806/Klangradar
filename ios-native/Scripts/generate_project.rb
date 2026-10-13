@@ -126,6 +126,8 @@ app_target.build_configurations.each do |config|
     "CURRENT_PROJECT_VERSION" => "1",
     "DEVELOPMENT_ASSET_PATHS" => "",
     "DEVELOPMENT_TEAM" => "DVH3MYQ64A",
+    # Push (aps-environment) und Sign in with Apple.
+    "CODE_SIGN_ENTITLEMENTS" => "KlangradarNative/KlangradarNative.entitlements",
     "ENABLE_PREVIEWS" => "YES",
     "GENERATE_INFOPLIST_FILE" => "YES",
     "INFOPLIST_KEY_CFBundleDisplayName" => "Klangradar",

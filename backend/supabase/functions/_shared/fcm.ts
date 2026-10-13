@@ -140,11 +140,23 @@ export interface PushSendResult {
  * Fehler landen im Ergebnis-Array, damit ein einzelner toter Token nicht den
  * ganzen Batch abbricht. */
 export async function sendPushToTokens(
-  tokens: string[],
+  allTokens: string[],
   payload: PushPayload,
 ): Promise<PushSendResult[]> {
-  if (tokens.length === 0) return [];
-  const account = parseServiceAccount();
+  if (allTokens.length === 0) return [];
+  // iOS-Geräte der nativen App ("apns:…") gehen direkt an Apple, alle anderen
+  // (Flutter/Android, Flutter/iOS über Firebase) weiter über FCM.
+  const { isApnsToken, sendApnsToTokens } = await import("./apns.ts");
+  const apnsResults = await sendApnsToTokens(allTokens.filter(isApnsToken), payload);
+  const tokens = allTokens.filter((token) => !isApnsToken(token));
+  if (tokens.length === 0) return apnsResults;
+  let account: ServiceAccount;
+  try {
+    account = parseServiceAccount();
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    return [...apnsResults, ...tokens.map((token) => ({ token, ok: false, invalidToken: false, error }))];
+  }
   const accessToken = await getAccessToken(account);
 
   const results: PushSendResult[] = [];
@@ -185,5 +197,5 @@ export async function sendPushToTokens(
       });
     }
   }
-  return results;
+  return [...apnsResults, ...results];
 }
