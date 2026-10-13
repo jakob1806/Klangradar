@@ -79,6 +79,10 @@ add_asset_catalogs(
   "KlangradarNative/Resources"
 )
 
+# Datenschutz-Manifest (App-Store-Pflicht) als Ressource einbinden.
+privacy_manifest = app_target.project.main_group.find_subpath("KlangradarNative/Resources", true).new_reference(root.join("KlangradarNative", "Resources", "PrivacyInfo.xcprivacy").to_s)
+app_target.resources_build_phase.add_file_reference(privacy_manifest, true)
+
 secrets_path = root.join("Config", "Secrets.plist")
 if secrets_path.exist?
   config_group = project.main_group.find_subpath("Config", true)
@@ -126,6 +130,8 @@ app_target.build_configurations.each do |config|
     "GENERATE_INFOPLIST_FILE" => "YES",
     "INFOPLIST_KEY_CFBundleDisplayName" => "Klangradar",
     "INFOPLIST_KEY_LSApplicationCategoryType" => "public.app-category.music",
+    # Nur Standard-HTTPS — erspart die Exportkontroll-Frage bei jedem Upload.
+    "INFOPLIST_KEY_ITSAppUsesNonExemptEncryption" => "NO",
     "INFOPLIST_KEY_NSLocationWhenInUseUsageDescription" => "Klangradar nutzt deinen Standort, um Konzerte in deiner Nähe zu zeigen.",
     # Nutzerwunsch: passive Erkennung "warst du bei diesem gemerkten Konzert?"
     # per Geofencing (siehe AttendanceLocationMonitor) — braucht laut Apple

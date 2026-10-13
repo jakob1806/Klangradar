@@ -373,6 +373,11 @@ struct UserRepository: Sendable {
     /// `update_home_location` ist eine `returns void`-SQL-Funktion
     /// (20260724000001_update_home_location.sql) — PostgREST liefert dafür
     /// den JSON-Wert `null`, den `JSONValue` direkt dekodieren kann.
+    /// Löscht das eigene Konto samt personenbezogener Daten (delete_my_account).
+    func deleteAccount(token: String) async throws {
+        let _: JSONValue = try await client.rpc("delete_my_account", accessToken: token)
+    }
+
     func updateHomeLocation(latitude: Double, longitude: Double, token: String) async throws {
         let _: JSONValue = try await client.rpc(
             "update_home_location",
