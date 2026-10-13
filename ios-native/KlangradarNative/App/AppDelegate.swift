@@ -42,6 +42,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
         let userInfo = response.notification.request.content.userInfo
         let actionIdentifier = response.actionIdentifier
+        // Server-Push (Erinnerung, neuer Termin, Änderung): direkt das Event öffnen.
+        if let route = userInfo["route"] as? String {
+            await MainActor.run { _ = DeepLinkRouter.shared.handle(route: route) }
+            return
+        }
         guard let eventIDString = userInfo[AttendanceLocationMonitor.eventIDUserInfoKey] as? String,
               let eventID = UUID(uuidString: eventIDString) else { return }
         guard actionIdentifier != "ATTENDANCE_NO" else { return }

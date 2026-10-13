@@ -15,7 +15,7 @@ const AUTH_ONLY_PATHS = ["/veranstalter"];
 // Webhooks (Stripe) authentifizieren sich per Signatur, nicht per Login.
 // Vorher leitete der Proxy sie auf /login um — Stripe folgt keinen
 // Redirects, bezahlte Promotionen blieben dadurch auf "Zahlung ausstehend".
-const MACHINE_PATHS = ["/api/webhooks/", "/api/cron/"];
+const MACHINE_PATHS = ["/api/webhooks/", "/api/cron/", "/api/calendar/"];
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
