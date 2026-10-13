@@ -38,7 +38,7 @@ where id in (
   'e0518d57-0435-4b9c-9dcb-35c44f569c3b', -- Hochschule für Musik und Theater Hamburg (~110)
   'eb7041fa-a7b9-403b-96b5-b1401e219fc4'  -- Theater an der Wien (126)
 )
-and type = 'rendered_scrape';
+and type::text = 'rendered_scrape'; -- Enum-Wert existiert nur live, nicht in frischen DBs
 
 -- 1b. Kalender, die im rohen HTML leer sind bzw. kein Datum tragen und daher
 --     über Browserless (Secret BROWSERLESS_API_TOKEN ist gesetzt) gerendert
@@ -53,7 +53,7 @@ where id in (
   '801a4946-2bf0-446e-954a-dbac6be60d06', -- Deutsche Oper Berlin
   'b69f5380-da56-48a0-8a05-d6a341088529'  -- Wiener Staatsoper
 )
-and type = 'rendered_scrape';
+and type::text = 'rendered_scrape'; -- Enum-Wert existiert nur live, nicht in frischen DBs
 
 -- 2. Duplikate pausieren.
 update sources
