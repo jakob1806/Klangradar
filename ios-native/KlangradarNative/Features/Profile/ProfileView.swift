@@ -27,6 +27,8 @@ struct ProfileView: View {
     @EnvironmentObject private var follows: FollowStore
     @State private var showsLogin = false
     @State private var showsSignUp = false
+    @State private var showsPlus = false
+    @ObservedObject private var plus = PlusStore.shared
     @State private var showsDeleteAccountConfirmation = false
     @State private var isDeletingAccount = false
     @State private var deleteAccountError: String?
@@ -53,6 +55,23 @@ struct ProfileView: View {
                 Section("Account") {
                     accountContent
                 }
+
+                Section {
+                    Button { showsPlus = true } label: {
+                        HStack {
+                            Label {
+                                Text("Klangradar Plus").foregroundStyle(.primary)
+                            } icon: {
+                                Image(systemName: "music.note.house.fill")
+                            }
+                            Spacer()
+                            Text(plus.isPlus ? "Aktiv" : "Entdecken")
+                                .font(.subheadline)
+                                .foregroundStyle(plus.isPlus ? KlangradarTheme.accent : .secondary)
+                        }
+                    }
+                }
+                .sheet(isPresented: $showsPlus) { PlusPaywallView() }
 
                 Section("Dein Klangradar") {
                     // Nutzerfeedback: "Assistent & Abendplaner" (Personal-
@@ -503,6 +522,7 @@ private struct MyKlangradarHubView: View {
 
 
 struct KlangradarCoachView: View {
+    @State private var showsPlusPaywall = false
     private enum Section: String, CaseIterable { case overview = "Heute", chat = "KI fragen" }
     // Nutzerfeedback: "Antworten sollen nicht reiner Text sein, sondern
     // kurzer Text plus kleine Konzert-Miniaturen zum Durchscrollen" -- jede
@@ -587,6 +607,9 @@ struct KlangradarCoachView: View {
         }
         .background { Color.clear }
         .navigationTitle("Klangradar KI")
+        .sheet(isPresented: $showsPlusPaywall) {
+            PlusPaywallView(reason: "Du hast diese Woche deine \(CoachQuota.weeklyLimit) kostenlosen Fragen an die Klangradar KI genutzt. Mit Plus fragst du ohne Limit.")
+        }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if showsDismissButton {
@@ -899,6 +922,10 @@ struct KlangradarCoachView: View {
             errorMessage = "Bitte melde dich an, damit die Klangradar KI deine Daten sicher verwenden kann."
             return
         }
+        if PlusStore.shared.enforcesLimits && CoachQuota.remaining == 0 {
+            showsPlusPaywall = true
+            return
+        }
         draft = ""; retryDraft = text; isSending = true; errorMessage = nil; messages.append(.init(text: text, user: true)); memoryProposal = nil; goalProposal = nil
         defer { isSending = false }
         do {
@@ -907,6 +934,7 @@ struct KlangradarCoachView: View {
             conversationID = reply.conversationID
             messages.append(ChatMessage(text: reply.answer, user: false, events: reply.events, eventsAreAlternatives: reply.eventsAreAlternatives))
             memoryProposal = reply.memoryProposal; goalProposal = reply.goalProposal; suggestedPrompts = reply.suggestedPrompts; retryDraft = nil
+            if !PlusStore.shared.isPlus { CoachQuota.recordQuestion() }
         } catch is CancellationError {
             // Nutzer hat das Warten auf die Antwort abgebrochen (Stopp-Quadrat) -- keine Fehlermeldung.
         } catch {
@@ -1554,6 +1582,7 @@ private struct UserEventListsView: View {
 
     @State private var lists: [UserEventList] = []
     @State private var showsCreate = false
+    @State private var showsPlusPaywall = false
     @State private var newName = ""
     @State private var isLoading = true
     @State private var errorMessage: String?
@@ -1609,10 +1638,15 @@ private struct UserEventListsView: View {
             }
         }
         .navigationTitle("Meine Listen")
+        .sheet(isPresented: $showsPlusPaywall) {
+            PlusPaywallView(reason: "Ohne Plus kannst du \(PlusLimits.freeLists) Listen anlegen. Mit Plus so viele du willst.")
+        }
         .toolbar {
             if auth.userID != nil {
                 ToolbarItem(placement: .primaryAction) {
-                    Button("Neue Liste", systemImage: "plus") { showsCreate = true }
+                    Button("Neue Liste", systemImage: "plus") {
+                        if PlusStore.shared.enforcesLimits && lists.count >= PlusLimits.freeLists { showsPlusPaywall = true } else { showsCreate = true }
+                    }
                 }
             }
         }
