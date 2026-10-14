@@ -168,6 +168,7 @@ struct RootTabView: View {
             DeepLinkEventSheet(slug: link.id, repository: environment.events, contentRepository: environment.content)
         }
         .task { EngagementLogger.shared.configure(client: environment.restClient, auth: environment.auth) }
+        .task { PlusStore.shared.start() }
         .task { PushRegistration.shared.configure(client: environment.restClient, auth: environment.auth) }
         .task { await PromotedEventsStore.shared.load(client: environment.restClient, repository: environment.events) }
         .task { await follows.load() }
