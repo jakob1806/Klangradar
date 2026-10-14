@@ -224,6 +224,7 @@ struct VenueMapView: View {
     }
 
     @MainActor private func loadVenues() async {
+        await cityStore.waitUntilResolved()
         venues = (try? await repository.venueLocations(cityID: showsAllCities ? nil : cityStore.selectedCity?.id)) ?? []
         fitCameraToVenuesIfNeeded()
     }

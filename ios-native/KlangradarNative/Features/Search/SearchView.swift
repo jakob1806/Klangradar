@@ -495,17 +495,21 @@ struct SearchView: View {
         // und erschien deshalb erst sehr spät (Nutzerfeedback). Eine kleine
         // Auswahl reicht für die 8 Karten; die vollständige Liste (Suche,
         // Genre-/Inspirations-Filter) ersetzt sie anschließend im Hintergrund.
+        await cityStore.waitUntilResolved()
+        let requestedRegion = cityStore.selectedCity?.id
         if events.isEmpty,
-           let quick = try? await eventRepository.upcomingEvents(limit: 40, regionID: cityStore.selectedCity?.id),
-           !quick.isEmpty {
+           let quick = try? await eventRepository.upcomingEvents(limit: 40, regionID: requestedRegion),
+           !quick.isEmpty, requestedRegion == cityStore.selectedCity?.id {
             events = (try? await eventRepository.enrichingImages(in: quick)) ?? quick
         }
         do {
-            async let loadedEvents = eventRepository.allUpcomingEvents(regionID: cityStore.selectedCity?.id)
+            async let loadedEvents = eventRepository.allUpcomingEvents(regionID: requestedRegion)
             async let categories = try? eventRepository.inspirationCategories()
             let basicEvents = try await loadedEvents
             let remoteCategories = await categories ?? []
             inspirationCategories = remoteCategories.isEmpty ? InspirationCategory.fallback : remoteCategories
+            // Veraltete Antwort (Stadt inzwischen gewechselt) verwerfen.
+            guard requestedRegion == cityStore.selectedCity?.id else { return }
             if let enriched = try? await eventRepository.enrichingImages(in: basicEvents) {
                 events = enriched
             } else {

@@ -84,6 +84,7 @@ struct EventCalendarView: View {
     }
 
     private func loadEvents() async {
+        await cityStore.waitUntilResolved()
         do {
             let basic = try await repository.allUpcomingEvents(regionID: regionID)
             try Task.checkCancellation()

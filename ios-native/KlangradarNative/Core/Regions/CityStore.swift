@@ -13,6 +13,10 @@ final class CityStore: ObservableObject {
     @Published private(set) var activeCities: [RegionOption] = []
     @Published var selectedCity: RegionOption?
     @Published private(set) var isLoading = false
+    /// true, sobald die gespeicherte/bevorzugte Stadt feststeht. Tabs warten
+    /// darauf, bevor sie Konzerte laden — sonst lädt der erste Durchlauf
+    /// beim App-Start "alle Städte" und überschreibt ggf. die richtige Stadt.
+    @Published private(set) var hasResolvedSelection = false
 
     private let auth: AuthStore
     private let repository: UserRepository?
@@ -41,6 +45,16 @@ final class CityStore: ObservableObject {
         await seedFromPreferredRegionIfNeeded()
         if selectedCity == nil {
             selectedCity = activeCities.first { $0.name == "München" }
+        }
+        hasResolvedSelection = true
+    }
+
+    /// Wartet (höchstens ~4 s), bis die Stadt beim Start feststeht.
+    func waitUntilResolved() async {
+        var waited = 0
+        while !hasResolvedSelection && waited < 80 {
+            try? await Task.sleep(for: .milliseconds(50))
+            waited += 1
         }
     }
 

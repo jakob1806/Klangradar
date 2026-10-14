@@ -102,6 +102,9 @@ final class HomeViewModel: ObservableObject {
         // würde der gerade gezeigte Stand durch einen Ladespinner ersetzt,
         // obwohl schon etwas zu sehen ist.
         if showsLoading { state = .loading }
+        // Antworten für eine inzwischen geänderte Stadt verwerfen (Wettlauf
+        // beim App-Start: "alle Städte" kam nach "München" an).
+        let requestedRegion = regionID
         do {
             // Nutzerfeedback: "Demnächst in München" hat "zu wenig
             // vorgeschlagen" — 40 war zu knapp, sobald "Heute in München"
@@ -117,6 +120,7 @@ final class HomeViewModel: ObservableObject {
             let modules = await modulesTask
             personalizedEntityIDs = personalization.ids
             hasPersonalizedInterests = personalization.hasAny
+            guard requestedRegion == regionID else { return }
             let recommended = await enrich(modules.recommended)
             let discovery = await enrich(modules.discovery)
             let popular = await enrich(modules.popular)
@@ -125,6 +129,7 @@ final class HomeViewModel: ObservableObject {
             popularEvents = popular
             favoriteEvents = await favoritesTask
             let finalEvents = enriched ?? events
+            guard requestedRegion == regionID else { return }
             state = .loaded(finalEvents)
             HomeCache.save(HomeSnapshot(
                 events: finalEvents,
