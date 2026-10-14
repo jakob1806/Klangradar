@@ -7,6 +7,9 @@ struct EventCalendarView: View {
     let userRepository: UserRepository?
     @EnvironmentObject private var cityStore: CityStore
     @ObservedObject private var promoted = PromotedEventsStore.shared
+    /// "Alle Städte" gilt nur im Kalender; eine konkrete Stadt gilt überall.
+    @State private var showsAllCities = false
+    private var regionID: UUID? { showsAllCities ? nil : cityStore.selectedCity?.id }
     @State private var selectedDate = Date.now
     @State private var visibleMonth = Date.now
     @State private var events: [ConcertEvent] = []
@@ -15,7 +18,7 @@ struct EventCalendarView: View {
     private var selectedEvents: [ConcertEvent] {
         // Beworbene Events (Platzierung "standard") stehen in ihrer Tagesliste vorn.
         let day = events.filter { $0.startDate.map { KlangradarDateTime.calendar.isDate($0, inSameDayAs: selectedDate) } ?? false }
-        return promoted.boosting(day, placement: "standard", regionID: cityStore.selectedCity?.id, maxPromoted: 3) { promotedEvent in
+        return promoted.boosting(day, placement: "standard", regionID: regionID, maxPromoted: 3) { promotedEvent in
             day.contains { $0.id == promotedEvent.id }
         }
     }
@@ -61,12 +64,12 @@ struct EventCalendarView: View {
             .toolbar {
                 if #available(iOS 26.0, *) {
                     ToolbarItem(placement: .topBarTrailing) {
-                        CityCompactMenu(cityStore: cityStore)
+                        CityCompactMenu(cityStore: cityStore, allCitiesSelection: $showsAllCities)
                     }
                     .sharedBackgroundVisibility(.hidden)
                 } else {
                     ToolbarItem(placement: .topBarTrailing) {
-                        CityCompactMenu(cityStore: cityStore)
+                        CityCompactMenu(cityStore: cityStore, allCitiesSelection: $showsAllCities)
                     }
                 }
             }
@@ -74,7 +77,7 @@ struct EventCalendarView: View {
             .navigationDestination(for: EntityRoute.self) { EntityDetailView(route: $0, repository: contentRepository) }
             // .task(id:) bricht eine laufende Ladung bei Stadtwechsel ab, sodass
             // eine späte Antwort der alten Stadt die neue nicht überschreibt.
-            .task(id: cityStore.selectedCity?.id) { await loadEvents() }
+            .task(id: regionID) { await loadEvents() }
             .refreshable { await loadEvents() }
         }
         .environment(\.locale, Locale(identifier: "de_DE"))
@@ -82,7 +85,7 @@ struct EventCalendarView: View {
 
     private func loadEvents() async {
         do {
-            let basic = try await repository.allUpcomingEvents(regionID: cityStore.selectedCity?.id)
+            let basic = try await repository.allUpcomingEvents(regionID: regionID)
             try Task.checkCancellation()
             loadFailed = false
             events = basic
