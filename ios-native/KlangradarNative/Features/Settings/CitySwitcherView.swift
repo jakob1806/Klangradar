@@ -7,6 +7,9 @@ import SwiftUI
 struct CitySwitcherView: View {
     @ObservedObject var cityStore: CityStore
     var allowsAllCities = false
+    /// "Alle Städte" gilt nur im aufrufenden Tab (z. B. Kalender) und ändert
+    /// die globale Stadt nicht; eine konkrete Stadt gilt überall.
+    var allCitiesSelection: Binding<Bool>? = nil
     var embedsNavigationStack = true
     @Environment(\.dismiss) private var dismiss
 
@@ -28,12 +31,21 @@ struct CitySwitcherView: View {
                 cityHeader
 
                 LazyVStack(spacing: 12) {
+                    if let allCitiesSelection {
+                        cityRow(name: "Alle Städte", subtitle: "Nur in diesem Bereich", isSelected: allCitiesSelection.wrappedValue) {
+                            allCitiesSelection.wrappedValue = true
+                            dismiss()
+                        }
+                    }
                     ForEach(displayCities) { city in
                         cityRow(
                             name: city.name,
                             subtitle: countryLabel(for: city),
-                            isSelected: cityStore.selectedCity?.id == city.id
-                        ) { cityStore.select(city) }
+                            isSelected: allCitiesSelection?.wrappedValue != true && cityStore.selectedCity?.id == city.id
+                        ) {
+                            allCitiesSelection?.wrappedValue = false
+                            cityStore.select(city)
+                        }
                     }
                 }
             }
@@ -159,9 +171,14 @@ struct CitySwitcherView: View {
 /// Karte verwendet das platzsparende Dropdown mit "Alle Städte".
 struct CityCompactMenu: View {
     @ObservedObject var cityStore: CityStore
-    var allowsAllCities = false
+    /// Lokale "Alle Städte"-Auswahl des Tabs (nil = Option nicht anbieten).
+    /// Vorher setzte "Alle Städte" die globale Stadt auf nil — alle anderen
+    /// Tabs zeigten dann nur noch "Stadt".
+    var allCitiesSelection: Binding<Bool>? = nil
     var isMapMenu = false
     @State private var showsCitySwitcher = false
+
+    private var showsAllCities: Bool { allCitiesSelection?.wrappedValue == true }
 
     var body: some View {
         Group {
@@ -173,7 +190,7 @@ struct CityCompactMenu: View {
             }
         }
         .sheet(isPresented: $showsCitySwitcher) {
-            CitySwitcherView(cityStore: cityStore)
+            CitySwitcherView(cityStore: cityStore, allCitiesSelection: allCitiesSelection)
                 // Nutzerfeedback per Screenshot: das Sheet zeigte links/
                 // rechts/unten Rand mit sichtbarem Hintergrund dahinter statt
                 // randlos zu sein — dieselbe Ursache/derselbe Fix wie beim
@@ -187,18 +204,19 @@ struct CityCompactMenu: View {
 
     private var mapMenu: some View {
         Menu {
-            if allowsAllCities {
+            if let allCitiesSelection {
                 Button {
-                    cityStore.select(nil)
+                    allCitiesSelection.wrappedValue = true
                 } label: {
-                    menuLabel("Alle Städte", selected: cityStore.selectedCity == nil)
+                    menuLabel("Alle Städte", selected: showsAllCities)
                 }
             }
             ForEach(cityStore.activeCities) { city in
                 Button {
+                    allCitiesSelection?.wrappedValue = false
                     cityStore.select(city)
                 } label: {
-                    menuLabel(city.name, selected: cityStore.selectedCity?.id == city.id)
+                    menuLabel(city.name, selected: !showsAllCities && cityStore.selectedCity?.id == city.id)
                 }
             }
         } label: { chipLabel }
@@ -231,7 +249,7 @@ struct CityCompactMenu: View {
             Image(systemName: "location.north.fill")
                 .font(.caption)
                 .rotationEffect(.degrees(45))
-            Text(cityStore.selectedCity?.name ?? (allowsAllCities ? "Alle Städte" : "Stadt"))
+            Text(showsAllCities ? "Alle Städte" : (cityStore.selectedCity?.name ?? "Stadt"))
             Image(systemName: "chevron.down")
                 .font(.caption2.weight(.bold))
         }

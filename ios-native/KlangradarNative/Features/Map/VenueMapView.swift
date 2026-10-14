@@ -2,6 +2,8 @@ import MapKit
 import SwiftUI
 
 struct VenueMapView: View {
+    /// "Alle Städte" nur auf der Karte, ohne die globale Stadt zu ändern.
+    @State private var showsAllCities = false
     let repository: any ContentRepository
     let eventRepository: any EventRepository
     @ObservedObject var cityStore: CityStore
@@ -77,6 +79,10 @@ struct VenueMapView: View {
             hasAutoFitCamera = false
             Task { await loadVenues() }
         }
+        .onChange(of: showsAllCities) { _, _ in
+            hasAutoFitCamera = false
+            Task { await loadVenues() }
+        }
         .alert("Standort nicht verfügbar", isPresented: Binding(
             get: { locationError != nil },
             set: { if !$0 { locationError = nil } }
@@ -143,7 +149,7 @@ struct VenueMapView: View {
                 if cityStore.activeCities.count > 1 {
                     CityCompactMenu(
                         cityStore: cityStore,
-                        allowsAllCities: true,
+                        allCitiesSelection: $showsAllCities,
                         isMapMenu: true
                     )
                         .foregroundStyle(.primary)
@@ -218,7 +224,7 @@ struct VenueMapView: View {
     }
 
     @MainActor private func loadVenues() async {
-        venues = (try? await repository.venueLocations(cityID: cityStore.selectedCity?.id)) ?? []
+        venues = (try? await repository.venueLocations(cityID: showsAllCities ? nil : cityStore.selectedCity?.id)) ?? []
         fitCameraToVenuesIfNeeded()
     }
 
