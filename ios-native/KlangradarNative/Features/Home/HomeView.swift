@@ -199,6 +199,7 @@ struct HomeView: View {
                 // werden Berlin-Konzerte gezeigt" -- diese Zuweisung fehlte
                 // nach einem Merge komplett, model.regionID blieb dauerhaft
                 // nil (= alle Städte), unabhängig vom Chip oben rechts.
+                await cityStore.waitUntilResolved()
                 model.regionID = cityStore.selectedCity?.id
                 await model.load()
                 collections = (try? await contentRepository.collections()) ?? []

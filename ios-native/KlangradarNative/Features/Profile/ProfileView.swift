@@ -67,6 +67,17 @@ struct ProfileView: View {
                     } label: {
                         Label("Mein Klangradar", systemImage: "person.crop.rectangle.stack")
                     }
+                    // Nutzerwunsch: unter "Mein Klangradar", Schrift schwarz wie
+                    // die übrigen Zeilen (nur das Symbol in Akzentfarbe).
+                    Button {
+                        Task { await subscribeCalendar() }
+                    } label: {
+                        Label {
+                            Text("Gemerkte Konzerte im Kalender abonnieren").foregroundStyle(.primary)
+                        } icon: {
+                            Image(systemName: "calendar.badge.plus")
+                        }
+                    }
                     NavigationLink {
                         KlangradarCoachView(
                             auth: auth,
@@ -365,9 +376,6 @@ struct ProfileView: View {
                         }
                     )
                 )
-            }
-            Button("Gemerkte Konzerte im Kalender abonnieren", systemImage: "calendar.badge.plus") {
-                Task { await subscribeCalendar() }
             }
             Button("Abmelden", role: .destructive) {
                 Task { try? await auth.signOut() }
