@@ -14,6 +14,14 @@ struct EventCalendarView: View {
     @State private var visibleMonth = Date.now
     @State private var events: [ConcertEvent] = []
     @State private var loadFailed = false
+    /// Bereits geladene Monate (pro Stadt) — beim Zurückblättern oder
+    /// Tab-Wechsel nicht erneut laden.
+    @State private var monthCache: [String: [ConcertEvent]] = [:]
+
+    private var monthInterval: DateInterval {
+        KlangradarDateTime.calendar.dateInterval(of: .month, for: visibleMonth) ?? DateInterval(start: .now, duration: 31 * 86_400)
+    }
+    private var loadKey: String { "\(regionID?.uuidString ?? "all")|\(Int(monthInterval.start.timeIntervalSince1970))" }
 
     private var selectedEvents: [ConcertEvent] {
         // Beworbene Events (Platzierung "standard") stehen in ihrer Tagesliste vorn.
@@ -77,20 +85,28 @@ struct EventCalendarView: View {
             .navigationDestination(for: EntityRoute.self) { EntityDetailView(route: $0, repository: contentRepository) }
             // .task(id:) bricht eine laufende Ladung bei Stadtwechsel ab, sodass
             // eine späte Antwort der alten Stadt die neue nicht überschreibt.
-            .task(id: regionID) { await loadEvents() }
-            .refreshable { await loadEvents() }
+            .task(id: loadKey) { await loadEvents() }
+            .refreshable { await loadEvents(force: true) }
         }
         .environment(\.locale, Locale(identifier: "de_DE"))
     }
 
-    private func loadEvents() async {
+    /// Lädt nur den sichtbaren Monat statt aller (~1500) kommenden Konzerte.
+    private func loadEvents(force: Bool = false) async {
         await cityStore.waitUntilResolved()
+        let key = loadKey
+        if !force, let cached = monthCache[key] {
+            events = cached
+            return
+        }
         do {
-            let basic = try await repository.allUpcomingEvents(regionID: regionID)
+            let interval = monthInterval
+            let basic = try await repository.events(from: interval.start, to: interval.end, regionID: regionID)
             try Task.checkCancellation()
             loadFailed = false
             events = basic
             if let enriched = try? await repository.enrichingImages(in: basic), !Task.isCancelled { events = enriched }
+            monthCache[key] = events
         } catch is CancellationError {
             return
         } catch {

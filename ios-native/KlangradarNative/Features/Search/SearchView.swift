@@ -24,6 +24,7 @@ struct SearchView: View {
     let contentRepository: any ContentRepository
     @EnvironmentObject private var genreFilter: GenreFilterRouter
     @EnvironmentObject private var cityStore: CityStore
+    @State private var loadedEventsRegion: UUID?? = nil
     @ObservedObject private var promoted = PromotedEventsStore.shared
     @State private var query = ""
     @State private var events: [ConcertEvent] = []
@@ -108,10 +109,13 @@ struct SearchView: View {
             .onChange(of: cityStore.selectedCity) { _, _ in
                 Task { await loadEventsAndCategories() }
             }
-            .task { await loadDirectory(.person) }
-            .task { await loadDirectory(.ensemble) }
-            .task { await loadDirectory(.venue) }
-            .task { await loadDirectory(.work) }
+            // Verzeichnisse (u. a. >3000 Personen) erst nach dem ersten
+            // Inhalt und nacheinander laden — vorher konkurrierten sie beim
+            // Öffnen der Suche mit den Konzerten um Netz und Rechenzeit.
+            .task {
+                try? await Task.sleep(for: .seconds(1.5))
+                for kind in [EntityKind.person, .ensemble, .venue, .work] { await loadDirectory(kind) }
+            }
             .task(id: query) { await search() }
             .onDisappear { speechSearch.stop() }
             // TabView baut den Suche-Tab erst beim ersten Betreten auf — wird
@@ -497,6 +501,8 @@ struct SearchView: View {
         // Genre-/Inspirations-Filter) ersetzt sie anschließend im Hintergrund.
         await cityStore.waitUntilResolved()
         let requestedRegion = cityStore.selectedCity?.id
+        // Beim erneuten Öffnen des Tabs nicht jedes Mal ~2,5 MB neu laden.
+        if loadedEventsRegion == .some(requestedRegion), !events.isEmpty { return }
         if events.isEmpty,
            let quick = try? await eventRepository.upcomingEvents(limit: 40, regionID: requestedRegion),
            !quick.isEmpty, requestedRegion == cityStore.selectedCity?.id {
@@ -510,6 +516,7 @@ struct SearchView: View {
             inspirationCategories = remoteCategories.isEmpty ? InspirationCategory.fallback : remoteCategories
             // Veraltete Antwort (Stadt inzwischen gewechselt) verwerfen.
             guard requestedRegion == cityStore.selectedCity?.id else { return }
+            loadedEventsRegion = .some(requestedRegion)
             if let enriched = try? await eventRepository.enrichingImages(in: basicEvents) {
                 events = enriched
             } else {
