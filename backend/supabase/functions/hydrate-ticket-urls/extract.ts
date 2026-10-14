@@ -15,7 +15,8 @@ const EVENT_LINK_PATTERNS: RegExp[] = [
 const MONTHS = ["januar", "februar", "märz", "april", "mai", "juni", "juli", "august", "september", "oktober", "november", "dezember"];
 
 function decodeEntities(value: string): string {
-  return value.replace(/&amp;/g, "&").replace(/&#x2F;/gi, "/").replace(/&#47;/g, "/");
+  // &amp; zuletzt auflösen, sonst würde "&amp;#47;" doppelt dekodiert.
+  return value.replace(/&#x2F;/gi, "/").replace(/&#47;/g, "/").replace(/&amp;/g, "&");
 }
 
 /** Datums-Schreibweisen, die neben einem passenden Link stehen könnten. */
