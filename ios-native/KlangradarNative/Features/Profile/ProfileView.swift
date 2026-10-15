@@ -86,6 +86,11 @@ struct ProfileView: View {
                     } label: {
                         Label("Mein Klangradar", systemImage: "person.crop.rectangle.stack")
                     }
+                    NavigationLink {
+                        FriendsView(auth: auth, repository: userRepository)
+                    } label: {
+                        Label("Freunde", systemImage: "person.2")
+                    }
                     // Nutzerwunsch: unter "Mein Klangradar", Schrift schwarz wie
                     // die übrigen Zeilen (nur das Symbol in Akzentfarbe).
                     Button {

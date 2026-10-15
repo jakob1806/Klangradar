@@ -36,6 +36,7 @@ struct EventDetailView: View {
                         titleBlock
 
                         if let detail {
+                            FriendsAttendingRow(event: event, shareURL: (detail.string("ticket_url") ?? detail.string("website_url")).flatMap(URL.init(string:)))
                             genres(detail)
                             essentialFacts(detail)
 
