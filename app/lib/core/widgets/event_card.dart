@@ -1,5 +1,10 @@
+import 'dart:ui';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../promotions/promoted_events_provider.dart';
 
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
@@ -9,7 +14,7 @@ import 'genre_artwork.dart';
 /// Karten-Widget für Event-Listen (Home-Sektionen, Suchergebnisse, Favoriten).
 /// Bild trägt die Emotion, Metadaten bleiben knapp — siehe
 /// docs/04-design-system.md, §4 „EventCard".
-class EventCard extends StatelessWidget {
+class EventCard extends ConsumerWidget {
   const EventCard({
     required this.eventId,
     required this.title,
@@ -32,8 +37,11 @@ class EventCard extends StatelessWidget {
   final double width;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.appColors;
+    final isPromoted =
+        ref.watch(promotedEventsProvider).valueOrNull?.ids.contains(eventId) ??
+        false;
     // Begrenzt Download+Decoding aufs tatsächlich sichtbare Kartenbild
     // (3:2-Ratio) statt der vollen Originalauflösung (Perf-Audit Punkt 4).
     final dpr = MediaQuery.devicePixelRatioOf(context);
@@ -48,9 +56,12 @@ class EventCard extends StatelessWidget {
       // BLEIBT als eigener, separat fokussierbarer Knoten erreichbar.
       child: Semantics(
         button: true,
-        label: badgeLabel != null
-            ? '$title, $venueAndTime, $badgeLabel'
-            : '$title, $venueAndTime',
+        label: [
+          if (isPromoted) 'Anzeige',
+          title,
+          venueAndTime,
+          if (badgeLabel != null) badgeLabel!,
+        ].join(', '),
         onTap: onTap,
         child: GestureDetector(
           onTap: onTap,
@@ -128,6 +139,16 @@ class EventCard extends StatelessWidget {
                           ),
                         ),
                       ),
+                    // Bezahlte Promotion: dezentes „Anzeige“-Label (Parität
+                    // zum iOS-EventArtwork). Oben links, oder unten links,
+                    // wenn dort schon ein Status-Badge sitzt.
+                    if (isPromoted)
+                      Positioned(
+                        left: 6,
+                        top: badgeLabel == null ? 6 : null,
+                        bottom: badgeLabel == null ? null : 6,
+                        child: const _AdLabel(),
+                      ),
                     Positioned(
                       right: 6,
                       top: 6,
@@ -162,6 +183,35 @@ class EventCard extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AdLabel extends StatelessWidget {
+  const _AdLabel();
+
+  @override
+  Widget build(BuildContext context) {
+    return ExcludeSemantics(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(999),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            color: Colors.black.withValues(alpha: 0.28),
+            child: const Text(
+              'Anzeige',
+              style: TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+                letterSpacing: 0.2,
+              ),
+            ),
           ),
         ),
       ),
