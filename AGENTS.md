@@ -26,6 +26,7 @@ doppelt gebaute Features (Coach vs. Personal Concierge), ein komplett
 
 | Agent  | Datum      | Branch                        | Woran                                                                 |
 |--------|------------|--------------------------------|------------------------------------------------------------------------|
+| Claude | 2026-10-15 | claude/oauth-onboarding-first (PR folgt) | Apple-/Google-/E-Mail-Login überspringt das Onboarding nicht mehr (iOS + Flutter): neue Accounts landen bei "Persönliche Daten", nur Rückkehrer gehen direkt in die App. |
 | Claude | 2026-09-30 | fix/internal-function-secret-vault-setup (abgeschlossen, PR #274) | Quellengesundheits-Audit: globaler Ingestion-/Hydration-Ausfall seit ca. 2026-08-28 gefunden und live behoben (fehlendes Vault-Secret `internal_function_secret`, betraf 40+ Cron-Funktionen). MPhil/Gärtnerplatz haben zusätzlich ein separates, echtes TCP-Timeout-Problem (Supabase-Egress zu diesen zwei Hosts) — noch offen, unabhängig vom Secret-Fix. |
 | Claude | 2026-09-24 | fix/toolbar-edge-calendar-searchbar | Neues, eigenständiges Projekt "Wiesn Buddy" (`Wiesn Buddy/`) — natives iOS-Social-App für die Wiesn. Kein Bezug zu Klassik München/TKC; eigener Xcode-Projektordner, eigenes Supabase-Schema. |
 | Claude | 2026-09-30 | kein Branch (eigener Ordner `Knabenchor Kalender-Sync/`) | Eigenständiger Scraper: Tölzer-Knabenchor-Konzerte -> iCloud-Kalender "Konzert & Oper". Kein Bezug zu Klassik München/TKC Kocyan Map/Wiesn Buddy. |
