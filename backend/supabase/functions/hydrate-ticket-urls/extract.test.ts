@@ -23,3 +23,10 @@ Deno.test("mehrere Termine ohne erkennbares Datum: kein Link", () => {
   const html = `<a href="https://x.de/shop/142/link/event/1">A</a><a href="https://x.de/shop/142/link/event/2">B</a>`;
   assertEquals(extractTicketUrl(html, start), null);
 });
+
+import { detectDiscounts } from "./extract.ts";
+
+Deno.test("Ermäßigungen erkennen", () => {
+  assertEquals(detectDiscounts("<p>Ermäßigte Karten für Schüler und Studierende sowie U30-Tickets</p>"), "Schüler/Studierende, unter 30");
+  assertEquals(detectDiscounts("<p>Karten 25–80 €</p>"), null);
+});
