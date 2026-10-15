@@ -12,6 +12,7 @@ import {
 import { getPlacementPriceLabels } from "@/lib/promotion-payment";
 import { loadPromotionStats } from "@/lib/promotion-stats";
 import { resolveEntityNames, type ClaimableEntityType } from "@/lib/entity-tables";
+import { dataQualityEmail, type DataQualityReport } from "@/lib/data-quality-email";
 
 // Täglicher Job (vercel.json → crons). Vercel schickt automatisch
 // "Authorization: Bearer $CRON_SECRET", sobald CRON_SECRET gesetzt ist.
@@ -38,7 +39,7 @@ export async function GET(request: Request) {
   const now = new Date();
   const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString();
   const priceLabels = await getPlacementPriceLabels();
-  const result = { paymentReminders: 0, expired: 0, reviewReminders: 0, claimReminders: 0, summaries: 0 };
+  const result = { paymentReminders: 0, expired: 0, reviewReminders: 0, claimReminders: 0, summaries: 0, qualityReport: false };
   const fields = "id, placement, status, requested_by, requested_at, reviewed_at, stripe_checkout_session_id, events(title, start_datetime)";
   const info = (p: PromotionRow) => ({ eventTitle: p.events?.title ?? "dein Event", placement: p.placement, concertAt: p.events?.start_datetime ?? null, priceLabel: priceLabels[p.placement] });
 
@@ -91,6 +92,13 @@ export async function GET(request: Request) {
     if (stats) await sendPortalEmail(await accountEmail(promotion.requested_by), promotionSummaryEmail({ ...info(promotion), stats }));
     await db.from("event_promotions").update({ summary_sent_at: now.toISOString() }).eq("id", promotion.id);
     result.summaries++;
+  }
+
+  // 5) Täglicher Datenqualitäts-Bericht an die Redaktion.
+  const { data: report } = await db.rpc("data_quality_report");
+  if (report) {
+    await sendPortalEmail(redaktionEmail(), dataQualityEmail(report as DataQualityReport));
+    result.qualityReport = true;
   }
 
   return NextResponse.json(result);
