@@ -31,6 +31,16 @@ test_target = project.new_target(
 )
 test_target.add_dependency(app_target)
 
+ui_test_target = project.new_target(
+  :ui_test_bundle,
+  "KlangradarNativeUITests",
+  :ios,
+  "17.0",
+  nil,
+  :swift
+)
+ui_test_target.add_dependency(app_target)
+
 # Widget-Extension (Homescreen-/Sperrbildschirm-Widget + Live Activity).
 widget_target = project.new_target(
   :app_extension,
@@ -122,6 +132,7 @@ add_files(
   "KlangradarNativeTests",
   [".swift"]
 )
+add_files(project, ui_test_target, root, "KlangradarNativeUITests", [".swift"])
 
 # Version/Build kommen aus dem lokalen Deploy-Zähler (~/.klangradar-build-number,
 # siehe deploy-iphone.sh): 723 -> 7.2.3. Als Build-Phase, damit die Nummer auch
@@ -243,6 +254,18 @@ test_target.build_configurations.each do |config|
   )
 end
 
+ui_test_target.build_configurations.each do |config|
+  config.build_settings.merge!(
+    "CODE_SIGN_STYLE" => "Automatic",
+    "DEVELOPMENT_TEAM" => "DVH3MYQ64A",
+    "GENERATE_INFOPLIST_FILE" => "YES",
+    "IPHONEOS_DEPLOYMENT_TARGET" => "17.0",
+    "PRODUCT_BUNDLE_IDENTIFIER" => "de.klangradar.native.uitests",
+    "SWIFT_VERSION" => "6.0",
+    "TEST_TARGET_NAME" => "KlangradarNative"
+  )
+end
+
 project.build_configurations.each do |config|
   config.build_settings["IPHONEOS_DEPLOYMENT_TARGET"] = "17.0"
 end
@@ -253,6 +276,7 @@ scheme = Xcodeproj::XCScheme.new
 scheme.add_build_target(app_target)
 scheme.set_launch_target(app_target)
 scheme.add_test_target(test_target)
+scheme.add_test_target(ui_test_target)
 scheme.save_as(project_path.to_s, "KlangradarNative", true)
 
 puts "Generated #{project_path}"
