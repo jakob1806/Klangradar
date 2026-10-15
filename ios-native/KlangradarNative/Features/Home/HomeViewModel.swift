@@ -63,14 +63,20 @@ final class HomeViewModel: ObservableObject {
         }
     }
 
-    /// Beim ersten Öffnen gilt Netzwerk-vor-Cache: Ein Snapshot darf nicht
-    /// kurz alte Bilder oder eine unpersonalisierte Rail zeigen. Der Cache
-    /// bleibt als echter Offline-Fallback erhalten.
+    /// Nutzerfeedback "App ist langsam": Ein frischer Snapshot (höchstens
+    /// 12 h alt, gleiches Konto, gleiche Stadt) erscheint sofort, die
+    /// Aktualisierung läuft still im Hintergrund. Ohne passenden Snapshot
+    /// wie bisher Netzwerk-vor-Cache.
     func load() async {
         guard case .idle = state else { return }
         hasStartedLoading = true
         if let auth, case .loading = auth.state {
             state = .loading
+            return
+        }
+        if let cached = HomeCache.load(for: auth?.userID), cached.regionID == regionID {
+            applySnapshot(cached)
+            await refresh(showsLoading: false, usesCacheOnFailure: true)
             return
         }
         await refresh(showsLoading: true, usesCacheOnFailure: true)
@@ -102,6 +108,9 @@ final class HomeViewModel: ObservableObject {
         // würde der gerade gezeigte Stand durch einen Ladespinner ersetzt,
         // obwohl schon etwas zu sehen ist.
         if showsLoading { state = .loading }
+        // Antworten für eine inzwischen geänderte Stadt verwerfen (Wettlauf
+        // beim App-Start: "alle Städte" kam nach "München" an).
+        let requestedRegion = regionID
         do {
             // Nutzerfeedback: "Demnächst in München" hat "zu wenig
             // vorgeschlagen" — 40 war zu knapp, sobald "Heute in München"
@@ -117,14 +126,20 @@ final class HomeViewModel: ObservableObject {
             let modules = await modulesTask
             personalizedEntityIDs = personalization.ids
             hasPersonalizedInterests = personalization.hasAny
-            let recommended = await enrich(modules.recommended)
-            let discovery = await enrich(modules.discovery)
-            let popular = await enrich(modules.popular)
+            guard requestedRegion == regionID else { return }
+            // Bilder aller Module in EINEM Durchgang statt drei nacheinander.
+            var seen = Set<UUID>()
+            let moduleEvents = (modules.recommended + modules.discovery + modules.popular).filter { seen.insert($0.id).inserted }
+            let enrichedByID = Dictionary((await enrich(moduleEvents)).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            let recommended = modules.recommended.map { enrichedByID[$0.id] ?? $0 }
+            let discovery = modules.discovery.map { enrichedByID[$0.id] ?? $0 }
+            let popular = modules.popular.map { enrichedByID[$0.id] ?? $0 }
             recommendedEvents = recommended
             discoveryEvents = discovery
             popularEvents = popular
             favoriteEvents = await favoritesTask
             let finalEvents = enriched ?? events
+            guard requestedRegion == regionID else { return }
             state = .loaded(finalEvents)
             HomeCache.save(HomeSnapshot(
                 events: finalEvents,
@@ -134,6 +149,7 @@ final class HomeViewModel: ObservableObject {
                 personalizedEntityIDs: Array(personalization.ids),
                 hasPersonalizedInterests: personalization.hasAny,
                 userID: auth?.userID,
+                regionID: requestedRegion,
                 savedAtTimestamp: Date().timeIntervalSince1970
             ))
         } catch {

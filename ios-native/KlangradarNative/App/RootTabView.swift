@@ -1,3 +1,4 @@
+import CoreSpotlight
 import SwiftUI
 
 struct RootTabView: View {
@@ -26,6 +27,7 @@ struct RootTabView: View {
     @State private var isAuthenticatingBiometrics = false
     @State private var showsCoach = false
     @ObservedObject private var attendanceMonitor = AttendanceLocationMonitor.shared
+    @ObservedObject private var deepLinks = DeepLinkRouter.shared
 
     init(environment: AppEnvironment) {
         self.environment = environment
@@ -150,6 +152,25 @@ struct RootTabView: View {
             }
         }
         .task { await favorites.load() }
+        .onChange(of: favorites.ids) { _, ids in
+            Task { await ConcertSync.shared.refresh(favoriteIDs: ids, repository: environment.events) }
+        }
+        .onContinueUserActivity(CSSearchableItemActionType) { activity in
+            // Tipp auf ein gemerktes Konzert in der iPhone-Suche (Spotlight).
+            if let identifier = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String, identifier.hasPrefix("event:") {
+                DeepLinkRouter.shared.handle(route: "/event/\(identifier.dropFirst(6))")
+            }
+        }
+        .sheet(item: Binding(
+            get: { deepLinks.pendingEventSlug.map(DeepLinkSlug.init) },
+            set: { deepLinks.pendingEventSlug = $0?.id }
+        )) { link in
+            DeepLinkEventSheet(slug: link.id, repository: environment.events, contentRepository: environment.content)
+        }
+        .task { EngagementLogger.shared.configure(client: environment.restClient, auth: environment.auth) }
+        .task { PlusStore.shared.start() }
+        .task { DiagnosticsReporter.shared.start(client: environment.restClient, auth: environment.auth) }
+        .task { PushRegistration.shared.configure(client: environment.restClient, auth: environment.auth) }
         .task { await PromotedEventsStore.shared.load(client: environment.restClient, repository: environment.events) }
         .task { await follows.load() }
         .task { await cityStore.load() }
@@ -223,6 +244,7 @@ struct RootTabView: View {
             Text(auth.callbackErrorMessage ?? "Bitte fordere einen neuen Link an.")
         }
         .onOpenURL { url in
+            if DeepLinkRouter.shared.handle(url: url) { return }
             if url.scheme == AuthService.callbackScheme, url.host == "auth-callback" {
                 showsOnboarding = false
                 Task { await auth.handleAuthCallback(url) }
@@ -253,6 +275,7 @@ struct RootTabView: View {
                     await unlockWithBiometricsIfNeeded()
                     await attendanceMonitor.refresh()
                     await PromotedEventsStore.shared.refreshIfStale(client: environment.restClient, repository: environment.events)
+                    await ConcertSync.shared.refresh(favoriteIDs: favorites.ids, repository: environment.events)
                 }
             }
         }
@@ -461,4 +484,41 @@ private enum AppTab: Hashable {
     case map
     case calendar
     case profile
+}
+
+private struct DeepLinkSlug: Identifiable {
+    let id: String
+}
+
+/// Lädt ein per Link geöffnetes Event (Push, Widget, Spotlight) und zeigt es.
+private struct DeepLinkEventSheet: View {
+    let slug: String
+    let repository: any EventRepository
+    let contentRepository: any ContentRepository
+    @Environment(\.dismiss) private var dismiss
+    @State private var event: ConcertEvent?
+    @State private var failed = false
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if let event {
+                    EventDetailView(event: event, repository: repository, contentRepository: contentRepository)
+                } else if failed {
+                    ContentUnavailableView("Konzert nicht gefunden", systemImage: "music.note", description: Text("Der Termin ist nicht mehr verfügbar."))
+                } else {
+                    ProgressView()
+                }
+            }
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Schließen", systemImage: "xmark") { dismiss() }
+                }
+            }
+        }
+        .task {
+            event = try? await repository.event(slug: slug)
+            failed = event == nil
+        }
+    }
 }

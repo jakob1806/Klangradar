@@ -7,15 +7,26 @@ struct EventCalendarView: View {
     let userRepository: UserRepository?
     @EnvironmentObject private var cityStore: CityStore
     @ObservedObject private var promoted = PromotedEventsStore.shared
+    /// "Alle Städte" gilt nur im Kalender; eine konkrete Stadt gilt überall.
+    @State private var showsAllCities = false
+    private var regionID: UUID? { showsAllCities ? nil : cityStore.selectedCity?.id }
     @State private var selectedDate = Date.now
     @State private var visibleMonth = Date.now
     @State private var events: [ConcertEvent] = []
     @State private var loadFailed = false
+    /// Bereits geladene Monate (pro Stadt) — beim Zurückblättern oder
+    /// Tab-Wechsel nicht erneut laden.
+    @State private var monthCache: [String: [ConcertEvent]] = [:]
+
+    private var monthInterval: DateInterval {
+        KlangradarDateTime.calendar.dateInterval(of: .month, for: visibleMonth) ?? DateInterval(start: .now, duration: 31 * 86_400)
+    }
+    private var loadKey: String { "\(regionID?.uuidString ?? "all")|\(Int(monthInterval.start.timeIntervalSince1970))" }
 
     private var selectedEvents: [ConcertEvent] {
         // Beworbene Events (Platzierung "standard") stehen in ihrer Tagesliste vorn.
         let day = events.filter { $0.startDate.map { KlangradarDateTime.calendar.isDate($0, inSameDayAs: selectedDate) } ?? false }
-        return promoted.boosting(day, placement: "standard", regionID: cityStore.selectedCity?.id, maxPromoted: 3) { promotedEvent in
+        return promoted.boosting(day, placement: "standard", regionID: regionID, maxPromoted: 3) { promotedEvent in
             day.contains { $0.id == promotedEvent.id }
         }
     }
@@ -61,12 +72,12 @@ struct EventCalendarView: View {
             .toolbar {
                 if #available(iOS 26.0, *) {
                     ToolbarItem(placement: .topBarTrailing) {
-                        CityCompactMenu(cityStore: cityStore)
+                        CityCompactMenu(cityStore: cityStore, allCitiesSelection: $showsAllCities)
                     }
                     .sharedBackgroundVisibility(.hidden)
                 } else {
                     ToolbarItem(placement: .topBarTrailing) {
-                        CityCompactMenu(cityStore: cityStore)
+                        CityCompactMenu(cityStore: cityStore, allCitiesSelection: $showsAllCities)
                     }
                 }
             }
@@ -74,19 +85,28 @@ struct EventCalendarView: View {
             .navigationDestination(for: EntityRoute.self) { EntityDetailView(route: $0, repository: contentRepository) }
             // .task(id:) bricht eine laufende Ladung bei Stadtwechsel ab, sodass
             // eine späte Antwort der alten Stadt die neue nicht überschreibt.
-            .task(id: cityStore.selectedCity?.id) { await loadEvents() }
-            .refreshable { await loadEvents() }
+            .task(id: loadKey) { await loadEvents() }
+            .refreshable { await loadEvents(force: true) }
         }
         .environment(\.locale, Locale(identifier: "de_DE"))
     }
 
-    private func loadEvents() async {
+    /// Lädt nur den sichtbaren Monat statt aller (~1500) kommenden Konzerte.
+    private func loadEvents(force: Bool = false) async {
+        await cityStore.waitUntilResolved()
+        let key = loadKey
+        if !force, let cached = monthCache[key] {
+            events = cached
+            return
+        }
         do {
-            let basic = try await repository.allUpcomingEvents(regionID: cityStore.selectedCity?.id)
+            let interval = monthInterval
+            let basic = try await repository.events(from: interval.start, to: interval.end, regionID: regionID)
             try Task.checkCancellation()
             loadFailed = false
             events = basic
             if let enriched = try? await repository.enrichingImages(in: basic), !Task.isCancelled { events = enriched }
+            monthCache[key] = events
         } catch is CancellationError {
             return
         } catch {

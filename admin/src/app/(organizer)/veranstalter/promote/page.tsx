@@ -7,6 +7,7 @@ import { getPromotableEvents } from "./promotable-events";
 import Link from "next/link";
 import { getStripe } from "@/lib/stripe";
 import { activatePaidPromotion, getPlacementPriceLabels } from "@/lib/promotion-payment";
+import { loadPromotionStats, type PromotionStats } from "@/lib/promotion-stats";
 import { PageHeader, PageBody } from "@/components/organizer/page-header";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/organizer/ui/card";
 import { Badge } from "@/components/organizer/ui/badge";
@@ -62,6 +63,12 @@ export default async function PromotePage({ searchParams }: { searchParams: Prom
     getPlacementPriceLabels(),
   ]);
   const promotions = promotionData ?? [];
+  const statsEntries = await Promise.all(
+    promotions
+      .filter((promotion) => promotion.payment_status === "paid" && promotion.starts_at)
+      .map(async (promotion) => [promotion.id, await loadPromotionStats(supabase, promotion.id)] as const),
+  );
+  const statsById = new Map(statsEntries.filter((entry): entry is readonly [string, PromotionStats] => Boolean(entry[1])));
 
   return (
     <div>
@@ -109,6 +116,7 @@ export default async function PromotePage({ searchParams }: { searchParams: Prom
                   <TableHead>Platzierung</TableHead>
                   <TableHead>Preis</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Wirkung</TableHead>
                   <TableHead>Hinweis</TableHead>
                 </TableRow>
               </TableHeader>
@@ -148,6 +156,9 @@ export default async function PromotePage({ searchParams }: { searchParams: Prom
                         </div>
                       )}
                     </TableCell>
+                    <TableCell className="whitespace-nowrap text-xs">
+                      <StatsCell stats={statsById.get(promotion.id)} />
+                    </TableCell>
                     <TableCell className="max-w-xs text-[#6B6B6B]">{promotion.reviewer_note ?? promotion.requester_note ?? "—"}</TableCell>
                   </TableRow>
                 ))}
@@ -156,6 +167,19 @@ export default async function PromotePage({ searchParams }: { searchParams: Prom
           )}
         </section>
       </PageBody>
+    </div>
+  );
+}
+
+/** Wirkung im Vergleich zum Tagesschnitt der 14 Tage vor Promotion-Start. */
+function StatsCell({ stats }: { stats: PromotionStats | undefined }) {
+  if (!stats) return <span className="text-[#A1A1AA]">—</span>;
+  const tone = (value: number) => (value > 0 ? "text-[#2f6b3a]" : "text-[#4A4A4A]");
+  return (
+    <div className="flex flex-col gap-0.5 tabular-nums">
+      <span className={tone(stats.extraViews)}><strong>{stats.reachUplift}</strong> Reichweite</span>
+      <span className={tone(stats.extraClicks)}><strong>{stats.clickUplift}</strong> Ticket-Klicks</span>
+      <span className="text-[#A1A1AA]">{stats.impressions.toLocaleString("de-DE")} Einblendungen</span>
     </div>
   );
 }

@@ -122,6 +122,16 @@ echo ""
 
 BUILD_LOG="/tmp/klangradar-build.log"
 
+# App-Store-Connect-API-Schlüssel (wie upload-testflight.sh): Profile,
+# App Group und Widget-Identifier legt xcodebuild damit selbst an, auch
+# wenn in Xcode gerade kein Account angemeldet ist.
+ASC_ARGS=()
+if [ -f "$HOME/.appstoreconnect/config" ]; then
+    # shellcheck disable=SC1091
+    source "$HOME/.appstoreconnect/config"
+    [ -f "${ASC_KEY_PATH:-}" ] && ASC_ARGS=(-authenticationKeyPath "$ASC_KEY_PATH" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID")
+fi
+
 xcodebuild \
 -project "$PROJECT" \
 -scheme "$SCHEME" \
@@ -129,6 +139,8 @@ xcodebuild \
 -destination "id=$DEVICE_ID" \
 -derivedDataPath "$DERIVED_DATA" \
 -allowProvisioningUpdates \
+-allowProvisioningDeviceRegistration \
+"${ASC_ARGS[@]}" \
 CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
 MARKETING_VERSION="$MARKETING_VERSION_VALUE" \
 build >"$BUILD_LOG" 2>&1

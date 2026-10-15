@@ -31,6 +31,16 @@ test_target = project.new_target(
 )
 test_target.add_dependency(app_target)
 
+# Widget-Extension (Homescreen-/Sperrbildschirm-Widget + Live Activity).
+widget_target = project.new_target(
+  :app_extension,
+  "KlangradarWidgets",
+  :ios,
+  "17.0",
+  nil,
+  :swift
+)
+
 def add_files(project, target, root, folder, extensions, resources: false)
   base = root.join(folder)
   group = project.main_group.find_subpath(folder, true)
@@ -79,6 +89,25 @@ add_asset_catalogs(
   "KlangradarNative/Resources"
 )
 
+# Gemeinsamer Code für App und Widget (App-Group-Daten, Live-Activity-Typen).
+add_files(project, app_target, root, "KlangradarShared", [".swift"])
+widget_shared_group = project.main_group.find_subpath("KlangradarShared", true)
+widget_shared_group.files.each { |file| widget_target.source_build_phase.add_file_reference(file, true) }
+add_files(project, widget_target, root, "KlangradarWidgets", [".swift"])
+widget_files_group = project.main_group.find_subpath("KlangradarWidgets", true)
+widget_files_group.new_file(root.join("KlangradarWidgets", "Info.plist").to_s)
+
+# Extension in die App einbetten.
+app_target.add_dependency(widget_target)
+embed_phase = app_target.new_copy_files_build_phase("Embed Foundation Extensions")
+embed_phase.symbol_dst_subfolder_spec = :plug_ins
+embed_build_file = embed_phase.add_file_reference(widget_target.product_reference, true)
+embed_build_file.settings = { "ATTRIBUTES" => ["RemoveHeadersOnCopy"] }
+
+# Datenschutz-Manifest (App-Store-Pflicht) als Ressource einbinden.
+privacy_manifest = app_target.project.main_group.find_subpath("KlangradarNative/Resources", true).new_reference(root.join("KlangradarNative", "Resources", "PrivacyInfo.xcprivacy").to_s)
+app_target.resources_build_phase.add_file_reference(privacy_manifest, true)
+
 secrets_path = root.join("Config", "Secrets.plist")
 if secrets_path.exist?
   config_group = project.main_group.find_subpath("Config", true)
@@ -113,6 +142,11 @@ version_phase.shell_script = <<~'SH'
   /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$PLIST"
 SH
 
+widget_version_phase = widget_target.new_shell_script_build_phase("Version aus Build-Zähler")
+widget_version_phase.always_out_of_date = "1"
+# Widget und App müssen dieselbe Version tragen, sonst lehnt App Store Connect den Upload ab.
+widget_version_phase.shell_script = version_phase.shell_script
+
 app_target.build_configurations.each do |config|
   config.build_settings.merge!(
     "ENABLE_USER_SCRIPT_SANDBOXING" => "NO",
@@ -122,10 +156,15 @@ app_target.build_configurations.each do |config|
     "CURRENT_PROJECT_VERSION" => "1",
     "DEVELOPMENT_ASSET_PATHS" => "",
     "DEVELOPMENT_TEAM" => "DVH3MYQ64A",
+    # Push (aps-environment) und Sign in with Apple.
+    "CODE_SIGN_ENTITLEMENTS" => "KlangradarNative/KlangradarNative.entitlements",
     "ENABLE_PREVIEWS" => "YES",
     "GENERATE_INFOPLIST_FILE" => "YES",
     "INFOPLIST_KEY_CFBundleDisplayName" => "Klangradar",
     "INFOPLIST_KEY_LSApplicationCategoryType" => "public.app-category.music",
+    # Nur Standard-HTTPS — erspart die Exportkontroll-Frage bei jedem Upload.
+    "INFOPLIST_KEY_ITSAppUsesNonExemptEncryption" => "NO",
+    "INFOPLIST_KEY_NSSupportsLiveActivities" => "YES",
     "INFOPLIST_KEY_NSLocationWhenInUseUsageDescription" => "Klangradar nutzt deinen Standort, um Konzerte in deiner Nähe zu zeigen.",
     # Nutzerwunsch: passive Erkennung "warst du bei diesem gemerkten Konzert?"
     # per Geofencing (siehe AttendanceLocationMonitor) — braucht laut Apple
@@ -159,6 +198,31 @@ app_target.build_configurations.each do |config|
     "PRODUCT_NAME" => "$(TARGET_NAME)",
     "SUPPORTED_PLATFORMS" => "iphoneos iphonesimulator",
     "SUPPORTS_MACCATALYST" => "NO",
+    "SWIFT_EMIT_LOC_STRINGS" => "YES",
+    "SWIFT_STRICT_CONCURRENCY" => "complete",
+    "SWIFT_VERSION" => "6.0",
+    "TARGETED_DEVICE_FAMILY" => "1,2"
+  )
+end
+
+widget_target.build_configurations.each do |config|
+  config.build_settings.merge!(
+    "ENABLE_USER_SCRIPT_SANDBOXING" => "NO",
+    "CODE_SIGN_STYLE" => "Automatic",
+    "CODE_SIGN_ENTITLEMENTS" => "KlangradarWidgets/KlangradarWidgets.entitlements",
+    "CURRENT_PROJECT_VERSION" => "1",
+    "DEVELOPMENT_TEAM" => "DVH3MYQ64A",
+    "GENERATE_INFOPLIST_FILE" => "YES",
+    "INFOPLIST_FILE" => "KlangradarWidgets/Info.plist",
+    "INFOPLIST_KEY_CFBundleDisplayName" => "Klangradar",
+    "INFOPLIST_KEY_NSHumanReadableCopyright" => "",
+    "IPHONEOS_DEPLOYMENT_TARGET" => "17.0",
+    "LD_RUNPATH_SEARCH_PATHS" => "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks",
+    "MARKETING_VERSION" => "1.0",
+    "PRODUCT_BUNDLE_IDENTIFIER" => "de.klangradar.native.widgets",
+    "PRODUCT_NAME" => "$(TARGET_NAME)",
+    "SKIP_INSTALL" => "YES",
+    "SUPPORTED_PLATFORMS" => "iphoneos iphonesimulator",
     "SWIFT_EMIT_LOC_STRINGS" => "YES",
     "SWIFT_STRICT_CONCURRENCY" => "complete",
     "SWIFT_VERSION" => "6.0",

@@ -68,10 +68,21 @@ protocol EventRepository: Sendable {
     /// Kommende Events per ID — für beworbene Events, die nicht in der
     /// normalen (zeitlich begrenzten) Home-Abfrage enthalten sein müssen.
     func events(ids: [UUID]) async throws -> [ConcertEvent]
+    /// Events in einem Zeitraum (Kalender lädt nur den sichtbaren Monat).
+    func events(from: Date, to: Date, regionID: UUID?) async throws -> [ConcertEvent]
+    /// Ein Event per Slug (Deep-Links aus Push, Widget, Spotlight).
+    func event(slug: String) async throws -> ConcertEvent?
 }
 
 extension EventRepository {
     func events(ids: [UUID]) async throws -> [ConcertEvent] { [] }
+    func events(from: Date, to: Date, regionID: UUID?) async throws -> [ConcertEvent] {
+        try await allUpcomingEvents(regionID: regionID).filter { event in
+            guard let start = event.startDate else { return false }
+            return start >= from && start < to
+        }
+    }
+    func event(slug: String) async throws -> ConcertEvent? { nil }
 
     func upcomingEvents(limit: Int) async throws -> [ConcertEvent] {
         try await upcomingEvents(limit: limit, regionID: nil)
@@ -103,6 +114,18 @@ struct LiveEventRepository: EventRepository {
     /// dafür muss der Embed als `venues!inner(...)` erfolgen (siehe
     /// app/lib/core/regions/calendar_providers.dart), sonst wird die
     /// eingebettete Tabelle nur mitgeliefert statt gefiltert.
+    func event(slug: String) async throws -> ConcertEvent? {
+        let rows: [ConcertEvent] = try await client.get(table: "events", queryItems: [
+            URLQueryItem(
+                name: "select",
+                value: "id,slug,title,subtitle,start_datetime,venue_detail,image_urls,updated_at,status,category,is_free,venues(id,name,photo_url,city_id),event_genres(genres(id,slug,label_de)),event_participants(persons(id,full_name,photo_url),ensembles(id,name,photo_url))"
+            ),
+            URLQueryItem(name: "slug", value: "eq.\(slug)"),
+            URLQueryItem(name: "limit", value: "1")
+        ])
+        return try await enrichingImages(in: rows).first ?? rows.first
+    }
+
     func events(ids: [UUID]) async throws -> [ConcertEvent] {
         guard !ids.isEmpty else { return [] }
         return try await client.get(table: "events", queryItems: [
@@ -116,7 +139,17 @@ struct LiveEventRepository: EventRepository {
         ])
     }
 
-    private func fetchEvents(limit: Int, offset: Int, regionID: UUID? = nil) async throws -> [ConcertEvent] {
+    func events(from: Date, to: Date, regionID: UUID?) async throws -> [ConcertEvent] {
+        var result: [ConcertEvent] = []
+        let pageSize = 500
+        while true {
+            let page = try await fetchEvents(limit: pageSize, offset: result.count, regionID: regionID, from: max(from, .now), to: to)
+            result.append(contentsOf: page)
+            if page.count < pageSize { return result }
+        }
+    }
+
+    private func fetchEvents(limit: Int, offset: Int, regionID: UUID? = nil, from: Date = .now, to: Date? = nil) async throws -> [ConcertEvent] {
         let venuesEmbed = regionID == nil ? "venues(id,name,photo_url,city_id)" : "venues!inner(id,name,photo_url,city_id)"
         var queryItems = [
             URLQueryItem(
@@ -126,12 +159,15 @@ struct LiveEventRepository: EventRepository {
             URLQueryItem(name: "status", value: "eq.scheduled"),
             URLQueryItem(
                 name: "start_datetime",
-                value: "gte.\(ISO8601DateFormatter().string(from: .now))"
+                value: "gte.\(ISO8601DateFormatter().string(from: from))"
             ),
             URLQueryItem(name: "order", value: "start_datetime.asc"),
             URLQueryItem(name: "limit", value: String(limit)),
             URLQueryItem(name: "offset", value: String(offset))
         ]
+        if let to {
+            queryItems.append(URLQueryItem(name: "start_datetime", value: "lt.\(ISO8601DateFormatter().string(from: to))"))
+        }
         if let regionID {
             queryItems.append(URLQueryItem(name: "venues.city_id", value: "eq.\(regionID.uuidString)"))
         }
@@ -144,29 +180,46 @@ struct LiveEventRepository: EventRepository {
                 + (event.eventParticipants ?? []).flatMap { [$0.persons?.id, $0.ensembles?.id].compactMap { $0 } }
         })
         guard !ids.isEmpty else { return events }
-        var rows: [JSONObject] = []
-        var currentEventRows: [JSONObject] = []
+        // Parallel statt nacheinander: bei großen Listen waren das vorher
+        // Dutzende Anfragen hintereinander (je ~100–300 ms) — Hauptgrund
+        // für langsamen Kalender/Suche.
         let allIDs = Array(ids)
-        for start in stride(from: 0, to: allIDs.count, by: 75) {
-            let chunk = allIDs[start..<min(start + 75, allIDs.count)]
-            let page: [JSONObject] = try await client.get(table: "images", queryItems: [
-                URLQueryItem(name: "select", value: "origin_id,storage_path,source_url,sort_order,updated_at"),
-                URLQueryItem(name: "origin_id", value: "in.(\(chunk.map(\.uuidString).joined(separator: ",")))"),
-                URLQueryItem(name: "license_status", value: "in.(confirmed_free,confirmed_licensed)"),
-                URLQueryItem(name: "quality_status", value: "eq.valid"),
-                URLQueryItem(name: "order", value: "sort_order.asc")
-            ])
-            rows.append(contentsOf: page)
-        }
         let eventIDs = events.map(\.id)
-        for start in stride(from: 0, to: eventIDs.count, by: 75) {
-            let chunk = eventIDs[start..<min(start + 75, eventIDs.count)]
-            let page: [JSONObject] = try await client.get(table: "events", queryItems: [
-                URLQueryItem(name: "select", value: "id,image_urls,updated_at"),
-                URLQueryItem(name: "id", value: "in.(\(chunk.map(\.uuidString).joined(separator: ",")))")
-            ])
-            currentEventRows.append(contentsOf: page)
+        let client = self.client
+        async let imageRows: [JSONObject] = withThrowingTaskGroup(of: [JSONObject].self) { group in
+            for start in stride(from: 0, to: allIDs.count, by: 75) {
+                let chunk = Array(allIDs[start..<min(start + 75, allIDs.count)])
+                group.addTask {
+                    try await client.get(table: "images", queryItems: [
+                        URLQueryItem(name: "select", value: "origin_id,storage_path,source_url,sort_order,updated_at"),
+                        URLQueryItem(name: "origin_id", value: "in.(\(chunk.map(\.uuidString).joined(separator: ",")))"),
+                        URLQueryItem(name: "license_status", value: "in.(confirmed_free,confirmed_licensed)"),
+                        URLQueryItem(name: "quality_status", value: "eq.valid"),
+                        URLQueryItem(name: "order", value: "sort_order.asc")
+                    ])
+                }
+            }
+            var all: [JSONObject] = []
+            for try await page in group { all.append(contentsOf: page) }
+            return all
         }
+        async let eventRows: [JSONObject] = withThrowingTaskGroup(of: [JSONObject].self) { group in
+            for start in stride(from: 0, to: eventIDs.count, by: 75) {
+                let chunk = Array(eventIDs[start..<min(start + 75, eventIDs.count)])
+                group.addTask {
+                    try await client.get(table: "events", queryItems: [
+                        URLQueryItem(name: "select", value: "id,image_urls,updated_at"),
+                        URLQueryItem(name: "id", value: "in.(\(chunk.map(\.uuidString).joined(separator: ",")))")
+                    ])
+                }
+            }
+            var all: [JSONObject] = []
+            for try await page in group { all.append(contentsOf: page) }
+            return all
+        }
+        // Reihenfolge der Galerie-Bilder pro Herkunft bleibt über sort_order stabil.
+        let rows = try await imageRows.sorted { ($0.number("sort_order") ?? 0) < ($1.number("sort_order") ?? 0) }
+        let currentEventRows = try await eventRows
         let currentByID = Dictionary(uniqueKeysWithValues: currentEventRows.compactMap { row -> (String, JSONObject)? in
             guard let id = row.string("id") else { return nil }
             return (id.lowercased(), row)

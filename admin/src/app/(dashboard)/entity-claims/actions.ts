@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { logSystemAction } from "@/lib/system-log";
-import { getResend } from "@/lib/resend";
+import { accountEmail, sendPortalEmail } from "@/lib/portal-email";
+import { claimDecisionEmail } from "@/lib/notification-emails";
 import { resolveEntityNames, type ClaimableEntityType } from "@/lib/entity-tables";
 
 // Bewusst ohne await im Aufrufer und mit eigenem try/catch: eine fehlgeschlagene
@@ -13,19 +14,14 @@ import { resolveEntityNames, type ClaimableEntityType } from "@/lib/entity-table
 // eigentlichen Update passiert.
 async function notifyClaimant(
   supabase: Awaited<ReturnType<typeof createClient>>,
-  claim: { entity_type: ClaimableEntityType; entity_id: string; verification_email: string | null },
+  claim: { entity_type: ClaimableEntityType; entity_id: string; user_id: string; verification_email: string | null },
   outcome: "approved" | "rejected",
 ) {
-  if (!claim.verification_email) return;
   try {
     const names = await resolveEntityNames(supabase, [{ entityType: claim.entity_type, entityId: claim.entity_id }]);
-    const name = names.get(`${claim.entity_type}:${claim.entity_id}`) ?? "deine Anfrage";
-    const subject = outcome === "approved" ? `Dein Claim für ${name} wurde genehmigt` : `Dein Claim für ${name} wurde abgelehnt`;
-    const html =
-      outcome === "approved"
-        ? `<p>Dein Antrag, <strong>${name}</strong> auf Klangradar zu verwalten, wurde genehmigt.</p><p><a href="https://klangradar.com/veranstalter">Jetzt im Veranstalterportal loslegen</a></p>`
-        : `<p>Dein Antrag, <strong>${name}</strong> auf Klangradar zu verwalten, wurde leider abgelehnt.</p><p>Bei Fragen antworte gerne auf diese E-Mail.</p>`;
-    await getResend().emails.send({ from: "Klangradar <noreply@klangradar.com>", to: claim.verification_email, subject, html });
+    const entityName = names.get(`${claim.entity_type}:${claim.entity_id}`) ?? "dein Profil";
+    const recipients = [...new Set([await accountEmail(claim.user_id), claim.verification_email].filter(Boolean) as string[])];
+    await sendPortalEmail(recipients, claimDecisionEmail({ entityType: claim.entity_type, entityName, outcome }));
   } catch (error) {
     console.error("Konnte Claim-Benachrichtigung nicht senden:", error);
   }
