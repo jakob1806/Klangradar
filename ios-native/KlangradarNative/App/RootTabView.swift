@@ -169,6 +169,7 @@ struct RootTabView: View {
         }
         .task { EngagementLogger.shared.configure(client: environment.restClient, auth: environment.auth) }
         .task { PlusStore.shared.start() }
+        .task { DiagnosticsReporter.shared.start(client: environment.restClient, auth: environment.auth) }
         .task { PushRegistration.shared.configure(client: environment.restClient, auth: environment.auth) }
         .task { await PromotedEventsStore.shared.load(client: environment.restClient, repository: environment.events) }
         .task { await follows.load() }
