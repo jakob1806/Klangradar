@@ -137,6 +137,22 @@ struct RootTabView: View {
         .onChange(of: genreFilterRouter.pending) { _, pending in
             if pending != nil { selection = .search }
         }
+        .onChange(of: deepLinks.pendingTab) { _, tab in
+            guard let tab else { return }
+            switch tab {
+            case "search": selection = .search
+            case "map": selection = .map
+            case "calendar": selection = .calendar
+            case "profile": selection = .profile
+            default: selection = .home
+            }
+            deepLinks.pendingTab = nil
+        }
+        .onChange(of: deepLinks.pendingCoach) { _, open in
+            guard open else { return }
+            showsCoach = true
+            deepLinks.pendingCoach = false
+        }
         .task {
             await auth.bootstrap()
             await refreshOnboardingGate()
