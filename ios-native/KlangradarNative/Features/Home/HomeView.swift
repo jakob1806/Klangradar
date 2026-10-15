@@ -2,7 +2,7 @@ import SwiftUI
 
 enum HomeRecommendationCategory: String, CaseIterable, Codable, Identifiable {
     case forYou, today, nextSevenDays, weekend, popular, discover
-    case opera, orchestra, chamber, choir, free, upcoming, editorialCollections
+    case opera, orchestra, chamber, choir, free, budget, upcoming, editorialCollections
     case favorites, taste, entitySpotlight, followed
     case followedPersons, followedEnsembles, followedVenues
 
@@ -30,6 +30,7 @@ enum HomeRecommendationCategory: String, CaseIterable, Codable, Identifiable {
         case .chamber: "Kammermusik & Recitals"
         case .choir: "Chor & Vokalmusik"
         case .free: "Eintritt frei"
+        case .budget: "Günstig & ermäßigt"
         case .upcoming: "Demnächst in \(city)"
         case .favorites: "Deine Favoriten"
         case .taste: "Nach deinem Geschmack"
@@ -55,6 +56,7 @@ enum HomeRecommendationCategory: String, CaseIterable, Codable, Identifiable {
         case .chamber: "music.quarternote.3"
         case .choir: "person.3"
         case .free: "eurosign.circle"
+        case .budget: "tag"
         case .upcoming: "clock"
         case .favorites: "heart.fill"
         case .taste: "wand.and.stars"
@@ -76,7 +78,7 @@ enum HomeRecommendationCategory: String, CaseIterable, Codable, Identifiable {
         .today, .favorites, .followedPersons, .followedEnsembles, .followedVenues,
         .forYou, .taste, .discover,
         .nextSevenDays, .weekend, .popular, .editorialCollections,
-        .opera, .orchestra, .chamber, .choir, .free, .upcoming
+        .opera, .orchestra, .chamber, .choir, .free, .budget, .upcoming
     ]
 }
 
@@ -308,6 +310,13 @@ struct HomeView: View {
             EventRail(title: category.title(cityName: cityStore.selectedCity?.name), events: Array(events.filter { $0.matchesFeedTerms(["chor", "vokal", "lied", "requiem", "messe"]) }.prefix(14)))
         case .free:
             EventRail(title: category.title(cityName: cityStore.selectedCity?.name), events: Array(events.filter { $0.isFree == true }.prefix(14)))
+        case .budget:
+            // Kostenlos, bis 20 € oder mit Ermäßigungs-Hinweis (Schüler,
+            // Studierende, unter 30, Last Minute) — günstigste zuerst.
+            EventRail(title: category.title(cityName: cityStore.selectedCity?.name), events: Array(events
+                .filter { $0.isFree == true || ($0.priceMin ?? .infinity) <= 20 || $0.hasDiscount }
+                .sorted { ($0.isFree == true ? 0 : $0.priceMin ?? 999) < ($1.isFree == true ? 0 : $1.priceMin ?? 999) }
+                .prefix(14)))
         case .upcoming:
             EventRail(title: category.title(cityName: cityStore.selectedCity?.name), events: promoted.boosting(withoutHero(events).filter { !($0.startDate.map(KlangradarDateTime.calendar.isDateInToday) ?? false) }.sorted { lhs, rhs in
                 lhs.matchesPersonalization(model.personalizedEntityIDs) && !rhs.matchesPersonalization(model.personalizedEntityIDs)

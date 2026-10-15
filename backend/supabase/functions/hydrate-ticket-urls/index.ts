@@ -7,7 +7,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireInternalAuth } from "../_shared/internalAuth.ts";
-import { extractTicketUrl } from "./extract.ts";
+import { detectDiscounts, extractTicketUrl } from "./extract.ts";
 
 const USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15 Klangradar";
 
@@ -21,7 +21,7 @@ Deno.serve(async (req) => {
 
   const { data: events, error } = await db
     .from("events")
-    .select("id, website_url, start_datetime")
+    .select("id, website_url, start_datetime, discount_info")
     .eq("status", "scheduled")
     .gte("start_datetime", new Date().toISOString())
     .is("ticket_url", null)
@@ -48,8 +48,10 @@ Deno.serve(async (req) => {
     }
     const html = pageCache.get(url);
     const ticketUrl = html ? extractTicketUrl(html, new Date(event.start_datetime as string)) : null;
+    const discounts = html && !event.discount_info ? detectDiscounts(html) : null;
     await db.from("events").update({
       ...(ticketUrl ? { ticket_url: ticketUrl } : {}),
+      ...(discounts ? { discount_info: discounts } : {}),
       ticket_url_checked_at: new Date().toISOString(),
     }).eq("id", event.id).is("ticket_url", null);
     if (ticketUrl) found++;
