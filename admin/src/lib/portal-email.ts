@@ -24,6 +24,8 @@ export function portalEmail(input: {
   cta?: { label: string; href: string };
   note?: string;
   footer?: string;
+  /** Optionale Tabelle (erste Zeile = Kopf). */
+  table?: string[][];
 }): PortalEmail {
   const href = input.cta ? (input.cta.href.startsWith("http") ? input.cta.href : `${siteUrl()}${input.cta.href}`) : null;
   const paragraphs = input.paragraphs
@@ -36,6 +38,11 @@ export function portalEmail(input: {
     : "";
   const button = href
     ? `<table role="presentation" cellspacing="0" cellpadding="0"><tr><td style="background:#2D2A6E;border-radius:999px;"><a href="${href}" style="display:inline-block;padding:14px 28px;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;">${escapeHtml(input.cta!.label)}</a></td></tr></table>`
+    : "";
+  const table = input.table?.length
+    ? `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:4px 0 24px 0;font-size:13px;">${input.table
+        .map((row, r) => `<tr>${row.map((cell, c) => `<td style="padding:7px 8px;border-bottom:1px solid #EEEEE9;${c > 0 ? "text-align:right;" : ""}${r === 0 ? "color:#A1A1AA;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;" : "color:#18181B;"}">${escapeHtml(cell)}</td>`).join("")}</tr>`)
+        .join("")}</table>`
     : "";
   const note = input.note ? `<p style="margin:22px 0 0 0;font-size:13px;line-height:1.6;color:#71717A;">${escapeHtml(input.note)}</p>` : "";
 
@@ -53,7 +60,7 @@ export function portalEmail(input: {
       <tr><td style="background:#ffffff;border-radius:20px;padding:36px 32px;border:1px solid rgba(24,24,27,0.06);font-family:${FONT};color:#18181B;">
         <div style="font-size:11px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:#2D2A6E;">${escapeHtml(input.eyebrow)}</div>
         <h1 style="margin:10px 0 16px 0;font-size:24px;line-height:1.25;font-weight:800;letter-spacing:-0.4px;color:#18181B;">${escapeHtml(input.title)}</h1>
-        ${paragraphs}${facts}${button}${note}
+        ${paragraphs}${facts}${table}${button}${note}
         ${href ? `<p style="margin:14px 0 0 0;font-size:12px;line-height:1.6;color:#A1A1AA;word-break:break-all;">Funktioniert der Button nicht? Link: ${href}</p>` : ""}
       </td></tr>
       <tr><td style="padding:18px 8px 0 8px;font:12px/1.6 ${FONT};color:#A1A1AA;text-align:center;">

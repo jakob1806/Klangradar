@@ -10,7 +10,7 @@ struct KlangradarNativeApp: App {
     var body: some Scene {
         WindowGroup {
             Group {
-                if environment.isUsingPreviewData {
+                if environment.isUsingPreviewData && ProcessInfo.processInfo.environment["KLANGRADAR_UI_TEST"] != "1" {
                     SupabaseConfigurationMissingView()
                 } else {
                     RootTabView(environment: environment)
