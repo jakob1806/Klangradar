@@ -12,7 +12,7 @@ import {
 import { getPlacementPriceLabels } from "@/lib/promotion-payment";
 import { loadPromotionStats } from "@/lib/promotion-stats";
 import { resolveEntityNames, type ClaimableEntityType } from "@/lib/entity-tables";
-import { dataQualityEmail, type DataQualityReport } from "@/lib/data-quality-email";
+import { dataQualityEmail, type DataQualityReport, type DiagnosticsRow } from "@/lib/data-quality-email";
 
 // Täglicher Job (vercel.json → crons). Vercel schickt automatisch
 // "Authorization: Bearer $CRON_SECRET", sobald CRON_SECRET gesetzt ist.
@@ -95,9 +95,12 @@ export async function GET(request: Request) {
   }
 
   // 5) Täglicher Datenqualitäts-Bericht an die Redaktion.
-  const { data: report } = await db.rpc("data_quality_report");
+  const [{ data: report }, { data: diagnostics }] = await Promise.all([
+    db.rpc("data_quality_report"),
+    db.rpc("app_diagnostics_summary"),
+  ]);
   if (report) {
-    await sendPortalEmail(redaktionEmail(), dataQualityEmail(report as DataQualityReport));
+    await sendPortalEmail(redaktionEmail(), dataQualityEmail(report as DataQualityReport, (diagnostics ?? []) as DiagnosticsRow[]));
     result.qualityReport = true;
   }
 
