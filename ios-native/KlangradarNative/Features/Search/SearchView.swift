@@ -694,7 +694,7 @@ private struct SearchDiscoveryEventCard: View {
                 Text(event.title)
                     .font(.headline.bold())
                     .lineLimit(3)
-                Text(event.dateLine)
+                Text([event.dateLine, event.priceLabel].compactMap { $0 }.joined(separator: " · "))
                     .font(.caption)
                     .lineLimit(2)
                     .foregroundStyle(.white.opacity(0.78))
