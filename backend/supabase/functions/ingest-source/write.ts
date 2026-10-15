@@ -18,6 +18,7 @@ interface SourceRow {
   organizer_id?: string | null;
   person_id?: string | null;
   ensemble_id?: string | null;
+  city_id?: string | null;
   consecutive_failures?: number | null;
   confidence_thresholds?: { auto?: number; quick?: number } | null;
   config?: { autoPublish?: boolean } | null;
