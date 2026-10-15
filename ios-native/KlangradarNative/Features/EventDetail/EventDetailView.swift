@@ -49,6 +49,7 @@ struct EventDetailView: View {
                             program(detail)
                             participants(detail)
                             ticketDetails(detail)
+                            EveningPlanSection(event: event, detail: detail)
                             accessibility(detail)
                             venue(detail)
                             similarEvents(detail)
