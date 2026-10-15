@@ -6,6 +6,9 @@ import Foundation
 final class DeepLinkRouter: ObservableObject {
     static let shared = DeepLinkRouter()
     @Published var pendingEventSlug: String?
+    /// Von Siri/Kurzbefehlen (KlangradarShortcuts): Tab bzw. KI öffnen.
+    @Published var pendingTab: String?
+    @Published var pendingCoach = false
 
     /// true, wenn der Link ein Event-Link war und übernommen wurde.
     @discardableResult

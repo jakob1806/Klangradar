@@ -481,11 +481,13 @@ struct LevelDetailView: View {
     let eventRepository: any EventRepository
     let contentRepository: any ContentRepository
     @State private var summary = ProfileSocialSummary.empty
+    @State private var recapYear: Int?
 
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 22) {
                 levelHeader
+                yearRecapBanner
                 discoveryGrid
                 achievementsSection
                 landscapeSection
@@ -494,6 +496,9 @@ struct LevelDetailView: View {
         .background(Color(uiColor: .systemGroupedBackground))
         .navigationTitle("Klanglevel")
         .navigationBarTitleDisplayMode(.inline)
+        .fullScreenCover(item: Binding(get: { recapYear.map(RecapYear.init) }, set: { recapYear = $0?.id })) { selection in
+            YearRecapView(visits: summary.visits, year: selection.id)
+        }
         .task { await load() }
         .refreshable { await load() }
     }
@@ -514,6 +519,31 @@ struct LevelDetailView: View {
             }
             Text("Echte musikalische Entdeckung zählt: Besuche, neue Werke, Komponist:innen und Spielstätten.").font(.subheadline).foregroundStyle(.white.opacity(0.86))
         }.foregroundStyle(.white).padding(20).background(LinearGradient(colors: [KlangradarTheme.accent, .indigo.opacity(0.82)], startPoint: .topLeading, endPoint: .bottomTrailing), in: .rect(cornerRadius: 26, style: .continuous))
+    }
+
+    private struct RecapYear: Identifiable { let id: Int }
+
+    /// Jahresrückblick: das jüngste Jahr mit besuchten Konzerten.
+    @ViewBuilder private var yearRecapBanner: some View {
+        if let year = YearRecap.years(in: summary.visits).first {
+            Button {
+                Haptics.light()
+                recapYear = year
+            } label: {
+                HStack(spacing: 14) {
+                    Image(systemName: "sparkles.rectangle.stack.fill").font(.title2).foregroundStyle(KlangradarTheme.accent)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Dein Jahr \(String(year)) in Klang").font(.headline)
+                        Text("Konzerte, Lieblingssaal, meistgehörte Komponist:innen").font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(.tertiary)
+                }
+                .padding(16)
+                .background(.background, in: .rect(cornerRadius: 18, style: .continuous))
+            }
+            .buttonStyle(.plain)
+        }
     }
 
     // Nutzerwunsch: die Kacheln unter "Meine Klangreise" sollen antippbar
