@@ -39,6 +39,9 @@ struct EntityDetailView: View {
                             if let biography = biography(in: detail) {
                                 section("Über \(detail.title)") { Text(biography).lineSpacing(4) }
                             }
+                            if detail.kind == .work {
+                                WorkListeningSection(title: detail.title, composer: detail.fields.object("composer")?.string("full_name"))
+                            }
                             if detail.kind != .work, !detail.gallery.isEmpty { gallery(detail.gallery) }
                             if !detail.events.isEmpty { linkedEvents(detail.events, kind: detail.kind) }
                         }
