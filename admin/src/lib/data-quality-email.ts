@@ -11,10 +11,22 @@ export type DataQualityReport = {
   persons_without_photo: number;
 };
 
+export type DiagnosticsRow = { kind: string; version: string; count: number };
+
+const KIND_LABEL: Record<string, string> = { crash: "Absturz", hang: "Hänger", launch: "langsamer Start" };
+
+/** Ein Satz zur iOS-Stabilität der letzten 24 h (MetricKit, app_diagnostics_summary). */
+function diagnosticsParagraph(rows: DiagnosticsRow[]): string {
+  if (!rows.length) return "iOS-App: keine Abstürze oder Hänger in den letzten 24 Stunden gemeldet.";
+  const total = (kind: string) => rows.filter((r) => r.kind === kind).reduce((n, r) => n + r.count, 0);
+  const top = rows.slice(0, 4).map((r) => `${r.count}× ${KIND_LABEL[r.kind] ?? r.kind} in ${r.version}`).join(", ");
+  return `iOS-App, letzte 24 h: ${total("crash")} Abstürze, ${total("hang")} Hänger, ${total("launch")} langsame Starts (${top}).`;
+}
+
 const pct = (part: number, total: number) => (total ? `${Math.round((part / total) * 100)} %` : "–");
 
 /** Täglicher Datenqualitäts-Bericht an die Redaktion. */
-export function dataQualityEmail(report: DataQualityReport): PortalEmail {
+export function dataQualityEmail(report: DataQualityReport, diagnostics: DiagnosticsRow[] = []): PortalEmail {
   const totals = report.sources.reduce(
     (acc, row) => ({ img: acc.img + row.without_image, link: acc.link + row.without_link, part: acc.part + row.without_participants, prog: acc.prog + row.without_program }),
     { img: 0, link: 0, part: 0, prog: 0 },
@@ -32,6 +44,7 @@ export function dataQualityEmail(report: DataQualityReport): PortalEmail {
       ...(report.stale_sources.length
         ? [`${report.stale_sources.length} aktive Quelle(n) seit über 2 Tagen nicht gelaufen: ${report.stale_sources.slice(0, 8).map((s) => s.name).join(", ")}${report.stale_sources.length > 8 ? " …" : ""}.`]
         : ["Alle aktiven Quellen sind in den letzten 2 Tagen gelaufen."]),
+      diagnosticsParagraph(diagnostics),
     ],
     facts: [
       ["Offene Personen-Duplikate", String(report.pending_person_duplicates)],
