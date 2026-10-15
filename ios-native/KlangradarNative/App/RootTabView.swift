@@ -167,7 +167,10 @@ struct RootTabView: View {
         )) { link in
             DeepLinkEventSheet(slug: link.id, repository: environment.events, contentRepository: environment.content)
         }
-        .task { EngagementLogger.shared.configure(client: environment.restClient, auth: environment.auth) }
+        .task {
+            EngagementLogger.shared.configure(client: environment.restClient, auth: environment.auth)
+            PartnerStore.shared.configure(client: environment.restClient)
+        }
         .task { PlusStore.shared.start() }
         .task { DiagnosticsReporter.shared.start(client: environment.restClient, auth: environment.auth) }
         .task { PushRegistration.shared.configure(client: environment.restClient, auth: environment.auth) }

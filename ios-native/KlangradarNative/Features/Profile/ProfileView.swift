@@ -70,6 +70,15 @@ struct ProfileView: View {
                                 .foregroundStyle(plus.isPlus ? KlangradarTheme.accent : .secondary)
                         }
                     }
+                    NavigationLink {
+                        PartnerOffersView()
+                    } label: {
+                        Label {
+                            Text("Partner-Vorteile").foregroundStyle(.primary)
+                        } icon: {
+                            Image(systemName: "gift.fill")
+                        }
+                    }
                 }
                 .sheet(isPresented: $showsPlus) { PlusPaywallView() }
 
