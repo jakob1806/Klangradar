@@ -856,6 +856,16 @@ final class FollowStore: ObservableObject {
 
     var isSignedIn: Bool { auth.userID != nil }
 
+    /// Einmalige Frage an die Klangradar KI ohne Chatverlauf, etwa für die
+    /// Werk-Einführung auf der Werkseite. Zählt wie eine Chatfrage gegen das
+    /// kostenlose Wochenkontingent (CoachQuota). nil = nicht angemeldet.
+    func askKlangradarAI(_ message: String) async throws -> String? {
+        guard let repository, let token = auth.accessToken else { return nil }
+        let reply = try await repository.askCoach(message: message, conversationID: nil, cityName: nil, token: token)
+        if !PlusStore.shared.isPlus { CoachQuota.recordQuestion() }
+        return reply.answer
+    }
+
     func load() async {
         guard let repository, let userID = auth.userID, let token = auth.accessToken else { return }
         async let persons = try? repository.selectedInterests(.person, userID: userID, token: token)
