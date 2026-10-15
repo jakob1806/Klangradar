@@ -6,6 +6,8 @@ import { PageHeader, PageBody } from "@/components/organizer/page-header";
 import { Card, CardContent } from "@/components/organizer/ui/card";
 import { Button } from "@/components/organizer/ui/button";
 import { BillingForm, type BillingProfile } from "./billing-form";
+import { ProCard } from "./pro-card";
+import { getProStatus } from "@/lib/portal-pro";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/organizer/ui/table";
 
 export const dynamic = "force-dynamic";
@@ -49,10 +51,11 @@ function SummaryCard({ label, value, hint }: { label: string; value: string; hin
   );
 }
 
-export default async function FinancesPage({ searchParams }: { searchParams: Promise<{ rechnung_fehler?: string }> }) {
-  const { rechnung_fehler: invoiceError } = await searchParams;
+export default async function FinancesPage({ searchParams }: { searchParams: Promise<{ rechnung_fehler?: string; pro?: string }> }) {
+  const { rechnung_fehler: invoiceError, pro: proNotice } = await searchParams;
   const supabase = await createClient();
-  await getEventOrganizerOptions();
+  const organizers = await getEventOrganizerOptions();
+  const proStatuses = new Map(await Promise.all(organizers.map(async (o) => [o.id, await getProStatus(o.id)] as const)));
   const { data, error } = await supabase
     .from("event_promotions")
     .select("id, placement, status, payment_status, payment_amount_cents, payment_currency, requested_at, events(title, start_datetime)")
@@ -98,6 +101,8 @@ export default async function FinancesPage({ searchParams }: { searchParams: Pro
               </p>
             )}
 
+            <ProCard organizers={organizers} statuses={proStatuses} notice={proNotice} />
+
             <section className="mt-10 flex flex-col gap-3">
               <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#6B6B6B]">Kampagnenkosten</h2>
               {promotions.length === 0 ? (
@@ -123,7 +128,7 @@ export default async function FinancesPage({ searchParams }: { searchParams: Pro
                           <p className="mt-0.5 text-xs text-[#6B6B6B]">{promotion.events?.title ?? "Gelöschtes Event"}</p>
                         </TableCell>
                         <TableCell className="text-[#4A4A4A]">{promotion.events ? formatMunichDateTime(promotion.events.start_datetime) : "—"}</TableCell>
-                        <TableCell className="text-[#4A4A4A]">{promotion.payment_status === "paid" ? "Bezahlt" : promotion.status === "payment_pending" ? "Ausstehend" : "Noch nicht fällig"}</TableCell>
+                        <TableCell className="text-[#4A4A4A]">{promotion.payment_status === "paid" ? "Bezahlt" : promotion.payment_status === "included" ? "Im Pro-Abo" : promotion.status === "payment_pending" ? "Ausstehend" : "Noch nicht fällig"}</TableCell>
                         <TableCell className="text-right font-medium tabular-nums text-[#111111]">{formatAmount(promotion.payment_amount_cents, promotion.payment_currency)}</TableCell>
                         <TableCell className="text-right">
                           {promotion.payment_status === "paid" && promotion.payment_amount_cents !== null ? (

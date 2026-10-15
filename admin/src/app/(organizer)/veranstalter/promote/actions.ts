@@ -9,6 +9,8 @@ import { redaktionEmail, sendPortalEmail } from "@/lib/portal-email";
 import { promotionApprovedEmail, promotionRequestedEmail, promotionRequestedRedaktionEmail } from "@/lib/notification-emails";
 import { getStripe } from "@/lib/stripe";
 import { getPromotableEvents } from "./promotable-events";
+import { getProStatus } from "@/lib/portal-pro";
+import { promotionActiveEmail } from "@/lib/notification-emails";
 
 export async function cancelPromotion(promotionId: string): Promise<{ error?: string }> {
   const supabase = await createClient();
@@ -66,6 +68,32 @@ export async function requestPromotion(formData: FormData): Promise<{ error?: st
     const event = events.find((item) => item.id === eventId);
     const priceLabels = await getPlacementPriceLabels();
     const info = { eventTitle: event?.title ?? "dein Event", placement, concertAt: event?.startDatetime ?? null, priceLabel: priceLabels[placement] };
+
+    // Portal Pro: Standard-Platzierungen aus dem Monatskontingent sind sofort
+    // aktiv, ohne Zahlung.
+    if (placement === "standard" && inserted?.id && event?.organizerId) {
+      const pro = await getProStatus(event.organizerId);
+      if (pro.active && pro.used < pro.limit) {
+        const { data: activated } = await createAdminClient()
+          .from("event_promotions")
+          .update({
+            status: "approved",
+            payment_status: "included",
+            reviewed_at: new Date().toISOString(),
+            starts_at: new Date().toISOString(),
+            ends_at: event.startDatetime,
+          })
+          .eq("id", inserted.id)
+          .eq("status", "pending")
+          .select("id");
+        if (activated?.length) {
+          await sendPortalEmail(user.email, promotionActiveEmail({ eventTitle: info.eventTitle, placement, concertAt: info.concertAt, amountLabel: "im Portal-Pro-Abo enthalten", promotionId: inserted.id }));
+          revalidatePath("/veranstalter/promote");
+          revalidatePath("/veranstalter/finanzen");
+          return { success: true, autoApproved: true };
+        }
+      }
+    }
 
     // Standard-Platzierung braucht keine redaktionelle Prüfung: sofort
     // zahlbar (Service-Client, Veranstalter dürfen den Status per RLS nicht

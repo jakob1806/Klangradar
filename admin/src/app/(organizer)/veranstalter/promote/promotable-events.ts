@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getEventOrganizerOptions } from "../event-organizer-context";
 
 type ProfileClaim = { entity_type: "venue" | "person" | "ensemble"; entity_id: string };
-type EventRow = { id: string; title: string; start_datetime: string; venue_id: string; image_urls: string[] | null; venues: { name: string } | null };
+type EventRow = { id: string; title: string; start_datetime: string; venue_id: string; organizer_id: string | null; image_urls: string[] | null; venues: { name: string } | null };
 type ParticipantLink = { event_id: string; person_id: string | null; ensemble_id: string | null };
 
 export type PromotableEvent = {
@@ -13,6 +13,8 @@ export type PromotableEvent = {
   venueName: string | null;
   imageUrl: string | null;
   sourceLabel: string;
+  /** Nur bei eigenen Events (Veranstalter-Kontext), für Portal Pro. */
+  organizerId?: string | null;
 };
 
 /** Kommende veröffentlichte Events, die der Nutzer selbst angelegt hat ODER
@@ -30,7 +32,7 @@ export async function getPromotableEvents(): Promise<{ events: PromotableEvent[]
   const venueIds = claims.filter((claim) => claim.entity_type === "venue").map((claim) => claim.entity_id);
   const personIds = claims.filter((claim) => claim.entity_type === "person").map((claim) => claim.entity_id);
   const ensembleIds = claims.filter((claim) => claim.entity_type === "ensemble").map((claim) => claim.entity_id);
-  const eventFields = "id, title, start_datetime, venue_id, image_urls, venues(name)";
+  const eventFields = "id, title, start_datetime, venue_id, organizer_id, image_urls, venues(name)";
   const [own, venues, persons, ensembles] = await Promise.all([
     organizers.length ? supabase.from("events").select(eventFields).eq("status", "scheduled").gt("start_datetime", now).in("organizer_id", organizers.map((organizer) => organizer.id)).returns<EventRow[]>() : Promise.resolve({ data: [] as EventRow[], error: null }),
     venueIds.length ? supabase.from("events").select(eventFields).eq("status", "scheduled").gt("start_datetime", now).in("venue_id", venueIds).returns<EventRow[]>() : Promise.resolve({ data: [] as EventRow[], error: null }),
@@ -65,7 +67,7 @@ export async function getPromotableEvents(): Promise<{ events: PromotableEvent[]
     merged.set(event.id, { id: event.id, title: event.title, startDatetime: event.start_datetime, venueName: event.venues?.name ?? null, imageUrl: event.image_urls?.[0] ?? null, sourceLabel: (claimedLabels.get(event.id) ?? ["Beanspruchtes Profil"]).join(" · ") });
   }
   for (const event of own.data ?? []) {
-    merged.set(event.id, { id: event.id, title: event.title, startDatetime: event.start_datetime, venueName: event.venues?.name ?? null, imageUrl: event.image_urls?.[0] ?? null, sourceLabel: "Eigenes Event" });
+    merged.set(event.id, { id: event.id, title: event.title, startDatetime: event.start_datetime, venueName: event.venues?.name ?? null, imageUrl: event.image_urls?.[0] ?? null, sourceLabel: "Eigenes Event", organizerId: event.organizer_id });
   }
   return { events: [...merged.values()].sort((a, b) => a.startDatetime.localeCompare(b.startDatetime)), error: null };
 }
