@@ -19,6 +19,8 @@ struct HomeSnapshot: Codable {
     /// Verhindert, dass beim Accountwechsel Personalisierung und Bilder des
     /// vorherigen Kontos als Offline-Snapshot erscheinen.
     let userID: UUID?
+    /// Stadt, für die der Snapshot geladen wurde (ältere Snapshots: nil).
+    var regionID: UUID? = nil
     let savedAtTimestamp: Double
 
     var isFresh: Bool {
