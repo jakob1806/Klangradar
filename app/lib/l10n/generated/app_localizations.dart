@@ -2443,6 +2443,84 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Noch keine Listen angelegt.'**
   String get myListsEmptyState;
+
+  /// No description provided for @notificationSectionPush.
+  ///
+  /// In de, this message translates to:
+  /// **'Push-Mitteilungen'**
+  String get notificationSectionPush;
+
+  /// No description provided for @notificationSectionEmail.
+  ///
+  /// In de, this message translates to:
+  /// **'E-Mail'**
+  String get notificationSectionEmail;
+
+  /// No description provided for @notificationEmailDigestTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Deine Konzertwoche'**
+  String get notificationEmailDigestTitle;
+
+  /// No description provided for @notificationEmailDigestSubtitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Einmal pro Woche passende Termine in deiner Stadt'**
+  String get notificationEmailDigestSubtitle;
+
+  /// No description provided for @notificationEmailFollowedTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Neue Termine gefolgter Personen, Ensembles & Orte'**
+  String get notificationEmailFollowedTitle;
+
+  /// No description provided for @notificationEmailFollowedSubtitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Sobald ein neues Konzert angekündigt wird'**
+  String get notificationEmailFollowedSubtitle;
+
+  /// No description provided for @notificationEmailChangesTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Absagen & Änderungen'**
+  String get notificationEmailChangesTitle;
+
+  /// No description provided for @notificationEmailChangesSubtitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Bei gemerkten Konzerten'**
+  String get notificationEmailChangesSubtitle;
+
+  /// No description provided for @notificationEmailReminderTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Erinnerung am Vortag'**
+  String get notificationEmailReminderTitle;
+
+  /// No description provided for @notificationEmailReminderSubtitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Für gemerkte Konzerte'**
+  String get notificationEmailReminderSubtitle;
+
+  /// No description provided for @notificationNewsletterTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Klangradar-Newsletter'**
+  String get notificationNewsletterTitle;
+
+  /// No description provided for @notificationNewsletterSubtitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Neuigkeiten, Saison-Highlights und Empfehlungen der Redaktion, etwa einmal im Monat. Jederzeit widerrufbar.'**
+  String get notificationNewsletterSubtitle;
+
+  /// No description provided for @notificationEmailFooter.
+  ///
+  /// In de, this message translates to:
+  /// **'Jede E-Mail enthält einen Link zum Abmelden.'**
+  String get notificationEmailFooter;
 }
 
 class _AppLocalizationsDelegate

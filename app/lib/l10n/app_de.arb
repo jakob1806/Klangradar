@@ -476,5 +476,18 @@
   "myListsCreate": "Erstellen",
   "myListsAppBarTitle": "Meine Listen",
   "myListsSignInPrompt": "Melde dich an, um Listen zu speichern.",
-  "myListsEmptyState": "Noch keine Listen angelegt."
+  "myListsEmptyState": "Noch keine Listen angelegt.",
+  "notificationSectionPush": "Push-Mitteilungen",
+  "notificationSectionEmail": "E-Mail",
+  "notificationEmailDigestTitle": "Deine Konzertwoche",
+  "notificationEmailDigestSubtitle": "Einmal pro Woche passende Termine in deiner Stadt",
+  "notificationEmailFollowedTitle": "Neue Termine gefolgter Personen, Ensembles & Orte",
+  "notificationEmailFollowedSubtitle": "Sobald ein neues Konzert angekündigt wird",
+  "notificationEmailChangesTitle": "Absagen & Änderungen",
+  "notificationEmailChangesSubtitle": "Bei gemerkten Konzerten",
+  "notificationEmailReminderTitle": "Erinnerung am Vortag",
+  "notificationEmailReminderSubtitle": "Für gemerkte Konzerte",
+  "notificationNewsletterTitle": "Klangradar-Newsletter",
+  "notificationNewsletterSubtitle": "Neuigkeiten, Saison-Highlights und Empfehlungen der Redaktion, etwa einmal im Monat. Jederzeit widerrufbar.",
+  "notificationEmailFooter": "Jede E-Mail enthält einen Link zum Abmelden."
 }

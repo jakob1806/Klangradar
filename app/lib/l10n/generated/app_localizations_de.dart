@@ -1327,4 +1327,48 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get myListsEmptyState => 'Noch keine Listen angelegt.';
+
+  @override
+  String get notificationSectionPush => 'Push-Mitteilungen';
+
+  @override
+  String get notificationSectionEmail => 'E-Mail';
+
+  @override
+  String get notificationEmailDigestTitle => 'Deine Konzertwoche';
+
+  @override
+  String get notificationEmailDigestSubtitle =>
+      'Einmal pro Woche passende Termine in deiner Stadt';
+
+  @override
+  String get notificationEmailFollowedTitle =>
+      'Neue Termine gefolgter Personen, Ensembles & Orte';
+
+  @override
+  String get notificationEmailFollowedSubtitle =>
+      'Sobald ein neues Konzert angekündigt wird';
+
+  @override
+  String get notificationEmailChangesTitle => 'Absagen & Änderungen';
+
+  @override
+  String get notificationEmailChangesSubtitle => 'Bei gemerkten Konzerten';
+
+  @override
+  String get notificationEmailReminderTitle => 'Erinnerung am Vortag';
+
+  @override
+  String get notificationEmailReminderSubtitle => 'Für gemerkte Konzerte';
+
+  @override
+  String get notificationNewsletterTitle => 'Klangradar-Newsletter';
+
+  @override
+  String get notificationNewsletterSubtitle =>
+      'Neuigkeiten, Saison-Highlights und Empfehlungen der Redaktion, etwa einmal im Monat. Jederzeit widerrufbar.';
+
+  @override
+  String get notificationEmailFooter =>
+      'Jede E-Mail enthält einen Link zum Abmelden.';
 }

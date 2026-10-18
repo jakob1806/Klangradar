@@ -38,6 +38,30 @@ List<({NotificationPreferenceKey key, String title, String subtitle})> _rows(
   ),
 ];
 
+List<({NotificationPreferenceKey key, String title, String subtitle})>
+_emailRows(AppLocalizations l10n) => [
+  (
+    key: NotificationPreferenceKey.emailWeeklyDigest,
+    title: l10n.notificationEmailDigestTitle,
+    subtitle: l10n.notificationEmailDigestSubtitle,
+  ),
+  (
+    key: NotificationPreferenceKey.emailFollowedNewEvent,
+    title: l10n.notificationEmailFollowedTitle,
+    subtitle: l10n.notificationEmailFollowedSubtitle,
+  ),
+  (
+    key: NotificationPreferenceKey.emailEventChanges,
+    title: l10n.notificationEmailChangesTitle,
+    subtitle: l10n.notificationEmailChangesSubtitle,
+  ),
+  (
+    key: NotificationPreferenceKey.emailReminderDayBefore,
+    title: l10n.notificationEmailReminderTitle,
+    subtitle: l10n.notificationEmailReminderSubtitle,
+  ),
+];
+
 class NotificationSettingsScreen extends ConsumerWidget {
   const NotificationSettingsScreen({super.key});
 
@@ -75,41 +99,93 @@ class NotificationSettingsScreen extends ConsumerWidget {
             style: TextStyle(color: colors.error),
           ),
         ),
-        data: (prefs) => ListView(
-          children: [
-            for (final row in _rows(l10n))
+        data: (prefs) {
+          Widget tile(
+            ({NotificationPreferenceKey key, String title, String subtitle})
+            row,
+          ) => SwitchListTile(
+            title: Text(
+              row.title,
+              style: TextStyle(
+                color: colors.textPrimary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            subtitle: Text(
+              row.subtitle,
+              style: TextStyle(color: colors.textSecondary, fontSize: 12.5),
+            ),
+            value: prefs[row.key],
+            activeThumbColor: colors.accentPrimary,
+            onChanged: (value) {
+              // Erinnerung/Benachrichtigung aktivieren = Bestätigung
+              // (Nutzer-Vorgabe); übrige Einstellungs-Toggles nur leicht.
+              if (row.key == NotificationPreferenceKey.reminderDayBefore &&
+                  value) {
+                Haptics.confirm();
+              } else {
+                Haptics.light();
+              }
+              NotificationPreferencesService.setPreference(
+                ref,
+                key: row.key,
+                value: value,
+              );
+            },
+          );
+          Widget header(String text) => Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.lg,
+              AppSpacing.lg,
+              AppSpacing.xs,
+            ),
+            child: Text(
+              text.toUpperCase(),
+              style: TextStyle(
+                color: colors.textTertiary,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          );
+          final newsletter =
+              ref.watch(newsletterOptInProvider).valueOrNull ?? false;
+          return ListView(
+            children: [
+              header(l10n.notificationSectionPush),
+              for (final row in _rows(l10n)) tile(row),
+              header(l10n.notificationSectionEmail),
+              for (final row in _emailRows(l10n)) tile(row),
               SwitchListTile(
                 title: Text(
-                  row.title,
+                  l10n.notificationNewsletterTitle,
                   style: TextStyle(
                     color: colors.textPrimary,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
                 subtitle: Text(
-                  row.subtitle,
+                  l10n.notificationNewsletterSubtitle,
                   style: TextStyle(color: colors.textSecondary, fontSize: 12.5),
                 ),
-                value: prefs[row.key],
+                value: newsletter,
                 activeThumbColor: colors.accentPrimary,
                 onChanged: (value) {
-                  // Erinnerung/Benachrichtigung aktivieren = Bestätigung
-                  // (Nutzer-Vorgabe); übrige Einstellungs-Toggles nur leicht.
-                  if (row.key == NotificationPreferenceKey.reminderDayBefore &&
-                      value) {
-                    Haptics.confirm();
-                  } else {
-                    Haptics.light();
-                  }
-                  NotificationPreferencesService.setPreference(
-                    ref,
-                    key: row.key,
-                    value: value,
-                  );
+                  Haptics.light();
+                  NotificationPreferencesService.setNewsletterOptIn(ref, value);
                 },
               ),
-          ],
-        ),
+              Padding(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                child: Text(
+                  l10n.notificationEmailFooter,
+                  style: TextStyle(color: colors.textTertiary, fontSize: 12),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
