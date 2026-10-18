@@ -56,3 +56,19 @@ export function extractTicketUrl(html: string, start: Date): string | null {
   });
   return matching.length === 1 ? matching[0][0] : null;
 }
+
+const DISCOUNT_RULES: [RegExp, string][] = [
+  [/\b(sch[üu]ler|studierende|studenten|studentinnen|azubis?|auszubildende)\b/i, "Schüler/Studierende"],
+  [/\b(unter|bis)\s*(27|28|30)\b|\bu\s?(27|28|30)\b|\bjunge[sn]? publikum\b/i, "unter 30"],
+  [/\blast[-\s]?minute\b|\brestkarten\b|\babendkasse.{0,40}erm[äa]ßig/i, "Last Minute"],
+  [/\bschwerbehindert|\bbegleitperson\b/i, "Schwerbehinderte"],
+  [/\bfamilien?(karte|ticket|preis)\b|\bkinder (bis|unter)\b/i, "Familien/Kinder"],
+];
+
+/** Ermäßigungs-Hinweise aus dem Seitentext (ohne HTML), z. B. "Schüler/Studierende, unter 30". */
+export function detectDiscounts(html: string): string | null {
+  const text = html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ");
+  if (!/erm[äa]ßig|discount|reduziert|reduced/i.test(text) && !/last[-\s]?minute/i.test(text)) return null;
+  const labels = DISCOUNT_RULES.filter(([pattern]) => pattern.test(text)).map(([, label]) => label);
+  return labels.length ? [...new Set(labels)].join(", ") : "Ermäßigungen verfügbar";
+}

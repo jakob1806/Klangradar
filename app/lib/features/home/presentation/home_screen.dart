@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/promotions/promoted_events_provider.dart';
+import '../../../core/regions/region_providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/time/munich_time.dart';
@@ -13,6 +15,15 @@ import '../../../core/widgets/liquid_glass/liquid_glass.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../application/home_providers.dart';
 
+bool _isToday(HomeEventItem event) {
+  final start = event.startDateTime;
+  if (start == null) return false;
+  final now = MunichTime.now();
+  return start.year == now.year &&
+      start.month == now.month &&
+      start.day == now.day;
+}
+
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
@@ -21,10 +32,16 @@ class HomeScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(context)!;
     final colors = context.appColors;
     final async = ref.watch(homeDataProvider);
+    final promoted =
+        ref.watch(promotedEventsProvider).valueOrNull ?? PromotedEvents.empty;
+    final regionId = ref.watch(selectedCityRegionProvider)?.id;
 
     return SafeArea(
       child: RefreshIndicator(
-        onRefresh: () => ref.read(homeDataProvider.notifier).refresh(),
+        onRefresh: () {
+          ref.invalidate(promotedEventsProvider);
+          return ref.read(homeDataProvider.notifier).refresh();
+        },
         child: CustomScrollView(
           slivers: [
             SliverPadding(
@@ -115,7 +132,12 @@ class HomeScreen extends ConsumerWidget {
                       if (data.heute.isNotEmpty) ...[
                         EventSection(
                           title: l10n.homeSectionToday,
-                          events: data.heute,
+                          events: promoted.boosting(
+                            data.heute,
+                            'standard',
+                            regionId: regionId,
+                            where: _isToday,
+                          ),
                         ),
                         const SizedBox(height: AppSpacing.sectionGap),
                       ],
@@ -143,7 +165,11 @@ class HomeScreen extends ConsumerWidget {
                       if (data.empfehlungen.isNotEmpty) ...[
                         EventSection(
                           title: l10n.homeSectionRecommendations,
-                          events: data.empfehlungen,
+                          events: promoted.boosting(
+                            data.empfehlungen,
+                            'local_spotlight',
+                            regionId: regionId,
+                          ),
                         ),
                         const SizedBox(height: AppSpacing.sectionGap),
                       ],
@@ -158,7 +184,11 @@ class HomeScreen extends ConsumerWidget {
                       if (data.entdecken.isNotEmpty) ...[
                         EventSection(
                           title: l10n.homeSectionDiscover,
-                          events: data.entdecken,
+                          events: promoted.boosting(
+                            data.entdecken,
+                            'featured',
+                            regionId: regionId,
+                          ),
                         ),
                         const SizedBox(height: AppSpacing.sectionGap),
                       ],

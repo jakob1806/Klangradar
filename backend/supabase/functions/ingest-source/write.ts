@@ -306,6 +306,9 @@ export async function upsertRawEvent(
         end_datetime: raw.endDateTime,
         venue_detail: raw.venueDetail === "Gärtnerplatztheater" ? "Hauptbühne" : raw.venueDetail ?? null,
         venue_id: venueId,
+        // Self-Service-Feeds aus dem Veranstalterportal: Termine gehören direkt
+        // dem einreichenden Veranstalter und erscheinen unter "Meine Events".
+        organizer_id: source.organizer_id ?? null,
         price_min: raw.priceMin,
         price_max: raw.priceMax,
         is_free: raw.isFree ?? false,

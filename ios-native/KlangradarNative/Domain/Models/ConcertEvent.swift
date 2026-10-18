@@ -44,6 +44,9 @@ struct ConcertEvent: Codable, Identifiable, Hashable, Sendable {
     let genreIDs: [UUID]
     let genreLabels: [String]
     let isFree: Bool?
+    /// Günstigster Preis (falls bekannt) und Ermäßigungs-Hinweise.
+    let priceMin: Double?
+    let discountInfo: String?
     /// Ändert sich bei jeder redaktionellen Bildänderung und wird als
     /// Cache-Buster an die effektive Bild-URL gehängt.
     let updatedAt: String?
@@ -51,7 +54,19 @@ struct ConcertEvent: Codable, Identifiable, Hashable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case id, slug, title, subtitle, startDatetime, venueDetail, imageUrls, status, venues
         case eventParticipants, fallbackImageUrls, ownGalleryImageUrls, category, genreIDs, genreLabels, isFree, updatedAt
+        case priceMin, discountInfo
     }
+
+    /// Kurzer Preis-Hinweis für Kacheln: "Eintritt frei" bzw. "ab 25 €".
+    var priceLabel: String? {
+        if isFree == true { return "Eintritt frei" }
+        guard let priceMin, priceMin > 0 else { return nil }
+        let value = priceMin.rounded() == priceMin ? String(Int(priceMin)) : String(format: "%.2f", priceMin).replacingOccurrences(of: ".", with: ",")
+        return "ab \(value) €"
+    }
+
+    /// Ermäßigung erwähnt (Schüler/Studierende, unter 30, Last Minute …).
+    var hasDiscount: Bool { !(discountInfo ?? "").isEmpty }
 
     var startDate: Date? {
         FlexibleDateParser.date(from: startDatetime)
@@ -97,7 +112,9 @@ struct ConcertEvent: Codable, Identifiable, Hashable, Sendable {
         genreLabels: [String] = [],
         isFree: Bool? = nil,
         venueDetail: String? = nil,
-        updatedAt: String? = nil
+        updatedAt: String? = nil,
+        priceMin: Double? = nil,
+        discountInfo: String? = nil
     ) {
         self.id = id
         self.slug = slug
@@ -116,6 +133,8 @@ struct ConcertEvent: Codable, Identifiable, Hashable, Sendable {
         self.genreLabels = genreLabels
         self.isFree = isFree
         self.updatedAt = updatedAt
+        self.priceMin = priceMin
+        self.discountInfo = discountInfo
     }
 
     init?(json: JSONObject) {
@@ -152,7 +171,9 @@ struct ConcertEvent: Codable, Identifiable, Hashable, Sendable {
             genreLabels: genreRows.compactMap { $0.string("label_de") ?? $0.string("slug") },
             isFree: json.bool("is_free"),
             venueDetail: json.string("venue_detail"),
-            updatedAt: json.string("updated_at")
+            updatedAt: json.string("updated_at"),
+            priceMin: json.number("price_min"),
+            discountInfo: json.string("discount_info")
         )
     }
 
@@ -175,7 +196,9 @@ struct ConcertEvent: Codable, Identifiable, Hashable, Sendable {
             genreLabels: try values.decodeIfPresent([String].self, forKey: .genreLabels) ?? [],
             isFree: try values.decodeIfPresent(Bool.self, forKey: .isFree),
             venueDetail: try values.decodeIfPresent(String.self, forKey: .venueDetail),
-            updatedAt: try values.decodeIfPresent(String.self, forKey: .updatedAt)
+            updatedAt: try values.decodeIfPresent(String.self, forKey: .updatedAt),
+            priceMin: try? values.decodeIfPresent(Double.self, forKey: .priceMin),
+            discountInfo: try values.decodeIfPresent(String.self, forKey: .discountInfo)
         )
     }
 
@@ -198,6 +221,8 @@ struct ConcertEvent: Codable, Identifiable, Hashable, Sendable {
         try values.encode(genreLabels, forKey: .genreLabels)
         try values.encodeIfPresent(isFree, forKey: .isFree)
         try values.encodeIfPresent(updatedAt, forKey: .updatedAt)
+        try values.encodeIfPresent(priceMin, forKey: .priceMin)
+        try values.encodeIfPresent(discountInfo, forKey: .discountInfo)
     }
 
     func matchesFeedTerms(_ terms: [String]) -> Bool {

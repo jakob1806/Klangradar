@@ -12,6 +12,17 @@ struct AppEnvironment {
         processInfo: ProcessInfo = .processInfo,
         bundle: Bundle = .main
     ) -> AppEnvironment {
+        // UI-Tests: feste Beispieldaten statt Live-Server (deterministisch,
+        // läuft auch ohne Secrets.plist).
+        if processInfo.environment["KLANGRADAR_UI_TEST"] == "1" {
+            return AppEnvironment(
+                events: PreviewEventRepository(),
+                content: PreviewContentRepository(),
+                restClient: nil,
+                auth: AuthStore(service: nil),
+                isUsingPreviewData: true
+            )
+        }
         guard let configuration = APIConfiguration.load(
             processInfo: processInfo,
             bundle: bundle

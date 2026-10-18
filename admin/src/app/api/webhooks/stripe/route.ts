@@ -2,6 +2,7 @@ import Stripe from "stripe";
 import { NextResponse } from "next/server";
 import { getStripe } from "@/lib/stripe";
 import { activatePaidPromotion } from "@/lib/promotion-payment";
+import { syncProFromCheckout, syncProSubscription } from "@/lib/portal-pro";
 
 export async function POST(request: Request) {
   const signature = request.headers.get("stripe-signature");
@@ -17,7 +18,14 @@ export async function POST(request: Request) {
   // async_payment_succeeded: verzögerte Zahlarten (z. B. SEPA) melden den
   // Zahlungseingang erst später, nicht schon bei checkout.session.completed.
   if (event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded") {
-    await activatePaidPromotion(event.data.object as Stripe.Checkout.Session);
+    const session = event.data.object as Stripe.Checkout.Session;
+    if (session.mode === "subscription") await syncProFromCheckout(session);
+    else await activatePaidPromotion(session);
+  }
+
+  // Portal Pro: Verlängerung, Kündigung, Zahlungsprobleme.
+  if (event.type === "customer.subscription.created" || event.type === "customer.subscription.updated" || event.type === "customer.subscription.deleted") {
+    await syncProSubscription(event.data.object as Stripe.Subscription);
   }
 
   return NextResponse.json({ received: true });
