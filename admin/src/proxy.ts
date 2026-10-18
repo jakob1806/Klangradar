@@ -3,7 +3,7 @@ import { updateSession } from "@/lib/supabase/proxy";
 
 // "/einladung": Team-Einladungsseite — das Token ist der Zugang, Annehmen
 // verlangt dort zusätzlich einen Login (siehe einladung/[token]).
-const PUBLIC_PATHS = ["/login", "/auth/callback", "/no-access", "/impressum", "/datenschutz", "/einladung"];
+const PUBLIC_PATHS = ["/login", "/auth/callback", "/no-access", "/impressum", "/datenschutz", "/nutzungsbedingungen", "/einladung"];
 // Erfordert Login, aber NICHT admin/editor-Rolle — Veranstalter-Portal,
 // Berechtigung läuft pro Zeile über entity_claims (RLS), nicht über die
 // globale user_roles-Gate. Bewusst ein eigenes Array statt in PUBLIC_PATHS
