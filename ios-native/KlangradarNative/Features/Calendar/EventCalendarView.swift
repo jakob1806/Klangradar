@@ -182,7 +182,7 @@ private struct CalendarEventRow: View {
                     .font(.caption.bold().monospacedDigit())
                     .foregroundStyle(KlangradarTheme.accent)
                 Text(event.title).font(.headline).lineLimit(2).fixedSize(horizontal: false, vertical: true)
-                Text(event.venueName).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                Text([event.venueName, event.priceLabel].compactMap { $0 }.joined(separator: " · ")).font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer(minLength: 4)
             Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(.tertiary)

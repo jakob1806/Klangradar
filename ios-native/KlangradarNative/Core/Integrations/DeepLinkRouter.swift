@@ -8,6 +8,9 @@ final class DeepLinkRouter: ObservableObject {
     @Published var pendingEventSlug: String?
     /// Freundes-Einladung (de.klangradar.native://friend/<CODE>).
     @Published var pendingFriendCode: String?
+    /// Von Siri/Kurzbefehlen (KlangradarShortcuts): Tab bzw. KI öffnen.
+    @Published var pendingTab: String?
+    @Published var pendingCoach = false
 
     /// true, wenn der Link ein Event-Link war und übernommen wurde.
     @discardableResult

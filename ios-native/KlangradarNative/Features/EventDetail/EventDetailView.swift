@@ -913,7 +913,10 @@ struct EventDetailView: View {
         let hasTicketURL = !(value.string("ticket_url") ?? "").isEmpty
         let unavailable = value.string("remaining_tickets_status") == "sold_out" || !hasTicketURL
         if let rawURL, let url = URL(string: rawURL) {
-            Link(destination: url) {
+            // Partnerprogramme (affiliate_rules): Link ggf. umschreiben und als
+            // Partnerlink kennzeichnen.
+            let link = PartnerStore.shared.ticketLink(for: url)
+            Link(destination: link.url) {
                 Label(unavailable ? "Zur Veranstaltungsseite" : "Tickets kaufen", systemImage: "ticket")
                     .font(.headline)
                     .lineLimit(1)
@@ -923,6 +926,15 @@ struct EventDetailView: View {
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
             .simultaneousGesture(TapGesture().onEnded { EngagementLogger.shared.logTicketClick(eventID: event.id) })
+            .overlay(alignment: .bottom) {
+                if link.isAffiliate {
+                    Text("Partnerlink")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .offset(y: 13)
+                        .accessibilityLabel("Partnerlink, Klangradar erhält eventuell eine Provision")
+                }
+            }
         } else {
             Button("Keine Ticketseite", systemImage: "ticket") {}
                 .buttonStyle(.bordered)

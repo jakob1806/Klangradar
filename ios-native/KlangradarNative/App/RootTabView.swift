@@ -149,6 +149,22 @@ struct RootTabView: View {
                     .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fertig") { showsFriends = false } } }
             }
         }
+        .onChange(of: deepLinks.pendingTab) { _, tab in
+            guard let tab else { return }
+            switch tab {
+            case "search": selection = .search
+            case "map": selection = .map
+            case "calendar": selection = .calendar
+            case "profile": selection = .profile
+            default: selection = .home
+            }
+            deepLinks.pendingTab = nil
+        }
+        .onChange(of: deepLinks.pendingCoach) { _, open in
+            guard open else { return }
+            showsCoach = true
+            deepLinks.pendingCoach = false
+        }
         .task {
             await auth.bootstrap()
             await refreshOnboardingGate()
@@ -179,7 +195,10 @@ struct RootTabView: View {
         )) { link in
             DeepLinkEventSheet(slug: link.id, repository: environment.events, contentRepository: environment.content)
         }
-        .task { EngagementLogger.shared.configure(client: environment.restClient, auth: environment.auth) }
+        .task {
+            EngagementLogger.shared.configure(client: environment.restClient, auth: environment.auth)
+            PartnerStore.shared.configure(client: environment.restClient)
+        }
         .task { PlusStore.shared.start() }
         .task { DiagnosticsReporter.shared.start(client: environment.restClient, auth: environment.auth) }
         .task { PushRegistration.shared.configure(client: environment.restClient, auth: environment.auth) }
