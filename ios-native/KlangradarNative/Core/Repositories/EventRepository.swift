@@ -118,7 +118,7 @@ struct LiveEventRepository: EventRepository {
         let rows: [ConcertEvent] = try await client.get(table: "events", queryItems: [
             URLQueryItem(
                 name: "select",
-                value: "id,slug,title,subtitle,start_datetime,venue_detail,image_urls,updated_at,status,category,is_free,venues(id,name,photo_url,city_id),event_genres(genres(id,slug,label_de)),event_participants(persons(id,full_name,photo_url),ensembles(id,name,photo_url))"
+                value: "id,slug,title,subtitle,start_datetime,venue_detail,image_urls,updated_at,status,category,is_free,price_min,discount_info,venues(id,name,photo_url,city_id),event_genres(genres(id,slug,label_de)),event_participants(persons(id,full_name,photo_url),ensembles(id,name,photo_url))"
             ),
             URLQueryItem(name: "slug", value: "eq.\(slug)"),
             URLQueryItem(name: "limit", value: "1")
@@ -131,7 +131,7 @@ struct LiveEventRepository: EventRepository {
         return try await client.get(table: "events", queryItems: [
             URLQueryItem(
                 name: "select",
-                value: "id,slug,title,subtitle,start_datetime,venue_detail,image_urls,updated_at,status,category,is_free,venues(id,name,photo_url,city_id),event_genres(genres(id,slug,label_de)),event_participants(persons(id,full_name,photo_url),ensembles(id,name,photo_url))"
+                value: "id,slug,title,subtitle,start_datetime,venue_detail,image_urls,updated_at,status,category,is_free,price_min,discount_info,venues(id,name,photo_url,city_id),event_genres(genres(id,slug,label_de)),event_participants(persons(id,full_name,photo_url),ensembles(id,name,photo_url))"
             ),
             URLQueryItem(name: "id", value: "in.(\(ids.map(\.uuidString).joined(separator: ",")))"),
             URLQueryItem(name: "status", value: "eq.scheduled"),
@@ -154,7 +154,7 @@ struct LiveEventRepository: EventRepository {
         var queryItems = [
             URLQueryItem(
                 name: "select",
-                value: "id,slug,title,subtitle,start_datetime,venue_detail,image_urls,updated_at,status,category,is_free,\(venuesEmbed),event_genres(genres(id,slug,label_de)),event_participants(persons(id,full_name,photo_url),ensembles(id,name,photo_url))"
+                value: "id,slug,title,subtitle,start_datetime,venue_detail,image_urls,updated_at,status,category,is_free,price_min,discount_info,\(venuesEmbed),event_genres(genres(id,slug,label_de)),event_participants(persons(id,full_name,photo_url),ensembles(id,name,photo_url))"
             ),
             URLQueryItem(name: "status", value: "eq.scheduled"),
             URLQueryItem(
@@ -268,7 +268,9 @@ struct LiveEventRepository: EventRepository {
                 genreLabels: event.genreLabels,
                 isFree: event.isFree,
                 venueDetail: event.venueDetail,
-                updatedAt: current?.string("updated_at") ?? event.updatedAt
+                updatedAt: current?.string("updated_at") ?? event.updatedAt,
+                priceMin: event.priceMin,
+                discountInfo: event.discountInfo
             )
         }
     }
@@ -279,7 +281,7 @@ struct LiveEventRepository: EventRepository {
             queryItems: [
                 URLQueryItem(
                     name: "select",
-                    value: "id,slug,title,subtitle,start_datetime,image_urls,updated_at,status,category,is_free,venues(id,name,photo_url),event_genres!inner(genre_id,genres(id,slug,label_de)),event_participants(persons(id,full_name,photo_url),ensembles(id,name,photo_url))"
+                    value: "id,slug,title,subtitle,start_datetime,image_urls,updated_at,status,category,is_free,price_min,discount_info,venues(id,name,photo_url),event_genres!inner(genre_id,genres(id,slug,label_de)),event_participants(persons(id,full_name,photo_url),ensembles(id,name,photo_url))"
                 ),
                 URLQueryItem(name: "status", value: "eq.scheduled"),
                 // Filtert direkt auf der Spalte der eingebetteten Zwischentabelle

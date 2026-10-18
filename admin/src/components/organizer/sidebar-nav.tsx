@@ -39,6 +39,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/veranstalter/events", label: "Meine Events" },
       { href: "/veranstalter/events/discover", label: "Entdecken" },
       { href: "/veranstalter/serien", label: "Serien" },
+      { href: "/veranstalter/import", label: "Automatischer Import" },
     ],
   },
   {
