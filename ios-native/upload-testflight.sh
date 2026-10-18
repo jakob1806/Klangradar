@@ -28,6 +28,11 @@ WORK="/tmp/KlangradarTestFlight"
 rm -rf "$WORK"; mkdir -p "$WORK"
 AUTH=(-allowProvisioningUpdates -authenticationKeyPath "$ASC_KEY_PATH" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID")
 
+if [ "${SKIP_UI_TESTS:-0}" != "1" ]; then
+  echo "🧪 UI-Tests …"
+  ./run-ui-tests.sh || { echo "❌ Upload abgebrochen: UI-Tests fehlgeschlagen (SKIP_UI_TESTS=1 überspringt)"; exit 1; }
+fi
+
 echo "📦 Archiviere Version $VERSION (Build $BUILD_NUMBER) …"
 xcodebuild archive \
   -project KlangradarNative.xcodeproj -scheme KlangradarNative -configuration Release \

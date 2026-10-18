@@ -567,7 +567,7 @@ struct UserRepository: Sendable {
         let rows: [JSONObject] = try await client.get(table: "favorites", queryItems: [
             URLQueryItem(
                 name: "select",
-                value: "events(id,slug,title,subtitle,start_datetime,image_urls,status,category,is_free,venues(id,name,photo_url),event_genres(genres(id,slug,label_de)),event_participants(persons(id,full_name,photo_url),ensembles(id,name,photo_url)))"
+                value: "events(id,slug,title,subtitle,start_datetime,image_urls,status,category,is_free,price_min,discount_info,venues(id,name,photo_url),event_genres(genres(id,slug,label_de)),event_participants(persons(id,full_name,photo_url),ensembles(id,name,photo_url)))"
             ),
             URLQueryItem(name: "user_id", value: "eq.\(userID.uuidString)")
         ], accessToken: token)
@@ -594,7 +594,7 @@ struct UserRepository: Sendable {
         let rows: [JSONObject] = try await client.get(table: "favorite_lists", queryItems: [
             URLQueryItem(
                 name: "select",
-                value: "id,name,created_at,favorite_list_items(added_at,events(id,slug,title,subtitle,start_datetime,image_urls,status,category,is_free,venues(id,name,photo_url),event_genres(genres(id,slug,label_de))))"
+                value: "id,name,created_at,favorite_list_items(added_at,events(id,slug,title,subtitle,start_datetime,image_urls,status,category,is_free,price_min,discount_info,venues(id,name,photo_url),event_genres(genres(id,slug,label_de))))"
             ),
             URLQueryItem(name: "user_id", value: "eq.\(userID.uuidString)"),
             URLQueryItem(name: "order", value: "created_at.desc")
@@ -855,6 +855,16 @@ final class FollowStore: ObservableObject {
     init(auth: AuthStore, repository: UserRepository?) { self.auth = auth; self.repository = repository }
 
     var isSignedIn: Bool { auth.userID != nil }
+
+    /// Einmalige Frage an die Klangradar KI ohne Chatverlauf, etwa für die
+    /// Werk-Einführung auf der Werkseite. Zählt wie eine Chatfrage gegen das
+    /// kostenlose Wochenkontingent (CoachQuota). nil = nicht angemeldet.
+    func askKlangradarAI(_ message: String) async throws -> String? {
+        guard let repository, let token = auth.accessToken else { return nil }
+        let reply = try await repository.askCoach(message: message, conversationID: nil, cityName: nil, token: token)
+        if !PlusStore.shared.isPlus { CoachQuota.recordQuestion() }
+        return reply.answer
+    }
 
     func load() async {
         guard let repository, let userID = auth.userID, let token = auth.accessToken else { return }
