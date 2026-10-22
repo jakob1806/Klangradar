@@ -7,6 +7,13 @@ on:
   push:
     branches: [main]
 
+# Veraltete Läufe desselben PRs abbrechen (neuer Push / update-branch):
+# macOS-Runner sind knapp, alte Läufe blockierten sonst die aktuellen.
+# Läufe auf main werden nie abgebrochen.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   changes:
     runs-on: ubuntu-latest
