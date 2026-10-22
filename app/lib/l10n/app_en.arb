@@ -426,5 +426,18 @@
   "myListsCreate": "Create",
   "myListsAppBarTitle": "My lists",
   "myListsSignInPrompt": "Sign in to save lists.",
-  "myListsEmptyState": "No lists created yet."
+  "myListsEmptyState": "No lists created yet.",
+  "notificationSectionPush": "Push notifications",
+  "notificationSectionEmail": "Email",
+  "notificationEmailDigestTitle": "Your concert week",
+  "notificationEmailDigestSubtitle": "Matching concerts in your city, once a week",
+  "notificationEmailFollowedTitle": "New dates from people, ensembles & venues you follow",
+  "notificationEmailFollowedSubtitle": "As soon as a new concert is announced",
+  "notificationEmailChangesTitle": "Cancellations & changes",
+  "notificationEmailChangesSubtitle": "For saved concerts",
+  "notificationEmailReminderTitle": "Reminder the day before",
+  "notificationEmailReminderSubtitle": "For saved concerts",
+  "notificationNewsletterTitle": "Klangradar newsletter",
+  "notificationNewsletterSubtitle": "News, season highlights and editorial picks, about once a month. You can withdraw consent at any time.",
+  "notificationEmailFooter": "Every email contains an unsubscribe link."
 }

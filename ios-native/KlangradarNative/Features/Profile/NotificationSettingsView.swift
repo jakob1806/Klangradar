@@ -14,6 +14,7 @@ struct NotificationSettingsView: View {
     var introTitle: String? = nil
     var introSubtitle: String? = nil
     @State private var preferences = NotificationPreferences()
+    @State private var newsletter = false
 
     var body: some View {
         Form {
@@ -33,20 +34,53 @@ struct NotificationSettingsView: View {
                     .listRowBackground(Color.clear)
                 }
             }
-            Toggle("Neue passende Veranstaltungen", isOn: binding(\.newMatchingEvents, "new_matching_events"))
-            Toggle("Preisänderungen", isOn: binding(\.priceChanges, "price_changes"))
-            Toggle("Fast ausverkauft", isOn: binding(\.almostSoldOut, "almost_sold_out"))
-            Toggle("Erinnerung am Vortag", isOn: binding(\.reminderDayBefore, "reminder_day_before"))
-            // Deckt jetzt auch gefolgte Personen/Orte ab (siehe
-            // notify-followed-entity-events), die Datenbankspalte heißt
-            // aus historischen Gründen weiter "followed_ensemble_new_event".
-            Toggle("Neue Termine gefolgter Personen, Ensembles & Orte", isOn: binding(\.followedEnsembleNewEvent, "followed_ensemble_new_event"))
+            Section {
+                Toggle("Neue passende Veranstaltungen", isOn: binding(\.newMatchingEvents, "new_matching_events"))
+                Toggle("Preisänderungen", isOn: binding(\.priceChanges, "price_changes"))
+                Toggle("Fast ausverkauft", isOn: binding(\.almostSoldOut, "almost_sold_out"))
+                Toggle("Erinnerung am Vortag", isOn: binding(\.reminderDayBefore, "reminder_day_before"))
+                // Deckt jetzt auch gefolgte Personen/Orte ab (siehe
+                // notify-followed-entity-events), die Datenbankspalte heißt
+                // aus historischen Gründen weiter "followed_ensemble_new_event".
+                Toggle("Neue Termine gefolgter Personen, Ensembles & Orte", isOn: binding(\.followedEnsembleNewEvent, "followed_ensemble_new_event"))
+            } header: {
+                Text("Push-Mitteilungen")
+            }
+
+            if auth.userID != nil {
+                Section {
+                    Toggle("Deine Konzertwoche", isOn: binding(\.emailWeeklyDigest, "email_weekly_digest"))
+                    Toggle("Neue Termine gefolgter Personen, Ensembles & Orte", isOn: binding(\.emailFollowedNewEvent, "email_followed_new_event"))
+                    Toggle("Absagen & Änderungen gemerkter Konzerte", isOn: binding(\.emailEventChanges, "email_event_changes"))
+                    Toggle("Erinnerung am Vortag", isOn: binding(\.emailReminderDayBefore, "email_reminder_day_before"))
+                } header: {
+                    Text("E-Mail")
+                } footer: {
+                    Text("„Deine Konzertwoche“ kommt einmal pro Woche mit passenden Terminen in deiner Stadt. Jede E-Mail enthält einen Link zum Abmelden.")
+                }
+
+                Section {
+                    Toggle("Klangradar-Newsletter", isOn: newsletterBinding)
+                } footer: {
+                    Text("Neuigkeiten, Saison-Highlights und Empfehlungen der Redaktion, etwa einmal im Monat. Du kannst die Einwilligung jederzeit hier widerrufen.")
+                }
+            }
         }
         .navigationTitle("Benachrichtigungen")
         .task {
             guard let repository, let id = auth.userID, let token = auth.accessToken else { return }
             preferences = (try? await repository.preferences(userID: id, token: token)) ?? NotificationPreferences()
+            newsletter = (try? await repository.newsletterOptIn(userID: id, token: token)) ?? false
         }
+    }
+
+    private var newsletterBinding: Binding<Bool> {
+        Binding(get: { newsletter }, set: { value in
+            newsletter = value
+            Haptics.light()
+            guard let repository, let id = auth.userID, let token = auth.accessToken else { return }
+            Task { try? await repository.setNewsletterOptIn(value, userID: id, token: token) }
+        })
     }
 
     private func binding(_ keyPath: WritableKeyPath<NotificationPreferences, Bool>, _ column: String) -> Binding<Bool> {

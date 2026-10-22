@@ -1318,4 +1318,48 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get myListsEmptyState => 'No lists created yet.';
+
+  @override
+  String get notificationSectionPush => 'Push notifications';
+
+  @override
+  String get notificationSectionEmail => 'Email';
+
+  @override
+  String get notificationEmailDigestTitle => 'Your concert week';
+
+  @override
+  String get notificationEmailDigestSubtitle =>
+      'Matching concerts in your city, once a week';
+
+  @override
+  String get notificationEmailFollowedTitle =>
+      'New dates from people, ensembles & venues you follow';
+
+  @override
+  String get notificationEmailFollowedSubtitle =>
+      'As soon as a new concert is announced';
+
+  @override
+  String get notificationEmailChangesTitle => 'Cancellations & changes';
+
+  @override
+  String get notificationEmailChangesSubtitle => 'For saved concerts';
+
+  @override
+  String get notificationEmailReminderTitle => 'Reminder the day before';
+
+  @override
+  String get notificationEmailReminderSubtitle => 'For saved concerts';
+
+  @override
+  String get notificationNewsletterTitle => 'Klangradar newsletter';
+
+  @override
+  String get notificationNewsletterSubtitle =>
+      'News, season highlights and editorial picks, about once a month. You can withdraw consent at any time.';
+
+  @override
+  String get notificationEmailFooter =>
+      'Every email contains an unsubscribe link.';
 }

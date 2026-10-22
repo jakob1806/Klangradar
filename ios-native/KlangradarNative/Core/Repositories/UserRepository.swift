@@ -6,6 +6,11 @@ struct NotificationPreferences: Sendable {
     var almostSoldOut = true
     var reminderDayBefore = true
     var followedEnsembleNewEvent = true
+    // E-Mail-Kanal (Migration 20261231000093), bewusst default aus.
+    var emailWeeklyDigest = false
+    var emailFollowedNewEvent = false
+    var emailEventChanges = false
+    var emailReminderDayBefore = false
 }
 
 enum InterestCategory: String, CaseIterable, Sendable {
@@ -684,7 +689,32 @@ struct UserRepository: Sendable {
             priceChanges: row.bool("price_changes") ?? true,
             almostSoldOut: row.bool("almost_sold_out") ?? true,
             reminderDayBefore: row.bool("reminder_day_before") ?? true,
-            followedEnsembleNewEvent: row.bool("followed_ensemble_new_event") ?? true
+            followedEnsembleNewEvent: row.bool("followed_ensemble_new_event") ?? true,
+            emailWeeklyDigest: row.bool("email_weekly_digest") ?? false,
+            emailFollowedNewEvent: row.bool("email_followed_new_event") ?? false,
+            emailEventChanges: row.bool("email_event_changes") ?? false,
+            emailReminderDayBefore: row.bool("email_reminder_day_before") ?? false
+        )
+    }
+
+    /// Newsletter = Werbe-Einwilligung aus der Registrierung
+    /// (profiles.marketing_email_opt_in); der Einwilligungs-Zeitstempel wird
+    /// per Trigger gesetzt.
+    func newsletterOptIn(userID: UUID, token: String) async throws -> Bool {
+        let rows: [JSONObject] = try await client.get(table: "profiles", queryItems: [
+            URLQueryItem(name: "select", value: "marketing_email_opt_in"),
+            URLQueryItem(name: "id", value: "eq.\(userID.uuidString)"),
+            URLQueryItem(name: "limit", value: "1")
+        ], accessToken: token)
+        return rows.first?.bool("marketing_email_opt_in") ?? false
+    }
+
+    func setNewsletterOptIn(_ value: Bool, userID: UUID, token: String) async throws {
+        try await client.update(
+            table: "profiles",
+            values: ["marketing_email_opt_in": .bool(value)],
+            filters: [URLQueryItem(name: "id", value: "eq.\(userID.uuidString)")],
+            accessToken: token
         )
     }
 
