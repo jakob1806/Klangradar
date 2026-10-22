@@ -10,6 +10,36 @@ class InterestOption {
   final String label;
 }
 
+/// Onboarding: die relevantesten Einträge zuerst (kommende Konzerte,
+/// Follower, Foto; RPC onboarding_profile_ranking), sonst alphabetisch.
+Future<List<InterestOption>> _ranked(
+  String kind,
+  List<InterestOption> alphabetical,
+) async {
+  try {
+    final rows =
+        await Supabase.instance.client.rpc(
+              'onboarding_profile_ranking',
+              params: {'p_kind': kind},
+            )
+            as List<dynamic>;
+    final scores = {
+      for (final r in rows.cast<Map<String, dynamic>>())
+        r['id'] as String: (r['score'] as num?) ?? 0,
+    };
+    final indexed = alphabetical.asMap().entries.toList()
+      ..sort((a, b) {
+        final diff = (scores[b.value.id] ?? 0).compareTo(
+          scores[a.value.id] ?? 0,
+        );
+        return diff != 0 ? diff : a.key.compareTo(b.key);
+      });
+    return indexed.map((e) => e.value).toList();
+  } catch (_) {
+    return alphabetical;
+  }
+}
+
 final genreOptionsProvider = FutureProvider.autoDispose<List<InterestOption>>((
   ref,
 ) async {
@@ -34,7 +64,7 @@ final composerOptionsProvider =
           .select('id, full_name')
           .contains('roles', ['komponist'])
           .order('full_name', ascending: true);
-      return (rows as List)
+      final options = (rows as List)
           .map(
             (r) => InterestOption(
               id: r['id'] as String,
@@ -42,6 +72,7 @@ final composerOptionsProvider =
             ),
           )
           .toList();
+      return _ranked('person', options);
     });
 
 final ensembleOptionsProvider =
@@ -52,7 +83,7 @@ final ensembleOptionsProvider =
           .eq('is_resolution_placeholder', false)
           .eq('is_family_root', false)
           .order('name', ascending: true);
-      return (rows as List)
+      final options = (rows as List)
           .map(
             (r) => InterestOption(
               id: r['id'] as String,
@@ -60,6 +91,7 @@ final ensembleOptionsProvider =
             ),
           )
           .toList();
+      return _ranked('ensemble', options);
     });
 
 final venueOptionsProvider = FutureProvider.autoDispose<List<InterestOption>>((
@@ -69,12 +101,13 @@ final venueOptionsProvider = FutureProvider.autoDispose<List<InterestOption>>((
       .from('venues')
       .select('id, name')
       .order('name', ascending: true);
-  return (rows as List)
+  final options = (rows as List)
       .map(
         (r) =>
             InterestOption(id: r['id'] as String, label: r['name'] as String),
       )
       .toList();
+  return _ranked('venue', options);
 });
 
 class UserInterests {
