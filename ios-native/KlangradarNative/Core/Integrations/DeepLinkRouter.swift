@@ -6,6 +6,8 @@ import Foundation
 final class DeepLinkRouter: ObservableObject {
     static let shared = DeepLinkRouter()
     @Published var pendingEventSlug: String?
+    /// Freundes-Einladung (de.klangradar.native://friend/<CODE>).
+    @Published var pendingFriendCode: String?
     /// Von Siri/Kurzbefehlen (KlangradarShortcuts): Tab bzw. KI öffnen.
     @Published var pendingTab: String?
     @Published var pendingCoach = false
@@ -15,6 +17,10 @@ final class DeepLinkRouter: ObservableObject {
     func handle(url: URL) -> Bool {
         if url.scheme == "de.klangradar.native", url.host == "event" {
             return open(slug: url.lastPathComponent)
+        }
+        if url.scheme == "de.klangradar.native", url.host == "friend", url.lastPathComponent.count >= 6 {
+            pendingFriendCode = url.lastPathComponent.uppercased()
+            return true
         }
         if url.host?.hasSuffix("klangradar.com") == true {
             return handle(route: url.path)
