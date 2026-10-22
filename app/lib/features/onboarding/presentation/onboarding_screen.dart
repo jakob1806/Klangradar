@@ -1405,9 +1405,10 @@ class _FollowStepState extends State<_FollowStep> {
   }
 }
 
-/// Ein Tab für Personen/Ensembles/Venues — nutzt dieselben Optionen-Provider
-/// wie [InterestPicker] (composerOptionsProvider/ensembleOptionsProvider/
-/// venueOptionsProvider) und [InterestsService.toggle] zum Folgen/Entfolgen.
+/// Ein Tab für Personen/Ensembles/Venues — gerankte Top-Vorschläge bzw.
+/// Suchtreffer über [followSuggestionsProvider] (serverseitig, statt die
+/// komplette Tabelle zu laden) und [InterestsService.toggle] zum
+/// Folgen/Entfolgen (dieselbe Tabelle wie [InterestPicker]).
 class _FollowCategoryTab extends ConsumerStatefulWidget {
   const _FollowCategoryTab({required this.category});
 
@@ -1420,25 +1421,51 @@ class _FollowCategoryTab extends ConsumerStatefulWidget {
 class _FollowCategoryTabState extends ConsumerState<_FollowCategoryTab> {
   final _searchController = TextEditingController();
   String _query = '';
+  Timer? _debounce;
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }
 
+  String get _kind => switch (widget.category) {
+    InterestCategory.person => 'person',
+    InterestCategory.ensemble => 'ensemble',
+    InterestCategory.venue => 'venue',
+    InterestCategory.genre => 'person',
+  };
+
+  void _onSearchChanged(String value) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 250), () {
+      if (mounted) setState(() => _query = value.trim());
+    });
+  }
+
+  void _toggle(InterestOption option, bool isSelected) =>
+      InterestsService.toggle(
+        ref,
+        category: widget.category,
+        id: option.id,
+        isSelected: isSelected,
+      );
+
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
-    final options = switch (widget.category) {
-      InterestCategory.person =>
-        ref.watch(composerOptionsProvider).valueOrNull ?? const [],
-      InterestCategory.ensemble =>
-        ref.watch(ensembleOptionsProvider).valueOrNull ?? const [],
-      InterestCategory.venue =>
-        ref.watch(venueOptionsProvider).valueOrNull ?? const [],
-      InterestCategory.genre => const <InterestOption>[],
-    };
+    final isSearching = _query.isNotEmpty;
+    // Ohne Suche: die Top 30 (meiste kommende Konzerte in der eigenen Stadt
+    // zuerst) — die relevantesten stehen immer ganz oben. Mit Suche:
+    // serverseitige Treffer als kompakte Liste.
+    final results = ref.watch(
+      followSuggestionsProvider((
+        kind: _kind,
+        query: _query,
+        limit: isSearching ? 40 : 30,
+      )),
+    );
     final selected = ref.watch(userInterestsProvider).valueOrNull;
     final selectedIds = switch (widget.category) {
       InterestCategory.person => selected?.personIds ?? const {},
@@ -1447,134 +1474,133 @@ class _FollowCategoryTabState extends ConsumerState<_FollowCategoryTab> {
       InterestCategory.genre => const <String>{},
     };
 
-    if (options.isEmpty) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(AppSpacing.lg),
-          child: CircularProgressIndicator(),
+    final searchField = TextField(
+      controller: _searchController,
+      onChanged: _onSearchChanged,
+      style: const TextStyle(fontSize: 13),
+      decoration: InputDecoration(
+        isDense: true,
+        hintText: 'Suchen …',
+        hintStyle: TextStyle(color: colors.textTertiary, fontSize: 13),
+        prefixIcon: Icon(
+          Icons.search_rounded,
+          size: 18,
+          color: colors.textTertiary,
         ),
+        prefixIconConstraints: const BoxConstraints(minWidth: 36),
+        filled: true,
+        fillColor: colors.backgroundPrimary,
+        contentPadding: const EdgeInsets.symmetric(vertical: 10),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppSpacing.sm),
+          borderSide: BorderSide(color: colors.separator),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppSpacing.sm),
+          borderSide: BorderSide(color: colors.separator),
+        ),
+      ),
+    );
+
+    final options = results.valueOrNull;
+    final Widget body;
+    if (results.hasError && options == null) {
+      body = Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Text(
+          'Vorschläge konnten nicht geladen werden. Du kannst diesen Schritt '
+          'überspringen und später im Profil folgen.',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: colors.textSecondary, fontSize: 13),
+        ),
+      );
+    } else if (options == null) {
+      body = const Padding(
+        padding: EdgeInsets.all(AppSpacing.lg),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    } else if (options.isEmpty) {
+      body = Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Text(
+          isSearching ? 'Keine Treffer für „$_query“.' : 'Keine Vorschläge.',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: colors.textSecondary, fontSize: 13),
+        ),
+      );
+    } else if (isSearching) {
+      // Kompakte Trefferliste statt der großen Vorschlagsansicht.
+      body = Column(
+        children: [
+          for (final option in options)
+            ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              title: Text(
+                option.label,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 14),
+              ),
+              trailing: Icon(
+                selectedIds.contains(option.id)
+                    ? Icons.check_circle_rounded
+                    : Icons.add_circle_outline_rounded,
+                color: selectedIds.contains(option.id)
+                    ? colors.accentPrimary
+                    : colors.textTertiary,
+              ),
+              onTap: () => _toggle(option, selectedIds.contains(option.id)),
+            ),
+        ],
+      );
+    } else {
+      body = Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          for (final option in options)
+            FilterChip(
+              label: Text(option.label),
+              selected: selectedIds.contains(option.id),
+              onSelected: (_) =>
+                  _toggle(option, selectedIds.contains(option.id)),
+              selectedColor: colors.accentPrimary.withValues(alpha: 0.16),
+              backgroundColor: colors.backgroundSecondary,
+              side: BorderSide(
+                color: selectedIds.contains(option.id)
+                    ? colors.accentPrimary
+                    : colors.separator,
+              ),
+              labelStyle: TextStyle(
+                color: selectedIds.contains(option.id)
+                    ? colors.accentPrimary
+                    : colors.textPrimary,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
+            ),
+        ],
       );
     }
 
-    // Vorschläge: bis zu drei noch nicht gefolgte Einträge — eine echte
-    // Personalisierung nach den in Schritt 5 gewählten Genres würde eine
-    // Genre<->Person/Ensemble/Venue-Zuordnungstabelle voraussetzen, die es
-    // im Schema (noch) nicht gibt (siehe PR-Beschreibung, offener Punkt).
-    // Schon in Schritt 5 gefolgte Einträge (z.B. Komponist:innen als
-    // Interesse) erscheinen hier automatisch als "bereits gefolgt", weil
-    // dieselbe Tabelle genutzt wird.
-    final suggestions = options
-        .where((o) => !selectedIds.contains(o.id))
-        .take(3)
-        .toList();
-
-    final normalizedQuery = _query.trim().toLowerCase();
-    final filtered = normalizedQuery.isEmpty
-        ? options
-        : options
-              .where((o) => o.label.toLowerCase().contains(normalizedQuery))
-              .toList();
-    final selectedFirst = [
-      ...filtered.where((o) => selectedIds.contains(o.id)),
-      ...filtered.where((o) => !selectedIds.contains(o.id)),
-    ];
-
     return ListView(
       children: [
-        if (suggestions.isNotEmpty) ...[
-          Text(
-            'Vorschläge',
-            style: TextStyle(
-              color: colors.textTertiary,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final option in suggestions)
-                ActionChip(
-                  avatar: Icon(
-                    Icons.add_rounded,
-                    size: 16,
-                    color: colors.accentPrimary,
-                  ),
-                  label: Text(option.label),
-                  onPressed: () => InterestsService.toggle(
-                    ref,
-                    category: widget.category,
-                    id: option.id,
-                    isSelected: false,
-                  ),
-                  backgroundColor: colors.accentPrimary.withValues(alpha: 0.08),
-                  side: BorderSide(color: colors.accentPrimary),
-                ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-        ],
-        TextField(
-          controller: _searchController,
-          onChanged: (v) => setState(() => _query = v),
-          style: const TextStyle(fontSize: 13),
-          decoration: InputDecoration(
-            isDense: true,
-            hintText: 'Suchen …',
-            hintStyle: TextStyle(color: colors.textTertiary, fontSize: 13),
-            prefixIcon: Icon(
-              Icons.search_rounded,
-              size: 18,
-              color: colors.textTertiary,
-            ),
-            prefixIconConstraints: const BoxConstraints(minWidth: 36),
-            filled: true,
-            fillColor: colors.backgroundPrimary,
-            contentPadding: const EdgeInsets.symmetric(vertical: 10),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(AppSpacing.sm),
-              borderSide: BorderSide(color: colors.separator),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(AppSpacing.sm),
-              borderSide: BorderSide(color: colors.separator),
-            ),
-          ),
-        ),
+        searchField,
         const SizedBox(height: AppSpacing.sm),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final option in selectedFirst)
-              FilterChip(
-                label: Text(option.label),
-                selected: selectedIds.contains(option.id),
-                onSelected: (_) => InterestsService.toggle(
-                  ref,
-                  category: widget.category,
-                  id: option.id,
-                  isSelected: selectedIds.contains(option.id),
-                ),
-                selectedColor: colors.accentPrimary.withValues(alpha: 0.16),
-                backgroundColor: colors.backgroundSecondary,
-                side: BorderSide(
-                  color: selectedIds.contains(option.id)
-                      ? colors.accentPrimary
-                      : colors.separator,
-                ),
-                labelStyle: TextStyle(
-                  color: selectedIds.contains(option.id)
-                      ? colors.accentPrimary
-                      : colors.textPrimary,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                ),
+        if (!isSearching)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Text(
+              'Top-Vorschläge',
+              style: TextStyle(
+                color: colors.textTertiary,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
               ),
-          ],
-        ),
+            ),
+          ),
+        body,
       ],
     );
   }

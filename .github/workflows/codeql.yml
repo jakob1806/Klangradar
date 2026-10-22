@@ -1,0 +1,70 @@
+name: CodeQL
+
+# Erstellt von Claude Code. Ersetzt GitHubs CodeQL-"Default setup", weil sich
+# dort nicht pro Sprache planen lässt:
+# - actions, javascript-typescript, python, ruby: bei jedem PR
+#   und Push auf main (Linux, schnell).
+# - java-kotlin bewusst nicht: android-native ist Kotlin, das CodeQL nur mit
+#   vollständigem Gradle-Build analysieren kann ("could not process any code").
+# - swift: nur wöchentlich und per Knopfdruck (macOS-Runner sind knapp und
+#   blockierten sonst die PR-Checks).
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 3 * * 1" # montags 03:17 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  security-events: write
+  contents: read
+  actions: read
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [actions, javascript-typescript, python, ruby]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:${{ matrix.language }}"
+
+  analyze-swift:
+    name: Analyze (swift)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - name: Neueste Xcode-Version wählen
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
+          sudo xcode-select -s "$XCODE"
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: swift
+          build-mode: manual
+      - name: Build
+        working-directory: ios-native
+        run: |
+          xcodebuild build \
+            -project KlangradarNative.xcodeproj \
+            -scheme KlangradarNative \
+            -destination "generic/platform=iOS Simulator" \
+            CODE_SIGNING_ALLOWED=NO
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:swift"

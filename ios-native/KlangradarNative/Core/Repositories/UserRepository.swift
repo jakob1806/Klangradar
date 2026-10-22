@@ -784,6 +784,29 @@ struct UserRepository: Sendable {
             .sorted { $0.label.localizedStandardCompare($1.label) == .orderedAscending }
     }
 
+    /// Onboarding-Folgen-Schritt: gerankte Top-Vorschläge (ohne `query`) bzw.
+    /// Suchtreffer (mit `query`) direkt vom Server statt der kompletten
+    /// Tabelle (persons: >3.000 Zeilen). Ranking siehe Migration
+    /// 20261231000092_onboarding_follow_suggestions.sql.
+    func followSuggestions(_ category: InterestCategory, query: String? = nil, limit: Int = 60, token: String?) async throws -> [InterestOption] {
+        let kind: String
+        switch category {
+        case .person: kind = "person"
+        case .ensemble: kind = "ensemble"
+        case .venue: kind = "venue"
+        case .genre, .work: return try await interestOptions(category)
+        }
+        var parameters: JSONObject = ["p_kind": .string(kind), "p_limit": .number(Double(limit))]
+        if let query, !query.trimmingCharacters(in: .whitespaces).isEmpty {
+            parameters["p_query"] = .string(query)
+        }
+        let rows: [JSONObject] = try await client.rpc("onboarding_follow_suggestions", parameters: parameters, accessToken: token)
+        return rows.compactMap { row in
+            guard let id = row.string("id"), let label = row.string("label") else { return nil }
+            return InterestOption(id: id, label: label, photoURL: row.string("photo_url").flatMap(URL.init(string:)))
+        }
+    }
+
     func selectedInterests(_ category: InterestCategory, userID: UUID, token: String) async throws -> Set<String> {
         let (table, column) = interestStorage(category)
         let rows: [JSONObject] = try await client.get(table: table, queryItems: [URLQueryItem(name: "select", value: column), URLQueryItem(name: "user_id", value: "eq.\(userID.uuidString)")], accessToken: token)
