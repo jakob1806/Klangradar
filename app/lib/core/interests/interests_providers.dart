@@ -77,6 +77,32 @@ final venueOptionsProvider = FutureProvider.autoDispose<List<InterestOption>>((
       .toList();
 });
 
+/// Onboarding "Wem möchtest du folgen?": gerankte Top-Vorschläge (leere
+/// Suche) bzw. Suchtreffer direkt vom Server (RPC
+/// onboarding_follow_suggestions) statt der kompletten Tabelle — persons hat
+/// >3.000 Zeilen, das alles als Chips zu rendern ließ den Schritt hängen.
+typedef FollowSuggestionQuery = ({String kind, String query, int limit});
+
+final followSuggestionsProvider = FutureProvider.autoDispose
+    .family<List<InterestOption>, FollowSuggestionQuery>((ref, q) async {
+      final rows = await Supabase.instance.client.rpc(
+        'onboarding_follow_suggestions',
+        params: {
+          'p_kind': q.kind,
+          'p_limit': q.limit,
+          if (q.query.trim().isNotEmpty) 'p_query': q.query.trim(),
+        },
+      );
+      return (rows as List)
+          .map(
+            (r) => InterestOption(
+              id: r['id'] as String,
+              label: r['label'] as String,
+            ),
+          )
+          .toList();
+    });
+
 class UserInterests {
   const UserInterests({
     required this.genreIds,
