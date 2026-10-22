@@ -20,6 +20,8 @@ struct UserEventList: Identifiable, Hashable, Sendable {
     let name: String
     let createdAt: Date?
     let events: [ConcertEvent]
+    /// false = von einem Freund mit mir geteilt (favorite_list_members).
+    var isOwned = true
 }
 
 struct KlangradarUserProfile: Sendable {
@@ -594,9 +596,10 @@ struct UserRepository: Sendable {
         let rows: [JSONObject] = try await client.get(table: "favorite_lists", queryItems: [
             URLQueryItem(
                 name: "select",
-                value: "id,name,created_at,favorite_list_items(added_at,events(id,slug,title,subtitle,start_datetime,image_urls,status,category,is_free,price_min,discount_info,venues(id,name,photo_url),event_genres(genres(id,slug,label_de))))"
+                value: "id,user_id,name,created_at,favorite_list_items(added_at,events(id,slug,title,subtitle,start_datetime,image_urls,status,category,is_free,price_min,discount_info,venues(id,name,photo_url),event_genres(genres(id,slug,label_de))))"
             ),
-            URLQueryItem(name: "user_id", value: "eq.\(userID.uuidString)"),
+            // Kein user_id-Filter mehr: RLS liefert eigene und mit mir
+            // geteilte Listen (gemeinsame Listen, Migration 000096).
             URLQueryItem(name: "order", value: "created_at.desc")
         ], accessToken: token)
         return rows.compactMap { row in
@@ -610,7 +613,8 @@ struct UserRepository: Sendable {
                 id: id,
                 name: name,
                 createdAt: row.string("created_at").flatMap(FlexibleDateParser.date(from:)),
-                events: events
+                events: events,
+                isOwned: row.string("user_id").map { $0.lowercased() == userID.uuidString.lowercased() } ?? true
             )
         }
     }

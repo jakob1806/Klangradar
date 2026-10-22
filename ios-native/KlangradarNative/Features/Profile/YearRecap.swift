@@ -72,6 +72,7 @@ struct YearRecapView: View {
     @State var year: Int
     @ObservedObject private var plus = PlusStore.shared
     @State private var showsPaywall = false
+    @State private var together: [(person: SocialPerson, count: Int)] = []
     @Environment(\.dismiss) private var dismiss
     @Environment(\.displayScale) private var displayScale
 
@@ -86,6 +87,7 @@ struct YearRecapView: View {
                 if let venue = recap.topVenue { page { highlightPage("Dein Lieblingssaal", value: venue.name, detail: "\(venue.count)× besucht", symbol: "building.columns.fill") } }
                 if let month = recap.busiestMonth { page { highlightPage("Dein Konzertmonat", value: month.name, detail: "\(month.count) \(month.count == 1 ? "Konzert" : "Konzerte")", symbol: "calendar") } }
                 page { plusGated { topWorksPage } }
+                if !together.isEmpty { page { togetherPage } }
                 page { sharePage }
             }
             .tabViewStyle(.page(indexDisplayMode: .always))
@@ -106,6 +108,7 @@ struct YearRecapView: View {
                     Button("Fertig") { dismiss() }.tint(.white)
                 }
             }
+            .task(id: year) { await loadTogether() }
             .sheet(isPresented: $showsPaywall) {
                 PlusPaywallView(reason: "Mit Plus siehst du deinen vollständigen Jahresrückblick mit allen Werken und Statistiken.")
             }
@@ -201,6 +204,38 @@ struct YearRecapView: View {
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Gemeinsame Konzerte mit Freunden im gewählten Jahr (shared_concerts_with).
+    private var togetherPage: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("MIT FREUNDEN").font(.caption.bold()).tracking(2).opacity(0.8)
+            if let best = together.first {
+                Text("Am häufigsten warst du mit \(best.person.name.split(separator: " ").first.map(String.init) ?? best.person.name) im Konzert.")
+                    .font(.title.bold())
+            }
+            ForEach(Array(together.prefix(5).enumerated()), id: \.offset) { _, entry in
+                HStack(spacing: 12) {
+                    SocialAvatar(name: entry.person.name, url: entry.person.avatarURL, size: 44)
+                    Text(entry.person.name).font(.headline)
+                    Spacer()
+                    Text("\(entry.count)×").font(.title3.bold()).monospacedDigit()
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func loadTogether() async {
+        guard let repository = SocialStore.shared.repository, let token = SocialStore.shared.token,
+              let friends = try? await repository.friends(token: token) else { together = []; return }
+        var result: [(person: SocialPerson, count: Int)] = []
+        for friend in friends.prefix(30) {
+            let shared = (try? await repository.sharedConcerts(with: friend.id, year: year, token: token)) ?? []
+            if !shared.isEmpty { result.append((SocialPerson(id: friend.id, name: friend.name, avatarURL: friend.avatarURL), shared.count)) }
+        }
+        together = result.sorted { $0.count > $1.count }
     }
 
     private var sharePage: some View {

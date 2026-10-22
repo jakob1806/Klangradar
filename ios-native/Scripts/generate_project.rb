@@ -177,6 +177,7 @@ app_target.build_configurations.each do |config|
     "INFOPLIST_KEY_ITSAppUsesNonExemptEncryption" => "NO",
     "INFOPLIST_KEY_NSSupportsLiveActivities" => "YES",
     "INFOPLIST_KEY_NSLocationWhenInUseUsageDescription" => "Klangradar nutzt deinen Standort, um Konzerte in deiner Nähe zu zeigen.",
+    "INFOPLIST_KEY_NSContactsUsageDescription" => "Klangradar gleicht deine Kontakte verschlüsselt ab, damit du Freunde findest, die Klangradar schon nutzen. Deine Kontakte werden nicht gespeichert.",
     # Nutzerwunsch: passive Erkennung "warst du bei diesem gemerkten Konzert?"
     # per Geofencing (siehe AttendanceLocationMonitor) — braucht laut Apple
     # sowohl die When-In-Use- als auch diese Always-Beschreibung. Kein
