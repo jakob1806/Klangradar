@@ -2,8 +2,10 @@ name: CodeQL
 
 # Erstellt von Claude Code. Ersetzt GitHubs CodeQL-"Default setup", weil sich
 # dort nicht pro Sprache planen lässt:
-# - actions, java-kotlin, javascript-typescript, python, ruby: bei jedem PR
+# - actions, javascript-typescript, python, ruby: bei jedem PR
 #   und Push auf main (Linux, schnell).
+# - java-kotlin bewusst nicht: android-native ist Kotlin, das CodeQL nur mit
+#   vollständigem Gradle-Build analysieren kann ("could not process any code").
 # - swift: nur wöchentlich und per Knopfdruck (macOS-Runner sind knapp und
 #   blockierten sonst die PR-Checks).
 on:
@@ -30,7 +32,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [actions, java-kotlin, javascript-typescript, python, ruby]
+        language: [actions, javascript-typescript, python, ruby]
     steps:
       - uses: actions/checkout@v4
       - uses: github/codeql-action/init@v4
