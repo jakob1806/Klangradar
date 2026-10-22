@@ -739,7 +739,7 @@ struct UserRepository: Sendable {
             rows.append(contentsOf: page)
             if page.count < pageSize { break }
         }
-        let options: [InterestOption] = rows.compactMap { row in
+        return rows.compactMap { row in
             guard let id = row.string("id"),
                   let baseLabel = row.string("label_de") ?? row.string("title") ?? row.string("full_name") ?? row.string("name")
             else { return nil }
@@ -751,24 +751,7 @@ struct UserRepository: Sendable {
             }
             return InterestOption(id: id, label: label, photoURL: row.string("photo_url").flatMap(URL.init(string:)))
         }
-        let alphabetical = options.sorted { $0.label.localizedStandardCompare($1.label) == .orderedAscending }
-        // Personen, Ensembles, Orte: die relevantesten zuerst (kommende
-        // Konzerte, Follower, Foto; onboarding_profile_ranking), Rest alphabetisch.
-        let kind: String? = switch category {
-        case .person: "person"
-        case .ensemble: "ensemble"
-        case .venue: "venue"
-        default: nil
-        }
-        guard let kind,
-              let ranking: [JSONObject] = try? await client.rpc("onboarding_profile_ranking", parameters: ["p_kind": .string(kind)])
-        else { return alphabetical }
-        var scores: [String: Double] = [:]
-        for row in ranking { if let id = row.string("id") { scores[id] = row.number("score") ?? 0 } }
-        return alphabetical.enumerated().sorted { lhs, rhs in
-            let l = scores[lhs.element.id] ?? 0, r = scores[rhs.element.id] ?? 0
-            return l != r ? l > r : lhs.offset < rhs.offset
-        }.map(\.element)
+            .sorted { $0.label.localizedStandardCompare($1.label) == .orderedAscending }
     }
 
     func selectedInterests(_ category: InterestCategory, userID: UUID, token: String) async throws -> Set<String> {
