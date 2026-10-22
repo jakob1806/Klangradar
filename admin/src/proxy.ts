@@ -3,7 +3,7 @@ import { updateSession } from "@/lib/supabase/proxy";
 
 // "/einladung": Team-Einladungsseite — das Token ist der Zugang, Annehmen
 // verlangt dort zusätzlich einen Login (siehe einladung/[token]).
-const PUBLIC_PATHS = ["/login", "/auth/callback", "/no-access", "/impressum", "/datenschutz", "/einladung"];
+const PUBLIC_PATHS = ["/login", "/auth/callback", "/no-access", "/impressum", "/datenschutz", "/nutzungsbedingungen", "/einladung", "/f/"];
 // Erfordert Login, aber NICHT admin/editor-Rolle — Veranstalter-Portal,
 // Berechtigung läuft pro Zeile über entity_claims (RLS), nicht über die
 // globale user_roles-Gate. Bewusst ein eigenes Array statt in PUBLIC_PATHS
@@ -15,7 +15,8 @@ const AUTH_ONLY_PATHS = ["/veranstalter"];
 // Webhooks (Stripe) authentifizieren sich per Signatur, nicht per Login.
 // Vorher leitete der Proxy sie auf /login um — Stripe folgt keinen
 // Redirects, bezahlte Promotionen blieben dadurch auf "Zahlung ausstehend".
-const MACHINE_PATHS = ["/api/webhooks/", "/api/cron/", "/api/calendar/"];
+// "/.well-known/": Apple-App-Site-Association für Universal Links.
+const MACHINE_PATHS = ["/api/webhooks/", "/api/cron/", "/api/calendar/", "/.well-known/"];
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;

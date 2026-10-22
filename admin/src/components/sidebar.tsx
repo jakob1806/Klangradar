@@ -74,6 +74,7 @@ export const NAV_GROUPS = [
       { href: "/tags", label: "Tags" },
       { href: "/regions", label: "Regionen" },
       { href: "/invoice-settings", label: "Rechnungsstammdaten" },
+      { href: "/partner", label: "Partner & Affiliate" },
       { href: "/users", label: "Benutzer" },
     ],
   },

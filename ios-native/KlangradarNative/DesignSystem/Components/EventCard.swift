@@ -19,6 +19,7 @@ struct EventCard: View {
                     ) { Task { await favorites.toggle(event.id) } }
                     .padding(8)
                 }
+                .overlay(alignment: .bottomLeading) { PriceBadge(event: event) }
 
             // Nutzerfeedback: zu viel Abstand zwischen Konzertname und
             // Tag/Uhrzeit/Ort darunter — Ursache war eine feste 42pt-Box für

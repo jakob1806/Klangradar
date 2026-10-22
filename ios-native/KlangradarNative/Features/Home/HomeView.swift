@@ -2,7 +2,7 @@ import SwiftUI
 
 enum HomeRecommendationCategory: String, CaseIterable, Codable, Identifiable {
     case forYou, today, nextSevenDays, weekend, popular, discover
-    case opera, orchestra, chamber, choir, free, upcoming, editorialCollections
+    case opera, orchestra, chamber, choir, free, budget, upcoming, editorialCollections
     case favorites, taste, entitySpotlight, followed
     case followedPersons, followedEnsembles, followedVenues
 
@@ -30,6 +30,7 @@ enum HomeRecommendationCategory: String, CaseIterable, Codable, Identifiable {
         case .chamber: "Kammermusik & Recitals"
         case .choir: "Chor & Vokalmusik"
         case .free: "Eintritt frei"
+        case .budget: "Günstig & ermäßigt"
         case .upcoming: "Demnächst in \(city)"
         case .favorites: "Deine Favoriten"
         case .taste: "Nach deinem Geschmack"
@@ -55,6 +56,7 @@ enum HomeRecommendationCategory: String, CaseIterable, Codable, Identifiable {
         case .chamber: "music.quarternote.3"
         case .choir: "person.3"
         case .free: "eurosign.circle"
+        case .budget: "tag"
         case .upcoming: "clock"
         case .favorites: "heart.fill"
         case .taste: "wand.and.stars"
@@ -76,7 +78,7 @@ enum HomeRecommendationCategory: String, CaseIterable, Codable, Identifiable {
         .today, .favorites, .followedPersons, .followedEnsembles, .followedVenues,
         .forYou, .taste, .discover,
         .nextSevenDays, .weekend, .popular, .editorialCollections,
-        .opera, .orchestra, .chamber, .choir, .free, .upcoming
+        .opera, .orchestra, .chamber, .choir, .free, .budget, .upcoming
     ]
 }
 
@@ -121,6 +123,7 @@ struct HomeView: View {
     @EnvironmentObject private var follows: FollowStore
     @EnvironmentObject private var cityStore: CityStore
     @ObservedObject private var promoted = PromotedEventsStore.shared
+    @ObservedObject private var social = SocialStore.shared
     private let contentRepository: any ContentRepository
     private let usesPreviewData: Bool
     private let auth: AuthStore?
@@ -259,6 +262,8 @@ struct HomeView: View {
                         .buttonStyle(.plain)
                     }
 
+                    FriendsPopularRail(events: social.friendsPopular, names: social.friendsPopularNames)
+
                     ForEach(categoryOrder) { category in
                         recommendationSection(category, events: events)
                     }
@@ -266,7 +271,10 @@ struct HomeView: View {
                 .padding(.top, 8)
                 .padding(.bottom, 110)
             }
-            .refreshable { await model.refresh() }
+            .refreshable {
+                await model.refresh()
+                await SocialStore.shared.refresh()
+            }
         }
     }
 
@@ -308,6 +316,13 @@ struct HomeView: View {
             EventRail(title: category.title(cityName: cityStore.selectedCity?.name), events: Array(events.filter { $0.matchesFeedTerms(["chor", "vokal", "lied", "requiem", "messe"]) }.prefix(14)))
         case .free:
             EventRail(title: category.title(cityName: cityStore.selectedCity?.name), events: Array(events.filter { $0.isFree == true }.prefix(14)))
+        case .budget:
+            // Kostenlos, bis 20 € oder mit Ermäßigungs-Hinweis (Schüler,
+            // Studierende, unter 30, Last Minute) — günstigste zuerst.
+            EventRail(title: category.title(cityName: cityStore.selectedCity?.name), events: Array(events
+                .filter { $0.isFree == true || ($0.priceMin ?? .infinity) <= 20 || $0.hasDiscount }
+                .sorted { ($0.isFree == true ? 0 : $0.priceMin ?? 999) < ($1.isFree == true ? 0 : $1.priceMin ?? 999) }
+                .prefix(14)))
         case .upcoming:
             EventRail(title: category.title(cityName: cityStore.selectedCity?.name), events: promoted.boosting(withoutHero(events).filter { !($0.startDate.map(KlangradarDateTime.calendar.isDateInToday) ?? false) }.sorted { lhs, rhs in
                 lhs.matchesPersonalization(model.personalizedEntityIDs) && !rhs.matchesPersonalization(model.personalizedEntityIDs)
@@ -646,6 +661,45 @@ private struct HeroEventView: View {
         guard let date = event.startDate else { return "NÄCHSTE VERANSTALTUNG" }
         let day = KlangradarDateTime.calendar.isDateInToday(date) ? "HEUTE" : KlangradarDateTime.string(date, format: "EEE, d. MMM").uppercased()
         return "\(day) · \(date.formatted(date: .omitted, time: .shortened))"
+    }
+}
+
+/// "Beliebt bei Freunden": Konzerte, die mindestens zwei Freunde gemerkt
+/// haben (friends_popular_events). Unter jeder Karte die Namen.
+private struct FriendsPopularRail: View {
+    let events: [ConcertEvent]
+    let names: [UUID: [String]]
+
+    var body: some View {
+        if !events.isEmpty {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(spacing: 8) {
+                    Image(systemName: "person.2.fill").foregroundStyle(KlangradarTheme.accent)
+                    Text("Beliebt bei Freunden").font(.title2.bold())
+                }
+                .padding(.horizontal, KlangradarTheme.pagePadding)
+
+                ScrollView(.horizontal) {
+                    LazyHStack(alignment: .top, spacing: 16) {
+                        ForEach(events) { event in
+                            VStack(alignment: .leading, spacing: 6) {
+                                NavigationLink(value: event) { EventCard(event: event) }
+                                    .buttonStyle(.plain)
+                                if let friendNames = names[event.id], !friendNames.isEmpty {
+                                    Label(friendNames.map { $0.split(separator: " ").first.map(String.init) ?? $0 }.joined(separator: ", "), systemImage: "heart.fill")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(KlangradarTheme.accent)
+                                        .lineLimit(1)
+                                        .frame(maxWidth: 220, alignment: .leading)
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, KlangradarTheme.pagePadding)
+                }
+                .scrollIndicators(.hidden)
+            }
+        }
     }
 }
 

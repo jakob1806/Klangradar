@@ -18,6 +18,35 @@ import { parseHTML } from "npm:linkedom@0.18.4";
 import type { ParseResult, RawEvent } from "../types.ts";
 
 export interface ScrapeConfig {
+  /** Separate stabile Quell-ID, wenn die sichtbare Detail-URL mehrere
+   * Aufführungstermine bündelt. Ohne Angabe bleibt die Detail-URL die ID. */
+  externalIdSelector?: string;
+  externalIdAttribute?: string;
+  /** Wiederverwendet das zuletzt gelesene Datum für unmittelbar folgende
+   * Karten desselben Tages, wenn der Kalender das Datum nur an der ersten
+   * Karte einer Tagesgruppe ausgibt. */
+  dateCarryForward?: boolean;
+  /** Monatsseiten, die am Termin nur den Tag zeigen (oper-frankfurt.de:
+   * "Mo 12"): Element der SEITE (nicht des Items), dessen Text/Attribut
+   * "JJJJ-MM" enthält, z.B. der aktive Monat der Monatsnavigation. */
+  pageMonthSelector?: string;
+  pageMonthAttribute?: string;
+  /** Maximale Seitenzahl bei nextPageSelector-Paginierung (Default 5, max. 12). */
+  maxPages?: number;
+  /** Liest den Venue-Text aus den Textknoten, die innerhalb des Items direkt
+   * auf das gewählte Element folgen (z.B. mdw.ac.at: Ort als unmarkierter
+   * Text nach dem Kategorien-<div>). */
+  venueAfterSelector?: string;
+  /** Kanonischer Spielort, wenn die Liste keinen Venue-Text pro Karte
+   * ausgibt und die Quelle keine feste venue_id tragen kann. */
+  defaultVenueName?: string;
+  /** Regex, das aus dem gelesenen Venue-Text entfernt wird (z.B. Adresse
+   * oder vorangestellte Uhrzeit). */
+  venueStripPattern?: string;
+  /** Exakte Quellbezeichnungen auf kanonische Venue-Namen abbilden. */
+  venueNameMap?: Record<string, string>;
+  /** Sammel- oder Gastspielorte bewusst überspringen. */
+  venueExcludeIfContains?: string[];
   /** CSS-Selektor für ein einzelnes Event-"Karten"-Element. */
   itemSelector: string;
   /** Selektor relativ zum Item für den Titel. Falls "titleAttribute" fehlt,
@@ -183,6 +212,10 @@ export function parseScrape(html: string, config: ScrapeConfig): ParseResult {
     return { events, errors };
   }
 
+  let lastDateRaw: string | null = null;
+  const pageMonth = config.pageMonthSelector
+    ? extractText(document, config.pageMonthSelector, config.pageMonthAttribute)?.match(/(\d{4})-(\d{1,2})/) ?? null
+    : null;
   items.forEach((item: any, i: number) => {
     const label = `item ${i + 1}`;
     try {
@@ -194,12 +227,14 @@ export function parseScrape(html: string, config: ScrapeConfig): ParseResult {
         const classes = item.getAttribute?.("class") ?? "";
         if (!config.itemAllowClassContains.some((value) => classes.includes(value))) return;
       }
+      // Weiche Trennstriche (U+00AD, z.B. hfmdk-frankfurt.de/komische-oper-
+      // berlin.de "Kla&shy;vier&shy;abend") aus dem Titel entfernen.
       const title = extractText(
         item,
         config.titleSelector,
         config.titleAttribute,
         !config.titleFullText,
-      );
+      )?.replace(/\u00AD/g, "") || null;
       if (!title) {
         errors.push(`${label}: no title found via "${config.titleSelector}", skipped`);
         return;
@@ -218,7 +253,13 @@ export function parseScrape(html: string, config: ScrapeConfig): ParseResult {
         )
         : null;
 
-      const dateRaw = extractText(item, config.dateSelector, config.dateAttribute);
+      const extractedDateRaw = extractText(item, config.dateSelector, config.dateAttribute);
+      if (extractedDateRaw) lastDateRaw = extractedDateRaw;
+      let dateRaw = extractedDateRaw ?? (config.dateCarryForward ? lastDateRaw : null);
+      if (pageMonth && dateRaw) {
+        const day = dateRaw.match(/\d{1,2}/)?.[0];
+        dateRaw = day ? `${day}.${pageMonth[2]}.${pageMonth[1]}` : dateRaw;
+      }
       const timeRaw = config.timeSelector ? extractText(item, config.timeSelector) : null;
       const combinedDateRaw = timeRaw ? `${dateRaw ?? ""} ${timeRaw}`.trim() : dateRaw;
       const startDateTime = combinedDateRaw ? parseFlexibleDate(combinedDateRaw) : null;
@@ -255,7 +296,7 @@ export function parseScrape(html: string, config: ScrapeConfig): ParseResult {
       const roomMatches = config.venueTagHrefPattern
         ? tags.filter((t) => t.href && new RegExp(config.venueTagHrefPattern!).test(t.href))
         : [];
-      let venueName: string | null = null;
+      let venueName: string | null = config.defaultVenueName?.trim() || null;
       if (roomMatches.length > 0) {
         const wanted = (config.includeIfTagContains ?? []).map((s) => s.toLowerCase());
         venueName = roomMatches.find((t) => wanted.includes(t.text.toLowerCase()))?.text
@@ -273,14 +314,36 @@ export function parseScrape(html: string, config: ScrapeConfig): ParseResult {
         const rawVenue = extractText(item, config.venueSelector);
         venueName = rawVenue ? rawVenue.replace(/^[∙•|·\-–—\s]+/, "").trim() || rawVenue : venueName;
       }
+      if (config.venueAfterSelector) {
+        venueName = extractTextAfter(item, config.venueAfterSelector) ?? venueName;
+      }
+      const venueOriginal = venueName;
+      if (venueName && config.venueStripPattern) {
+        venueName = venueName.replace(new RegExp(config.venueStripPattern, "gi"), "").trim() || null;
+      }
+      // Für venueAllowlist: Quellen-Configs nennen dort teils den Originaltext
+      // (hr-sinfonieorchester.de "Frankfurt am Main …"), teils den Namen VOR
+      // (konzerthaus.de "Großer Saal") oder NACH venueNameMap (mdw.ac.at).
+      const venueBeforeMap = venueName;
+      if (venueName && config.venueNameMap?.[venueName]) {
+        venueName = config.venueNameMap[venueName];
+      }
+      if (
+        venueName && config.venueExcludeIfContains?.some((value) =>
+          venueName!.toLocaleLowerCase("de").includes(value.toLocaleLowerCase("de"))
+        )
+      ) {
+        return;
+      }
       const venueDetail = config.venueDetailSelector
         ? extractText(item, config.venueDetailSelector)
         : null;
 
       if (config.venueAllowlist && config.venueAllowlist.length > 0) {
         const wanted = config.venueAllowlist.map((s) => s.toLowerCase());
-        const venueOk = venueName != null &&
-          wanted.some((w) => venueName!.toLowerCase().includes(w));
+        const venueOk = [venueName, venueBeforeMap, venueOriginal].some((v) =>
+          v != null && wanted.some((w) => v.toLowerCase().includes(w))
+        );
         if (!venueOk) return; // not an error — a listing spanning many venues is expected to filter most items out
       }
 
@@ -295,7 +358,11 @@ export function parseScrape(html: string, config: ScrapeConfig): ParseResult {
         : null;
 
       events.push({
-        externalId: url, // the detail-page URL is the natural stable id for a scraped item
+        // Detail-URL ist die natürliche stabile ID, außer die Quelle bündelt
+        // mehrere Termine unter einer URL (dann externalIdSelector).
+        externalId: config.externalIdSelector
+          ? resolveUrl(extractText(item, config.externalIdSelector, config.externalIdAttribute ?? "href"), config.baseUrl)
+          : url,
         title,
         description,
         startDateTime,
@@ -319,9 +386,27 @@ export function parseScrape(html: string, config: ScrapeConfig): ParseResult {
   return { events, errors };
 }
 
+// Text aller Geschwisterknoten NACH dem Treffer von `selector` innerhalb des
+// Items (für Orte, die als unmarkierter Text hinter einem Element stehen).
+// deno-lint-ignore no-explicit-any
+function extractTextAfter(root: any, selector: string): string | null {
+  const marker = root.querySelector(selector);
+  if (!marker) return null;
+  const parts: string[] = [];
+  let node = marker.nextSibling;
+  while (node) {
+    const value = (node.textContent ?? "").replace(/\s+/g, " ").trim();
+    if (value) parts.push(value);
+    node = node.nextSibling;
+  }
+  return parts.join(" ").trim() || null;
+}
+
 // deno-lint-ignore no-explicit-any
 function extractText(root: any, selector: string, attribute?: string, firstTextNodeOnly = false): string | null {
-  const el = root.querySelector(selector);
+  // ":scope" = das Item selbst (z.B. wienerphilharmoniker.at: Datum als
+  // Attribut direkt auf dem Item-Element).
+  const el = selector === ":scope" ? root : root.querySelector(selector);
   if (!el) return null;
   if (attribute) {
     const val = el.getAttribute(attribute);
@@ -360,9 +445,14 @@ function resolveUrl(value: string | null, baseUrl?: string): string | null {
   }
 }
 
+// Österreichische Formen (Jänner/Feber) für die Wiener Quellen, z.B.
+// mdw.ac.at "09. Jän, 11:00".
 const GERMAN_MONTHS: Record<string, number> = {
   "januar": 1,
+  "jänner": 1,
+  "jaenner": 1,
   "februar": 2,
+  "feber": 2,
   "märz": 3,
   "maerz": 3,
   "april": 4,
@@ -378,6 +468,7 @@ const GERMAN_MONTHS: Record<string, number> = {
 
 const GERMAN_MONTHS_ABBR: Record<string, number> = {
   "jan": 1,
+  "jän": 1,
   "feb": 2,
   "mär": 3,
   "mrz": 3,
@@ -414,7 +505,7 @@ function parseFlexibleDate(raw: string): string | null {
   // Lokalzeit interpretiert und der Berlin-Offset ein zweites Mal
   // draufgerechnet (1-2h Versatz).
   const iso = text.match(
-    /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::\d{2})?)?(Z|[+-]\d{2}:?\d{2})?/,
+    /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T](\d{2}):(\d{2})(?::\d{2})?)?(Z|[+-]\d{2}:?\d{2})?/,
   );
   if (iso) {
     const year = parseInt(iso[1], 10);
@@ -432,6 +523,22 @@ function parseFlexibleDate(raw: string): string | null {
       return `${year}-${pad2(month)}-${pad2(day)}T${pad2(hour)}:${pad2(minute)}:00${offset}`;
     }
     return toBerlinIsoString(year, month, day, hour, minute);
+  }
+
+  // Datum als Pfadsegment einer URL (dateAttribute "href"), z.B.
+  // ensemble-modern.com "/de/kalender/2026-10-03/9714": verlässlicher als
+  // die Kachel ("3 Okt", ohne Jahr). Uhrzeit ggf. aus dem timeSelector.
+  const pathDate = text.match(/\/(\d{4})-(\d{2})-(\d{2})(?=\/|#|\?|\s|$)/);
+  if (pathDate) {
+    const afterPath = text.slice((pathDate.index ?? 0) + pathDate[0].length);
+    const timeMatch = afterPath.match(/\s(\d{1,2})[.:](\d{2})\s*Uhr/i) ?? afterPath.match(/\s(\d{1,2}):(\d{2})\b/);
+    return toBerlinIsoString(
+      parseInt(pathDate[1], 10),
+      parseInt(pathDate[2], 10),
+      parseInt(pathDate[3], 10),
+      timeMatch ? parseInt(timeMatch[1], 10) : 0,
+      timeMatch ? parseInt(timeMatch[2], 10) : 0,
+    );
   }
 
   // Punkt nach der Tageszahl optional (nicht zwingend "\."): alteoper.de
@@ -474,10 +581,14 @@ function parseFlexibleDate(raw: string): string | null {
     const nameLower = germanNoYear[2].toLowerCase();
     const month = GERMAN_MONTHS[nameLower] ?? GERMAN_MONTHS_ABBR[nameLower.slice(0, 3)];
     if (month) {
-      const timeMatch = text.match(/(\d{1,2})[.:](\d{2})(?=\s*(?:Uhr|[–-]))/);
+      // "HH:MM" ohne "Uhr" direkt hinter dem Datum zusätzlich zulassen
+      // (mdw.ac.at: "09. Jän, 11:00 <Titel>").
+      const afterDate = text.slice((germanNoYear.index ?? 0) + germanNoYear[0].length);
+      const timeMatch = text.match(/(\d{1,2})[.:](\d{2})(?=\s*(?:Uhr|[–-]))/) ??
+        afterDate.match(/^\W{0,3}(\d{1,2}):(\d{2})\b/);
       const hour = timeMatch ? parseInt(timeMatch[1], 10) : 0;
       const minute = timeMatch ? parseInt(timeMatch[2], 10) : 0;
-      const year = inferYear(month, day, hour, minute);
+      const year = inferYear(month, day, hour, minute, text);
       return toBerlinIsoString(year, month, day, hour, minute);
     }
   }
@@ -512,7 +623,7 @@ function parseFlexibleDate(raw: string): string | null {
       const parsedYear = numericGerman[3] ? parseInt(numericGerman[3], 10) : null;
       const year = parsedYear != null
         ? (parsedYear < 100 ? 2000 + parsedYear : parsedYear)
-        : inferYear(month, day, hour, minute);
+        : inferYear(month, day, hour, minute, text);
       return toBerlinIsoString(year, month, day, hour, minute);
     }
   }
@@ -541,15 +652,21 @@ function parseFlexibleDate(raw: string): string | null {
   // weekday abbreviation has no digit before it, so matching "digit(s) +
   // whitespace + letters" directly lands on "24 Jul" without needing to
   // explicitly strip "Fr" first.
-  const abbreviated = text.match(/(\d{1,2})\s+([A-Za-zÄÖÜäöü]{3,4})\b/);
+  // \s* statt \s+: hr-sinfonieorchester.de liefert "Do.1Okt 19:00 Uhr"
+  // (Tag und Monat in getrennten Spans ohne Leerraum dazwischen).
+  const abbreviated = text.match(/(\d{1,2})\s*([A-Za-zÄÖÜäöü]{3,4})\b/);
   if (abbreviated) {
     const day = parseInt(abbreviated[1], 10);
     const month = GERMAN_MONTHS_ABBR[abbreviated[2].toLowerCase().slice(0, 3)];
     if (month) {
-      const timeMatch = text.match(/(\d{1,2})(?:[:.](\d{2}))?\s*Uhr/i);
+      // Fallback: "HH:MM" ohne "Uhr" hinter dem Datum (boulezsaal.de:
+      // "16 MÄRZ" + timeSelector "Di., 19:30").
+      const afterDate = text.slice((abbreviated.index ?? 0) + abbreviated[0].length);
+      const timeMatch = text.match(/(\d{1,2})(?:[:.](\d{2}))?\s*Uhr/i) ??
+        afterDate.match(/\b(\d{1,2}):(\d{2})\b/);
       const hour = timeMatch ? parseInt(timeMatch[1], 10) : 0;
       const minute = timeMatch && timeMatch[2] !== undefined ? parseInt(timeMatch[2], 10) : 0;
-      const year = inferYear(month, day, hour, minute);
+      const year = inferYear(month, day, hour, minute, text);
       return toBerlinIsoString(year, month, day, hour, minute);
     }
   }
@@ -562,12 +679,28 @@ function parseFlexibleDate(raw: string): string | null {
  * be more than a day in the past, it must mean next year instead (e.g. "15
  * Jan" encountered while scraping in December). The 1-day buffer absorbs
  * the Berlin-vs-UTC offset without needing exact timezone math here. */
-function inferYear(month: number, day: number, hour: number, minute: number): number {
+const WEEKDAY_PREFIX =
+  /^\W*(Montag|Dienstag|Mittwoch|Donnerstag|Freitag|Samstag|Sonntag|Mo|Di|Mi|Do|Fr|Sa|So)\b/i;
+const WEEKDAY_INDEX: Record<string, number> = { so: 0, mo: 1, di: 2, mi: 3, do: 4, fr: 5, sa: 6 };
+
+function inferYear(month: number, day: number, hour: number, minute: number, text = ""): number {
   const now = new Date();
   const currentYear = now.getUTCFullYear();
   const candidateMs = Date.UTC(currentYear, month - 1, day, hour, minute);
   const oneDayMs = 24 * 60 * 60 * 1000;
-  return candidateMs < now.getTime() - oneDayMs ? currentYear + 1 : currentYear;
+  const inferred = candidateMs < now.getTime() - oneDayMs ? currentYear + 1 : currentYear;
+
+  // Steht ein Wochentag vor dem Datum, entscheidet er das Jahr: Listen wie
+  // hfmt-hamburg.de führen auch bereits vergangene Termine ("Do., 20.08.")
+  // ohne Jahreszahl — ohne diese Prüfung würden sie fälschlich ins
+  // nächste Jahr verschoben und als Phantom-Zukunftstermine importiert.
+  const weekdayMatch = text.match(WEEKDAY_PREFIX);
+  if (weekdayMatch) {
+    const wanted = WEEKDAY_INDEX[weekdayMatch[1].slice(0, 2).toLowerCase()];
+    const weekdayOf = (y: number) => new Date(Date.UTC(y, month - 1, day)).getUTCDay();
+    if (weekdayOf(inferred) !== wanted && weekdayOf(inferred - 1) === wanted) return inferred - 1;
+  }
+  return inferred;
 }
 
 function toBerlinIsoString(

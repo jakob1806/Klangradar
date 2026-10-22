@@ -24,7 +24,13 @@ export interface JsonApiConfig {
   ticketPath?: string;
   imagePath?: string;
   urlTemplate?: string;
+  /** Feld mit (relativer) Detail-URL, Alternative zu urlTemplate. */
+  urlPath?: string;
   baseUrl?: string;
+  /** Spielstättennamen der Quelle -> Name in venues (Fuzzy-Match-Hilfe). */
+  venueNameMap?: Record<string, string>;
+  /** Nur Items behalten, deren Spielstätte einen dieser Teilstrings enthält. */
+  venueAllowlist?: string[];
   nextPath?: string;
   skipPastPath?: string;
 }
@@ -44,6 +50,16 @@ function str(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
+}
+
+// Unix-Zeitstempel (Sekunden oder Millisekunden, als Zahl oder Ziffern-
+// String, z.B. dso-berlin.de "date": 1789293600) in ISO umwandeln; alles
+// andere unverändert durchreichen.
+function dateValue(value: unknown): string | null {
+  const raw = typeof value === "number" ? String(value) : str(value);
+  if (raw && /^\d{10}$/.test(raw)) return new Date(Number(raw) * 1000).toISOString();
+  if (raw && /^\d{13}$/.test(raw)) return new Date(Number(raw)).toISOString();
+  return raw;
 }
 
 function absolute(url: string | null, baseUrl: string | undefined): string | null {
@@ -85,19 +101,28 @@ export function parseJsonApi(body: string, config: JsonApiConfig): ParseResult {
     if (config.skipPastPath && getPath(item, config.skipPastPath) === true) return;
 
     const title = str(getPath(item, config.titlePath));
-    const start = str(getPath(item, config.startPath));
+    const start = dateValue(getPath(item, config.startPath));
     if (!title) return void errors.push(`${label}: kein Titel (${config.titlePath}), übersprungen`);
     if (!start || Number.isNaN(new Date(start).getTime())) {
       return void errors.push(`${label} ("${title}"): ungültiges Startdatum, übersprungen`);
     }
+
+    const venueRaw = str(getPath(item, config.venuePath));
+    if (config.venueAllowlist && config.venueAllowlist.length > 0) {
+      const wanted = config.venueAllowlist.map((v) => v.toLowerCase());
+      if (!venueRaw || !wanted.some((w) => venueRaw.toLowerCase().includes(w))) {
+        return void errors.push(`${label} ("${title}"): Spielstätte "${venueRaw ?? ""}" nicht in venueAllowlist, übersprungen`);
+      }
+    }
+    const venueName = venueRaw ? (config.venueNameMap?.[venueRaw] ?? venueRaw) : null;
 
     const url = config.urlTemplate
       ? absolute(
         config.urlTemplate.replace(/\{([^}]+)\}/g, (_, key) => str(getPath(item, key)) ?? ""),
         config.baseUrl,
       )
-      : null;
-    const end = str(getPath(item, config.endPath));
+      : absolute(str(getPath(item, config.urlPath)), config.baseUrl);
+    const end = dateValue(getPath(item, config.endPath));
 
     events.push({
       externalId: str(getPath(item, config.idPath)),
@@ -105,9 +130,11 @@ export function parseJsonApi(body: string, config: JsonApiConfig): ParseResult {
       description: str(getPath(item, config.descriptionPath)),
       startDateTime: start,
       endDateTime: end && !Number.isNaN(new Date(end).getTime()) ? end : null,
-      venueName: null,
+      // Nur bei Quellen ohne feste venue_id relevant (resolveVenue nutzt
+      // sonst immer die feste Spielstätte).
+      venueName,
       venueAddress: null,
-      venueDetail: str(getPath(item, config.venuePath)),
+      venueDetail: venueRaw,
       url,
       ticketUrl: absolute(str(getPath(item, config.ticketPath)), config.baseUrl),
       imageUrl: absolute(str(getPath(item, config.imagePath)), config.baseUrl),

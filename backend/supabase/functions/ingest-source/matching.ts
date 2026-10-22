@@ -8,9 +8,40 @@ interface SourceRow {
   venue_id: string | null;
   person_id?: string | null;
   ensemble_id?: string | null;
+  city_id?: string | null;
 }
 
-const MUNICH_PATTERN = /münchen|munich|muenchen/i;
+// Adress-Plausibilitätscheck pro Stadt (regions.slug). Quellen ohne city_id
+// stammen aus der Zeit vor der Mehrstädte-Erweiterung und sind München.
+const CITY_ADDRESS_PATTERNS: Record<string, RegExp> = {
+  munich: /münchen|munich|muenchen/i,
+  berlin: /berlin/i,
+  hamburg: /hamburg/i,
+  frankfurt: /frankfurt/i,
+  vienna: /wien|vienna/i,
+};
+
+const citySlugCache = new Map<string, string | null>();
+let munichIdCache: string | null | undefined;
+
+// deno-lint-ignore no-explicit-any
+async function munichCityId(supabase: any): Promise<string | null> {
+  if (munichIdCache === undefined) {
+    const { data } = await supabase.from("regions").select("id").eq("type", "city").eq("slug", "munich").maybeSingle();
+    munichIdCache = data?.id ?? null;
+  }
+  return munichIdCache ?? null;
+}
+
+// deno-lint-ignore no-explicit-any
+async function citySlugFor(supabase: any, cityId: string | null | undefined): Promise<string> {
+  if (!cityId) return "munich";
+  if (!citySlugCache.has(cityId)) {
+    const { data } = await supabase.from("regions").select("slug").eq("id", cityId).maybeSingle();
+    citySlugCache.set(cityId, data?.slug ?? null);
+  }
+  return citySlugCache.get(cityId) ?? "munich";
+}
 
 export async function resolveVenue(
   // deno-lint-ignore no-explicit-any
@@ -29,33 +60,48 @@ export async function resolveVenue(
     return { error: "no venue_id on source and RawEvent has no venueName to match against" };
   }
 
-  // München-Filter für externe Quellen ohne feste venue_id (z.B. ein
-  // Solist:innen-Tourkalender mit Terminen in mehreren Städten): venues
-  // enthält ausschließlich Münchner Spielstätten, ein Name-Fuzzy-Match kann
-  // also nie eine andere Stadt "treffen" — das Restrisiko ist ein falscher
-  // Positiv-Treffer, wenn ein generischer Venue-Name (z.B. "Konzerthaus")
-  // zufällig zu einer Münchner Venue passt, obwohl das Event laut Quelle
-  // tatsächlich in einer anderen Stadt stattfindet. Wenn die Quelle eine
-  // venueAddress mitliefert, die eindeutig NICHT München erwähnt, ist das
-  // ein stärkeres Signal als der Name-Match allein — dann lieber ablehnen
-  // (Event wird nicht angelegt) statt fälschlich einer Münchner Venue
-  // zuzuordnen.
-  if (raw.venueAddress && !MUNICH_PATTERN.test(raw.venueAddress)) {
+  // Stadt-Filter für Quellen ohne feste venue_id (z.B. ein Tourkalender mit
+  // Terminen in mehreren Städten): Seit der Mehrstädte-Erweiterung enthält
+  // venues Spielstätten aus fünf Städten, ein generischer Name wie
+  // "Konzerthaus" würde sonst über Stadtgrenzen hinweg treffen. Liefert die
+  // Quelle eine venueAddress, die eindeutig NICHT ihre Stadt erwähnt, wird
+  // abgelehnt (bisher war das fest auf München verdrahtet und hat dadurch
+  // jedes Event aller Berliner/Wiener/... Quellen verworfen).
+  const citySlug = await citySlugFor(supabase, source.city_id);
+  const cityPattern = CITY_ADDRESS_PATTERNS[citySlug];
+  if (raw.venueAddress && cityPattern && !cityPattern.test(raw.venueAddress)) {
     return {
       error:
-        `venueAddress '${raw.venueAddress}' does not mention München/Munich — refusing to match against a Munich-only venue list`,
+        `venueAddress '${raw.venueAddress}' does not mention the source's city (${citySlug}) — refusing to match against another city's venues`,
     };
   }
 
   const { data, error } = await supabase.rpc("find_matching_venue", {
     p_name: raw.venueName,
+    p_result_limit: 25,
   });
 
   if (error) {
     return { error: `find_matching_venue RPC failed: ${error.message}` };
   }
 
-  const best = (data ?? [])[0];
+  let candidates = data ?? [];
+  if (candidates.length > 0) {
+    const { data: cityRows } = await supabase
+      .from("venues")
+      .select("id, city_id")
+      .in("id", candidates.map((c: { id: string }) => c.id));
+    const cityById = new Map((cityRows ?? []).map((v: { id: string; city_id: string | null }) => [v.id, v.city_id]));
+    const munichId = await munichCityId(supabase);
+    const wantedCity = source.city_id ?? munichId;
+    candidates = candidates.filter((c: { id: string }) => {
+      const venueCity = cityById.get(c.id) ?? null;
+      // Ältere Venues ohne city_id gelten als München.
+      return wantedCity == null || (venueCity ?? munichId) === wantedCity;
+    });
+  }
+
+  const best = candidates[0];
   if (!best || best.similarity < 0.5) {
     return { error: `no venue match for '${raw.venueName}'` };
   }

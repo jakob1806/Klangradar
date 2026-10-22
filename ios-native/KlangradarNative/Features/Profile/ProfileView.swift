@@ -28,6 +28,7 @@ struct ProfileView: View {
     @State private var showsLogin = false
     @State private var showsSignUp = false
     @State private var showsPlus = false
+    @ObservedObject private var social = SocialStore.shared
     @ObservedObject private var plus = PlusStore.shared
     @State private var showsDeleteAccountConfirmation = false
     @State private var isDeletingAccount = false
@@ -52,60 +53,34 @@ struct ProfileView: View {
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
 
-                Section("Account") {
-                    accountContent
-                }
-
+                // Profil-Redesign: nach Aufgaben gruppiert statt einer langen
+                // Liste. Übersicht oben (Besuche, Gefolgt, Level) unverändert.
                 Section {
                     Button { showsPlus = true } label: {
-                        HStack {
-                            Label {
-                                Text("Klangradar Plus").foregroundStyle(.primary)
-                            } icon: {
-                                Image(systemName: "music.note.house.fill")
+                        HStack(spacing: 12) {
+                            Image(systemName: "music.note.house.fill")
+                                .font(.title3)
+                                .foregroundStyle(.white)
+                                .frame(width: 38, height: 38)
+                                .background(KlangradarTheme.accent, in: .rect(cornerRadius: 10, style: .continuous))
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Klangradar Plus").font(.headline).foregroundStyle(.primary)
+                                Text(plus.isPlus ? "Aktiv – danke für deine Unterstützung" : "KI ohne Limit, Jahresrückblick, Partner-Vorteile")
+                                    .font(.caption).foregroundStyle(.secondary)
                             }
                             Spacer()
-                            Text(plus.isPlus ? "Aktiv" : "Entdecken")
-                                .font(.subheadline)
-                                .foregroundStyle(plus.isPlus ? KlangradarTheme.accent : .secondary)
+                            Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(.tertiary)
                         }
+                        .padding(.vertical, 2)
                     }
                 }
                 .sheet(isPresented: $showsPlus) { PlusPaywallView() }
 
-                Section("Dein Klangradar") {
-                    // Nutzerfeedback: "Assistent & Abendplaner" (Personal-
-                    // ConciergeView) und "Klangradar KI" (KlangradarCoachView)
-                    // waren zwei separate, sich inhaltlich überschneidende
-                    // Chat-Assistenten in derselben Profil-Sektion --
-                    // KlangradarCoachView ist der ausgereiftere, aktiv
-                    // gepflegte Assistent (Dashboard, Einblicke, Check-in,
-                    // Memory, Ziele) und bleibt als EINZIGER Einstiegspunkt.
+                Section("Meine Konzerte") {
                     NavigationLink {
                         MyKlangradarHubView(auth: auth, repository: userRepository, eventRepository: eventRepository, contentRepository: contentRepository)
                     } label: {
                         Label("Mein Klangradar", systemImage: "person.crop.rectangle.stack")
-                    }
-                    // Nutzerwunsch: unter "Mein Klangradar", Schrift schwarz wie
-                    // die übrigen Zeilen (nur das Symbol in Akzentfarbe).
-                    Button {
-                        Task { await subscribeCalendar() }
-                    } label: {
-                        Label {
-                            Text("Gemerkte Konzerte im Kalender abonnieren").foregroundStyle(.primary)
-                        } icon: {
-                            Image(systemName: "calendar.badge.plus")
-                        }
-                    }
-                    NavigationLink {
-                        KlangradarCoachView(
-                            auth: auth,
-                            repository: userRepository,
-                            eventRepository: eventRepository,
-                            contentRepository: contentRepository
-                        )
-                    } label: {
-                        Label("Klangradar KI", systemImage: "sparkles")
                     }
                     NavigationLink {
                         FavoriteEventsView(auth: auth, repository: userRepository, eventRepository: eventRepository, contentRepository: contentRepository)
@@ -113,19 +88,66 @@ struct ProfileView: View {
                         Label("Favoriten", systemImage: "heart")
                     }
                     NavigationLink {
+                        UserEventListsView(auth: auth, repository: userRepository, eventRepository: eventRepository, contentRepository: contentRepository)
+                    } label: {
+                        Label("Meine Listen", systemImage: "rectangle.stack")
+                    }
+                    NavigationLink {
                         ConcertArchiveView(repository: userRepository, eventRepository: eventRepository, contentRepository: contentRepository)
                     } label: {
                         Label("Konzertarchiv", systemImage: "archivebox")
                     }
-                    NavigationLink {
-                        UserEventListsView(
-                            auth: auth,
-                            repository: userRepository,
-                            eventRepository: eventRepository,
-                            contentRepository: contentRepository
-                        )
+                    Button {
+                        Task { await subscribeCalendar() }
                     } label: {
-                        Label("Meine Listen", systemImage: "rectangle.stack")
+                        Label {
+                            Text("Im Kalender abonnieren").foregroundStyle(.primary)
+                        } icon: {
+                            Image(systemName: "calendar.badge.plus")
+                        }
+                    }
+                }
+
+                Section("Entdecken") {
+                    NavigationLink {
+                        KlangradarCoachView(auth: auth, repository: userRepository, eventRepository: eventRepository, contentRepository: contentRepository)
+                    } label: {
+                        Label("Klangradar KI", systemImage: "sparkles")
+                    }
+                    NavigationLink {
+                        FriendsView(auth: auth, repository: userRepository)
+                    } label: {
+                        HStack {
+                            Label("Freunde", systemImage: "person.2")
+                            Spacer()
+                            let pending = social.incomingRequests + social.pendingPlanInvites
+                            if pending > 0 {
+                                Text("\(pending)")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 7).padding(.vertical, 2)
+                                    .background(KlangradarTheme.accent, in: .capsule)
+                                    .accessibilityLabel("\(pending) offene Anfragen und Einladungen")
+                            }
+                        }
+                    }
+                    NavigationLink {
+                        PartnerOffersView()
+                    } label: {
+                        Label("Partner-Vorteile", systemImage: "gift")
+                    }
+                }
+
+                Section("Einstellungen") {
+                    // Nutzerwunsch: Stadtauswahl im Profil als volle Seite (Push).
+                    NavigationLink {
+                        CitySwitcherView(cityStore: cityStore, embedsNavigationStack: false)
+                    } label: {
+                        HStack {
+                            Label("Stadt", systemImage: "building.2")
+                            Spacer()
+                            Text(cityStore.selectedCity?.name ?? "Alle Städte").foregroundStyle(.secondary)
+                        }
                     }
                     NavigationLink {
                         InterestsView(auth: auth, repository: userRepository)
@@ -142,24 +164,18 @@ struct ProfileView: View {
                     } label: {
                         Label("Homepage anordnen", systemImage: "arrow.up.arrow.down")
                     }
-                    // Nutzerwunsch: unter Profil öffnet die Stadtauswahl eine
-                    // volle Seite (Push) statt eines Popups/Sheets — Home,
-                    // Suche und Kalender nutzen weiterhin CityCompactMenu mit
-                    // Sheet-Präsentation, siehe CitySwitcherView.
-                    NavigationLink {
-                        CitySwitcherView(cityStore: cityStore, embedsNavigationStack: false)
+                    Picker(selection: $appearance) {
+                        Text("System").tag("system")
+                        Text("Hell").tag("light")
+                        Text("Dunkel").tag("dark")
                     } label: {
-                        HStack {
-                            Label {
-                                Text("Stadt")
-                            } icon: {
-                                Image(systemName: "building.2").foregroundStyle(KlangradarTheme.accent)
-                            }
-                            Spacer()
-                            Text(cityStore.selectedCity?.name ?? "Alle Städte")
-                                .foregroundStyle(.secondary)
-                        }
+                        Label("Erscheinungsbild", systemImage: "circle.lefthalf.filled")
                     }
+                    AccentColorSettingsView()
+                }
+
+                Section("Account") {
+                    accountContent
                 }
 
                 if hasEditorialAccess, let editorialRepository {
@@ -202,15 +218,6 @@ struct ProfileView: View {
                     } footer: {
                         Text("Home und Suche bleiben zunächst bearbeitbar: Stift oben rechts wählt Inhalte, Texte und Bilder — auch echte Veranstaltungen statt Platzhaltern. Alles andere verhält sich wie die normale App. Mit „Fertig“ verschwinden Stift und X, und die Oberfläche ist aufnahmebereit. Heraus kommst du per Doppeltipp auf Home in der Tableiste.")
                     }
-                }
-
-                Section("Darstellung") {
-                    Picker("Erscheinungsbild", selection: $appearance) {
-                        Text("System").tag("system")
-                        Text("Hell").tag("light")
-                        Text("Dunkel").tag("dark")
-                    }
-                    AccentColorSettingsView()
                 }
 
                 Section("Über Klangradar") {
@@ -1619,14 +1626,14 @@ private struct UserEventListsView: View {
                             )
                         } label: {
                             HStack(spacing: 14) {
-                                Image(systemName: "music.note.list")
+                                Image(systemName: list.isOwned ? "music.note.list" : "person.2.fill")
                                     .font(.title3)
                                     .foregroundStyle(KlangradarTheme.accent)
                                     .frame(width: 44, height: 44)
                                     .background(KlangradarTheme.accent.opacity(0.1), in: .rect(cornerRadius: 13))
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(list.name).font(.headline)
-                                    Text("\(list.events.count) \(list.events.count == 1 ? "Konzert" : "Konzerte")")
+                                    Text("\(list.events.count) \(list.events.count == 1 ? "Konzert" : "Konzerte")\(list.isOwned ? "" : " · mit dir geteilt")")
                                         .font(.subheadline).foregroundStyle(.secondary)
                                 }
                             }
@@ -1645,7 +1652,7 @@ private struct UserEventListsView: View {
             if auth.userID != nil {
                 ToolbarItem(placement: .primaryAction) {
                     Button("Neue Liste", systemImage: "plus") {
-                        if PlusStore.shared.enforcesLimits && lists.count >= PlusLimits.freeLists { showsPlusPaywall = true } else { showsCreate = true }
+                        if PlusStore.shared.enforcesLimits && lists.filter(\.isOwned).count >= PlusLimits.freeLists { showsPlusPaywall = true } else { showsCreate = true }
                     }
                 }
             }
@@ -1696,7 +1703,14 @@ private struct UserEventListsView: View {
         lists.remove(atOffsets: offsets)
         Task {
             do {
-                for list in deleted { try await repository.deleteEventList(id: list.id, token: token) }
+                for list in deleted {
+                    if list.isOwned {
+                        try await repository.deleteEventList(id: list.id, token: token)
+                    } else if let userID = auth.userID {
+                        // Geteilte Liste: nur selbst austreten.
+                        try await repository.removeListMember(list.id, userID: userID, token: token)
+                    }
+                }
             } catch {
                 errorMessage = error.localizedDescription
                 await load()
@@ -1714,6 +1728,9 @@ private struct UserEventListDetailView: View {
     @State private var showsPicker = false
     @State private var showsRename = false
     @State private var editedName: String
+    @State private var showsShare = false
+    @State private var shareSelection: Set<UUID> = []
+    @State private var members: [SocialPerson] = []
 
     init(
         initialList: UserEventList,
@@ -1758,12 +1775,54 @@ private struct UserEventListDetailView: View {
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 Button("Konzerte auswählen", systemImage: "plus") { showsPicker = true }
-                Button("Umbenennen", systemImage: "pencil") {
-                    editedName = list.name
-                    showsRename = true
+                Menu {
+                    if list.isOwned {
+                        Button("Mit Freunden teilen", systemImage: "person.2.badge.plus") { showsShare = true }
+                        Button("Umbenennen", systemImage: "pencil") {
+                            editedName = list.name
+                            showsRename = true
+                        }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
                 }
+                .disabled(!list.isOwned)
             }
         }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if members.count > 1 {
+                HStack(spacing: 10) {
+                    AvatarStack(people: members, size: 26)
+                    Text("Gemeinsam mit \(AvatarStack.names(members.filter { $0.id != auth.userID }))")
+                        .font(.footnote.weight(.semibold))
+                        .lineLimit(1)
+                    Spacer()
+                }
+                .padding(.horizontal, 16).padding(.vertical, 10)
+                .background(.bar)
+            }
+        }
+        .sheet(isPresented: $showsShare, onDismiss: { Task { await loadMembers() } }) {
+            NavigationStack {
+                List {
+                    Section {
+                        FriendPicker(selection: $shareSelection, excluded: Set(members.map(\.id)))
+                    } footer: {
+                        Text("Geteilte Listen könnt ihr gemeinsam bearbeiten.")
+                    }
+                }
+                .navigationTitle("Liste teilen")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { showsShare = false } }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Teilen") { Task { await share() } }.disabled(shareSelection.isEmpty)
+                    }
+                }
+            }
+            .presentationDetents([.medium, .large])
+        }
+        .task { await loadMembers() }
         .sheet(isPresented: $showsPicker, onDismiss: { Task { await reload() } }) {
             EventListPicker(
                 list: list,
@@ -1778,6 +1837,20 @@ private struct UserEventListDetailView: View {
             Button("Sichern") { Task { await rename() } }
                 .disabled(editedName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
+    }
+
+    private func loadMembers() async {
+        guard let repository, let token = auth.accessToken else { return }
+        members = (try? await repository.listMembers(list.id, token: token)) ?? []
+    }
+
+    private func share() async {
+        guard let repository, let token = auth.accessToken else { return }
+        try? await repository.shareList(list.id, with: Array(shareSelection), token: token)
+        Haptics.confirm()
+        shareSelection = []
+        showsShare = false
+        await loadMembers()
     }
 
     private func reload() async {
