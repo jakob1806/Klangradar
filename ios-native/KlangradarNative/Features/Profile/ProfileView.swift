@@ -750,6 +750,18 @@ struct KlangradarCoachView: View {
                         }
                         .frame(maxWidth: .infinity, alignment: message.user ? .trailing : .leading)
                     }
+                    // Lade-Hinweis, solange die Antwort der KI aussteht.
+                    if isSending {
+                        HStack(spacing: 10) {
+                            ProgressView().controlSize(.small)
+                            Text("Klangradar KI sucht passende Konzerte …").font(.subheadline).foregroundStyle(.secondary)
+                        }
+                        .padding(.horizontal, 14).padding(.vertical, 11)
+                        .background(.thinMaterial, in: .rect(cornerRadius: 18, style: .continuous))
+                        .id("coach-loading")
+                        .transition(.opacity)
+                        .accessibilityLabel("Klangradar KI lädt die Antwort")
+                    }
                     if let proposal = memoryProposal { proposalCard("Soll ich mir das merken?", proposal, action: "confirm_memory") }
                     if let proposal = goalProposal { proposalCard("Dieses Ziel übernehmen?", proposal, action: "confirm_goal") }
                     if let errorMessage {
@@ -835,6 +847,7 @@ struct KlangradarCoachView: View {
                 .overlay(alignment: .top) { Divider().opacity(0.45) }
             }
             .onChange(of: messages.count) { _, _ in withAnimation { proxy.scrollTo("coach-bottom") } }
+            .onChange(of: isSending) { _, sending in if sending { withAnimation { proxy.scrollTo("coach-bottom") } } }
         }
     }
 
