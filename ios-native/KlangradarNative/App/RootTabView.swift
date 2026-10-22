@@ -139,39 +139,18 @@ struct RootTabView: View {
         .onChange(of: genreFilterRouter.pending) { _, pending in
             if pending != nil { selection = .search }
         }
-        // Freundes-Einladung per Link: Freunde-Ansicht öffnen, die den Code
-        // aus DeepLinkRouter.pendingFriendCode übernimmt.
-        .onChange(of: deepLinks.pendingFriendCode) { _, code in
-            if code != nil { friendsSheetTab = .friends; showsFriends = true }
-        }
-        .onChange(of: deepLinks.pendingFriendsTab) { _, tab in
-            guard let tab else { return }
-            friendsSheetTab = tab
-            showsFriends = true
-            deepLinks.pendingFriendsTab = nil
-        }
-        .sheet(isPresented: $showsFriends) {
-            NavigationStack {
-                FriendsView(auth: environment.auth, repository: environment.restClient.map(UserRepository.init(client:)), initialTab: friendsSheetTab)
-                    .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fertig") { showsFriends = false } } }
-            }
-        }
-        .onChange(of: deepLinks.pendingTab) { _, tab in
-            guard let tab else { return }
-            switch tab {
-            case "search": selection = .search
-            case "map": selection = .map
-            case "calendar": selection = .calendar
-            case "profile": selection = .profile
-            default: selection = .home
-            }
-            deepLinks.pendingTab = nil
-        }
-        .onChange(of: deepLinks.pendingCoach) { _, open in
-            guard open else { return }
-            showsCoach = true
-            deepLinks.pendingCoach = false
-        }
+        // Deep Links (Freunde, Siri-Tabs, KI) in einem eigenen Modifier:
+        // die lange Modifier-Kette überforderte sonst die Typprüfung des
+        // Compilers auf dem CI-Rechner ("unable to type-check ... in
+        // reasonable time").
+        .modifier(DeepLinkRoutingModifier(
+            deepLinks: deepLinks,
+            environment: environment,
+            selection: $selection,
+            showsCoach: $showsCoach,
+            showsFriends: $showsFriends,
+            friendsSheetTab: $friendsSheetTab
+        ))
         .task {
             await auth.bootstrap()
             await refreshOnboardingGate()
@@ -563,5 +542,52 @@ private struct DeepLinkEventSheet: View {
             event = try? await repository.event(slug: slug)
             failed = event == nil
         }
+    }
+}
+
+
+private struct DeepLinkRoutingModifier: ViewModifier {
+    @ObservedObject var deepLinks: DeepLinkRouter
+    let environment: AppEnvironment
+    @Binding var selection: AppTab
+    @Binding var showsCoach: Bool
+    @Binding var showsFriends: Bool
+    @Binding var friendsSheetTab: FriendsHubTab
+
+    func body(content: Content) -> some View {
+        content
+            // Freundes-Einladung per Link: Freunde-Ansicht öffnen, die den Code
+            // aus DeepLinkRouter.pendingFriendCode übernimmt.
+            .onChange(of: deepLinks.pendingFriendCode) { _, code in
+                if code != nil { friendsSheetTab = .friends; showsFriends = true }
+            }
+            .onChange(of: deepLinks.pendingFriendsTab) { _, tab in
+                guard let tab else { return }
+                friendsSheetTab = tab
+                showsFriends = true
+                deepLinks.pendingFriendsTab = nil
+            }
+            .sheet(isPresented: $showsFriends) {
+                NavigationStack {
+                    FriendsView(auth: environment.auth, repository: environment.restClient.map(UserRepository.init(client:)), initialTab: friendsSheetTab)
+                        .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fertig") { showsFriends = false } } }
+                }
+            }
+            .onChange(of: deepLinks.pendingTab) { _, tab in
+                guard let tab else { return }
+                switch tab {
+                case "search": selection = .search
+                case "map": selection = .map
+                case "calendar": selection = .calendar
+                case "profile": selection = .profile
+                default: selection = .home
+                }
+                deepLinks.pendingTab = nil
+            }
+            .onChange(of: deepLinks.pendingCoach) { _, open in
+                guard open else { return }
+                showsCoach = true
+                deepLinks.pendingCoach = false
+            }
     }
 }
