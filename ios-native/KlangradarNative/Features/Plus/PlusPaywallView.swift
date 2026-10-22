@@ -158,7 +158,7 @@ struct PlusPaywallView: View {
     private var legal: some View {
         HStack(spacing: 16) {
             Button("Käufe wiederherstellen") { Task { await store.restore() } }
-            Link("Nutzungsbedingungen", destination: URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!)
+            Link("Nutzungsbedingungen", destination: URL(string: "https://klangradar.com/nutzungsbedingungen")!)
             Link("Datenschutz", destination: URL(string: "https://klangradar.com/datenschutz")!)
         }
         .font(.caption)

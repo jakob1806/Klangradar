@@ -22,6 +22,13 @@ import { requireInternalAuth } from "../_shared/internalAuth.ts";
 // einhält (siehe crawlDelayMs in ingest-source/index.ts) — das gilt nur
 // zwischen Paginierungs-Schritten DERSELBEN Quelle, nicht quellenübergreifend.
 const CONCURRENCY = 5;
+// Nach dieser Zeit keine neuen Quellen mehr starten (laufende dürfen noch
+// fertig werden); Rest übernimmt der nächste Cron-Tick (alle 5 Minuten).
+const START_BUDGET_MS = 90_000;
+// Ein abgebrochener Lauf wird frühestens nach dieser Zeit wiederholt.
+const RETRY_AFTER_KILL_MS = 60 * 60_000;
+// Gleicher Schwellwert wie cleanup_stale_ingestion_runs().
+const STALE_RUN_MS = 30 * 60_000;
 
 interface RunSummary {
   sourceId: string;
@@ -75,13 +82,57 @@ Deno.serve(async (req) => {
   );
   const skippedNotDue = (sources ?? []).length - dueSources.length;
 
-  const ids = dueSources.map((s: { id: string }) => s.id);
+  // Quellen, für die gerade (z.B. aus dem vorigen 5-Minuten-Tick) noch ein
+  // Lauf offen ist, nicht parallel ein zweites Mal starten.
+  const { data: runningRows } = await supabase
+    .from("ingestion_runs")
+    .select("source_id")
+    .eq("status", "running")
+    .gte("started_at", new Date(now - STALE_RUN_MS).toISOString());
+  const alreadyRunning = new Set((runningRows ?? []).map((r: { source_id: string }) => r.source_id));
+
+  // Älteste zuerst (nie gelaufene ganz vorne): sonst belegen immer dieselben
+  // Quellen am Anfang der Liste alle Worker, und der Rest kommt nie dran.
+  const ordered = dueSources
+    .filter((s: { id: string }) => !alreadyRunning.has(s.id))
+    .sort((a: { last_run_at: string | null }, b: { last_run_at: string | null }) =>
+      (a.last_run_at ? new Date(a.last_run_at).getTime() : 0) -
+      (b.last_run_at ? new Date(b.last_run_at).getTime() : 0)
+    );
+  const frequencyById = new Map(
+    ordered.map((s: { id: string; crawl_frequency_minutes: number | null }) => [
+      s.id,
+      s.crawl_frequency_minutes ?? 1440,
+    ]),
+  );
+  const ids = ordered.map((s: { id: string }) => s.id);
   const results: RunSummary[] = [];
+  let deferred = 0;
 
   let nextIndex = 0;
   async function worker() {
     while (nextIndex < ids.length) {
+      // Zeitbudget: Wird die Edge-Function wegen ihres Wall-Clock-Limits
+      // abgebrochen, bleiben laufende Quellen ewig auf "running" (siehe
+      // cleanup_stale_ingestion_runs). Lieber neue Quellen erst im nächsten
+      // Tick starten.
+      if (Date.now() - now > START_BUDGET_MS) {
+        deferred = ids.length - nextIndex;
+        return;
+      }
       const sourceId = ids[nextIndex++];
+      // Vor dem Lauf beanspruchen: last_run_at so setzen, dass die Quelle
+      // nach RETRY_AFTER_KILL_MS wieder fällig wird. Ein regulär beendeter
+      // Lauf überschreibt das in runIngestion() mit dem echten Zeitstempel;
+      // ein abgebrochener Lauf wird dadurch nicht mehr alle 5 Minuten neu
+      // gestartet (Endlosschleife seit 2026-09-30, inkl. HTTP 429 von der
+      // Staatsoper).
+      const frequencyMs = (frequencyById.get(sourceId) ?? 1440) * 60_000;
+      const claimAt = Date.now() - Math.max(0, frequencyMs - RETRY_AFTER_KILL_MS);
+      await supabase
+        .from("sources")
+        .update({ last_run_at: new Date(claimAt).toISOString() })
+        .eq("id", sourceId);
       try {
         const { body } = await runIngestion(supabase, sourceId);
         const status = typeof body.status === "string" ? body.status : "unknown";
@@ -111,6 +162,8 @@ Deno.serve(async (req) => {
     total_active: (sources ?? []).length,
     due: ids.length,
     skipped_not_due: skippedNotDue,
+    skipped_already_running: alreadyRunning.size,
+    deferred_to_next_tick: deferred,
     succeeded,
     skipped,
     failed,

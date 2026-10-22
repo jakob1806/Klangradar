@@ -123,6 +123,7 @@ struct HomeView: View {
     @EnvironmentObject private var follows: FollowStore
     @EnvironmentObject private var cityStore: CityStore
     @ObservedObject private var promoted = PromotedEventsStore.shared
+    @ObservedObject private var social = SocialStore.shared
     private let contentRepository: any ContentRepository
     private let usesPreviewData: Bool
     private let auth: AuthStore?
@@ -261,6 +262,8 @@ struct HomeView: View {
                         .buttonStyle(.plain)
                     }
 
+                    FriendsPopularRail(events: social.friendsPopular, names: social.friendsPopularNames)
+
                     ForEach(categoryOrder) { category in
                         recommendationSection(category, events: events)
                     }
@@ -268,7 +271,10 @@ struct HomeView: View {
                 .padding(.top, 8)
                 .padding(.bottom, 110)
             }
-            .refreshable { await model.refresh() }
+            .refreshable {
+                await model.refresh()
+                await SocialStore.shared.refresh()
+            }
         }
     }
 
@@ -655,6 +661,45 @@ private struct HeroEventView: View {
         guard let date = event.startDate else { return "NÄCHSTE VERANSTALTUNG" }
         let day = KlangradarDateTime.calendar.isDateInToday(date) ? "HEUTE" : KlangradarDateTime.string(date, format: "EEE, d. MMM").uppercased()
         return "\(day) · \(date.formatted(date: .omitted, time: .shortened))"
+    }
+}
+
+/// "Beliebt bei Freunden": Konzerte, die mindestens zwei Freunde gemerkt
+/// haben (friends_popular_events). Unter jeder Karte die Namen.
+private struct FriendsPopularRail: View {
+    let events: [ConcertEvent]
+    let names: [UUID: [String]]
+
+    var body: some View {
+        if !events.isEmpty {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(spacing: 8) {
+                    Image(systemName: "person.2.fill").foregroundStyle(KlangradarTheme.accent)
+                    Text("Beliebt bei Freunden").font(.title2.bold())
+                }
+                .padding(.horizontal, KlangradarTheme.pagePadding)
+
+                ScrollView(.horizontal) {
+                    LazyHStack(alignment: .top, spacing: 16) {
+                        ForEach(events) { event in
+                            VStack(alignment: .leading, spacing: 6) {
+                                NavigationLink(value: event) { EventCard(event: event) }
+                                    .buttonStyle(.plain)
+                                if let friendNames = names[event.id], !friendNames.isEmpty {
+                                    Label(friendNames.map { $0.split(separator: " ").first.map(String.init) ?? $0 }.joined(separator: ", "), systemImage: "heart.fill")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(KlangradarTheme.accent)
+                                        .lineLimit(1)
+                                        .frame(maxWidth: 220, alignment: .leading)
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, KlangradarTheme.pagePadding)
+                }
+                .scrollIndicators(.hidden)
+            }
+        }
     }
 }
 

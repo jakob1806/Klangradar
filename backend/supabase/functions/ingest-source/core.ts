@@ -68,7 +68,7 @@ export async function runIngestion(
   const { data: source, error: sourceError } = await supabase
     .from("sources")
     .select(
-      "id, name, type, url, venue_id, organizer_id, person_id, ensemble_id, config, consecutive_failures, crawl_frequency_minutes, confidence_thresholds",
+      "id, name, type, url, venue_id, organizer_id, person_id, ensemble_id, city_id, config, consecutive_failures, crawl_frequency_minutes, confidence_thresholds",
     )
     .eq("id", sourceId)
     .maybeSingle();
@@ -284,13 +284,39 @@ export async function runIngestion(
         break;
       case "scrape": {
         parsed = parseScrape(responseBody, source.config);
+        // Monatsseiten mit fester URL-Systematik (hr-sinfonieorchester.de
+        // ".../veranstaltungen-110~_month-2026-11.html"): source.url deckt den
+        // laufenden Monat ab, die folgenden monthsAhead Monate werden direkt
+        // über config.monthUrlTemplate ({YYYY-MM}) geholt.
+        if (typeof config.monthUrlTemplate === "string") {
+          const monthsAhead = typeof config.monthsAhead === "number" ? Math.min(Math.max(config.monthsAhead, 1), 12) : 5;
+          const base = new Date();
+          for (let i = 1; i <= monthsAhead; i++) {
+            const d = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + i, 1));
+            const ym = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+            const monthUrl = config.monthUrlTemplate.replace("{YYYY-MM}", ym);
+            const delayMs = source.config?.crawlDelayMs;
+            if (typeof delayMs === "number" && delayMs > 0) await new Promise((r) => setTimeout(r, delayMs));
+            try {
+              const res = await fetchWithRetry(monthUrl, { headers: { "User-Agent": USER_AGENT } });
+              if (!res.ok) {
+                parsed.errors.push(`month ${ym}: HTTP ${res.status}`);
+                continue;
+              }
+              const monthParsed = parseScrape(await res.text(), source.config);
+              parsed = { events: [...parsed.events, ...monthParsed.events], errors: [...parsed.errors, ...monthParsed.errors] };
+            } catch (err) {
+              parsed.errors.push(`month ${ym}: ${err instanceof Error ? err.message : String(err)}`);
+            }
+          }
+        }
         // Paginierung: manche Quellen (residenz-muenchen.de) haben keine
         // vorhersagbare Seitennummer-URL-Systematik — der "nächste Seite"-
         // Link muss also pro Seite verfolgt werden statt eine Ziel-URL zu
         // berechnen. Bricht ab, sobald extractNextPageUrl() null liefert
         // (kein nextPageSelector konfiguriert ODER letzte Seite erreicht)
         // oder MAX_PAGES erreicht ist — kein unbegrenztes Nachladen.
-        const MAX_PAGES = 5;
+        const MAX_PAGES = typeof config.maxPages === "number" ? Math.min(Math.max(config.maxPages, 1), 12) : 5;
         let pageUrl = source.url;
         let pageHtml = responseBody;
         for (let page = 1; page < MAX_PAGES; page++) {
@@ -375,6 +401,12 @@ export async function runIngestion(
   if (parsed.events.length === 0 && parsed.errors.length > 0) {
     await clearBodyHash(supabase, source.id, config);
   }
+
+  // Bereits vergangene Termine nicht (neu) anlegen: Manche Kalender listen
+  // die ganze Saison inklusive zurückliegender Wochen (hfmt-hamburg.de,
+  // mdw.ac.at) — die Klangradar-Datenbank braucht davon nichts.
+  const pastCutoff = Date.now() - 24 * 60 * 60 * 1000;
+  parsed.events = parsed.events.filter((event) => new Date(event.startDateTime).getTime() >= pastCutoff);
 
   // Große Saisonlisten in fortsetzbare Batches teilen. Der Cursor lebt in
   // sources.config; solange er > 0 ist, darf der Body-Hash-Shortcut oben

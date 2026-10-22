@@ -82,6 +82,34 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     if (mounted) context.go('/home');
   }
 
+  /// Nach jedem Login (Apple, Google, E-Mail): Hat das Profil das Onboarding
+  /// noch nie abgeschlossen (z.B. brandneuer Apple-/Google-Account), geht es
+  /// direkt bei "Persönliche Daten" weiter — Anmelden darf das Onboarding
+  /// nicht überspringen. Wer es schon abgeschlossen hat (Rückkehrer, anderes
+  /// Gerät), kommt wie bisher direkt in die App. Bei Netzwerkfehlern wird
+  /// nicht festgehalten.
+  Future<void> _continueAfterSignIn() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    var completed = true;
+    if (user != null && !user.isAnonymous) {
+      try {
+        final row = await Supabase.instance.client
+            .from('profiles')
+            .select('onboarding_completed')
+            .eq('id', user.id)
+            .maybeSingle();
+        completed = row?['onboarding_completed'] == true;
+      } catch (_) {
+        completed = true;
+      }
+    }
+    if (completed) {
+      await _finish();
+    } else if (mounted) {
+      _goTo(_Step.personalData);
+    }
+  }
+
   void _showLoginSheet() {
     showModalBottomSheet<void>(
       context: context,
@@ -97,7 +125,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           child: AuthSection(
             onSignedIn: () {
               Navigator.of(sheetContext).pop();
-              _finish();
+              _continueAfterSignIn();
             },
             onCreateAccount: () {
               Navigator.of(sheetContext).pop();
@@ -123,7 +151,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   onCreateAccount: () => _goTo(_Step.signUp),
                   onLogIn: _showLoginSheet,
                   onContinueAsGuest: _finish,
-                  onAuthenticated: _finish,
+                  onAuthenticated: _continueAfterSignIn,
                 ),
                 _Step.signUp => _SignUpStep(
                   onSignedUp: (email, marketingOptIn) {
