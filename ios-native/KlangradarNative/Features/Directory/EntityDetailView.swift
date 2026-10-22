@@ -424,7 +424,19 @@ private extension EntityDetailView {
             let address = [fields.string("address_street"), [fields.string("address_zip"), fields.string("address_city")].compactMap { $0 }.joined(separator: " ")].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", ")
             return [("Adresse", address.isEmpty ? nil : address), ("Telefon", fields.string("phone")), ("E-Mail", fields.string("email"))].compactMap { label, value in value.map { (label, $0) } }
         case .work:
-            return [("Komponist:in", fields.object("composer")?.string("full_name")), ("Komposition", fields.integer("composition_year").map(String.init)), ("Dauer", fields.integer("duration_minutes").map { "\($0) Minuten" }), ("Werkverzeichnis", fields.string("catalog_number")), ("Tonart", fields.string("key_signature")), ("Gattung", fields.string("genre")), ("Besetzung", fields.string("instrumentation")), ("Sätze", fields.strings("movements").isEmpty ? nil : fields.strings("movements").joined(separator: " · "))].compactMap { label, value in value.map { (label, $0) } }
+            // Explizit typisiert: das Literal brauchte ~3 s Typprüfung.
+            let movements = fields.strings("movements")
+            let rows: [(String, String?)] = [
+                ("Komponist:in", fields.object("composer")?.string("full_name")),
+                ("Komposition", fields.integer("composition_year").map(String.init)),
+                ("Dauer", fields.integer("duration_minutes").map { "\($0) Minuten" }),
+                ("Werkverzeichnis", fields.string("catalog_number")),
+                ("Tonart", fields.string("key_signature")),
+                ("Gattung", fields.string("genre")),
+                ("Besetzung", fields.string("instrumentation")),
+                ("Sätze", movements.isEmpty ? nil : movements.joined(separator: " · "))
+            ]
+            return rows.compactMap { label, value in value.map { (label, $0) } }
         }
     }
 
