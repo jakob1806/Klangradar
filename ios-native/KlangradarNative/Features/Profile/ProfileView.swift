@@ -28,6 +28,7 @@ struct ProfileView: View {
     @State private var showsLogin = false
     @State private var showsSignUp = false
     @State private var showsPlus = false
+    @ObservedObject private var social = SocialStore.shared
     @ObservedObject private var plus = PlusStore.shared
     @State private var showsDeleteAccountConfirmation = false
     @State private var isDeletingAccount = false
@@ -116,7 +117,19 @@ struct ProfileView: View {
                     NavigationLink {
                         FriendsView(auth: auth, repository: userRepository)
                     } label: {
-                        Label("Freunde", systemImage: "person.2")
+                        HStack {
+                            Label("Freunde", systemImage: "person.2")
+                            Spacer()
+                            let pending = social.incomingRequests + social.pendingPlanInvites
+                            if pending > 0 {
+                                Text("\(pending)")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 7).padding(.vertical, 2)
+                                    .background(KlangradarTheme.accent, in: .capsule)
+                                    .accessibilityLabel("\(pending) offene Anfragen und Einladungen")
+                            }
+                        }
                     }
                     NavigationLink {
                         PartnerOffersView()
@@ -1613,14 +1626,14 @@ private struct UserEventListsView: View {
                             )
                         } label: {
                             HStack(spacing: 14) {
-                                Image(systemName: "music.note.list")
+                                Image(systemName: list.isOwned ? "music.note.list" : "person.2.fill")
                                     .font(.title3)
                                     .foregroundStyle(KlangradarTheme.accent)
                                     .frame(width: 44, height: 44)
                                     .background(KlangradarTheme.accent.opacity(0.1), in: .rect(cornerRadius: 13))
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(list.name).font(.headline)
-                                    Text("\(list.events.count) \(list.events.count == 1 ? "Konzert" : "Konzerte")")
+                                    Text("\(list.events.count) \(list.events.count == 1 ? "Konzert" : "Konzerte")\(list.isOwned ? "" : " · mit dir geteilt")")
                                         .font(.subheadline).foregroundStyle(.secondary)
                                 }
                             }
@@ -1639,7 +1652,7 @@ private struct UserEventListsView: View {
             if auth.userID != nil {
                 ToolbarItem(placement: .primaryAction) {
                     Button("Neue Liste", systemImage: "plus") {
-                        if PlusStore.shared.enforcesLimits && lists.count >= PlusLimits.freeLists { showsPlusPaywall = true } else { showsCreate = true }
+                        if PlusStore.shared.enforcesLimits && lists.filter(\.isOwned).count >= PlusLimits.freeLists { showsPlusPaywall = true } else { showsCreate = true }
                     }
                 }
             }
@@ -1690,7 +1703,14 @@ private struct UserEventListsView: View {
         lists.remove(atOffsets: offsets)
         Task {
             do {
-                for list in deleted { try await repository.deleteEventList(id: list.id, token: token) }
+                for list in deleted {
+                    if list.isOwned {
+                        try await repository.deleteEventList(id: list.id, token: token)
+                    } else if let userID = auth.userID {
+                        // Geteilte Liste: nur selbst austreten.
+                        try await repository.removeListMember(list.id, userID: userID, token: token)
+                    }
+                }
             } catch {
                 errorMessage = error.localizedDescription
                 await load()
@@ -1708,6 +1728,9 @@ private struct UserEventListDetailView: View {
     @State private var showsPicker = false
     @State private var showsRename = false
     @State private var editedName: String
+    @State private var showsShare = false
+    @State private var shareSelection: Set<UUID> = []
+    @State private var members: [SocialPerson] = []
 
     init(
         initialList: UserEventList,
@@ -1752,12 +1775,54 @@ private struct UserEventListDetailView: View {
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 Button("Konzerte auswählen", systemImage: "plus") { showsPicker = true }
-                Button("Umbenennen", systemImage: "pencil") {
-                    editedName = list.name
-                    showsRename = true
+                Menu {
+                    if list.isOwned {
+                        Button("Mit Freunden teilen", systemImage: "person.2.badge.plus") { showsShare = true }
+                        Button("Umbenennen", systemImage: "pencil") {
+                            editedName = list.name
+                            showsRename = true
+                        }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
                 }
+                .disabled(!list.isOwned)
             }
         }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if members.count > 1 {
+                HStack(spacing: 10) {
+                    AvatarStack(people: members, size: 26)
+                    Text("Gemeinsam mit \(AvatarStack.names(members.filter { $0.id != auth.userID }))")
+                        .font(.footnote.weight(.semibold))
+                        .lineLimit(1)
+                    Spacer()
+                }
+                .padding(.horizontal, 16).padding(.vertical, 10)
+                .background(.bar)
+            }
+        }
+        .sheet(isPresented: $showsShare, onDismiss: { Task { await loadMembers() } }) {
+            NavigationStack {
+                List {
+                    Section {
+                        FriendPicker(selection: $shareSelection, excluded: Set(members.map(\.id)))
+                    } footer: {
+                        Text("Geteilte Listen könnt ihr gemeinsam bearbeiten.")
+                    }
+                }
+                .navigationTitle("Liste teilen")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { showsShare = false } }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Teilen") { Task { await share() } }.disabled(shareSelection.isEmpty)
+                    }
+                }
+            }
+            .presentationDetents([.medium, .large])
+        }
+        .task { await loadMembers() }
         .sheet(isPresented: $showsPicker, onDismiss: { Task { await reload() } }) {
             EventListPicker(
                 list: list,
@@ -1772,6 +1837,20 @@ private struct UserEventListDetailView: View {
             Button("Sichern") { Task { await rename() } }
                 .disabled(editedName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
+    }
+
+    private func loadMembers() async {
+        guard let repository, let token = auth.accessToken else { return }
+        members = (try? await repository.listMembers(list.id, token: token)) ?? []
+    }
+
+    private func share() async {
+        guard let repository, let token = auth.accessToken else { return }
+        try? await repository.shareList(list.id, with: Array(shareSelection), token: token)
+        Haptics.confirm()
+        shareSelection = []
+        showsShare = false
+        await loadMembers()
     }
 
     private func reload() async {

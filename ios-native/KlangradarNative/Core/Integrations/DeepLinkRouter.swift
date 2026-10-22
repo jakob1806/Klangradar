@@ -11,6 +11,8 @@ final class DeepLinkRouter: ObservableObject {
     /// Von Siri/Kurzbefehlen (KlangradarShortcuts): Tab bzw. KI öffnen.
     @Published var pendingTab: String?
     @Published var pendingCoach = false
+    /// Freunde-Bereich öffnen (Push "/friends" bzw. "/plans").
+    @Published var pendingFriendsTab: FriendsHubTab?
 
     /// true, wenn der Link ein Event-Link war und übernommen wurde.
     @discardableResult
@@ -31,6 +33,13 @@ final class DeepLinkRouter: ObservableObject {
     @discardableResult
     func handle(route: String) -> Bool {
         let parts = route.split(separator: "/")
+        // Einladungslink https://klangradar.com/f/<CODE>
+        if parts.count == 2, parts[0] == "f", parts[1].count >= 6 {
+            pendingFriendCode = parts[1].uppercased()
+            return true
+        }
+        if parts.count == 1, parts[0] == "friends" { pendingFriendsTab = .friends; return true }
+        if parts.count == 1, parts[0] == "plans" { pendingFriendsTab = .plans; return true }
         guard parts.count == 2, parts[0] == "event" else { return false }
         return open(slug: String(parts[1]))
     }
