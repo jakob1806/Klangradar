@@ -52,74 +52,34 @@ struct ProfileView: View {
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
 
-                Section("Account") {
-                    accountContent
-                }
-
+                // Profil-Redesign: nach Aufgaben gruppiert statt einer langen
+                // Liste. Übersicht oben (Besuche, Gefolgt, Level) unverändert.
                 Section {
                     Button { showsPlus = true } label: {
-                        HStack {
-                            Label {
-                                Text("Klangradar Plus").foregroundStyle(.primary)
-                            } icon: {
-                                Image(systemName: "music.note.house.fill")
+                        HStack(spacing: 12) {
+                            Image(systemName: "music.note.house.fill")
+                                .font(.title3)
+                                .foregroundStyle(.white)
+                                .frame(width: 38, height: 38)
+                                .background(KlangradarTheme.accent, in: .rect(cornerRadius: 10, style: .continuous))
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Klangradar Plus").font(.headline).foregroundStyle(.primary)
+                                Text(plus.isPlus ? "Aktiv – danke für deine Unterstützung" : "KI ohne Limit, Jahresrückblick, Partner-Vorteile")
+                                    .font(.caption).foregroundStyle(.secondary)
                             }
                             Spacer()
-                            Text(plus.isPlus ? "Aktiv" : "Entdecken")
-                                .font(.subheadline)
-                                .foregroundStyle(plus.isPlus ? KlangradarTheme.accent : .secondary)
+                            Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(.tertiary)
                         }
-                    }
-                    NavigationLink {
-                        PartnerOffersView()
-                    } label: {
-                        Label {
-                            Text("Partner-Vorteile").foregroundStyle(.primary)
-                        } icon: {
-                            Image(systemName: "gift.fill")
-                        }
+                        .padding(.vertical, 2)
                     }
                 }
                 .sheet(isPresented: $showsPlus) { PlusPaywallView() }
 
-                Section("Dein Klangradar") {
-                    // Nutzerfeedback: "Assistent & Abendplaner" (Personal-
-                    // ConciergeView) und "Klangradar KI" (KlangradarCoachView)
-                    // waren zwei separate, sich inhaltlich überschneidende
-                    // Chat-Assistenten in derselben Profil-Sektion --
-                    // KlangradarCoachView ist der ausgereiftere, aktiv
-                    // gepflegte Assistent (Dashboard, Einblicke, Check-in,
-                    // Memory, Ziele) und bleibt als EINZIGER Einstiegspunkt.
+                Section("Meine Konzerte") {
                     NavigationLink {
                         MyKlangradarHubView(auth: auth, repository: userRepository, eventRepository: eventRepository, contentRepository: contentRepository)
                     } label: {
                         Label("Mein Klangradar", systemImage: "person.crop.rectangle.stack")
-                    }
-                    NavigationLink {
-                        FriendsView(auth: auth, repository: userRepository)
-                    } label: {
-                        Label("Freunde", systemImage: "person.2")
-                    }
-                    // Nutzerwunsch: unter "Mein Klangradar", Schrift schwarz wie
-                    // die übrigen Zeilen (nur das Symbol in Akzentfarbe).
-                    Button {
-                        Task { await subscribeCalendar() }
-                    } label: {
-                        Label {
-                            Text("Gemerkte Konzerte im Kalender abonnieren").foregroundStyle(.primary)
-                        } icon: {
-                            Image(systemName: "calendar.badge.plus")
-                        }
-                    }
-                    NavigationLink {
-                        KlangradarCoachView(
-                            auth: auth,
-                            repository: userRepository,
-                            eventRepository: eventRepository,
-                            contentRepository: contentRepository
-                        )
-                    } label: {
-                        Label("Klangradar KI", systemImage: "sparkles")
                     }
                     NavigationLink {
                         FavoriteEventsView(auth: auth, repository: userRepository, eventRepository: eventRepository, contentRepository: contentRepository)
@@ -127,19 +87,54 @@ struct ProfileView: View {
                         Label("Favoriten", systemImage: "heart")
                     }
                     NavigationLink {
+                        UserEventListsView(auth: auth, repository: userRepository, eventRepository: eventRepository, contentRepository: contentRepository)
+                    } label: {
+                        Label("Meine Listen", systemImage: "rectangle.stack")
+                    }
+                    NavigationLink {
                         ConcertArchiveView(repository: userRepository, eventRepository: eventRepository, contentRepository: contentRepository)
                     } label: {
                         Label("Konzertarchiv", systemImage: "archivebox")
                     }
-                    NavigationLink {
-                        UserEventListsView(
-                            auth: auth,
-                            repository: userRepository,
-                            eventRepository: eventRepository,
-                            contentRepository: contentRepository
-                        )
+                    Button {
+                        Task { await subscribeCalendar() }
                     } label: {
-                        Label("Meine Listen", systemImage: "rectangle.stack")
+                        Label {
+                            Text("Im Kalender abonnieren").foregroundStyle(.primary)
+                        } icon: {
+                            Image(systemName: "calendar.badge.plus")
+                        }
+                    }
+                }
+
+                Section("Entdecken") {
+                    NavigationLink {
+                        KlangradarCoachView(auth: auth, repository: userRepository, eventRepository: eventRepository, contentRepository: contentRepository)
+                    } label: {
+                        Label("Klangradar KI", systemImage: "sparkles")
+                    }
+                    NavigationLink {
+                        FriendsView(auth: auth, repository: userRepository)
+                    } label: {
+                        Label("Freunde", systemImage: "person.2")
+                    }
+                    NavigationLink {
+                        PartnerOffersView()
+                    } label: {
+                        Label("Partner-Vorteile", systemImage: "gift")
+                    }
+                }
+
+                Section("Einstellungen") {
+                    // Nutzerwunsch: Stadtauswahl im Profil als volle Seite (Push).
+                    NavigationLink {
+                        CitySwitcherView(cityStore: cityStore, embedsNavigationStack: false)
+                    } label: {
+                        HStack {
+                            Label("Stadt", systemImage: "building.2")
+                            Spacer()
+                            Text(cityStore.selectedCity?.name ?? "Alle Städte").foregroundStyle(.secondary)
+                        }
                     }
                     NavigationLink {
                         InterestsView(auth: auth, repository: userRepository)
@@ -156,24 +151,18 @@ struct ProfileView: View {
                     } label: {
                         Label("Homepage anordnen", systemImage: "arrow.up.arrow.down")
                     }
-                    // Nutzerwunsch: unter Profil öffnet die Stadtauswahl eine
-                    // volle Seite (Push) statt eines Popups/Sheets — Home,
-                    // Suche und Kalender nutzen weiterhin CityCompactMenu mit
-                    // Sheet-Präsentation, siehe CitySwitcherView.
-                    NavigationLink {
-                        CitySwitcherView(cityStore: cityStore, embedsNavigationStack: false)
+                    Picker(selection: $appearance) {
+                        Text("System").tag("system")
+                        Text("Hell").tag("light")
+                        Text("Dunkel").tag("dark")
                     } label: {
-                        HStack {
-                            Label {
-                                Text("Stadt")
-                            } icon: {
-                                Image(systemName: "building.2").foregroundStyle(KlangradarTheme.accent)
-                            }
-                            Spacer()
-                            Text(cityStore.selectedCity?.name ?? "Alle Städte")
-                                .foregroundStyle(.secondary)
-                        }
+                        Label("Erscheinungsbild", systemImage: "circle.lefthalf.filled")
                     }
+                    AccentColorSettingsView()
+                }
+
+                Section("Account") {
+                    accountContent
                 }
 
                 if hasEditorialAccess, let editorialRepository {
@@ -216,15 +205,6 @@ struct ProfileView: View {
                     } footer: {
                         Text("Home und Suche bleiben zunächst bearbeitbar: Stift oben rechts wählt Inhalte, Texte und Bilder — auch echte Veranstaltungen statt Platzhaltern. Alles andere verhält sich wie die normale App. Mit „Fertig“ verschwinden Stift und X, und die Oberfläche ist aufnahmebereit. Heraus kommst du per Doppeltipp auf Home in der Tableiste.")
                     }
-                }
-
-                Section("Darstellung") {
-                    Picker("Erscheinungsbild", selection: $appearance) {
-                        Text("System").tag("system")
-                        Text("Hell").tag("light")
-                        Text("Dunkel").tag("dark")
-                    }
-                    AccentColorSettingsView()
                 }
 
                 Section("Über Klangradar") {
