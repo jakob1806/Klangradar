@@ -856,6 +856,12 @@ final class FollowStore: ObservableObject {
 
     var isSignedIn: Bool { auth.userID != nil }
 
+    /// Freunde, die zu diesem Konzert gehen (leer ohne Anmeldung).
+    func friendsAttending(eventID: UUID) async -> [Friend] {
+        guard let repository, let token = auth.accessToken else { return [] }
+        return (try? await repository.friendsAttending(eventID: eventID, token: token)) ?? []
+    }
+
     /// Einmalige Frage an die Klangradar KI ohne Chatverlauf, etwa für die
     /// Werk-Einführung auf der Werkseite. Zählt wie eine Chatfrage gegen das
     /// kostenlose Wochenkontingent (CoachQuota). nil = nicht angemeldet.

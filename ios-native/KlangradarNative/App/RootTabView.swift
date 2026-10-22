@@ -26,6 +26,7 @@ struct RootTabView: View {
     @State private var isBiometricUnlocked = !BiometricAuth.isEnabled
     @State private var isAuthenticatingBiometrics = false
     @State private var showsCoach = false
+    @State private var showsFriends = false
     @ObservedObject private var attendanceMonitor = AttendanceLocationMonitor.shared
     @ObservedObject private var deepLinks = DeepLinkRouter.shared
 
@@ -136,6 +137,17 @@ struct RootTabView: View {
         }
         .onChange(of: genreFilterRouter.pending) { _, pending in
             if pending != nil { selection = .search }
+        }
+        // Freundes-Einladung per Link: Freunde-Ansicht öffnen, die den Code
+        // aus DeepLinkRouter.pendingFriendCode übernimmt.
+        .onChange(of: deepLinks.pendingFriendCode) { _, code in
+            if code != nil { showsFriends = true }
+        }
+        .sheet(isPresented: $showsFriends) {
+            NavigationStack {
+                FriendsView(auth: environment.auth, repository: environment.restClient.map(UserRepository.init(client:)))
+                    .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fertig") { showsFriends = false } } }
+            }
         }
         .onChange(of: deepLinks.pendingTab) { _, tab in
             guard let tab else { return }
