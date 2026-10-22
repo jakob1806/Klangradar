@@ -18,26 +18,29 @@ struct CroppedAsyncImage<Placeholder: View>: View {
 
     var body: some View {
         GeometryReader { proxy in
-            AsyncImage(url: url) { image in
-                if let crop, crop.width > 0, crop.height > 0 {
-                    image
-                        .resizable()
-                        .scaledToFill()
-                        .frame(
-                            width: proxy.size.width / crop.width,
-                            height: proxy.size.height / crop.height
-                        )
-                        .offset(
-                            x: -crop.x * (proxy.size.width / crop.width),
-                            y: -crop.y * (proxy.size.height / crop.height)
-                        )
-                        .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
-                        .clipped()
+            // Über ImageCache (Speicher + Festplatte, verkleinert) statt AsyncImage.
+            CachedAsyncImage(url: url, maxPixel: max(proxy.size.width, proxy.size.height) * 3 / max(crop?.width ?? 1, 0.2)) { phase in
+                if let image = phase.image {
+                    if let crop, crop.width > 0, crop.height > 0 {
+                        image
+                            .resizable()
+                            .scaledToFill()
+                            .frame(
+                                width: proxy.size.width / crop.width,
+                                height: proxy.size.height / crop.height
+                            )
+                            .offset(
+                                x: -crop.x * (proxy.size.width / crop.width),
+                                y: -crop.y * (proxy.size.height / crop.height)
+                            )
+                            .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
+                            .clipped()
+                    } else {
+                        image.resizable().scaledToFill()
+                    }
                 } else {
-                    image.resizable().scaledToFill()
+                    placeholder()
                 }
-            } placeholder: {
-                placeholder()
             }
         }
     }
