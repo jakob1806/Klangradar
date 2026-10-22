@@ -8,6 +8,13 @@ on:
   push:
     branches: [main]
 
+# Veraltete Läufe desselben PRs abbrechen (neuer Push / update-branch):
+# macOS-Runner sind knapp, alte Läufe blockierten sonst die aktuellen.
+# Läufe auf main werden nie abgebrochen.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   changes:
     runs-on: ubuntu-latest
@@ -26,7 +33,9 @@ jobs:
   analyze-and-test:
     needs: changes
     if: needs.changes.outputs.app == 'true'
-    runs-on: macos-latest
+    # Linux statt macOS: Format/Analyse/Tests brauchen kein Xcode, und
+    # macOS-Runner sind das Nadelöhr der CI (lange Warteschlangen).
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: app
