@@ -40,211 +40,111 @@ struct ProfileView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
                     ProfileOverview(
                         auth: auth,
                         repository: userRepository,
                         usesPreviewData: usesPreviewData,
                         onSelect: { profileDestination = $0 }
                     )
-                }
-                .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 6, trailing: 0))
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
+                    .padding(.vertical, 4)
+                    .background(.regularMaterial, in: .rect(cornerRadius: 26, style: .continuous))
 
-                // Profil-Redesign: nach Aufgaben gruppiert statt einer langen
-                // Liste. Übersicht oben (Besuche, Gefolgt, Level) unverändert.
-                Section {
-                    Button { showsPlus = true } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: "music.note.house.fill")
-                                .font(.title3)
-                                .foregroundStyle(.white)
-                                .frame(width: 38, height: 38)
-                                .background(KlangradarTheme.accent, in: .rect(cornerRadius: 10, style: .continuous))
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Klangradar Plus").font(.headline).foregroundStyle(.primary)
-                                Text(plus.isPlus ? "Aktiv – danke für deine Unterstützung" : "KI ohne Limit, Jahresrückblick, Partner-Vorteile")
-                                    .font(.caption).foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(.tertiary)
-                        }
-                        .padding(.vertical, 2)
-                    }
-                }
-                .sheet(isPresented: $showsPlus) { PlusPaywallView() }
+                    if case .anonymous = auth.state { signInCard }
 
-                Section("Meine Konzerte") {
-                    NavigationLink {
-                        MyKlangradarHubView(auth: auth, repository: userRepository, eventRepository: eventRepository, contentRepository: contentRepository)
-                    } label: {
-                        Label("Mein Klangradar", systemImage: "person.crop.rectangle.stack")
-                    }
-                    NavigationLink {
-                        FavoriteEventsView(auth: auth, repository: userRepository, eventRepository: eventRepository, contentRepository: contentRepository)
-                    } label: {
-                        Label("Favoriten", systemImage: "heart")
-                    }
-                    NavigationLink {
-                        UserEventListsView(auth: auth, repository: userRepository, eventRepository: eventRepository, contentRepository: contentRepository)
-                    } label: {
-                        Label("Meine Listen", systemImage: "rectangle.stack")
-                    }
-                    NavigationLink {
-                        ConcertArchiveView(repository: userRepository, eventRepository: eventRepository, contentRepository: contentRepository)
-                    } label: {
-                        Label("Konzertarchiv", systemImage: "archivebox")
-                    }
-                    Button {
-                        Task { await subscribeCalendar() }
-                    } label: {
-                        Label {
-                            Text("Im Kalender abonnieren").foregroundStyle(.primary)
-                        } icon: {
-                            Image(systemName: "calendar.badge.plus")
-                        }
-                    }
-                }
+                    plusHero
 
-                Section("Entdecken") {
-                    NavigationLink {
-                        KlangradarCoachView(auth: auth, repository: userRepository, eventRepository: eventRepository, contentRepository: contentRepository)
-                    } label: {
-                        Label("Klangradar KI", systemImage: "sparkles")
-                    }
-                    NavigationLink {
-                        FriendsView(auth: auth, repository: userRepository)
-                    } label: {
-                        HStack {
-                            Label("Freunde", systemImage: "person.2")
-                            Spacer()
-                            let pending = social.incomingRequests + social.pendingPlanInvites
-                            if pending > 0 {
-                                Text("\(pending)")
-                                    .font(.caption.bold())
-                                    .foregroundStyle(.white)
-                                    .padding(.horizontal, 7).padding(.vertical, 2)
-                                    .background(KlangradarTheme.accent, in: .capsule)
-                                    .accessibilityLabel("\(pending) offene Anfragen und Einladungen")
-                            }
-                        }
-                    }
-                    NavigationLink {
-                        PartnerOffersView()
-                    } label: {
-                        Label("Partner-Vorteile", systemImage: "gift")
-                    }
-                }
-
-                Section("Einstellungen") {
-                    // Nutzerwunsch: Stadtauswahl im Profil als volle Seite (Push).
-                    NavigationLink {
-                        CitySwitcherView(cityStore: cityStore, embedsNavigationStack: false)
-                    } label: {
-                        HStack {
-                            Label("Stadt", systemImage: "building.2")
-                            Spacer()
-                            Text(cityStore.selectedCity?.name ?? "Alle Städte").foregroundStyle(.secondary)
-                        }
-                    }
-                    NavigationLink {
-                        InterestsView(auth: auth, repository: userRepository)
-                    } label: {
-                        Label("Interessen", systemImage: "slider.horizontal.3")
-                    }
-                    NavigationLink {
-                        NotificationSettingsView(auth: auth, repository: userRepository)
-                    } label: {
-                        Label("Benachrichtigungen", systemImage: "bell")
-                    }
-                    NavigationLink {
-                        HomeCategoryOrderView(userID: auth.userID)
-                    } label: {
-                        Label("Homepage anordnen", systemImage: "arrow.up.arrow.down")
-                    }
-                    Picker(selection: $appearance) {
-                        Text("System").tag("system")
-                        Text("Hell").tag("light")
-                        Text("Dunkel").tag("dark")
-                    } label: {
-                        Label("Erscheinungsbild", systemImage: "circle.lefthalf.filled")
-                    }
-                    AccentColorSettingsView()
-                }
-
-                Section("Account") {
-                    accountContent
-                }
-
-                if hasEditorialAccess, let editorialRepository {
-                    Section {
-                        // Punkt 2 des Redesigns (Heute/Events/Meldungen/Medien/
-                        // Mehr, siehe EditorialShellView): per .fullScreenCover
-                        // statt gepusht, weil eine eigene Tab-Bar innerhalb
-                        // dieses Navigation-Stacks kein sauberes Apple-Pattern
-                        // wäre. Ersetzt die aufgelöste EditorialDashboardView.
-                        Button {
-                            showsEditorialShell = true
+                    ProfileSectionTitle("Meine Konzerte")
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+                        NavigationLink {
+                            MyKlangradarHubView(auth: auth, repository: userRepository, eventRepository: eventRepository, contentRepository: contentRepository)
                         } label: {
-                            Label("Redaktionsmodus", systemImage: "exclamationmark.shield.fill")
-                                .foregroundStyle(.orange)
+                            ProfileTile(title: "Mein Klangradar", subtitle: "Planung & Rückblick", symbol: "person.crop.rectangle.stack.fill", color: KlangradarTheme.accent)
                         }
-                    } header: {
-                        Text("Redaktion")
-                    } footer: {
-                        Text("Schnellkorrekturen wirken sich sofort auf alle Klangradar-Oberflächen aus.")
-                    }
-                }
-
-                // Marketing-Aufnahmen gehören in eine auslieferbare App,
-                // aber nicht in den öffentlichen Nutzerfluss. Der Zugang ist
-                // deshalb an den schon bestehenden Redaktionszugang gebunden
-                // statt an das DEBUG-Build-Flag. Ein einziger Einstieg statt
-                // zwei getrennter Modi: startet sofort bearbeitbar (Stift
-                // oben rechts in Home/Suche), „Fertig“ blendet Stift und X
-                // aus und macht die Oberfläche aufnahmebereit; heraus kommt
-                // man per Doppeltipp auf Home in der Tableiste.
-                if hasEditorialAccess {
-                    Section {
-                        Button {
-                            showsMarketingShell = true
+                        NavigationLink {
+                            FavoriteEventsView(auth: auth, repository: userRepository, eventRepository: eventRepository, contentRepository: contentRepository)
                         } label: {
-                            Label("Marketing-Screenshots", systemImage: "camera.viewfinder")
+                            ProfileTile(title: "Favoriten", subtitle: "Gemerkte Konzerte", symbol: "heart.fill", color: .pink)
                         }
-                    } header: {
-                        Text("Marketing")
-                    } footer: {
-                        Text("Home und Suche bleiben zunächst bearbeitbar: Stift oben rechts wählt Inhalte, Texte und Bilder — auch echte Veranstaltungen statt Platzhaltern. Alles andere verhält sich wie die normale App. Mit „Fertig“ verschwinden Stift und X, und die Oberfläche ist aufnahmebereit. Heraus kommst du per Doppeltipp auf Home in der Tableiste.")
+                        NavigationLink {
+                            UserEventListsView(auth: auth, repository: userRepository, eventRepository: eventRepository, contentRepository: contentRepository)
+                        } label: {
+                            ProfileTile(title: "Meine Listen", subtitle: "Auch gemeinsame", symbol: "rectangle.stack.fill", color: .orange)
+                        }
+                        NavigationLink {
+                            ConcertArchiveView(repository: userRepository, eventRepository: eventRepository, contentRepository: contentRepository)
+                        } label: {
+                            ProfileTile(title: "Konzertarchiv", subtitle: "Vergangene Abende", symbol: "archivebox.fill", color: .purple)
+                        }
                     }
-                }
+                    .buttonStyle(.plain)
 
-                Section("Über Klangradar") {
-                    // Generated by Claude Code — der externe Link zeigte auf
-                    // die falsche Domain (klangradar.app statt .com) und
-                    // lief damit ins Leere; jetzt wie Impressum als
-                    // In-App-Ansicht.
-                    NavigationLink {
-                        AGBView()
-                    } label: {
-                        Text("AGB")
+                    ProfileSectionTitle("Gemeinsam & entdecken")
+                    HStack(spacing: 12) {
+                        NavigationLink {
+                            FriendsView(auth: auth, repository: userRepository)
+                        } label: {
+                            friendsCard
+                        }
+                        NavigationLink {
+                            KlangradarCoachView(auth: auth, repository: userRepository, eventRepository: eventRepository, contentRepository: contentRepository)
+                        } label: {
+                            coachCard
+                        }
                     }
-                    NavigationLink {
-                        DatenschutzView()
-                    } label: {
-                        Text("Datenschutz")
+                    .buttonStyle(.plain)
+
+                    VStack(spacing: 0) {
+                        NavigationLink { PartnerOffersView() } label: {
+                            ProfileRow(title: "Partner-Vorteile", symbol: "gift.fill", color: .red)
+                        }
+                        Divider().padding(.leading, 56)
+                        Button { Task { await subscribeCalendar() } } label: {
+                            ProfileRow(title: "Im Kalender abonnieren", symbol: "calendar.badge.plus", color: .green, showsChevron: false)
+                        }
+                        Divider().padding(.leading, 56)
+                        NavigationLink {
+                            CitySwitcherView(cityStore: cityStore, embedsNavigationStack: false)
+                        } label: {
+                            ProfileRow(title: "Stadt", symbol: "building.2.fill", color: .teal, value: cityStore.selectedCity?.name ?? "Alle Städte")
+                        }
+                        Divider().padding(.leading, 56)
+                        NavigationLink { settingsList } label: {
+                            ProfileRow(title: "Einstellungen", symbol: "gearshape.fill", color: .gray)
+                        }
                     }
-                    NavigationLink {
-                        ImpressumView()
-                    } label: {
-                        Text("Impressum")
+                    .buttonStyle(.plain)
+                    .background(.regularMaterial, in: .rect(cornerRadius: 20, style: .continuous))
+
+                    Text("Klangradar \(appVersion)")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 4)
+                }
+                .padding(.horizontal, KlangradarTheme.pagePadding)
+                .padding(.top, 8)
+                .padding(.bottom, 110)
+                .frame(maxWidth: 760)
+                .frame(maxWidth: .infinity)
+            }
+            .background {
+                // Farbschimmer statt reinem Weiß (Nutzerfeedback: Profil "zu weiß").
+                ZStack(alignment: .top) {
+                    KlangradarBackground()
+                    RadialGradient(colors: [KlangradarTheme.accent.opacity(0.28), .clear], center: .topTrailing, startRadius: 20, endRadius: 420)
+                    RadialGradient(colors: [Color.purple.opacity(0.14), .clear], center: .topLeading, startRadius: 10, endRadius: 360)
+                }
+                .ignoresSafeArea()
+            }
+            .sheet(isPresented: $showsPlus) { PlusPaywallView() }
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink { settingsList } label: {
+                        Image(systemName: "gearshape")
                     }
-                    HStack {
-                        Text("Version")
-                        Spacer()
-                        Text(appVersion).foregroundStyle(.secondary)
-                    }
+                    .accessibilityLabel("Einstellungen")
                 }
             }
             .navigationTitle("Profil")
@@ -368,6 +268,224 @@ struct ProfileView: View {
             }
             if attempt < 2 { try? await Task.sleep(for: .milliseconds(450)) }
         }
+    }
+
+
+    // MARK: - Profil-Übersicht (Redesign)
+
+    private var plusHero: some View {
+        Button { showsPlus = true } label: {
+            HStack(alignment: .center, spacing: 16) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("Klangradar Plus", systemImage: "music.note.house.fill")
+                        .font(.caption.weight(.bold))
+                        .textCase(.uppercase)
+                        .tracking(0.8)
+                        .foregroundStyle(.white.opacity(0.85))
+                    Text(plus.isPlus ? "Danke, dass du dabei bist." : "Mehr aus jedem Konzertabend.")
+                        .font(.title3.bold())
+                        .foregroundStyle(.white)
+                        .multilineTextAlignment(.leading)
+                    Text(plus.isPlus ? "Plus ist aktiv." : "KI ohne Limit · Jahresrückblick · Partner-Vorteile")
+                        .font(.footnote)
+                        .foregroundStyle(.white.opacity(0.85))
+                        .multilineTextAlignment(.leading)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: plus.isPlus ? "checkmark.seal.fill" : "arrow.right.circle.fill")
+                    .font(.system(size: 34))
+                    .foregroundStyle(.white)
+                    .symbolRenderingMode(.hierarchical)
+            }
+            .padding(20)
+            .background {
+                ZStack {
+                    LinearGradient(colors: [KlangradarTheme.accent, .indigo, .purple.opacity(0.9)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                    Image(systemName: "waveform")
+                        .font(.system(size: 120, weight: .black))
+                        .foregroundStyle(.white.opacity(0.08))
+                        .offset(x: 110, y: 20)
+                }
+            }
+            .clipShape(.rect(cornerRadius: 26, style: .continuous))
+            .shadow(color: KlangradarTheme.accent.opacity(0.3), radius: 16, y: 8)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Klangradar Plus")
+    }
+
+    private var friendsCard: some View {
+        let pending = social.incomingRequests + social.pendingPlanInvites
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                ProfileIcon(symbol: "person.2.fill", color: .mint, size: 40)
+                Spacer()
+                if pending > 0 {
+                    Text("\(pending)")
+                        .font(.caption.bold())
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 8).padding(.vertical, 3)
+                        .background(.red, in: .capsule)
+                        .accessibilityLabel("\(pending) offene Anfragen und Einladungen")
+                }
+            }
+            Spacer(minLength: 0)
+            Text("Freunde").font(.headline).foregroundStyle(.primary)
+            Text(pending > 0 ? "Neue Anfragen & Einladungen" : "Pläne, Feed & Einladen")
+                .font(.caption).foregroundStyle(.secondary).lineLimit(2)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, minHeight: 150, alignment: .leading)
+        .background(.regularMaterial, in: .rect(cornerRadius: 22, style: .continuous))
+    }
+
+    private var coachCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Image(systemName: "sparkles")
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(.white)
+                .frame(width: 40, height: 40)
+                .background(.white.opacity(0.2), in: .rect(cornerRadius: 11, style: .continuous))
+            Spacer(minLength: 0)
+            Text("Klangradar KI").font(.headline).foregroundStyle(.white)
+            Text("Was passt heute Abend?").font(.caption).foregroundStyle(.white.opacity(0.85)).lineLimit(2)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, minHeight: 150, alignment: .leading)
+        .background(
+            LinearGradient(colors: [.orange, .pink], startPoint: .topLeading, endPoint: .bottomTrailing),
+            in: .rect(cornerRadius: 22, style: .continuous)
+        )
+    }
+
+    private var signInCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Dein persönliches Klangradar").font(.title3.bold())
+            Text("Melde dich an, um Konzerte zu merken, Freunden zu folgen und deine Konzertabende zu planen.")
+                .font(.subheadline).foregroundStyle(.secondary)
+            Button { showsLogin = true } label: {
+                Text("Anmelden").font(.headline).frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(KlangradarTheme.accent)
+            .controlSize(.large)
+        }
+        .padding(20)
+        .background(.regularMaterial, in: .rect(cornerRadius: 24, style: .continuous))
+    }
+
+    /// Einstellungen als eigene Seite (iOS-Standard), aus der Profil-Übersicht verlinkt.
+    private var settingsList: some View {
+        Form {
+                Section("Allgemein") {
+                    NavigationLink {
+                        CitySwitcherView(cityStore: cityStore, embedsNavigationStack: false)
+                    } label: {
+                        HStack {
+                            SettingsLabel("Stadt", symbol: "building.2.fill", color: .teal)
+                            Spacer()
+                            Text(cityStore.selectedCity?.name ?? "Alle Städte").foregroundStyle(.secondary)
+                        }
+                    }
+                    NavigationLink {
+                        InterestsView(auth: auth, repository: userRepository)
+                    } label: {
+                        SettingsLabel("Interessen", symbol: "slider.horizontal.3", color: .indigo)
+                    }
+                    NavigationLink {
+                        NotificationSettingsView(auth: auth, repository: userRepository)
+                    } label: {
+                        SettingsLabel("Benachrichtigungen", symbol: "bell.fill", color: .red)
+                    }
+                    NavigationLink {
+                        HomeCategoryOrderView(userID: auth.userID)
+                    } label: {
+                        SettingsLabel("Homepage anordnen", symbol: "arrow.up.arrow.down", color: .orange)
+                    }
+                    Picker(selection: $appearance) {
+                        Text("System").tag("system")
+                        Text("Hell").tag("light")
+                        Text("Dunkel").tag("dark")
+                    } label: {
+                        SettingsLabel("Erscheinungsbild", symbol: "circle.lefthalf.filled", color: .blue)
+                    }
+                    AccentColorSettingsView()
+                }
+
+                Section("Account") {
+                    accountContent
+                }
+
+                if hasEditorialAccess, let editorialRepository {
+                    Section {
+                        // Punkt 2 des Redesigns (Heute/Events/Meldungen/Medien/
+                        // Mehr, siehe EditorialShellView): per .fullScreenCover
+                        // statt gepusht, weil eine eigene Tab-Bar innerhalb
+                        // dieses Navigation-Stacks kein sauberes Apple-Pattern
+                        // wäre. Ersetzt die aufgelöste EditorialDashboardView.
+                        Button {
+                            showsEditorialShell = true
+                        } label: {
+                            SettingsLabel("Redaktionsmodus", symbol: "exclamationmark.shield.fill", color: .orange)
+                        }
+                    } header: {
+                        Text("Redaktion")
+                    } footer: {
+                        Text("Schnellkorrekturen wirken sich sofort auf alle Klangradar-Oberflächen aus.")
+                    }
+                }
+
+                // Marketing-Aufnahmen gehören in eine auslieferbare App,
+                // aber nicht in den öffentlichen Nutzerfluss. Der Zugang ist
+                // deshalb an den schon bestehenden Redaktionszugang gebunden
+                // statt an das DEBUG-Build-Flag. Ein einziger Einstieg statt
+                // zwei getrennter Modi: startet sofort bearbeitbar (Stift
+                // oben rechts in Home/Suche), „Fertig“ blendet Stift und X
+                // aus und macht die Oberfläche aufnahmebereit; heraus kommt
+                // man per Doppeltipp auf Home in der Tableiste.
+                if hasEditorialAccess {
+                    Section {
+                        Button {
+                            showsMarketingShell = true
+                        } label: {
+                            SettingsLabel("Marketing-Screenshots", symbol: "camera.viewfinder", color: .pink)
+                        }
+                    } header: {
+                        Text("Marketing")
+                    } footer: {
+                        Text("Home und Suche bleiben zunächst bearbeitbar: Stift oben rechts wählt Inhalte, Texte und Bilder — auch echte Veranstaltungen statt Platzhaltern. Alles andere verhält sich wie die normale App. Mit „Fertig“ verschwinden Stift und X, und die Oberfläche ist aufnahmebereit. Heraus kommst du per Doppeltipp auf Home in der Tableiste.")
+                    }
+                }
+
+                Section("Über Klangradar") {
+                    // Generated by Claude Code — der externe Link zeigte auf
+                    // die falsche Domain (klangradar.app statt .com) und
+                    // lief damit ins Leere; jetzt wie Impressum als
+                    // In-App-Ansicht.
+                    NavigationLink {
+                        AGBView()
+                    } label: {
+                        Text("AGB")
+                    }
+                    NavigationLink {
+                        DatenschutzView()
+                    } label: {
+                        Text("Datenschutz")
+                    }
+                    NavigationLink {
+                        ImpressumView()
+                    } label: {
+                        Text("Impressum")
+                    }
+                    HStack {
+                        Text("Version")
+                        Spacer()
+                        Text(appVersion).foregroundStyle(.secondary)
+                    }
+                }
+                    }
+        .navigationTitle("Einstellungen")
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     @ViewBuilder
@@ -1982,5 +2100,86 @@ private struct UserListEventRow: View {
             }
         }
         .padding(.vertical, 3)
+    }
+}
+
+
+// MARK: - Bausteine der Profil-Übersicht
+
+/// Farbiges Symbolfeld wie in der iOS-Einstellungen-App.
+private struct ProfileIcon: View {
+    let symbol: String
+    let color: Color
+    var size: CGFloat = 30
+
+    var body: some View {
+        Image(systemName: symbol)
+            .font(.system(size: size * 0.48, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(width: size, height: size)
+            .background(color.gradient, in: .rect(cornerRadius: size * 0.27, style: .continuous))
+    }
+}
+
+private struct SettingsLabel: View {
+    let title: String
+    let symbol: String
+    let color: Color
+    init(_ title: String, symbol: String, color: Color) { self.title = title; self.symbol = symbol; self.color = color }
+
+    var body: some View {
+        Label { Text(title).foregroundStyle(.primary) } icon: { ProfileIcon(symbol: symbol, color: color, size: 28) }
+    }
+}
+
+private struct ProfileSectionTitle: View {
+    let text: String
+    init(_ text: String) { self.text = text }
+    var body: some View {
+        Text(text).font(.title3.bold()).padding(.top, 4).padding(.horizontal, 2)
+    }
+}
+
+/// Kachel im 2er-Raster ("Meine Konzerte").
+private struct ProfileTile: View {
+    let title: String
+    let subtitle: String
+    let symbol: String
+    let color: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            ProfileIcon(symbol: symbol, color: color, size: 38)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.headline).foregroundStyle(.primary).lineLimit(1).minimumScaleFactor(0.85)
+                Text(subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.regularMaterial, in: .rect(cornerRadius: 20, style: .continuous))
+        .contentShape(.rect(cornerRadius: 20))
+    }
+}
+
+/// Zeile in einer gruppierten Karte (wie Einstellungen-App).
+private struct ProfileRow: View {
+    let title: String
+    let symbol: String
+    let color: Color
+    var value: String? = nil
+    var showsChevron = true
+
+    var body: some View {
+        HStack(spacing: 14) {
+            ProfileIcon(symbol: symbol, color: color)
+            Text(title).foregroundStyle(.primary)
+            Spacer()
+            if let value { Text(value).foregroundStyle(.secondary) }
+            if showsChevron { Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary) }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .contentShape(.rect)
     }
 }
