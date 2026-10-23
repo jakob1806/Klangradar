@@ -3,7 +3,7 @@ import { updateSession } from "@/lib/supabase/proxy";
 
 // "/einladung": Team-Einladungsseite — das Token ist der Zugang, Annehmen
 // verlangt dort zusätzlich einen Login (siehe einladung/[token]).
-const PUBLIC_PATHS = ["/login", "/auth/callback", "/no-access", "/impressum", "/datenschutz", "/nutzungsbedingungen", "/einladung", "/f/"];
+const PUBLIC_PATHS = ["/login", "/auth/callback", "/no-access", "/impressum", "/datenschutz", "/nutzungsbedingungen", "/einladung", "/f/", "/e/"];
 // Erfordert Login, aber NICHT admin/editor-Rolle — Veranstalter-Portal,
 // Berechtigung läuft pro Zeile über entity_claims (RLS), nicht über die
 // globale user_roles-Gate. Bewusst ein eigenes Array statt in PUBLIC_PATHS
@@ -16,7 +16,7 @@ const AUTH_ONLY_PATHS = ["/veranstalter"];
 // Vorher leitete der Proxy sie auf /login um — Stripe folgt keinen
 // Redirects, bezahlte Promotionen blieben dadurch auf "Zahlung ausstehend".
 // "/.well-known/": Apple-App-Site-Association für Universal Links.
-const MACHINE_PATHS = ["/api/webhooks/", "/api/cron/", "/api/calendar/", "/.well-known/"];
+const MACHINE_PATHS = ["/api/webhooks/", "/api/cron/", "/api/calendar/", "/api/email/", "/.well-known/"];
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -58,5 +58,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|prototypes(?:/|$)|app-preview/|favicon.ico|.*\\.svg$).*)"],
+  matcher: ["/((?!_next/static|_next/image|prototypes(?:/|$)|app-preview/|email/|favicon.ico|.*\\.svg$).*)"],
 };

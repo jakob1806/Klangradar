@@ -40,7 +40,8 @@ final class DeepLinkRouter: ObservableObject {
         }
         if parts.count == 1, parts[0] == "friends" { pendingFriendsTab = .friends; return true }
         if parts.count == 1, parts[0] == "plans" { pendingFriendsTab = .plans; return true }
-        guard parts.count == 2, parts[0] == "event" else { return false }
+        // Konzertlinks aus E-Mails: https://klangradar.com/e/<slug>
+        guard parts.count == 2, parts[0] == "event" || parts[0] == "e" else { return false }
         return open(slug: String(parts[1]))
     }
 

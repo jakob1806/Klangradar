@@ -56,7 +56,7 @@ struct NotificationSettingsView: View {
                 } header: {
                     Text("E-Mail")
                 } footer: {
-                    Text("„Deine Konzertwoche“ kommt einmal pro Woche mit passenden Terminen in deiner Stadt. Jede E-Mail enthält einen Link zum Abmelden.")
+                    Text("„Deine Konzertwoche“ kommt jeden Donnerstag: persönlich ausgewählte Konzerte der nächsten Tage in deiner Stadt, nach deinen gefolgten Künstler:innen, Ensembles und Orten, deiner Merkliste, deinen Lieblingsgenres und dem, was deine Freunde vorhaben. Jede E-Mail enthält einen Link zum Abmelden.")
                 }
 
                 Section {
