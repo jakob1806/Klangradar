@@ -41,6 +41,7 @@
 // TAVILY_API_KEY (siehe _shared/tavily.ts) für die Kandidaten-Anreicherung.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { sameWork, workIdentity } from "../_shared/workIdentity.ts";
 import {
   type AiFunctionDeclaration,
   callAiFunction,
@@ -1144,9 +1145,28 @@ Deno.serve(async (req) => {
           .from("works")
           .select("id, title, composer_id, catalog_number, key_signature")
           .ilike("title", `%${normalizedTitle.slice(0, 20)}%`);
-        const existingWork = (sameNamedWorks ?? []).find(
-          (existing: { title: string }) =>
-            normalizeTitleForMatch(existing.title) === normalizedTitle,
+        // Werk-Identität pro Komponist (workIdentity.ts): Werkverzeichnis,
+        // Gattung + Nummer oder bereinigter Titel. Fängt "5. Sinfonie" vs.
+        // "Sinfonie Nr. 5 cis-Moll" vs. "Symphony No. 5" ab, die der reine
+        // Titelvergleich als verschiedene Werke anlegte (Nutzerfeedback
+        // Münchner Philharmoniker).
+        let composerMatch: { id: string; title: string; composer_id: string | null; catalog_number: string | null; key_signature: string | null } | undefined;
+        if (composerId) {
+          const { data: composerWorks } = await supabase
+            .from("works")
+            .select("id, title, composer_id, catalog_number, key_signature")
+            .eq("composer_id", composerId)
+            .limit(1000);
+          const identity = workIdentity(w.title, w.catalogNumber);
+          composerMatch = (composerWorks ?? []).find((candidate: { title: string; catalog_number: string | null }) =>
+            sameWork(identity, workIdentity(candidate.title, candidate.catalog_number))
+          );
+        }
+        const existingWork = composerMatch ?? (sameNamedWorks ?? []).find(
+          (existing: { title: string; composer_id: string | null }) =>
+            normalizeTitleForMatch(existing.title) === normalizedTitle &&
+            // Gleicher Titel, aber anderer Komponist = anderes Werk.
+            !(composerId && existing.composer_id && existing.composer_id !== composerId),
         );
 
         // Kein exakter Treffer nach Normalisierung — Fuzzy-Fallback über

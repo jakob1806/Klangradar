@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { parseMphilEventDetail } from "../_shared/mphilDetail.ts";
 import { USER_AGENT } from "../_shared/robots.ts";
-import { json, mapLimit, replaceEventParticipants } from "../_shared/eventParticipantResolution.ts";
+import { json, mapLimit, replaceEventParticipants, resolveComposer, resolveWork } from "../_shared/eventParticipantResolution.ts";
 
 // Dritte Quelle mit eigener Termin-Detailseiten-Pipeline nach Staatsoper und
 // BRSO (Nutzeranfrage: "das sollen auch andere websites können"). mphil.de
@@ -37,11 +37,28 @@ Deno.serve(async (req) => {
       const detail = parseMphilEventDetail(await res.text(), event.website_url);
       const participantsAdded = await replaceEventParticipants(supabase, event.id, detail.participants);
 
+      // Offizielles Programm ersetzt die KI-Extraktion vollständig, aber nur
+      // wenn die Seite tatsächlich eine Werkliste hatte.
+      let worksAdded = 0;
+      if (detail.works.length > 0) {
+        await supabase.from("event_works").delete().eq("event_id", event.id);
+        for (const work of detail.works) {
+          const composerId = work.composerName ? await resolveComposer(supabase, work.composerName) : null;
+          const workId = await resolveWork(supabase, work.title, composerId);
+          if (!workId) continue;
+          const { error: workError } = await supabase.from("event_works").insert({
+            event_id: event.id, work_id: workId, position: work.position, after_intermission: work.afterIntermission,
+          });
+          if (!workError) worksAdded++;
+        }
+      }
+
       await supabase.from("events").update({
         mphil_detail_synced_at: new Date().toISOString(),
         mphil_detail_sync_error: null,
+        ...(detail.works.length > 0 ? { program_extraction_status: "complete" } : {}),
       }).eq("id", event.id);
-      return { id: event.id, participantsFound: detail.participants.length, participantsAdded };
+      return { id: event.id, participantsFound: detail.participants.length, participantsAdded, worksFound: detail.works.length, worksAdded };
     } catch (err) {
       await supabase.from("events").update({
         mphil_detail_synced_at: new Date().toISOString(),
