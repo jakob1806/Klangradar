@@ -11,7 +11,7 @@ export function GET() {
         details: [
           {
             appIDs: ["DVH3MYQ64A.de.klangradar.native"],
-            components: [{ "/": "/f/*", comment: "Freundes-Einladung" }],
+            components: [{ "/": "/f/*", comment: "Freundes-Einladung" }, { "/": "/e/*", comment: "Konzert (Links aus E-Mails)" }],
           },
         ],
       },

@@ -12,12 +12,13 @@ import {
 import { getPlacementPriceLabels } from "@/lib/promotion-payment";
 import { loadPromotionStats } from "@/lib/promotion-stats";
 import { resolveEntityNames, type ClaimableEntityType } from "@/lib/entity-tables";
+import { sendChangeEmails, sendFollowedNewEventEmails, sendReminderEmails } from "@/lib/newsletter";
 import { dataQualityEmail, type DataQualityReport, type DiagnosticsRow } from "@/lib/data-quality-email";
 
 // Täglicher Job (vercel.json → crons). Vercel schickt automatisch
 // "Authorization: Bearer $CRON_SECRET", sobald CRON_SECRET gesetzt ist.
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 type PromotionRow = {
   id: string;
@@ -104,5 +105,13 @@ export async function GET(request: Request) {
     result.qualityReport = true;
   }
 
-  return NextResponse.json(result);
+  // 6) Nutzer-Mails (nur mit eingeschaltetem Schalter in der App): neue
+  //    Termine von Gefolgten, Vortags-Erinnerung, Absagen/Verschiebungen.
+  const [followedMails, reminderMails, changeMails] = await Promise.all([
+    sendFollowedNewEventEmails(),
+    sendReminderEmails(),
+    sendChangeEmails(),
+  ]);
+
+  return NextResponse.json({ ...result, followedMails, reminderMails, changeMails });
 }

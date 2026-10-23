@@ -33,3 +33,14 @@ final class SocialTests: XCTestCase {
         XCTAssertTrue(text.contains("ABCD2345"))
     }
 }
+
+final class EmailLinkTests: XCTestCase {
+    @MainActor
+    func testEmailEventLinkOpensEvent() {
+        let router = DeepLinkRouter.shared
+        router.pendingEventSlug = nil
+        XCTAssertTrue(router.handle(url: URL(string: "https://klangradar.com/e/mahler-2")!))
+        XCTAssertEqual(router.pendingEventSlug, "mahler-2")
+        router.pendingEventSlug = nil
+    }
+}
