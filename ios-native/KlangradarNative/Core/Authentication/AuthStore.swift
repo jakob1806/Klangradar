@@ -36,9 +36,21 @@ final class AuthStore: ObservableObject {
 
     func bootstrap() async {
         guard let service else { return }
+        operationGeneration += 1
         let generation = operationGeneration
+        if case .failed = state { state = .loading }
+        // Anbieter-Liste parallel und ohne den Start zu blockieren.
+        Task { [weak self] in
+            let providers = (try? await service.enabledOAuthProviders()) ?? []
+            self?.enabledOAuthProviders = providers
+        }
+        // Sicherheitsnetz: nie länger als 20 s "Sitzung wird vorbereitet".
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(20))
+            guard let self, generation == self.operationGeneration, case .loading = self.state else { return }
+            self.state = .failed("Die Verbindung zu Klangradar dauert gerade zu lange.")
+        }
         do {
-            enabledOAuthProviders = (try? await service.enabledOAuthProviders()) ?? []
             let session = try await service.restoreOrCreateSession()
             guard generation == operationGeneration else { return }
             apply(session)
@@ -91,7 +103,15 @@ final class AuthStore: ObservableObject {
         guard let service else { throw AuthStoreError.unavailable }
         try await service.signOut()
         state = .loading
-        apply(try await service.signInAnonymously())
+        // Bug (Nutzerfeedback 23.10.2026): Schlug die neue anonyme Sitzung
+        // fehl (Supabase-Limit für anonyme Anmeldungen, kein Netz), blieb
+        // state dauerhaft .loading – "Sitzung wird vorbereitet" ohne
+        // Anmelde-Button. Jetzt landet der Fehler sichtbar in .failed.
+        do {
+            apply(try await service.signInAnonymously())
+        } catch {
+            state = .failed(error.localizedDescription)
+        }
     }
 
     func updateEmail(_ email: String) async throws {
@@ -118,6 +138,7 @@ final class AuthStore: ObservableObject {
     }
 
     private func apply(_ session: AuthSession) {
+        operationGeneration += 1
         state = session.user.isAnonymous == true
             ? .anonymous(session)
             : .authenticated(session)

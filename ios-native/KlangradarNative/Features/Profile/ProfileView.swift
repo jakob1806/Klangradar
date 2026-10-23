@@ -51,7 +51,9 @@ struct ProfileView: View {
                     .padding(.vertical, 4)
                     .background(.regularMaterial, in: .rect(cornerRadius: 26, style: .continuous))
 
-                    if case .anonymous = auth.state { signInCard }
+                    // Anmelden immer anbieten, solange kein echtes Konto aktiv
+                    // ist – auch wenn die anonyme Sitzung hängt oder fehlte.
+                    if showsSignInCard { signInCard }
 
                     // Neustrukturierung: eigene Inhalte direkt im Profil
                     // (Demnächst · Erlebt · Gefolgt · Listen) statt Kacheln,
@@ -346,6 +348,13 @@ struct ProfileView: View {
         )
     }
 
+    private var showsSignInCard: Bool {
+        switch auth.state {
+        case .anonymous, .loading, .failed: true
+        case .authenticated, .unavailable: false
+        }
+    }
+
     private var signInCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Dein persönliches Klangradar").font(.title3.bold())
@@ -357,6 +366,14 @@ struct ProfileView: View {
             .buttonStyle(.borderedProminent)
             .tint(KlangradarTheme.accent)
             .controlSize(.large)
+            if case let .failed(message) = auth.state {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                    Text(message).font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Erneut versuchen") { Task { await auth.bootstrap() } }.font(.caption.weight(.semibold))
+                }
+            }
         }
         .padding(20)
         .background(.regularMaterial, in: .rect(cornerRadius: 24, style: .continuous))
@@ -484,6 +501,7 @@ struct ProfileView: View {
                 .foregroundStyle(.secondary)
         case .loading:
             ProgressView("Sitzung wird vorbereitet …")
+            Button("Anmelden", systemImage: "envelope") { showsLogin = true }
         case .anonymous:
             Button("Anmelden", systemImage: "envelope") {
                 showsLogin = true
@@ -533,6 +551,7 @@ struct ProfileView: View {
             Button("Erneut versuchen") {
                 Task { await auth.bootstrap() }
             }
+            Button("Anmelden", systemImage: "envelope") { showsLogin = true }
         }
     }
 }
