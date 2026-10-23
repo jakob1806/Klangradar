@@ -27,8 +27,62 @@ import type { EventParticipantCandidate } from "./eventParticipantResolution.ts"
 // die die bestehende offizielle-Website-Bildrecherche (research-entity-
 // image/officialSiteImageSearch.ts) ein sauberes Porträt findet — genau wie
 // bei der Staatsoper (siehe staatsoperDetail.ts-Kommentar).
+export interface MphilProgramWork {
+  composerName: string | null;
+  title: string;
+  position: number;
+  afterIntermission: boolean;
+}
+
 export interface MphilEventDetail {
   participants: EventParticipantCandidate[];
+  /** Offizielles Programm aus <ul class="m-mphil-concert-detail__work-list">
+   * (verifiziert 23.10.2026). Vorher las die Quelle kein Programm, die
+   * Werke kamen nur über die KI-Extraktion aus dem Fließtext und wurden
+   * dabei teils doppelt/falsch erkannt (Nutzerfeedback). */
+  works: MphilProgramWork[];
+}
+
+const WORK_LIST_PATTERN = /<ul class="m-mphil-concert-detail__work-list">([\s\S]*?)<\/ul>/;
+const WORK_ITEM_PATTERN = /<li class="m-mphil-concert-detail__work-item">([\s\S]*?)<\/li>/g;
+const WORK_COMPOSER_PATTERN = /class="m-mphil-concert-detail__work-composer[^"]*"[^>]*>([\s\S]*?)<\/a>/;
+const WORK_TITLE_PATTERN = /<span class="m-mphil-concert-detail__work-title-text">([\s\S]*?)<\/span>/;
+const WORK_PAUSE_PATTERN = /m-mphil-concert-detail__work-title -pause/;
+
+function decodeEntities(value: string): string {
+  return value
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&quot;/g, '"')
+    .replace(/&#0?39;|&apos;/g, "'")
+    .replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function parseMphilProgram(html: string): MphilProgramWork[] {
+  const list = html.match(WORK_LIST_PATTERN)?.[1];
+  if (!list) return [];
+  const works: MphilProgramWork[] = [];
+  let afterIntermission = false;
+  for (const match of list.matchAll(WORK_ITEM_PATTERN)) {
+    const block = match[1];
+    if (WORK_PAUSE_PATTERN.test(block)) {
+      afterIntermission = true;
+      continue;
+    }
+    const title = block.match(WORK_TITLE_PATTERN)?.[1];
+    if (!title) continue;
+    const composer = block.match(WORK_COMPOSER_PATTERN)?.[1];
+    works.push({
+      composerName: composer ? decodeEntities(composer) : null,
+      title: decodeEntities(title),
+      position: works.length,
+      afterIntermission,
+    });
+  }
+  return works;
 }
 
 const PERSON_LI_PATTERN = /<li class="m-mphil-concert-detail__person[^"]*">([\s\S]*?)<\/li>/g;
@@ -76,7 +130,7 @@ export function parseMphilEventDetail(html: string, pageUrl: string): MphilEvent
     participants.push({ name: RESIDENT_ENSEMBLE, profileUrl: null, role: null, type: "ensemble" });
   }
 
-  return { participants };
+  return { participants, works: parseMphilProgram(html) };
 }
 
 function classifyRole(roleRaw: string): "dirigent" | "chorleiter" | "solist" {

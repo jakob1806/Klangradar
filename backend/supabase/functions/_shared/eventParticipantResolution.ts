@@ -6,6 +6,7 @@
 // Logik zuerst entstand, statt sie für jede weitere Quelle zu duplizieren.
 
 import { assessEnsembleName } from "./entityNameValidation.ts";
+import { sameWork, workIdentity } from "./workIdentity.ts";
 
 // deno-lint-ignore no-explicit-any
 type SupabaseClient = any;
@@ -24,6 +25,25 @@ export async function resolveComposer(supabase: SupabaseClient, name: string): P
 }
 
 export async function resolveWork(supabase: SupabaseClient, title: string, composerId: string | null): Promise<string | null> {
+  // Werk-Identität pro Komponist zuerst (workIdentity.ts): "5. Sinfonie",
+  // "Sinfonie Nr. 5 cis-Moll" und "Symphony No. 5" sind dasselbe Werk.
+  if (composerId) {
+    const { data: composerWorks } = await supabase
+      .from("works").select("id, title, catalog_number").eq("composer_id", composerId).limit(1000);
+    const identity = workIdentity(title);
+    const known = (composerWorks ?? []).find((w: { title: string; catalog_number: string | null }) =>
+      sameWork(identity, workIdentity(w.title, w.catalog_number))
+    );
+    if (known) {
+      if (known.title.trim().toLowerCase() !== title.trim().toLowerCase()) {
+        await supabase.from("entity_aliases").upsert(
+          { entity_type: "work", entity_id: known.id, alias: title },
+          { onConflict: "entity_type,entity_id,alias_normalized" },
+        );
+      }
+      return known.id;
+    }
+  }
   let query = supabase.from("works").select("id").ilike("title", title);
   query = composerId ? query.eq("composer_id", composerId) : query.is("composer_id", null);
   const { data: exact } = await query.limit(1).maybeSingle();
