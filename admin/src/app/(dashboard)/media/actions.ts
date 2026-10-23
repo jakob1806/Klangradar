@@ -2,154 +2,28 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { logSystemAction } from "@/lib/system-log";
-
-// Tabelle + Spalte, in die das Bild bei Freigabe geschrieben wird — venues/
-// persons/ensembles/festivals haben je ein einzelnes photo_url-Feld,
-// "organizer" bewusst ausgenommen (logo_url ist redaktionell etwas anderes
-// als ein Veranstaltungsfoto). "event" braucht eine eigene Behandlung
-// (image_urls ist ein Array), siehe applyToOrigin() unten.
-const ORIGIN_TABLE: Record<string, string> = {
-  venue: "venues",
-  person: "persons",
-  ensemble: "ensembles",
-  festival: "festivals",
-};
-
-interface ImageRow {
-  origin_type: string;
-  origin_id: string;
-  source_url: string;
-  storage_path: string | null;
-}
-
-/** Schreibt das freigegebene Bild ins tatsächlich von der App ausgespielte
- * Feld der Ursprungs-Entität — ohne das bliebe eine Freigabe hier wirkungslos
- * (images war bisher rein Lizenz-Tracking, siehe Seitenkommentar auf
- * /media, "wird von der App aktuell noch nicht ausgespielt"). Best-effort:
- * ein Fehlschlag hier lässt die eigentliche Lizenz-Entscheidung nicht
- * scheitern, wird nur geloggt. */
-async function applyToOrigin(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  image: ImageRow,
-) {
-  const publicUrl = image.storage_path
-    ? supabase.storage.from("ingested-images").getPublicUrl(image.storage_path).data.publicUrl
-    : image.source_url;
-  if (image.origin_type === "event") {
-    const { data: event, error: fetchError } = await supabase
-      .from("events")
-      .select("image_urls")
-      .eq("id", image.origin_id)
-      .maybeSingle();
-    if (fetchError || !event) {
-      console.error(`applyToOrigin event ${image.origin_id}: ${fetchError?.message ?? "nicht gefunden"}`);
-      return;
-    }
-    const current: string[] = event.image_urls ?? [];
-    if (current.includes(publicUrl)) return;
-    const { error } = await supabase
-      .from("events")
-      .update({ image_urls: [...current, publicUrl] })
-      .eq("id", image.origin_id);
-    if (error) console.error(`applyToOrigin event ${image.origin_id}: ${error.message}`);
-    return;
-  }
-
-  const table = ORIGIN_TABLE[image.origin_type];
-  if (!table) return; // z.B. "organizer" — bewusst nicht automatisch übernommen
-
-  const { error } = await supabase
-    .from(table)
-    .update({ photo_url: publicUrl })
-    .eq("id", image.origin_id)
-    .is("photo_url", null);
-  if (error) console.error(`applyToOrigin ${table} ${image.origin_id}: ${error.message}`);
-}
-
-/** `is_primary` (welches Bild eine Entität repräsentiert) und `sort_order`
- * (welches Bild die Galerie an Position 0 zeigt) liefen bisher auseinander:
- * diese Funktion setzte nur is_primary, während sowohl die Admin- als auch
- * die App-Galerie ausschließlich nach sort_order sortieren (siehe
- * gallery-actions.ts's setPrimaryGalleryImage für dasselbe Muster bei
- * manueller Galerie-Pflege) — is_primary-Schreibvorgänge waren dadurch für
- * das, was tatsächlich angezeigt wird, wirkungslos. is_primary bleibt
- * kanonisch (explizit, indexiert, bereits korrekt gesetzt), sort_order wird
- * jetzt bei jeder Freigabe mit übernommen: das Bild rückt an Position 0,
- * alle anderen rutschen nach. */
-async function setPrimaryAndSortOrder(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  originType: string,
-  originId: string,
-  imageId: string,
-) {
-  const { data: images, error } = await supabase
-    .from("images")
-    .select("id, sort_order")
-    .eq("origin_type", originType)
-    .eq("origin_id", originId)
-    .order("sort_order", { ascending: true });
-  if (error) throw new Error(error.message);
-
-  const rows = images ?? [];
-  const target = rows.find((r) => r.id === imageId);
-  const reordered = target ? [target, ...rows.filter((r) => r.id !== imageId)] : rows;
-
-  for (let i = 0; i < reordered.length; i++) {
-    if (reordered[i].sort_order === i) continue;
-    const { error: updateError } = await supabase
-      .from("images")
-      .update({ sort_order: i })
-      .eq("id", reordered[i].id);
-    if (updateError) throw new Error(updateError.message);
-  }
-
-  await supabase.from("images").update({ is_primary: false })
-    .eq("origin_type", originType).eq("origin_id", originId);
-  await supabase.from("images").update({ is_primary: true }).eq("id", imageId);
-}
 
 export type LicenseStatus = "confirmed_free" | "confirmed_licensed" | "rejected";
 
 // license_status-Übergänge sind bewusst redaktionelle Entscheidungen, nie
-// automatisch (siehe 20260819000003_images_and_tags.sql) — needs_review
-// wird hier explizit auf false gesetzt, sobald ein Redakteur eine
-// Entscheidung getroffen hat (egal ob frei, lizenziert oder abgelehnt).
-async function setLicenseStatus(imageId: string, status: LicenseStatus) {
+// automatisch (siehe 20260819000003_images_and_tags.sql). Alles in EINEM
+// Datenbankaufruf (review_images, Migration 000101): vorher lief die
+// Sammelfreigabe mit pro Bild 6–10 Aufrufen + Seiten-Neuaufbau ins
+// Zeitlimit ("Freigeben klappt technisch nicht" bei ~1.000 Bildern).
+async function reviewImages(imageIds: string[], status: LicenseStatus): Promise<number> {
   const supabase = await createClient();
-
-  const { data: image, error: fetchError } = await supabase
-    .from("images")
-    .select("origin_type, origin_id, source_url, storage_path")
-    .eq("id", imageId)
-    .maybeSingle<ImageRow>();
-  if (fetchError) throw new Error(fetchError.message);
-
-  const { error } = await supabase
-    .from("images")
-    .update({
-      license_status: status,
-      needs_review: false,
-      reviewed_at: new Date().toISOString(),
-      reviewed_by: (await supabase.auth.getUser()).data.user?.id ?? null,
-    })
-    .eq("id", imageId);
-  if (error) throw new Error(error.message);
-
-  if ((status === "confirmed_free" || status === "confirmed_licensed") && image) {
-    await applyToOrigin(supabase, image);
-    await setPrimaryAndSortOrder(supabase, image.origin_type, image.origin_id, imageId);
+  let done = 0;
+  for (let i = 0; i < imageIds.length; i += 250) {
+    const { data, error } = await supabase.rpc("review_images", { p_ids: imageIds.slice(i, i + 250), p_status: status });
+    if (error) throw new Error(`${done} von ${imageIds.length} gespeichert, dann Fehler: ${error.message}`);
+    done += (data as number | null) ?? 0;
   }
-
-  const { data: { user } } = await supabase.auth.getUser();
-  await logSystemAction(supabase, {
-    entityType: "image",
-    entityId: imageId,
-    action: `license_${status}`,
-    actor: user?.email ?? user?.id ?? "unknown",
-  });
-
   revalidatePath("/media");
+  return done;
+}
+
+async function setLicenseStatus(imageId: string, status: LicenseStatus) {
+  await reviewImages([imageId], status);
 }
 
 export async function updateImageMetadata(formData: FormData) {
@@ -184,16 +58,34 @@ export async function rejectImage(imageId: string) {
   await setLicenseStatus(imageId, "rejected");
 }
 
-/** Bulk-Variante für die Mehrfachauswahl im Bilder-Tab — ruft dieselbe
- * setLicenseStatus()-Logik pro Bild auf (kein separater Bulk-SQL-Update),
- * damit applyToOrigin()/is_primary/system_logs für jedes Bild exakt wie
- * bei der Einzelaktion mitlaufen. */
-export async function bulkSetLicenseStatus(imageIds: string[], status: LicenseStatus) {
-  const results = await Promise.allSettled(imageIds.map((id) => setLicenseStatus(id, status)));
-  const failed = results.filter((r) => r.status === "rejected");
-  if (failed.length > 0) {
-    throw new Error(`${failed.length} von ${imageIds.length} fehlgeschlagen.`);
+/** Bulk-Variante für die Mehrfachauswahl im Bilder-Tab. */
+export async function bulkSetLicenseStatus(imageIds: string[], status: LicenseStatus): Promise<number> {
+  return reviewImages(imageIds, status);
+}
+
+/** Alle wartenden Bilder einer Quelle auf einmal (z. B. "Wikipedia"). */
+export async function bulkSetLicenseStatusBySource(sourceName: string, status: LicenseStatus): Promise<number> {
+  const supabase = await createClient();
+  const ids: string[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase.from("images").select("id").eq("needs_review", true).eq("source_name", sourceName).range(from, from + 999);
+    if (error) throw new Error(error.message);
+    ids.push(...(data ?? []).map((row) => row.id as string));
+    if (!data || data.length < 1000) break;
   }
+  return ids.length ? reviewImages(ids, status) : 0;
+}
+
+export async function approveSourceFree(sourceName: string): Promise<void> {
+  await bulkSetLicenseStatusBySource(sourceName, "confirmed_free");
+}
+
+export async function approveSourceLicensed(sourceName: string): Promise<void> {
+  await bulkSetLicenseStatusBySource(sourceName, "confirmed_licensed");
+}
+
+export async function rejectSource(sourceName: string): Promise<void> {
+  await bulkSetLicenseStatusBySource(sourceName, "rejected");
 }
 
 export interface EnrichImagesResult {
