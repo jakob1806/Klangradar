@@ -11,6 +11,9 @@ final class DeepLinkRouter: ObservableObject {
     /// Von Siri/Kurzbefehlen (KlangradarShortcuts): Tab bzw. KI öffnen.
     @Published var pendingTab: String?
     @Published var pendingCoach = false
+    /// Schnellaktion "Freunde fragen" aus einer Mitteilung: auf der
+    /// Konzertseite direkt den Planungsdialog öffnen.
+    @Published var pendingPlanForSlug: String?
     /// Freunde-Bereich öffnen (Push "/friends" bzw. "/plans").
     @Published var pendingFriendsTab: FriendsHubTab?
 

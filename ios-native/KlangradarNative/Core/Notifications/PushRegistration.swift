@@ -57,4 +57,54 @@ final class PushRegistration {
             )
         }
     }
+
+    // MARK: - Mitteilungs-Kategorien und Schnellaktionen (push-dispatcher)
+
+    nonisolated static let actionSave = "SAVE"
+    nonisolated static let actionGoing = "GOING"
+    nonisolated static let actionAskFriends = "ASK_FRIENDS"
+    nonisolated static let actionOpen = "OPEN"
+
+    /// Kategorien der Server-Mitteilungen; die Attendance-Kategorie wird
+    /// vom AppDelegate ergänzt.
+    nonisolated static var serverCategories: [UNNotificationCategory] {
+        let save = UNNotificationAction(identifier: actionSave, title: "Merken", options: [], icon: UNNotificationActionIcon(systemImageName: "heart"))
+        let going = UNNotificationAction(identifier: actionGoing, title: "Ich gehe hin", options: [], icon: UNNotificationActionIcon(systemImageName: "checkmark.circle"))
+        let ask = UNNotificationAction(identifier: actionAskFriends, title: "Freunde fragen", options: [.foreground], icon: UNNotificationActionIcon(systemImageName: "person.2"))
+        let route = UNNotificationAction(identifier: actionOpen, title: "Anreise & Zeitplan", options: [.foreground], icon: UNNotificationActionIcon(systemImageName: "map"))
+        let rate = UNNotificationAction(identifier: actionOpen, title: "Bewerten", options: [.foreground], icon: UNNotificationActionIcon(systemImageName: "star"))
+        return [
+            UNNotificationCategory(identifier: "EVENT", actions: [save, going, ask], intentIdentifiers: [], options: []),
+            UNNotificationCategory(identifier: "CONCERT_DAY", actions: [route, ask], intentIdentifiers: [], options: []),
+            UNNotificationCategory(identifier: "RATE", actions: [rate], intentIdentifiers: [], options: []),
+        ]
+    }
+
+    /// Öffnen oder Schnellaktion an den Server melden (push_log.opened_at:
+    /// Grundlage für das Lernen, welche Mitteilungen ankommen) und
+    /// Hintergrund-Aktionen (Merken, Ich gehe hin) direkt ausführen.
+    func handle(fields: [String: String], action: String) async {
+        guard let client, let session = auth?.session else { return }
+        let token = session.accessToken
+        if let rawLogID = fields["push_log_id"], let logID = Double(rawLogID) {
+            let reported = action == UNNotificationDefaultActionIdentifier ? JSONValue.null : JSONValue.string(action)
+            let _: JSONValue? = try? await client.rpc("push_opened", parameters: ["p_log_id": .number(logID), "p_action": reported], accessToken: token)
+        }
+        guard let eventID = fields["event_id"], !session.user.isAnonymous.orFalse else { return }
+        switch action {
+        case Self.actionSave, Self.actionGoing:
+            _ = try? await client.upsert(
+                table: "favorites",
+                values: ["user_id": .string(session.user.id.uuidString), "event_id": .string(eventID), "status": .string(action == Self.actionGoing ? "attending" : "interested")],
+                accessToken: token,
+                conflictColumns: "user_id,event_id"
+            )
+        default:
+            break
+        }
+    }
+}
+
+private extension Optional where Wrapped == Bool {
+    var orFalse: Bool { self ?? false }
 }

@@ -18,7 +18,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
             intentIdentifiers: [],
             options: []
         )
-        UNUserNotificationCenter.current().setNotificationCategories([category])
+        UNUserNotificationCenter.current().setNotificationCategories(Set([category] + PushRegistration.serverCategories))
         return true
     }
 
@@ -42,9 +42,23 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
         let userInfo = response.notification.request.content.userInfo
         let actionIdentifier = response.actionIdentifier
-        // Server-Push (Erinnerung, neuer Termin, Änderung): direkt das Event öffnen.
+        // Server-Push (push-dispatcher, Erinnerung, Änderung): Öffnen bzw.
+        // Schnellaktion melden; Merken/Ich gehe hin laufen im Hintergrund,
+        // alles andere öffnet das Konzert (Freunde fragen: mit Planungsdialog).
         if let route = userInfo["route"] as? String {
-            await MainActor.run { _ = DeepLinkRouter.shared.handle(route: route) }
+            // Nur Strings weitergeben (userInfo ist nicht Sendable).
+            let fields = userInfo.reduce(into: [String: String]()) { result, pair in
+                if let key = pair.key as? String, let value = pair.value as? String { result[key] = value }
+            }
+            await PushRegistration.shared.handle(fields: fields, action: actionIdentifier)
+            if actionIdentifier == PushRegistration.actionSave || actionIdentifier == PushRegistration.actionGoing { return }
+            let slug = fields["event_slug"]
+            await MainActor.run {
+                if actionIdentifier == PushRegistration.actionAskFriends, let slug {
+                    DeepLinkRouter.shared.pendingPlanForSlug = slug
+                }
+                _ = DeepLinkRouter.shared.handle(route: route)
+            }
             return
         }
         guard let eventIDString = userInfo[AttendanceLocationMonitor.eventIDUserInfoKey] as? String,

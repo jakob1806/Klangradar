@@ -51,6 +51,16 @@ widget_target = project.new_target(
   :swift
 )
 
+# Notification Service Extension: lädt Bilder für Push-Mitteilungen.
+notification_target = project.new_target(
+  :app_extension,
+  "KlangradarNotificationService",
+  :ios,
+  "17.0",
+  nil,
+  :swift
+)
+
 def add_files(project, target, root, folder, extensions, resources: false)
   base = root.join(folder)
   group = project.main_group.find_subpath(folder, true)
@@ -107,12 +117,18 @@ add_files(project, widget_target, root, "KlangradarWidgets", [".swift"])
 widget_files_group = project.main_group.find_subpath("KlangradarWidgets", true)
 widget_files_group.new_file(root.join("KlangradarWidgets", "Info.plist").to_s)
 
+add_files(project, notification_target, root, "KlangradarNotificationService", [".swift"])
+project.main_group.find_subpath("KlangradarNotificationService", true).new_file(root.join("KlangradarNotificationService", "Info.plist").to_s)
+
 # Extension in die App einbetten.
 app_target.add_dependency(widget_target)
+app_target.add_dependency(notification_target)
 embed_phase = app_target.new_copy_files_build_phase("Embed Foundation Extensions")
 embed_phase.symbol_dst_subfolder_spec = :plug_ins
 embed_build_file = embed_phase.add_file_reference(widget_target.product_reference, true)
 embed_build_file.settings = { "ATTRIBUTES" => ["RemoveHeadersOnCopy"] }
+embed_notification_file = embed_phase.add_file_reference(notification_target.product_reference, true)
+embed_notification_file.settings = { "ATTRIBUTES" => ["RemoveHeadersOnCopy"] }
 
 # Datenschutz-Manifest (App-Store-Pflicht) als Ressource einbinden.
 privacy_manifest = app_target.project.main_group.find_subpath("KlangradarNative/Resources", true).new_reference(root.join("KlangradarNative", "Resources", "PrivacyInfo.xcprivacy").to_s)
@@ -157,6 +173,9 @@ widget_version_phase = widget_target.new_shell_script_build_phase("Version aus B
 widget_version_phase.always_out_of_date = "1"
 # Widget und App müssen dieselbe Version tragen, sonst lehnt App Store Connect den Upload ab.
 widget_version_phase.shell_script = version_phase.shell_script
+notification_version_phase = notification_target.new_shell_script_build_phase("Version aus Build-Zähler")
+notification_version_phase.always_out_of_date = "1"
+notification_version_phase.shell_script = version_phase.shell_script
 
 app_target.build_configurations.each do |config|
   config.build_settings.merge!(
@@ -238,6 +257,28 @@ widget_target.build_configurations.each do |config|
     "SWIFT_EMIT_LOC_STRINGS" => "YES",
     "SWIFT_STRICT_CONCURRENCY" => "complete",
     "SWIFT_VERSION" => "6.0",
+    "TARGETED_DEVICE_FAMILY" => "1,2"
+  )
+end
+
+notification_target.build_configurations.each do |config|
+  config.build_settings.merge!(
+    "ENABLE_USER_SCRIPT_SANDBOXING" => "NO",
+    "CODE_SIGN_STYLE" => "Automatic",
+    "CURRENT_PROJECT_VERSION" => "1",
+    "DEVELOPMENT_TEAM" => "DVH3MYQ64A",
+    "GENERATE_INFOPLIST_FILE" => "YES",
+    "INFOPLIST_FILE" => "KlangradarNotificationService/Info.plist",
+    "INFOPLIST_KEY_CFBundleDisplayName" => "Klangradar",
+    "IPHONEOS_DEPLOYMENT_TARGET" => "17.0",
+    "LD_RUNPATH_SEARCH_PATHS" => "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks",
+    "MARKETING_VERSION" => "1.0",
+    "PRODUCT_BUNDLE_IDENTIFIER" => "de.klangradar.native.notification-service",
+    "PRODUCT_NAME" => "$(TARGET_NAME)",
+    "SKIP_INSTALL" => "YES",
+    "SUPPORTED_PLATFORMS" => "iphoneos iphonesimulator",
+    "SWIFT_STRICT_CONCURRENCY" => "minimal",
+    "SWIFT_VERSION" => "5.0",
     "TARGETED_DEVICE_FAMILY" => "1,2"
   )
 end
