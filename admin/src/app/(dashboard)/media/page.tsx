@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { ConfirmButton } from "@/components/confirm-button";
 import { createClient } from "@/lib/supabase/server";
-import { confirmImageFree, confirmImageLicensed, rejectImage, updateImageMetadata } from "./actions";
+import { approveSourceFree, approveSourceLicensed, confirmImageFree, confirmImageLicensed, rejectImage, rejectSource, updateImageMetadata } from "./actions";
 import { EnrichImagesButton } from "./enrich-images-button";
 import { MediaBulkBar, MediaSelectableCard, MediaSelectAllCheckbox, MediaSelectionProvider } from "./media-select";
+
+const PAGE_SIZE = 150;
 
 export const dynamic = "force-dynamic";
 
@@ -78,6 +80,20 @@ function thumbnailSrc(
   return supabase.storage.from("ingested-images").getPublicUrl(path).data.publicUrl;
 }
 
+/** Offene Bilder je Quelle (für die Sammelfreigabe), seitenweise geladen. */
+async function loadSourceCounts(supabase: Awaited<ReturnType<typeof createClient>>): Promise<[string, number][]> {
+  const counts = new Map<string, number>();
+  for (let from = 0; ; from += 1000) {
+    const { data } = await supabase.from("images").select("source_name").eq("needs_review", true).range(from, from + 999);
+    for (const row of data ?? []) {
+      const key = (row.source_name as string | null) ?? "Unbekannte Quelle";
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    if (!data || data.length < 1000) break;
+  }
+  return [...counts.entries()].sort((a, b) => b[1] - a[1]);
+}
+
 export default async function MediaPage() {
   const supabase = await createClient();
   // Nutzerwunsch: "'kein Bild gefunden' als eigenen Zustand führen, getrennt
@@ -100,6 +116,9 @@ export default async function MediaPage() {
       .select("id, source_url, origin_type, origin_id, photographer, copyright_notice, license_notes, imported_at, source_page_url, source_name, credits, license_name, license_url, license_status, confidence_score, match_reason, warnings, thumbnail_path, storage_path")
       .eq("needs_review", true)
       .order("imported_at", { ascending: false })
+      // Nicht mehr alle (1.000+) Karten auf einmal: die Seite wurde dadurch
+      // selbst träge. Große Mengen gehen über "Nach Quelle" oben.
+      .limit(PAGE_SIZE)
       .returns<ImageRow[]>(),
     supabase.from("persons").select("id", { count: "exact", head: true }).is("photo_url", null).is("image_search_checked_at", null),
     supabase.from("persons").select("id", { count: "exact", head: true }).is("photo_url", null).not("image_search_checked_at", "is", null),
@@ -160,6 +179,10 @@ export default async function MediaPage() {
       }
     }),
   );
+
+  const sourceCounts = await loadSourceCounts(supabase);
+  const totalOpen = sourceCounts.reduce((sum, [, count]) => sum + count, 0);
+  const shownCount = data?.length ?? 0;
 
   return (
     <div className="mx-auto max-w-[1480px] p-6 lg:p-8">
@@ -264,9 +287,26 @@ export default async function MediaPage() {
           </p>
         </div>
         <span className="rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium tabular-nums text-neutral-600">
-          {data?.length ?? 0} offen
+          {totalOpen.toLocaleString("de-DE")} offen
         </span>
       </div>
+
+      {sourceCounts.length > 0 && (
+        <details className="mt-6 rounded-xl border border-black/[0.06] bg-white shadow-sm" open={totalOpen > PAGE_SIZE}>
+          <summary className="cursor-pointer px-4 py-3 text-sm font-semibold">Nach Quelle freigeben</summary>
+          <div className="divide-y divide-black/[0.06] border-t border-black/[0.06]">
+            {sourceCounts.map(([source, count]) => (
+              <div key={source} className="flex flex-wrap items-center gap-3 px-4 py-2.5 text-sm">
+                <span className="min-w-0 flex-1 truncate font-medium">{source}</span>
+                <span className="tabular-nums text-neutral-500">{count.toLocaleString("de-DE")}</span>
+                <ConfirmButton action={approveSourceFree.bind(null, source)} confirmMessage={`Alle ${count} als frei nutzbar freigeben?`} label="Frei nutzbar" pendingLabel="Wird freigegeben …" className="rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50" />
+                <ConfirmButton action={approveSourceLicensed.bind(null, source)} confirmMessage={`Alle ${count} als lizenziert freigeben?`} label="Lizenziert" pendingLabel="…" className="rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100 disabled:opacity-50" />
+                <ConfirmButton action={rejectSource.bind(null, source)} confirmMessage={`Alle ${count} ablehnen?`} label="Ablehnen" pendingLabel="…" className="rounded-lg bg-neutral-100 px-2.5 py-1.5 text-xs font-semibold text-neutral-600 hover:bg-neutral-200 disabled:opacity-50" />
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
 
       {error && <p className="mt-6 text-sm text-amber-700">Konnte Bilder nicht laden: {error.message}</p>}
 
@@ -278,6 +318,9 @@ export default async function MediaPage() {
                 <MediaSelectAllCheckbox ids={(data ?? []).map((i) => i.id)} />
                 <span className="text-xs text-neutral-400">Karte oder Bild anklicken</span>
               </div>
+            )}
+            {totalOpen > shownCount && (
+              <p className="mb-3 text-xs text-neutral-500">Angezeigt: die neuesten {shownCount} von {totalOpen.toLocaleString("de-DE")}. Nach dem Freigeben rücken weitere nach.</p>
             )}
             <MediaBulkBar />
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
