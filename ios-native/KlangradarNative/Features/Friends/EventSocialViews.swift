@@ -47,7 +47,14 @@ struct FriendsAttendingRow: View {
             }
             .controlSize(.regular)
         }
-        .task { friends = await follows.friendsAttending(eventID: event.id) }
+        .task {
+            friends = await follows.friendsAttending(eventID: event.id)
+            // Schnellaktion "Freunde fragen" aus einer Push-Mitteilung.
+            if DeepLinkRouter.shared.pendingPlanForSlug == event.slug {
+                DeepLinkRouter.shared.pendingPlanForSlug = nil
+                if isUpcoming && follows.isSignedIn { composer = .ask }
+            }
+        }
         .sheet(item: $composer) { mode in
             NavigationStack {
                 PlanComposerView(event: event, quickAsk: mode == .ask)

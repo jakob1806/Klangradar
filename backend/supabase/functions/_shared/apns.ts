@@ -51,7 +51,15 @@ export async function sendApnsToTokens(tokens: string[], payload: PushPayload): 
     return tokens.map((token) => ({ token, ok: false, invalidToken: false, error }));
   }
   const body = JSON.stringify({
-    aps: { alert: { title: payload.title, body: payload.body }, sound: "default" },
+    aps: {
+      alert: { title: payload.title, body: payload.body },
+      sound: "default",
+      ...(payload.category ? { category: payload.category } : {}),
+      ...(payload.threadId ? { "thread-id": payload.threadId } : {}),
+      // Bild nachladen lassen (KlangradarNotificationService).
+      ...(payload.imageUrl ? { "mutable-content": 1 } : {}),
+    },
+    ...(payload.imageUrl ? { image_url: payload.imageUrl } : {}),
     ...(payload.data ?? {}),
   });
   const results: PushSendResult[] = [];

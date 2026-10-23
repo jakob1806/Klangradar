@@ -125,6 +125,12 @@ export interface PushPayload {
   body: string;
   /** Deep-Link-Daten fürs Öffnen der richtigen Seite beim Tap, z.B. { route: "/event/<slug>" }. */
   data?: Record<string, string>;
+  /** iOS: Kategorie mit Schnellaktionen (EVENT, RATE, DIGEST). */
+  category?: string;
+  /** iOS: Gruppierung in der Mitteilungszentrale. */
+  threadId?: string;
+  /** iOS: Bild-URL, lädt die Notification Service Extension. */
+  imageUrl?: string;
 }
 
 export interface PushSendResult {
