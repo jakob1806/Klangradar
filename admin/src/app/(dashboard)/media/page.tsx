@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ConfirmButton } from "@/components/confirm-button";
 import { createClient } from "@/lib/supabase/server";
-import { approveSourceFree, approveSourceLicensed, confirmImageFree, confirmImageLicensed, rejectImage, rejectSource, updateImageMetadata } from "./actions";
+import { approveAllFree, approveAllLicensed, approveSourceFree, approveSourceLicensed, confirmImageFree, confirmImageLicensed, rejectImage, rejectSource, updateImageMetadata } from "./actions";
 import { EnrichImagesButton } from "./enrich-images-button";
 import { MediaBulkBar, MediaSelectableCard, MediaSelectAllCheckbox, MediaSelectionProvider } from "./media-select";
 
@@ -293,8 +293,15 @@ export default async function MediaPage() {
 
       {sourceCounts.length > 0 && (
         <details className="mt-6 rounded-xl border border-black/[0.06] bg-white shadow-sm" open={totalOpen > PAGE_SIZE}>
-          <summary className="cursor-pointer px-4 py-3 text-sm font-semibold">Nach Quelle freigeben</summary>
-          <div className="divide-y divide-black/[0.06] border-t border-black/[0.06]">
+          <summary className="cursor-pointer px-4 py-3 text-sm font-semibold">Sammelfreigabe</summary>
+          <div className="flex flex-wrap items-center gap-3 border-t border-black/[0.06] bg-neutral-50 px-4 py-3 text-sm">
+            <span className="min-w-0 flex-1 font-semibold">Alle wartenden Bilder</span>
+            <span className="tabular-nums text-neutral-500">{totalOpen.toLocaleString("de-DE")}</span>
+            <ConfirmButton action={approveAllFree} confirmMessage={`Alle ${totalOpen} als frei nutzbar freigeben?`} label="Alle frei nutzbar" pendingLabel="Wird freigegeben …" className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50" />
+            <ConfirmButton action={approveAllLicensed} confirmMessage={`Alle ${totalOpen} als lizenziert freigeben?`} label="Alle lizenziert" pendingLabel="…" className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-600 disabled:opacity-50" />
+          </div>
+          <p className="border-t border-black/[0.06] px-4 pt-3 text-xs font-semibold uppercase tracking-wide text-neutral-400">Nach Quelle</p>
+          <div className="divide-y divide-black/[0.06]">
             {sourceCounts.map(([source, count]) => (
               <div key={source} className="flex flex-wrap items-center gap-3 px-4 py-2.5 text-sm">
                 <span className="min-w-0 flex-1 truncate font-medium">{source}</span>

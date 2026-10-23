@@ -53,10 +53,11 @@ begin
       update festivals set photo_url = v_url where id = v_img.origin_id and photo_url is null;
     end if;
 
-    -- Titelbild: dieses Bild an Position 0, die übrigen dahinter.
-    update images set is_primary = (id = v_img.id),
-      sort_order = case when id = v_img.id then 0 else sort_order + 1 end
-    where origin_type = v_img.origin_type and origin_id = v_img.origin_id;
+    -- Titelbild: erst das bisherige lösen, dann dieses setzen (eindeutiger
+    -- Index images_one_primary_per_origin_idx); Reihenfolge: dieses an 0.
+    update images set is_primary = false, sort_order = sort_order + 1
+    where origin_type = v_img.origin_type and origin_id = v_img.origin_id and id <> v_img.id;
+    update images set is_primary = true, sort_order = 0 where id = v_img.id;
   end loop;
 
   insert into system_logs (entity_type, entity_id, action, actor)

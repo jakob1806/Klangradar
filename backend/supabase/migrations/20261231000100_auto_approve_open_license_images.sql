@@ -51,6 +51,10 @@ begin
       then 'https://zqgzcspeqllrihfwmayn.supabase.co/storage/v1/object/public/ingested-images/' || v_row.storage_path
       else v_row.source_url end;
 
+    -- Erst das bisherige Titelbild lösen, dann das neue setzen
+    -- (eindeutiger Index images_one_primary_per_origin_idx).
+    update images set is_primary = false
+    where origin_type = v_row.origin_type and origin_id = v_row.origin_id and id <> v_row.id and is_primary;
     update images set
       needs_review = false,
       review_status = 'approved',
@@ -59,8 +63,6 @@ begin
       reviewed_at = now(),
       license_notes = coalesce(license_notes, 'Automatisch freigegeben: freie Lizenz (Wikimedia), eindeutig der Entität zugeordnet.')
     where id = v_row.id;
-    update images set is_primary = false
-    where origin_type = v_row.origin_type and origin_id = v_row.origin_id and id <> v_row.id;
 
     if v_row.origin_type = 'person' then
       update persons set photo_url = v_url where id = v_row.origin_id and photo_url is null;
