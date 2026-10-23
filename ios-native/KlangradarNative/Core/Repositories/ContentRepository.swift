@@ -243,10 +243,15 @@ struct LiveContentRepository: ContentRepository {
                 URLQueryItem(name: "order", value: "position.asc")
             ]
         )
+        // Nutzerwunsch 23.10.2026: nur kommende Termine, chronologisch
+        // (statt redaktioneller Reihenfolge inkl. vergangener Konzerte).
+        let cutoff = Date().addingTimeInterval(-3 * 3600)
         let events = links.compactMap { link -> ConcertEvent? in
             guard let event = link.object("events") else { return nil }
             return ConcertEvent(json: event)
         }
+        .filter { ($0.startDate ?? .distantFuture) >= cutoff }
+        .sorted { ($0.startDate ?? .distantFuture) < ($1.startDate ?? .distantFuture) }
         return collection(from: row, events: events)
     }
 

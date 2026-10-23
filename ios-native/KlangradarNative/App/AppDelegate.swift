@@ -30,43 +30,57 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         print("Push-Registrierung fehlgeschlagen: \(error.localizedDescription)")
     }
 
-    // NICHT @MainActor-isoliert implementiert (wie bei AddToCalendarView.
-    // Coordinator): UNUserNotificationCenterDelegate selbst ist nicht
-    // isoliert, eine MainActor-isolierte Konformität dazu verletzt unter
-    // Swift 6 strict concurrency die Protokoll-Isolation, da UIKit die
-    // Delegate-Parameter (UNNotification etc.) nicht als Sendable deklariert.
-    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
-        [.banner, .sound]
+    // Completion-Handler-Varianten statt `async`: Die async-Varianten
+    // stürzten beim Tippen auf eine Mitteilung ab (Nutzermeldung 23.10.2026):
+    // iOS ruft den Delegate auf dem Main-Thread, der von Swift erzeugte
+    // async-Thunk ruft den Completion-Handler aber von einem Hintergrund-
+    // Thread zurück (_dispatch_assert_queue_fail). Hier werden nur Strings
+    // herausgelöst, der Handler sofort aufgerufen und die Arbeit auf dem
+    // MainActor erledigt.
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .sound])
     }
 
-    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
         let userInfo = response.notification.request.content.userInfo
         let actionIdentifier = response.actionIdentifier
-        // Server-Push (push-dispatcher, Erinnerung, Änderung): Öffnen bzw.
-        // Schnellaktion melden; Merken/Ich gehe hin laufen im Hintergrund,
-        // alles andere öffnet das Konzert (Freunde fragen: mit Planungsdialog).
-        if let route = userInfo["route"] as? String {
-            // Nur Strings weitergeben (userInfo ist nicht Sendable).
-            let fields = userInfo.reduce(into: [String: String]()) { result, pair in
-                if let key = pair.key as? String, let value = pair.value as? String { result[key] = value }
+        // Nur Strings weitergeben (userInfo ist nicht Sendable).
+        let fields = userInfo.reduce(into: [String: String]()) { result, pair in
+            if let key = pair.key as? String, let value = pair.value as? String { result[key] = value }
+        }
+        completionHandler()
+        Task { @MainActor in
+            await AppDelegate.handleNotification(fields: fields, action: actionIdentifier)
+        }
+    }
+
+    /// Server-Push (push-dispatcher, Erinnerung, Änderung): Öffnen bzw.
+    /// Schnellaktion melden; Merken/Ich gehe hin laufen im Hintergrund,
+    /// alles andere öffnet das Konzert (Freunde fragen: mit Planungsdialog).
+    /// Ohne `route`: lokale Anwesenheitsabfrage (AttendanceLocationMonitor).
+    @MainActor
+    private static func handleNotification(fields: [String: String], action actionIdentifier: String) async {
+        if let route = fields["route"] {
+            if actionIdentifier == PushRegistration.actionAskFriends, let slug = fields["event_slug"] {
+                DeepLinkRouter.shared.pendingPlanForSlug = slug
             }
+            let opensApp = actionIdentifier != PushRegistration.actionSave && actionIdentifier != PushRegistration.actionGoing
+            if opensApp { _ = DeepLinkRouter.shared.handle(route: route) }
             await PushRegistration.shared.handle(fields: fields, action: actionIdentifier)
-            if actionIdentifier == PushRegistration.actionSave || actionIdentifier == PushRegistration.actionGoing { return }
-            let slug = fields["event_slug"]
-            await MainActor.run {
-                if actionIdentifier == PushRegistration.actionAskFriends, let slug {
-                    DeepLinkRouter.shared.pendingPlanForSlug = slug
-                }
-                _ = DeepLinkRouter.shared.handle(route: route)
-            }
             return
         }
-        guard let eventIDString = userInfo[AttendanceLocationMonitor.eventIDUserInfoKey] as? String,
+        guard let eventIDString = fields[AttendanceLocationMonitor.eventIDUserInfoKey],
               let eventID = UUID(uuidString: eventIDString) else { return }
         guard actionIdentifier != "ATTENDANCE_NO" else { return }
-        let title = userInfo[AttendanceLocationMonitor.eventTitleUserInfoKey] as? String ?? "diesem Konzert"
-        await MainActor.run {
-            AttendanceLocationMonitor.shared.presentConfirmation(eventID: eventID, title: title)
-        }
+        let title = fields[AttendanceLocationMonitor.eventTitleUserInfoKey] ?? "diesem Konzert"
+        AttendanceLocationMonitor.shared.presentConfirmation(eventID: eventID, title: title)
     }
 }

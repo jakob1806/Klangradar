@@ -504,11 +504,13 @@ private extension EntityDetailView {
     /// "Alle einklappen" wechselt.
     @ViewBuilder private func linkedEvents(_ events: [LinkedEvent], kind: EntityKind) -> some View {
         let sorted = events
-            .filter { kind != .venue || ($0.startDate ?? .distantPast) >= KlangradarDateTime.calendar.startOfDay(for: .now) }
+            // Seit 23.10.2026 (Nutzerwunsch) auch bei Personen/Ensembles nur
+            // kommende Termine, wie schon bei Venues.
+            .filter { kind == .work || ($0.startDate ?? .distantPast) >= KlangradarDateTime.calendar.startOfDay(for: .now) }
             .sorted { ($0.startDate ?? .distantFuture) < ($1.startDate ?? .distantFuture) }
 
         if !sorted.isEmpty {
-            section(kind == .venue ? "Kommende Veranstaltungen" : "Veranstaltungen") {
+            section(kind == .work ? "Veranstaltungen" : "Kommende Veranstaltungen") {
                 VStack(alignment: .leading, spacing: 12) {
                     if let icsURL = calendarExportURL(sorted, kind: kind) {
                         ShareLink(item: icsURL) {
