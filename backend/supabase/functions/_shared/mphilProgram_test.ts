@@ -16,6 +16,7 @@ Deno.test("liest Programm mit Pause und Komponisten", () => {
     ["Felix Mendelssohn Bartholdy", 0, false],
     ["Robert Schumann", 1, true],
   ]);
+  assertEquals(works[0].title, "42. Psalm »Wie der Hirsch« op. 42");
   assertEquals(works[1].title, "Szenen aus Goethes Faust WoO 3");
 });
 
