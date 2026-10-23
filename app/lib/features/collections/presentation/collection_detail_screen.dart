@@ -10,38 +10,47 @@ import '../../../core/widgets/genre_artwork.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../home/application/home_providers.dart';
 
-final _collectionProvider =
-    FutureProvider.family<Map<String, dynamic>?, String>((ref, slug) async {
-      final client = Supabase.instance.client;
-      final collection = await client
-          .from('editorial_collections')
-          .select('id, title, subtitle, description_de, cover_image_url')
-          .eq('slug', slug)
-          .maybeSingle();
-      if (collection == null) return null;
+final _collectionProvider = FutureProvider.family<Map<String, dynamic>?, String>((
+  ref,
+  slug,
+) async {
+  final client = Supabase.instance.client;
+  final collection = await client
+      .from('editorial_collections')
+      .select('id, title, subtitle, description_de, cover_image_url')
+      .eq('slug', slug)
+      .maybeSingle();
+  if (collection == null) return null;
 
-      final rows = await client
-          .from('editorial_collection_events')
-          .select('position, events($homeEventColumns)')
-          .eq('collection_id', collection['id'])
-          .order('position', ascending: true);
+  final rows = await client
+      .from('editorial_collection_events')
+      .select('position, events($homeEventColumns)')
+      .eq('collection_id', collection['id'])
+      .order('position', ascending: true);
 
-      final now = MunichTime.now();
-      // Vergangene Veranstaltungen bleiben in der Admin-Zuordnung bestehen
-      // (Redaktion kann sie dort weiter verwalten/entfernen), fallen aber
-      // aus der App-Anzeige raus — eine "Höhepunkte der Woche"-Sammlung
-      // soll nicht von Hand aktuell gehalten werden müssen (Nutzerwunsch).
-      final events = (rows as List)
+  final now = MunichTime.now();
+  // Vergangene Veranstaltungen bleiben in der Admin-Zuordnung bestehen
+  // (Redaktion kann sie dort weiter verwalten/entfernen), fallen aber
+  // aus der App-Anzeige raus — eine "Höhepunkte der Woche"-Sammlung
+  // soll nicht von Hand aktuell gehalten werden müssen (Nutzerwunsch).
+  final events =
+      (rows as List)
           .map((r) => r['events'] as Map<String, dynamic>?)
           .whereType<Map<String, dynamic>>()
           .map(HomeEventItem.fromRow)
           .where(
             (e) => e.startDateTime == null || e.startDateTime!.isAfter(now),
           )
-          .toList();
+          .toList()
+        // Chronologisch statt redaktioneller Reihenfolge (Nutzerwunsch 23.10.2026).
+        ..sort(
+          (a, b) => (a.startDateTime ?? DateTime(9999)).compareTo(
+            b.startDateTime ?? DateTime(9999),
+          ),
+        );
 
-      return {'collection': collection, 'events': events};
-    });
+  return {'collection': collection, 'events': events};
+});
 
 class CollectionDetailScreen extends ConsumerWidget {
   const CollectionDetailScreen({required this.slug, super.key});

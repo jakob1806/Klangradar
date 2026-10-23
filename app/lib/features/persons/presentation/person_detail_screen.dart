@@ -80,7 +80,15 @@ final _personProvider = FutureProvider.family<Map<String, dynamic>?, String>((
 
   return {
     'person': person,
-    'events': events,
+    // Nur kommende Termine (Nutzerwunsch 23.10.2026), wie bei Venues.
+    'events': (events as List).where((row) {
+      final raw =
+          (row['events'] as Map<String, dynamic>?)?['start_datetime']
+              as String?;
+      final start = raw == null ? null : DateTime.tryParse(raw);
+      return start == null ||
+          start.isAfter(DateTime.now().subtract(const Duration(hours: 3)));
+    }).toList(),
     'sources': fieldSourcesFromRows(provenance),
     'similar': similar,
   };
