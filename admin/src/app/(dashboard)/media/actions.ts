@@ -63,17 +63,28 @@ export async function bulkSetLicenseStatus(imageIds: string[], status: LicenseSt
   return reviewImages(imageIds, status);
 }
 
-/** Alle wartenden Bilder einer Quelle auf einmal (z. B. "Wikipedia"). */
-export async function bulkSetLicenseStatusBySource(sourceName: string, status: LicenseStatus): Promise<number> {
+/** Alle wartenden Bilder einer Quelle auf einmal (z. B. "Wikipedia");
+ * sourceName null = alle wartenden Bilder. */
+export async function bulkSetLicenseStatusBySource(sourceName: string | null, status: LicenseStatus): Promise<number> {
   const supabase = await createClient();
   const ids: string[] = [];
   for (let from = 0; ; from += 1000) {
-    const { data, error } = await supabase.from("images").select("id").eq("needs_review", true).eq("source_name", sourceName).range(from, from + 999);
+    let query = supabase.from("images").select("id").eq("needs_review", true);
+    if (sourceName) query = query.eq("source_name", sourceName);
+    const { data, error } = await query.order("id").range(from, from + 999);
     if (error) throw new Error(error.message);
     ids.push(...(data ?? []).map((row) => row.id as string));
     if (!data || data.length < 1000) break;
   }
   return ids.length ? reviewImages(ids, status) : 0;
+}
+
+export async function approveAllFree(): Promise<void> {
+  await bulkSetLicenseStatusBySource(null, "confirmed_free");
+}
+
+export async function approveAllLicensed(): Promise<void> {
+  await bulkSetLicenseStatusBySource(null, "confirmed_licensed");
 }
 
 export async function approveSourceFree(sourceName: string): Promise<void> {
