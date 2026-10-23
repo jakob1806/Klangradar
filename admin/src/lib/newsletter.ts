@@ -11,10 +11,10 @@ type Pick = { event_id: string; slug: string; title: string; start_datetime: str
 type FollowedNew = { event_id: string; slug: string; title: string; start_datetime: string; venue_name: string | null; image_url: string | null; followed_name: string };
 
 const SECTION_ORDER: [string, string][] = [
-  ["saved", "Auf deiner Merkliste"],
+  ["saved", "Gemerkt"],
   ["followed", "Von dir gefolgt"],
   ["friends", "Deine Freunde gehen hin"],
-  ["taste", "Das könnte dir gefallen"],
+  ["taste", "Außerdem"],
 ];
 
 /** ISO-Kalenderwoche als Schlüssel, z. B. "2026-W43". */
@@ -31,19 +31,27 @@ function firstName(name: string | null): string | null {
   return name?.trim().split(/\s+/)[0] || null;
 }
 
+function weekLabel(date = new Date()): string {
+  return `KW ${isoWeekKey(date).split("-W")[1].replace(/^0/, "")}`;
+}
+
 export function weeklyDigestEmail(recipient: Recipient, picks: Pick[]): UserEmail {
   const toEvent = (p: Pick): MailEvent => ({ title: p.title, slug: p.slug, startDatetime: p.start_datetime, venueName: p.venue_name, imageUrl: p.image_url, reason: p.reason_detail });
   const name = firstName(recipient.display_name);
-  const top = picks[0];
+  // Hauptkonzert: bestbewertetes mit Bild, sonst das erste.
+  const feature = picks.find((p) => p.image_url) ?? picks[0];
+  const rest = picks.filter((p) => p !== feature);
+  const city = recipient.city_name;
   return userEmail({
-    subject: top ? `Deine Konzertwoche: ${top.title}${picks.length > 1 ? ` und ${picks.length - 1} weitere` : ""}` : "Deine Konzertwoche",
-    preheader: `${picks.length} Konzerte für dich${recipient.city_name ? ` in ${recipient.city_name}` : ""} – ausgewählt nach dem, was du magst.`,
-    eyebrow: "Deine Konzertwoche",
-    title: name ? `Hallo ${name}, das passt zu dir` : "Das passt diese Woche zu dir",
-    intro: `Ausgewählt nach deinen gefolgten Künstler:innen, Ensembles und Orten, deiner Merkliste, deinen Lieblingsgenres und dem, was deine Freunde vorhaben${recipient.city_name ? ` – in ${recipient.city_name}` : ""}.`,
-    sections: SECTION_ORDER.map(([reason, heading]) => ({ heading, events: picks.filter((p) => p.reason === reason).map(toEvent) })),
-    cta: { label: "Alle Konzerte in der App", href: "https://klangradar.com" },
-    reasonForEmail: "Du erhältst diese E-Mail, weil du „Deine Konzertwoche“ in der Klangradar-App eingeschaltet hast.",
+    subject: rest.length ? `${feature.title} und ${rest.length} weitere Konzerte für dich` : feature.title,
+    preheader: `${picks.length} Konzerte${city ? ` in ${city}` : ""} für die nächsten Tage.`,
+    dateline: [weekLabel(), city].filter(Boolean).join(" · "),
+    title: city ? `Diese Woche in ${city}` : "Deine Konzertwoche",
+    intro: `${name ? `Guten Morgen, ${name}. ` : ""}${picks.length} Konzerte aus den nächsten Tagen, ausgesucht nach deiner Merkliste, den Künstler:innen und Orten, denen du folgst, und dem, was deine Freunde vorhaben.`,
+    feature: toEvent(feature),
+    sections: SECTION_ORDER.map(([reason, heading]) => ({ heading, events: rest.filter((p) => p.reason === reason).map(toEvent) })),
+    cta: { label: "Mehr in der App", href: "https://klangradar.com" },
+    reasonForEmail: "Du bekommst diese Mail, weil du „Deine Konzertwoche“ in der Klangradar-App eingeschaltet hast.",
     unsubscribeToken: recipient.unsubscribe_token,
     unsubscribeKind: "weekly_digest",
   });
@@ -52,14 +60,15 @@ export function weeklyDigestEmail(recipient: Recipient, picks: Pick[]): UserEmai
 export function followedNewEventsEmail(recipient: Recipient, events: FollowedNew[]): UserEmail {
   const names = [...new Set(events.map((e) => e.followed_name))];
   const who = names.length === 1 ? names[0] : names.length === 2 ? `${names[0]} und ${names[1]}` : `${names[0]}, ${names[1]} und weitere`;
+  const toEvent = (e: FollowedNew): MailEvent => ({ title: e.title, slug: e.slug, startDatetime: e.start_datetime, venueName: e.venue_name, imageUrl: e.image_url, reason: names.length > 1 ? `Mit ${e.followed_name}` : null });
   return userEmail({
-    subject: events.length === 1 ? `Neuer Termin: ${events[0].title}` : `${events.length} neue Termine von ${who}`,
+    subject: events.length === 1 ? `Neu: ${events[0].title}` : `${events.length} neue Termine von ${who}`,
     preheader: `${who} ${names.length === 1 ? "hat" : "haben"} neue Konzerte angekündigt.`,
-    eyebrow: "Neu angekündigt",
-    title: `Neues von ${who}`,
-    intro: "Gerade neu bei Klangradar – von Künstler:innen, Ensembles und Orten, denen du folgst.",
-    sections: [{ events: events.map((e) => ({ title: e.title, slug: e.slug, startDatetime: e.start_datetime, venueName: e.venue_name, imageUrl: e.image_url, reason: `Mit ${e.followed_name}` })) }],
-    reasonForEmail: "Du erhältst diese E-Mail, weil du E-Mails zu neuen Terminen von dir Gefolgter eingeschaltet hast.",
+    dateline: "Neu angekündigt",
+    title: `Neue Termine von ${who}`,
+    intro: events.length === 1 ? "Gerade dazugekommen:" : "Gerade dazugekommen, ältere Termine zuerst:",
+    sections: [{ events: events.map(toEvent) }],
+    reasonForEmail: "Du bekommst diese Mail, weil du Mails zu neuen Terminen von Gefolgten eingeschaltet hast.",
     unsubscribeToken: recipient.unsubscribe_token,
     unsubscribeKind: "followed_new_event",
   });
@@ -114,12 +123,12 @@ const toMail = (e: SavedEvent): MailEvent => ({ title: e.title, slug: e.slug, st
 export function reminderEmail(recipient: Recipient, events: SavedEvent[]): UserEmail {
   return userEmail({
     subject: events.length === 1 ? `Morgen: ${events[0].title}` : `Morgen: ${events.length} deiner Konzerte`,
-    preheader: "Deine Konzerte für morgen auf einen Blick.",
-    eyebrow: "Morgen",
-    title: events.length === 1 ? "Morgen ist Konzertabend" : "Morgen hast du Konzerte vor",
-    intro: "Kleine Erinnerung an deine gemerkten Konzerte. In der App findest du Anreise, Zeitplan und Restaurants in der Nähe.",
+    preheader: "Anreise, Zeitplan und Restaurants in der Nähe findest du in der App.",
+    dateline: "Erinnerung",
+    title: "Morgen im Konzert",
+    intro: "Anreise, Einlass und Restaurants in der Nähe findest du in der App beim jeweiligen Konzert.",
     sections: [{ events: events.map(toMail) }],
-    reasonForEmail: "Du erhältst diese E-Mail, weil du E-Mail-Erinnerungen am Vortag eingeschaltet hast.",
+    reasonForEmail: "Du bekommst diese Mail, weil du Erinnerungen am Vortag eingeschaltet hast.",
     unsubscribeToken: recipient.unsubscribe_token,
     unsubscribeKind: "reminder_day_before",
   });
@@ -129,11 +138,11 @@ export function changesEmail(recipient: Recipient, events: SavedEvent[]): UserEm
   return userEmail({
     subject: events.length === 1 ? `${events[0].detail}: ${events[0].title}` : `${events.length} deiner Konzerte haben sich geändert`,
     preheader: "Änderungen bei deinen gemerkten Konzerten.",
-    eyebrow: "Wichtige Änderung",
+    dateline: "Änderung",
     title: events.length === 1 ? `${events[0].title} wurde ${events[0].detail === "Abgesagt" ? "abgesagt" : "verschoben"}` : "Änderungen bei deinen Konzerten",
-    intro: "Der Veranstalter hat Änderungen gemeldet. Details und gegebenenfalls Hinweise zur Erstattung findest du beim Veranstalter.",
+    intro: "Laut Veranstalter. Infos zu Tickets und Erstattung gibt es dort.",
     sections: [{ events: events.map(toMail) }],
-    reasonForEmail: "Du erhältst diese E-Mail, weil du E-Mails zu Absagen und Änderungen gemerkter Konzerte eingeschaltet hast.",
+    reasonForEmail: "Du bekommst diese Mail, weil du Mails zu Absagen und Änderungen eingeschaltet hast.",
     unsubscribeToken: recipient.unsubscribe_token,
     unsubscribeKind: "event_changes",
   });

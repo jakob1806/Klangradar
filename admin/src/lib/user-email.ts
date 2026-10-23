@@ -7,7 +7,6 @@ import { escapeHtml } from "@/lib/portal-email";
 
 const FROM = "Klangradar <noreply@klangradar.com>";
 const FONT = "-apple-system,'SF Pro Text',Helvetica,Arial,sans-serif";
-const ACCENT = "#146194";
 const SITE = process.env.NEXT_PUBLIC_APP_URL ?? "https://klangradar.com";
 
 export type MailEvent = {
@@ -30,32 +29,53 @@ export function eventLink(slug: string): string {
   return `${SITE}/e/${encodeURIComponent(slug)}`;
 }
 
-function eventCard(event: MailEvent): string {
-  const image = event.imageUrl
-    ? `<td width="96" style="padding:0 14px 0 0;vertical-align:top;"><img src="${escapeHtml(event.imageUrl)}" width="96" height="96" alt="" style="display:block;width:96px;height:96px;border-radius:14px;object-fit:cover;"></td>`
-    : "";
-  const reason = event.reason
-    ? `<div style="margin-top:6px;font-size:12px;font-weight:600;color:${ACCENT};">${escapeHtml(event.reason)}</div>`
-    : "";
-  return `<tr><td style="padding:0 0 12px 0;">
-    <a href="${eventLink(event.slug)}" style="text-decoration:none;color:inherit;display:block;">
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#F2F6FA;border-radius:18px;padding:12px;">
-      <tr>${image}<td style="vertical-align:top;font-family:${FONT};">
-        <div style="font-size:12px;font-weight:600;color:#6B7280;text-transform:uppercase;letter-spacing:.4px;">${escapeHtml(formatEventDate(event.startDatetime))}</div>
-        <div style="margin-top:4px;font-size:16px;line-height:1.3;font-weight:700;color:#0B1520;">${escapeHtml(event.title)}</div>
-        ${event.venueName ? `<div style="margin-top:3px;font-size:13px;color:#4B5563;">${escapeHtml(event.venueName)}</div>` : ""}
-        ${reason}
-      </td></tr>
-    </table></a>
+const INK = "#111111";
+const MUTED = "#6B6B6B";
+const LINE = "#E6E6E6";
+const VIOLET = "#6F7EFA";
+const TEAL = "#4FCDBA";
+const LOGO = `${SITE}/email/klangradar-logo.png`;
+
+function shortDate(iso: string): { day: string; date: string; time: string } {
+  const d = new Date(iso);
+  const part = (o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("de-DE", { ...o, timeZone: "Europe/Berlin" }).format(d);
+  return { day: part({ weekday: "short" }).replace(".", ""), date: part({ day: "numeric", month: "numeric" }), time: part({ hour: "2-digit", minute: "2-digit" }) };
+}
+
+/** Großes Hauptkonzert oben (erstes Konzert mit Bild). */
+function featureBlock(event: MailEvent): string {
+  const d = shortDate(event.startDatetime);
+  return `<tr><td style="padding:0 0 28px 0;">
+    <a href="${eventLink(event.slug)}" style="text-decoration:none;color:${INK};">
+      ${event.imageUrl ? `<img src="${escapeHtml(event.imageUrl)}" width="512" height="300" alt="" style="display:block;width:100%;max-width:512px;height:300px;object-fit:cover;border-radius:6px;">` : ""}
+      <div style="margin-top:14px;font:600 13px ${FONT};color:${MUTED};">${escapeHtml(`${d.day} ${d.date} · ${d.time} Uhr${event.venueName ? ` · ${event.venueName}` : ""}`)}</div>
+      <div style="margin-top:4px;font:700 22px/1.25 ${FONT};color:${INK};letter-spacing:-.3px;">${escapeHtml(event.title)}</div>
+      ${event.reason ? `<div style="margin-top:6px;font:14px/1.5 ${FONT};color:${MUTED};">${escapeHtml(event.reason)}</div>` : ""}
+    </a>
   </td></tr>`;
+}
+
+/** Terminzeile im Stil eines Programmhefts: Datum links, Titel rechts. */
+function listRow(event: MailEvent): string {
+  const d = shortDate(event.startDatetime);
+  return `<tr>
+    <td width="64" style="padding:14px 12px 14px 0;border-top:1px solid ${LINE};vertical-align:top;font:600 13px/1.35 ${FONT};color:${INK};">${escapeHtml(d.day)}<br><span style="font-weight:400;color:${MUTED};">${escapeHtml(d.date)}<br>${escapeHtml(d.time)}</span></td>
+    <td style="padding:14px 0;border-top:1px solid ${LINE};vertical-align:top;font-family:${FONT};">
+      <a href="${eventLink(event.slug)}" style="text-decoration:none;color:${INK};font:600 15px/1.35 ${FONT};">${escapeHtml(event.title)}</a>
+      <div style="margin-top:3px;font:13px/1.45 ${FONT};color:${MUTED};">${escapeHtml([event.venueName, event.reason].filter(Boolean).join(" · "))}</div>
+    </td>
+  </tr>`;
 }
 
 export function userEmail(input: {
   subject: string;
   preheader: string;
-  eyebrow: string;
+  /** Kleine Zeile rechts im Kopf, z. B. "KW 43 · München". */
+  dateline: string;
   title: string;
   intro: string;
+  /** Erstes Konzert groß zeigen. */
+  feature?: MailEvent;
   sections: { heading?: string; events: MailEvent[] }[];
   cta?: { label: string; href: string };
   reasonForEmail: string;
@@ -65,50 +85,56 @@ export function userEmail(input: {
   const unsubscribeUrl = `${SITE}/api/email/unsubscribe?token=${encodeURIComponent(input.unsubscribeToken)}&kind=${input.unsubscribeKind}`;
   const sections = input.sections
     .filter((section) => section.events.length > 0)
-    .map((section) => `${section.heading ? `<h2 style="margin:26px 0 12px 0;font:700 17px ${FONT};color:#0B1520;">${escapeHtml(section.heading)}</h2>` : ""}
-      <table role="presentation" width="100%" cellspacing="0" cellpadding="0">${section.events.map(eventCard).join("")}</table>`)
+    .map((section) => `${section.heading ? `<tr><td colspan="2" style="padding:22px 0 8px 0;font:700 13px ${FONT};color:${INK};">${escapeHtml(section.heading)}</td></tr>` : ""}${section.events.map(listRow).join("")}`)
     .join("");
   const cta = input.cta
-    ? `<table role="presentation" cellspacing="0" cellpadding="0" style="margin-top:22px;"><tr><td style="background:${ACCENT};border-radius:999px;"><a href="${escapeHtml(input.cta.href)}" style="display:inline-block;padding:14px 26px;font:700 15px ${FONT};color:#ffffff;text-decoration:none;">${escapeHtml(input.cta.label)}</a></td></tr></table>`
+    ? `<p style="margin:28px 0 0 0;font:15px ${FONT};"><a href="${escapeHtml(input.cta.href)}" style="color:${INK};font-weight:600;text-decoration:underline;text-decoration-color:${VIOLET};text-underline-offset:3px;">${escapeHtml(input.cta.label)} →</a></p>`
     : "";
 
   const html = `<!doctype html>
-<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>${escapeHtml(input.subject)}</title></head>
-<body style="margin:0;padding:0;background:#E9F1F8;">
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light only"><title>${escapeHtml(input.subject)}</title></head>
+<body style="margin:0;padding:0;background:#ffffff;">
 <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${escapeHtml(input.preheader)}</div>
-<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:linear-gradient(180deg,#DCEAF6,#F4F8FB);padding:28px 12px;">
-  <tr><td align="center">
-    <table role="presentation" width="560" cellspacing="0" cellpadding="0" style="max-width:560px;width:100%;">
-      <tr><td style="padding:0 6px 18px 6px;">
-        <table role="presentation" cellspacing="0" cellpadding="0"><tr>
-          <td style="width:38px;height:38px;background:${ACCENT};border-radius:11px;text-align:center;color:#fff;font:800 21px/38px ${FONT};">K</td>
-          <td style="padding-left:10px;font:800 18px ${FONT};color:#0B1520;letter-spacing:-.2px;">Klangradar</td>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#ffffff;">
+  <tr><td align="center" style="padding:28px 16px 40px 16px;">
+    <table role="presentation" width="512" cellspacing="0" cellpadding="0" style="max-width:512px;width:100%;">
+      <tr><td style="padding:0 0 22px 0;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr>
+          <td style="vertical-align:middle;"><a href="${SITE}" style="text-decoration:none;"><img src="${LOGO}" width="32" height="32" alt="Klangradar" style="display:inline-block;vertical-align:middle;border-radius:8px;border:1px solid ${LINE};"><span style="display:inline-block;vertical-align:middle;margin-left:10px;font:700 16px ${FONT};color:${INK};">Klangradar</span></a></td>
+          <td align="right" style="vertical-align:middle;font:13px ${FONT};color:${MUTED};">${escapeHtml(input.dateline)}</td>
         </tr></table>
       </td></tr>
-      <tr><td style="background:#ffffff;border-radius:24px;padding:30px 24px;font-family:${FONT};color:#0B1520;box-shadow:0 10px 30px rgba(20,97,148,.08);">
-        <div style="font-size:11px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:${ACCENT};">${escapeHtml(input.eyebrow)}</div>
-        <h1 style="margin:8px 0 12px 0;font-size:26px;line-height:1.2;font-weight:800;letter-spacing:-.5px;">${escapeHtml(input.title)}</h1>
-        <p style="margin:0;font-size:15px;line-height:1.6;color:#4B5563;">${escapeHtml(input.intro)}</p>
-        ${sections}${cta}
+      <tr><td style="height:3px;line-height:3px;font-size:0;background:${INK};">&nbsp;</td></tr>
+      <tr><td style="padding:26px 0 0 0;font-family:${FONT};color:${INK};">
+        <h1 style="margin:0 0 10px 0;font:800 28px/1.15 ${FONT};letter-spacing:-.6px;color:${INK};">${escapeHtml(input.title)}</h1>
+        <p style="margin:0 0 26px 0;font:16px/1.55 ${FONT};color:#333333;">${escapeHtml(input.intro)}</p>
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+          ${input.feature ? featureBlock(input.feature) : ""}
+        </table>
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0">${sections}</table>
+        ${cta}
       </td></tr>
-      <tr><td style="padding:18px 10px 0 10px;font:12px/1.6 ${FONT};color:#6B7280;text-align:center;">
-        ${escapeHtml(input.reasonForEmail)}<br>
-        <a href="${unsubscribeUrl}" style="color:#6B7280;">Abmelden</a> · Einstellungen in der App unter Profil → Einstellungen → Benachrichtigungen<br>
-        <a href="${SITE}/impressum" style="color:#6B7280;">Impressum</a> · <a href="${SITE}/datenschutz" style="color:#6B7280;">Datenschutz</a>
+      <tr><td style="padding:40px 0 0 0;">
+        <table role="presentation" cellspacing="0" cellpadding="0"><tr>
+          <td style="width:18px;height:3px;background:${VIOLET};font-size:0;">&nbsp;</td><td style="width:18px;height:3px;background:${TEAL};font-size:0;">&nbsp;</td>
+        </tr></table>
+        <p style="margin:14px 0 0 0;font:12px/1.65 ${FONT};color:${MUTED};">
+          ${escapeHtml(input.reasonForEmail)}<br>
+          <a href="${unsubscribeUrl}" style="color:${MUTED};">Abmelden</a> · Einstellungen in der App unter Profil → Einstellungen → Benachrichtigungen<br>
+          <a href="${SITE}/impressum" style="color:${MUTED};">Impressum</a> · <a href="${SITE}/datenschutz" style="color:${MUTED};">Datenschutz</a>
+        </p>
       </td></tr>
     </table>
   </td></tr>
 </table></body></html>`;
 
+  const all = [...(input.feature ? [input.feature] : []), ...input.sections.flatMap((section) => section.events)];
   const text = [
     input.title,
     "",
     input.intro,
-    ...input.sections.flatMap((section) => [
-      "",
-      ...(section.heading ? [section.heading.toUpperCase()] : []),
-      ...section.events.map((e) => `• ${formatEventDate(e.startDatetime)} – ${e.title}${e.venueName ? `, ${e.venueName}` : ""}${e.reason ? ` (${e.reason})` : ""}`),
-    ]),
+    "",
+    ...all.map((e) => `${formatEventDate(e.startDatetime)} – ${e.title}${e.venueName ? `, ${e.venueName}` : ""}${e.reason ? ` (${e.reason})` : ""}\n${eventLink(e.slug)}`),
     "",
     input.reasonForEmail,
     `Abmelden: ${unsubscribeUrl}`,

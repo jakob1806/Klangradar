@@ -14,9 +14,10 @@ describe("newsletter", () => {
 
   it("Wochenmail: persönlich, nach Rubriken, mit Abmeldelink", () => {
     const mail = weeklyDigestEmail(recipient, [pick("followed", "Mahler 2"), pick("saved", "Liederabend"), pick("taste", "Bach")]);
-    expect(mail.subject).toBe("Deine Konzertwoche: Mahler 2 und 2 weitere");
-    expect(mail.html).toContain("Hallo Anna");
-    expect(mail.html.indexOf("Auf deiner Merkliste")).toBeLessThan(mail.html.indexOf("Von dir gefolgt"));
+    expect(mail.subject).toBe("Mahler 2 und 2 weitere Konzerte für dich");
+    expect(mail.html).toContain("Guten Morgen, Anna.");
+    expect(mail.html).toContain("Diese Woche in München");
+    expect(mail.html).toContain("/email/klangradar-logo.png");
     expect(mail.html).toContain("https://klangradar.com/e/mahler%202");
     expect(mail.unsubscribeUrl).toContain("kind=weekly_digest");
     expect(mail.text).toContain("Abmelden:");
@@ -24,8 +25,8 @@ describe("newsletter", () => {
 
   it("Gefolgte-Mail nennt die Gefolgten", () => {
     const mail = followedNewEventsEmail(recipient, [{ event_id: "1", slug: "a", title: "Neu A", start_datetime: "2026-11-02T19:00:00Z", venue_name: null, image_url: null, followed_name: "BRSO" }]);
-    expect(mail.subject).toBe("Neuer Termin: Neu A");
-    expect(mail.html).toContain("Neues von BRSO");
+    expect(mail.subject).toBe("Neu: Neu A");
+    expect(mail.html).toContain("Neue Termine von BRSO");
   });
 
   it("escaped Titel", () => {
