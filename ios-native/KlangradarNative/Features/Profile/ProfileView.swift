@@ -53,32 +53,12 @@ struct ProfileView: View {
 
                     if case .anonymous = auth.state { signInCard }
 
-                    plusHero
-
-                    ProfileSectionTitle("Meine Konzerte")
-                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
-                        NavigationLink {
-                            MyKlangradarHubView(auth: auth, repository: userRepository, eventRepository: eventRepository, contentRepository: contentRepository)
-                        } label: {
-                            ProfileTile(title: "Mein Klangradar", subtitle: "Planung & Rückblick", symbol: "person.crop.rectangle.stack.fill", color: KlangradarTheme.accent)
-                        }
-                        NavigationLink {
-                            FavoriteEventsView(auth: auth, repository: userRepository, eventRepository: eventRepository, contentRepository: contentRepository)
-                        } label: {
-                            ProfileTile(title: "Favoriten", subtitle: "Gemerkte Konzerte", symbol: "heart.fill", color: .pink)
-                        }
-                        NavigationLink {
-                            UserEventListsView(auth: auth, repository: userRepository, eventRepository: eventRepository, contentRepository: contentRepository)
-                        } label: {
-                            ProfileTile(title: "Meine Listen", subtitle: "Auch gemeinsame", symbol: "rectangle.stack.fill", color: .orange)
-                        }
-                        NavigationLink {
-                            ConcertArchiveView(repository: userRepository, eventRepository: eventRepository, contentRepository: contentRepository)
-                        } label: {
-                            ProfileTile(title: "Konzertarchiv", subtitle: "Vergangene Abende", symbol: "archivebox.fill", color: .purple)
-                        }
+                    // Neustrukturierung: eigene Inhalte direkt im Profil
+                    // (Demnächst · Erlebt · Gefolgt · Listen) statt Kacheln,
+                    // die erst dorthin führen.
+                    if auth.userID != nil {
+                        ProfileContentSection(auth: auth, repository: userRepository, eventRepository: eventRepository, contentRepository: contentRepository)
                     }
-                    .buttonStyle(.plain)
 
                     ProfileSectionTitle("Gemeinsam & entdecken")
                     HStack(spacing: 12) {
@@ -95,7 +75,15 @@ struct ProfileView: View {
                     }
                     .buttonStyle(.plain)
 
+                    plusHero
+
                     VStack(spacing: 0) {
+                        NavigationLink {
+                            MyKlangradarHubView(auth: auth, repository: userRepository, eventRepository: eventRepository, contentRepository: contentRepository)
+                        } label: {
+                            ProfileRow(title: "Mein Klangradar", symbol: "person.crop.rectangle.stack.fill", color: KlangradarTheme.accent)
+                        }
+                        Divider().padding(.leading, 56)
                         NavigationLink { PartnerOffersView() } label: {
                             ProfileRow(title: "Partner-Vorteile", symbol: "gift.fill", color: .red)
                         }
@@ -2140,28 +2128,6 @@ private struct ProfileSectionTitle: View {
     }
 }
 
-/// Kachel im 2er-Raster ("Meine Konzerte").
-private struct ProfileTile: View {
-    let title: String
-    let subtitle: String
-    let symbol: String
-    let color: Color
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            ProfileIcon(symbol: symbol, color: color, size: 38)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.headline).foregroundStyle(.primary).lineLimit(1).minimumScaleFactor(0.85)
-                Text(subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-            }
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.regularMaterial, in: .rect(cornerRadius: 20, style: .continuous))
-        .contentShape(.rect(cornerRadius: 20))
-    }
-}
-
 /// Zeile in einer gruppierten Karte (wie Einstellungen-App).
 private struct ProfileRow: View {
     let title: String
@@ -2181,5 +2147,277 @@ private struct ProfileRow: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
         .contentShape(.rect)
+    }
+}
+
+// MARK: - Profil-Inhalte (Neustrukturierung: Inhalte statt Menüs)
+
+private enum ProfileContentTab: String, CaseIterable, Identifiable {
+    case upcoming = "Demnächst"
+    case experienced = "Erlebt"
+    case following = "Gefolgt"
+    case lists = "Listen"
+    var id: String { rawValue }
+}
+
+/// Zeigt im Profil direkt die eigenen Inhalte (geplante und gemerkte
+/// Konzerte, Konzerttagebuch mit Rückblick und Abzeichen, gefolgte
+/// Künstler:innen, Listen) statt Menüzeilen, die erst dorthin führen.
+private struct ProfileContentSection: View {
+    @ObservedObject var auth: AuthStore
+    let repository: UserRepository?
+    let eventRepository: any EventRepository
+    let contentRepository: any ContentRepository
+
+    @State private var tab: ProfileContentTab = .upcoming
+    @State private var planned: [ConcertEvent] = []
+    @State private var saved: [ConcertEvent] = []
+    @State private var summary = ProfileSocialSummary.empty
+    @State private var lists: [UserEventList] = []
+    @State private var isLoading = true
+    @State private var recapYear: Int?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Picker("Bereich", selection: $tab.animation(.snappy)) {
+                ForEach(ProfileContentTab.allCases) { Text($0.rawValue).tag($0) }
+            }
+            .pickerStyle(.segmented)
+
+            Group {
+                switch tab {
+                case .upcoming: upcoming
+                case .experienced: experienced
+                case .following: following
+                case .lists: listsView
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .transition(.opacity)
+        }
+        .task(id: auth.userID) { await load() }
+        .fullScreenCover(item: Binding(get: { recapYear.map(RecapSelection.init) }, set: { recapYear = $0?.id })) { selection in
+            YearRecapView(visits: summary.visits, year: selection.id)
+        }
+    }
+
+    private struct RecapSelection: Identifiable { let id: Int }
+
+    // MARK: Demnächst
+
+    @ViewBuilder private var upcoming: some View {
+        let savedOnly = saved.filter { event in !planned.contains { $0.id == event.id } && (event.startDate ?? .distantPast) > .now }
+        if planned.isEmpty && savedOnly.isEmpty {
+            emptyState(symbol: "ticket", title: "Noch nichts geplant", text: "Merke dir Konzerte mit dem Herz oder wähle „Ich gehe hin“ – sie erscheinen dann hier.")
+        } else {
+            if !planned.isEmpty { rail("Ich gehe hin", events: planned) }
+            if !savedOnly.isEmpty { rail("Gemerkt", events: savedOnly) }
+        }
+    }
+
+    private func rail(_ title: String, events: [ConcertEvent]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text(title).font(.headline)
+                Spacer()
+                NavigationLink("Alle") {
+                    FavoriteEventsView(auth: auth, repository: repository, eventRepository: eventRepository, contentRepository: contentRepository)
+                }
+                .font(.subheadline)
+            }
+            ScrollView(.horizontal) {
+                LazyHStack(alignment: .top, spacing: 14) {
+                    ForEach(events.prefix(12)) { event in
+                        NavigationLink(value: event) { EventCard(event: event) }
+                            .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, KlangradarTheme.pagePadding)
+            }
+            .scrollIndicators(.hidden)
+            .padding(.horizontal, -KlangradarTheme.pagePadding)
+        }
+    }
+
+    // MARK: Erlebt
+
+    @ViewBuilder private var experienced: some View {
+        if summary.visits.isEmpty {
+            emptyState(symbol: "checkmark.seal", title: "Dein Konzerttagebuch", text: "Markiere besuchte Konzerte auf der Konzertseite. Daraus entstehen Abzeichen, dein Klanglevel und der Jahresrückblick.")
+        } else {
+            if let year = YearRecap.years(in: summary.visits).first {
+                Button { recapYear = year } label: {
+                    HStack(spacing: 14) {
+                        Image(systemName: "sparkles.rectangle.stack.fill").font(.title2).foregroundStyle(.white)
+                            .frame(width: 46, height: 46)
+                            .background(LinearGradient(colors: [KlangradarTheme.accent, .purple], startPoint: .topLeading, endPoint: .bottomTrailing), in: .rect(cornerRadius: 13, style: .continuous))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Dein Jahr \(String(year)) in Klang").font(.headline).foregroundStyle(.primary)
+                            Text("\(summary.visits.count) Konzerte · Rückblick ansehen").font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+                    }
+                    .padding(14)
+                    .background(.regularMaterial, in: .rect(cornerRadius: 20, style: .continuous))
+                }
+                .buttonStyle(.plain)
+            }
+
+            let unlocked = summary.achievements.filter(\.isUnlocked)
+            if !unlocked.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Abzeichen").font(.headline)
+                    ScrollView(.horizontal) {
+                        HStack(spacing: 12) {
+                            ForEach(unlocked) { achievement in
+                                VStack(spacing: 6) {
+                                    Image(systemName: achievement.symbol)
+                                        .font(.title3.weight(.semibold))
+                                        .foregroundStyle(KlangradarTheme.accent)
+                                        .frame(width: 56, height: 56)
+                                        .background(KlangradarTheme.accent.opacity(0.12), in: .circle)
+                                    Text(achievement.title).font(.caption2.weight(.semibold)).lineLimit(2).multilineTextAlignment(.center).frame(width: 72)
+                                }
+                            }
+                        }
+                    }
+                    .scrollIndicators(.hidden)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 0) {
+                HStack {
+                    Text("Zuletzt erlebt").font(.headline)
+                    Spacer()
+                    NavigationLink("Alle") {
+                        VisitedConcertsView(auth: auth, repository: repository, eventRepository: eventRepository, contentRepository: contentRepository)
+                    }
+                    .font(.subheadline)
+                }
+                .padding(.bottom, 6)
+                ForEach(summary.visits.prefix(5)) { visit in
+                    let row = HStack(spacing: 12) {
+                        VStack(spacing: 0) {
+                            Text(visit.attendedAt.map { KlangradarDateTime.string($0, format: "d") } ?? "–").font(.title3.bold()).monospacedDigit()
+                            Text(visit.attendedAt.map { KlangradarDateTime.string($0, format: "MMM") } ?? "").font(.caption2.weight(.semibold)).foregroundStyle(.secondary).textCase(.uppercase)
+                        }
+                        .frame(width: 44)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(visit.title).font(.subheadline.weight(.semibold)).foregroundStyle(.primary).lineLimit(2)
+                            Text(visit.venue).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.vertical, 10)
+                    if let event = visit.event {
+                        NavigationLink(value: event) { row }.buttonStyle(.plain)
+                    } else {
+                        row
+                    }
+                    if visit.id != summary.visits.prefix(5).last?.id { Divider() }
+                }
+            }
+            .padding(14)
+            .background(.regularMaterial, in: .rect(cornerRadius: 20, style: .continuous))
+        }
+    }
+
+    // MARK: Gefolgt
+
+    @ViewBuilder private var following: some View {
+        if summary.followed.isEmpty {
+            emptyState(symbol: "person.crop.circle.badge.plus", title: "Noch niemandem gefolgt", text: "Folge Künstler:innen, Ensembles und Orten auf ihrer Seite. Du erfährst dann von neuen Konzerten.")
+        } else {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10, alignment: .top), count: 4), spacing: 16) {
+                ForEach(summary.followed.prefix(16)) { profile in
+                    NavigationLink(value: EntityRoute(kind: profile.kind.entityKind, identifier: profile.slug ?? profile.id.uuidString)) {
+                        VStack(spacing: 6) {
+                            CachedAsyncImage(url: profile.imageURL, maxPixel: 200) { phase in
+                                if let image = phase.image { image.resizable().scaledToFill() }
+                                else { Color.secondary.opacity(0.12).overlay { Image(systemName: profile.kind.entityKind.systemImage).foregroundStyle(.secondary) } }
+                            }
+                            .frame(width: 64, height: 64)
+                            .clipShape(profile.kind == .venue ? AnyShape(RoundedRectangle(cornerRadius: 16, style: .continuous)) : AnyShape(Circle()))
+                            Text(profile.name).font(.caption2.weight(.medium)).foregroundStyle(.primary).lineLimit(2).multilineTextAlignment(.center)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            if summary.followed.count > 16 {
+                NavigationLink("Alle \(summary.followed.count) ansehen") {
+                    FollowedPeopleView(auth: auth, repository: repository, contentRepository: contentRepository)
+                }
+                .font(.subheadline)
+                .frame(maxWidth: .infinity)
+            }
+        }
+    }
+
+    // MARK: Listen
+
+    @ViewBuilder private var listsView: some View {
+        VStack(spacing: 10) {
+            ForEach(lists.prefix(8)) { list in
+                NavigationLink {
+                    UserEventListDetailView(initialList: list, auth: auth, repository: repository, eventRepository: eventRepository, contentRepository: contentRepository)
+                } label: {
+                    HStack(spacing: 12) {
+                        CachedAsyncImage(url: list.events.first?.primaryImageURL, maxPixel: 200) { phase in
+                            if let image = phase.image { image.resizable().scaledToFill() }
+                            else { LinearGradient(colors: [KlangradarTheme.accent.opacity(0.5), .purple.opacity(0.5)], startPoint: .topLeading, endPoint: .bottomTrailing).overlay { Image(systemName: "music.note.list").foregroundStyle(.white) } }
+                        }
+                        .frame(width: 56, height: 56)
+                        .clipShape(.rect(cornerRadius: 12, style: .continuous))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(list.name).font(.headline).foregroundStyle(.primary)
+                            Text("\(list.events.count) \(list.events.count == 1 ? "Konzert" : "Konzerte")\(list.isOwned ? "" : " · geteilt")").font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+                    }
+                    .padding(12)
+                    .background(.regularMaterial, in: .rect(cornerRadius: 18, style: .continuous))
+                }
+                .buttonStyle(.plain)
+            }
+            NavigationLink {
+                UserEventListsView(auth: auth, repository: repository, eventRepository: eventRepository, contentRepository: contentRepository)
+            } label: {
+                Label(lists.isEmpty ? "Erste Liste anlegen" : "Alle Listen verwalten", systemImage: lists.isEmpty ? "plus" : "rectangle.stack")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(KlangradarTheme.accent.opacity(0.12), in: .rect(cornerRadius: 14, style: .continuous))
+                    .foregroundStyle(KlangradarTheme.accent)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private func emptyState(symbol: String, title: String, text: String) -> some View {
+        VStack(spacing: 10) {
+            Image(systemName: symbol).font(.system(size: 34, weight: .light)).foregroundStyle(KlangradarTheme.accent)
+            Text(title).font(.headline)
+            Text(text).font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity)
+        .background(.regularMaterial, in: .rect(cornerRadius: 22, style: .continuous))
+        .redacted(reason: isLoading ? .placeholder : [])
+    }
+
+    private func load() async {
+        guard let repository, let userID = auth.userID, let token = auth.accessToken else { isLoading = false; return }
+        async let plannedRows = try? repository.plannedEvents(userID: userID, token: token)
+        async let savedRows = try? repository.favoriteEvents(userID: userID, token: token)
+        async let summaryValue = repository.socialProfileSummary(userID: userID, token: token)
+        async let listRows = try? repository.eventLists(userID: userID, token: token)
+        planned = await plannedRows ?? []
+        saved = await savedRows ?? []
+        summary = await summaryValue
+        lists = await listRows ?? []
+        isLoading = false
     }
 }
