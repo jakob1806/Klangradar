@@ -2,7 +2,9 @@ import SwiftUI
 import MapKit
 
 /// Abendplanung auf der Konzertseite: Zeitplan (Einlass, Beginn, Pause, Ende),
-/// Anreise mit Öffis/zu Fuß/Auto über Apple Maps und Restaurants in der Nähe.
+/// Anreise mit ÖPNV/zu Fuß/Auto über Apple Maps und Restaurants in der Nähe.
+/// Mit Standortfreigabe: echte Fahrzeit (ÖPNV, sonst zu Fuß/Auto) und eine
+/// konkrete Losgeh-Zeit; Restaurant-Tipp passend zur Uhrzeit (vorher/danach).
 /// Die Spielstätte wird über ihre Adresse mit MapKit gesucht, weil die
 /// Detailabfrage keine Koordinaten liefert (venues.location ist geography).
 struct EveningPlanSection: View {
@@ -12,6 +14,14 @@ struct EveningPlanSection: View {
     @State private var venueItem: MKMapItem?
     @State private var restaurants: [MKMapItem] = []
     @State private var didSearch = false
+    @State private var travel: TravelEstimate?
+
+    private struct TravelEstimate {
+        let minutes: Int
+        let mode: String
+        let label: String
+        let symbol: String
+    }
 
     private var venue: JSONObject? { detail.object("venues") }
 
@@ -77,14 +87,42 @@ struct EveningPlanSection: View {
             if let endDate {
                 timelineRow(symbol: "moon.stars", label: "Ende", value: "ca. \(KlangradarDateTime.string(endDate, format: "HH:mm")) Uhr")
             }
+            if let startDate, let travel {
+                timelineRow(
+                    symbol: "figure.walk.departure",
+                    label: "Los",
+                    value: "\(KlangradarDateTime.string(startDate.addingTimeInterval(TimeInterval(-(travel.minutes + 25) * 60)), format: "HH:mm")) Uhr · \(travel.minutes) Min. \(travel.label)"
+                )
+            }
             if let startDate {
                 timelineRow(
                     symbol: "clock.badge.checkmark",
                     label: "Tipp",
-                    value: "Gegen \(KlangradarDateTime.string(startDate.addingTimeInterval(-30 * 60), format: "HH:mm")) Uhr da sein (Garderobe, Programmheft)"
+                    value: arrivalTip(startDate)
                 )
             }
         }
+    }
+
+    /// Hinweis je nach Uhrzeit und Abend: früher Beginn, Matinee, Pause, langer Abend.
+    private func arrivalTip(_ start: Date) -> String {
+        let arrive = KlangradarDateTime.string(start.addingTimeInterval(-25 * 60), format: "HH:mm")
+        let hour = Calendar.current.component(.hour, from: start)
+        var tip = "Gegen \(arrive) Uhr da sein – Garderobe und Programmheft"
+        if hour < 14 {
+            tip += "; danach bietet sich ein Mittagessen in der Nähe an"
+        } else if hour >= 19, let dinner = Calendar.current.date(byAdding: .minute, value: -120, to: start) {
+            tip += "; wer vorher essen will, reserviert für \(KlangradarDateTime.string(dinner, format: "HH:mm")) Uhr"
+        } else if hour < 19 {
+            tip += "; nach dem Konzert bleibt Zeit fürs Abendessen"
+        }
+        if detail.bool("has_intermission") == true {
+            tip += ". Pausengetränk vorab an der Bar bestellen spart Schlange"
+        }
+        if let endDate, Calendar.current.component(.hour, from: endDate) >= 23 {
+            tip += ". Spätes Ende: letzte Verbindung vorher prüfen"
+        }
+        return tip + "."
     }
 
     private func timelineRow(symbol: String, label: String, value: String) -> some View {
@@ -103,7 +141,7 @@ struct EveningPlanSection: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Anreise").font(.subheadline.weight(.semibold))
             HStack(spacing: 8) {
-                travelButton("Öffis", symbol: "tram.fill", mode: MKLaunchOptionsDirectionsModeTransit)
+                travelButton("ÖPNV", symbol: "tram.fill", mode: MKLaunchOptionsDirectionsModeTransit)
                 travelButton("Zu Fuß", symbol: "figure.walk", mode: MKLaunchOptionsDirectionsModeWalking)
                 travelButton("Auto", symbol: "car.fill", mode: MKLaunchOptionsDirectionsModeDriving)
             }
@@ -144,7 +182,7 @@ struct EveningPlanSection: View {
 
     private var restaurantList: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Essen & Trinken in der Nähe").font(.subheadline.weight(.semibold))
+            Text(restaurantHeading).font(.subheadline.weight(.semibold))
             ForEach(restaurants, id: \.self) { item in
                 Button {
                     item.openInMaps()
@@ -167,6 +205,13 @@ struct EveningPlanSection: View {
                 .buttonStyle(.plain)
             }
         }
+    }
+
+    private var restaurantHeading: String {
+        guard let startDate else { return "Essen & Trinken in der Nähe" }
+        let hour = Calendar.current.component(.hour, from: startDate)
+        if hour < 14 { return "Nach der Matinee: Essen in der Nähe" }
+        return hour >= 19 ? "Vorher essen gehen" : "Danach noch einkehren"
     }
 
     private func symbol(for item: MKMapItem) -> String {
@@ -196,6 +241,8 @@ struct EveningPlanSection: View {
         guard let found = try? await MKLocalSearch(request: venueRequest).start().mapItems.first else { return }
         venueItem = found
 
+        await estimateTravel(to: found)
+
         let poiRequest = MKLocalPointsOfInterestRequest(center: found.placemark.coordinate, radius: 600)
         poiRequest.pointOfInterestFilter = MKPointOfInterestFilter(including: [.restaurant, .cafe, .brewery, .winery])
         guard let response = try? await MKLocalSearch(request: poiRequest).start() else { return }
@@ -207,5 +254,29 @@ struct EveningPlanSection: View {
             }
             .prefix(4)
             .map { $0 }
+    }
+
+    /// Fahrzeit vom aktuellen Standort, nur wenn die Freigabe schon erteilt
+    /// ist (kein neuer Dialog). Bis 2 km zu Fuß, sonst ÖPNV, Auto als Rückfall.
+    private func estimateTravel(to destination: MKMapItem) async {
+        let status = CLLocationManager().authorizationStatus
+        guard status == .authorizedWhenInUse || status == .authorizedAlways else { return }
+        let candidates: [(MKDirectionsTransportType, String, String, String)] = [
+            (.walking, MKLaunchOptionsDirectionsModeWalking, "zu Fuß", "figure.walk"),
+            (.transit, MKLaunchOptionsDirectionsModeTransit, "mit ÖPNV", "tram.fill"),
+            (.automobile, MKLaunchOptionsDirectionsModeDriving, "mit dem Auto", "car.fill")
+        ]
+        for (type, mode, label, symbol) in candidates {
+            let request = MKDirections.Request()
+            request.source = .forCurrentLocation()
+            request.destination = destination
+            request.transportType = type
+            if let startDate { request.arrivalDate = startDate.addingTimeInterval(-25 * 60) }
+            guard let eta = try? await MKDirections(request: request).calculateETA() else { continue }
+            let minutes = max(1, Int((eta.expectedTravelTime / 60).rounded()))
+            if type == .walking && eta.distance > 2000 { continue }
+            travel = TravelEstimate(minutes: minutes, mode: mode, label: label, symbol: symbol)
+            return
+        }
     }
 }

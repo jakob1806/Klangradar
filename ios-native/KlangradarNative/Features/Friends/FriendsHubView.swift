@@ -45,31 +45,11 @@ struct FriendsView: View {
                     Text("Melde dich an, um Freunde hinzuzufügen, Konzertabende zu planen und zu sehen, wohin deine Freunde gehen.")
                 }
             } else {
-                List {
-                    Section { header }
-                        .listRowInsets(EdgeInsets())
-                        .listRowBackground(Color.clear)
-
-                    Section {
-                        Picker("Bereich", selection: $tab) {
-                            ForEach(FriendsHubTab.allCases) { tab in Text(label(for: tab)).tag(tab) }
-                        }
-                        .pickerStyle(.segmented)
-                    }
-                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-                    .listRowBackground(Color.clear)
-
-                    switch tab {
-                    case .activity: activitySection
-                    case .plans: plansSection
-                    case .friends: friendsSections
-                    }
-                }
-                .listStyle(.insetGrouped)
-                .animation(.snappy, value: tab)
+                hub
             }
         }
         .navigationTitle("Freunde")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if auth.userID != nil {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -99,7 +79,6 @@ struct FriendsView: View {
             tab = initialTab
             await load()
         }
-        .refreshable { await load() }
         .onChange(of: deepLinks.pendingFriendCode) { _, value in
             guard let value else { return }
             deepLinks.pendingFriendCode = nil
@@ -107,166 +86,244 @@ struct FriendsView: View {
         }
     }
 
-    private func label(for tab: FriendsHubTab) -> String {
-        switch tab {
-        case .plans where social.pendingPlanInvites > 0: "Pläne (\(social.pendingPlanInvites))"
-        case .friends where social.incomingRequests > 0: "Freunde (\(social.incomingRequests))"
-        default: tab.rawValue
+    /// Seit 23.10.2026 (Nutzerwunsch: "zu linear, wie viele Sachen unter
+    /// Profil") keine Liste mit Segmenten mehr, sondern eine durchlaufende
+    /// Seite wie ein Konzertprogramm: Freundeskreis, gemeinsame Abende als
+    /// Plakate, wohin Freunde gehen, Nachklang (Bewertungen), Code als
+    /// Eintrittskarte. `initialTab` springt zum passenden Abschnitt.
+    private var hub: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 34) {
+                    circleSection
+                    if !incomingRequests.isEmpty { requestsSection }
+                    plansSection.id(FriendsHubTab.plans)
+                    goingSection.id(FriendsHubTab.activity)
+                    if !ratings.isEmpty { echoSection }
+                    ticketSection.id(FriendsHubTab.friends)
+                }
+                .padding(.vertical, 12)
+                .frame(maxWidth: KlangradarTheme.contentMaxWidth, alignment: .leading)
+                .frame(maxWidth: .infinity)
+            }
+            .refreshable { await load() }
+            .onChange(of: isLoading) { _, loading in
+                guard !loading, tab != .activity else { return }
+                withAnimation(.snappy) { proxy.scrollTo(tab, anchor: .top) }
+            }
         }
     }
 
-    // MARK: Kopf
+    private var incomingRequests: [FriendRequest] { requests.filter(\.incoming) }
+    private var ratings: [ActivityItem] { activity.filter { $0.kind == .rated && $0.stars != nil } }
 
-    private var header: some View {
+    /// Freunde, die zum selben Konzert gehen, auf einem Plakat zusammengefasst.
+    private var goingGroups: [FriendsGoingGroup] {
+        var order: [UUID] = []
+        var groups: [UUID: FriendsGoingGroup] = [:]
+        for item in activity where item.kind == .attending {
+            if groups[item.event.id] == nil {
+                order.append(item.event.id)
+                groups[item.event.id] = FriendsGoingGroup(event: item.event, people: [])
+            }
+            if !(groups[item.event.id]?.people.contains(item.person) ?? true) {
+                groups[item.event.id]?.people.append(item.person)
+            }
+        }
+        return order.compactMap { groups[$0] }
+            .sorted { ($0.event.start ?? .distantFuture) < ($1.event.start ?? .distantFuture) }
+    }
+
+    private func sectionTitle(_ title: String, _ caption: String? = nil) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title).font(.system(.title2, design: .serif).weight(.semibold))
+            if let caption { Text(caption).font(.subheadline).foregroundStyle(.secondary) }
+        }
+        .padding(.horizontal, KlangradarTheme.pagePadding)
+    }
+
+    // MARK: Freundeskreis
+
+    private var circleSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .center, spacing: 14) {
-                AvatarStack(people: friends.map { SocialPerson(id: $0.id, name: $0.name, avatarURL: $0.avatarURL) }, size: 34, limit: 5)
-                    .opacity(friends.isEmpty ? 0 : 1)
-                    .frame(minHeight: friends.isEmpty ? 0 : 34)
-                Spacer(minLength: 0)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(friends.isEmpty ? "Konzerte sind schöner zu zweit" : "Dein Freundeskreis")
+                    .font(.system(.largeTitle, design: .serif).weight(.semibold))
+                Text(circleCaption).font(.subheadline).foregroundStyle(.secondary)
             }
-            Text(friends.isEmpty ? "Konzerte sind schöner zu zweit" : "\(friends.count) \(friends.count == 1 ? "Freund:in" : "Freunde") auf Klangradar")
-                .font(.title2.bold())
-            Text("Plant Konzertabende gemeinsam, seht, wohin eure Freunde gehen, und teilt eure Lieblingslisten.")
-                .font(.subheadline).foregroundStyle(.secondary)
-            HStack(spacing: 10) {
-                Button { showsFindFriends = true } label: {
-                    Label("Freunde finden", systemImage: "person.badge.plus").frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(KlangradarTheme.accent)
-                if let code {
-                    ShareLink(item: FriendInvite.message(code: code)) {
-                        Label("Einladen", systemImage: "square.and.arrow.up").frame(maxWidth: .infinity)
+            .padding(.horizontal, KlangradarTheme.pagePadding)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(alignment: .top, spacing: 16) {
+                    Button { showsFindFriends = true } label: {
+                        FriendCircleTile(title: "Einladen") {
+                            Circle()
+                                .strokeBorder(KlangradarTheme.accent.opacity(0.5), style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
+                                .overlay { Image(systemName: "plus").font(.title2.weight(.medium)).foregroundStyle(KlangradarTheme.accent) }
+                        }
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.plain)
+                    ForEach(friends) { friend in
+                        NavigationLink(value: ProfileRoute(id: friend.id)) {
+                            FriendCircleTile(title: friend.name.split(separator: " ").first.map(String.init) ?? friend.name, badge: friend.upcomingCount > 0 ? "\(friend.upcomingCount)" : nil) {
+                                SocialAvatar(name: friend.name, url: friend.avatarURL, size: 68)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
-            }
-            .controlSize(.large)
-        }
-        .padding(18)
-        .background(.thinMaterial, in: .rect(cornerRadius: 24, style: .continuous))
-        .padding(.vertical, 6)
-    }
-
-    // MARK: Aktivität
-
-    @ViewBuilder private var activitySection: some View {
-        if activity.isEmpty && !isLoading {
-            Section {
-                ContentUnavailableView("Noch ruhig hier", systemImage: "music.note.list",
-                                       description: Text(friends.isEmpty ? "Sobald du Freunde hast, siehst du hier, zu welchen Konzerten sie gehen und wie es ihnen gefallen hat." : "Deine Freunde haben in den letzten 30 Tagen nichts geteilt."))
-            }
-        } else {
-            Section {
-                ForEach(activity) { item in ActivityRow(item: item) }
+                .padding(.horizontal, KlangradarTheme.pagePadding)
             }
         }
     }
 
-    // MARK: Pläne
-
-    @ViewBuilder private var plansSection: some View {
-        if plans.isEmpty && !isLoading {
-            Section {
-                ContentUnavailableView {
-                    Label("Noch keine Pläne", systemImage: "calendar.badge.plus")
-                } description: {
-                    Text("Öffne ein Konzert und tippe auf „Mit Freunden planen“. Deine Freunde können zu- oder absagen, ihr vereinbart Treffpunkt und Uhrzeit.")
-                }
-            }
-        } else {
-            let invites = plans.filter { $0.myStatus == "invited" }
-            if !invites.isEmpty {
-                Section("Einladungen") { ForEach(invites) { plan in PlanCard(plan: plan) } }
-            }
-            let others = plans.filter { $0.myStatus != "invited" }
-            if !others.isEmpty {
-                Section("Kommende Konzertabende") { ForEach(others) { plan in PlanCard(plan: plan) } }
-            }
-        }
+    private var circleCaption: String {
+        if friends.isEmpty { return "Lade Freunde ein, plant Abende gemeinsam und seht, wohin sie gehen." }
+        let busy = friends.filter { $0.upcomingCount > 0 }.count
+        let base = "\(friends.count) \(friends.count == 1 ? "Freund:in" : "Freunde")"
+        return busy == 0 ? base : "\(base) · \(busy) mit Konzertplänen"
     }
 
-    // MARK: Freunde
+    // MARK: Anfragen
 
-    @ViewBuilder private var friendsSections: some View {
-        let incoming = requests.filter(\.incoming)
-        if !incoming.isEmpty {
-            Section("Anfragen") {
-                ForEach(incoming) { request in
+    private var requestsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionTitle("Möchten dich hinzufügen")
+            VStack(spacing: 0) {
+                ForEach(incomingRequests) { request in
                     HStack(spacing: 12) {
                         NavigationLink(value: ProfileRoute(id: request.person.id)) {
                             HStack(spacing: 12) {
-                                SocialAvatar(name: request.person.name, url: request.person.avatarURL, size: 44)
+                                SocialAvatar(name: request.person.name, url: request.person.avatarURL, size: 46)
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(request.person.name).font(.headline)
+                                    Text(request.person.name).font(.headline).foregroundStyle(.primary)
                                     if request.mutualFriends > 0 {
                                         Text("\(request.mutualFriends) gemeinsame \(request.mutualFriends == 1 ? "Freund:in" : "Freunde")").font(.caption).foregroundStyle(.secondary)
                                     }
                                 }
+                                Spacer(minLength: 0)
                             }
                         }
-                        HStack(spacing: 8) {
-                            Button { Task { await respond(request, accept: false) } } label: { Image(systemName: "xmark") }
-                                .buttonStyle(.bordered).tint(.secondary)
-                                .accessibilityLabel("Ablehnen")
-                            Button { Task { await respond(request, accept: true) } } label: { Image(systemName: "checkmark") }
-                                .buttonStyle(.borderedProminent).tint(KlangradarTheme.accent)
-                                .accessibilityLabel("Annehmen")
-                        }
-                        .controlSize(.small)
+                        .buttonStyle(.plain)
+                        Button { Task { await respond(request, accept: false) } } label: { Image(systemName: "xmark") }
+                            .buttonStyle(.bordered).tint(.secondary).buttonBorderShape(.circle)
+                            .accessibilityLabel("Ablehnen")
+                        Button { Task { await respond(request, accept: true) } } label: { Image(systemName: "checkmark") }
+                            .buttonStyle(.borderedProminent).tint(KlangradarTheme.accent).buttonBorderShape(.circle)
+                            .accessibilityLabel("Annehmen")
                     }
+                    .padding(14)
+                    if request.id != incomingRequests.last?.id { Divider().padding(.leading, 72) }
                 }
             }
+            .background(KlangradarTheme.accent.opacity(0.08), in: .rect(cornerRadius: 22, style: .continuous))
+            .padding(.horizontal, KlangradarTheme.pagePadding)
         }
+    }
 
-        Section {
-            HStack {
-                TextField("Freundescode eingeben", text: $codeInput)
+    // MARK: Gemeinsame Abende
+
+    private var sortedPlans: [ConcertPlan] {
+        plans.sorted { lhs, rhs in
+            if (lhs.myStatus == "invited") != (rhs.myStatus == "invited") { return lhs.myStatus == "invited" }
+            return (lhs.event.start ?? .distantFuture) < (rhs.event.start ?? .distantFuture)
+        }
+    }
+
+    private var plansSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionTitle("Gemeinsame Abende", plans.isEmpty ? nil : planCaption)
+            if plans.isEmpty && !isLoading {
+                EmptyStageCard(
+                    symbol: "ticket",
+                    title: "Noch nichts geplant",
+                    text: "Öffne ein Konzert und tippe auf „Mit Freunden planen“. Ihr sagt zu, vereinbart Treffpunkt und Uhrzeit."
+                )
+                .padding(.horizontal, KlangradarTheme.pagePadding)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(spacing: 14) {
+                        ForEach(sortedPlans) { plan in
+                            NavigationLink(value: PlanRoute(id: plan.id)) { PlanPosterCard(plan: plan) }
+                                .buttonStyle(.plain)
+                        }
+                    }
+                    .scrollTargetLayout()
+                    .padding(.horizontal, KlangradarTheme.pagePadding)
+                }
+                .scrollTargetBehavior(.viewAligned)
+            }
+        }
+    }
+
+    private var planCaption: String {
+        let invites = plans.filter { $0.myStatus == "invited" }.count
+        return invites > 0 ? "\(invites) \(invites == 1 ? "Einladung wartet" : "Einladungen warten") auf deine Antwort" : "Eure nächsten Konzertabende"
+    }
+
+    // MARK: Wohin Freunde gehen
+
+    private var goingSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionTitle("Da gehen deine Freunde hin")
+            let groups = goingGroups
+            if groups.isEmpty && !isLoading {
+                EmptyStageCard(
+                    symbol: "music.note.house",
+                    title: "Noch ruhig hier",
+                    text: friends.isEmpty ? "Sobald du Freunde hast, siehst du hier, zu welchen Konzerten sie gehen." : "Deine Freunde haben gerade keine Konzerte vorgemerkt."
+                )
+                .padding(.horizontal, KlangradarTheme.pagePadding)
+            } else {
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)], spacing: 18) {
+                    ForEach(groups) { group in FriendsGoingPoster(group: group) }
+                }
+                .padding(.horizontal, KlangradarTheme.pagePadding)
+            }
+        }
+    }
+
+    // MARK: Nachklang
+
+    private var echoSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionTitle("Nachklang", "Wie es deinen Freunden gefallen hat")
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(alignment: .top, spacing: 14) {
+                    ForEach(ratings) { item in EchoQuoteCard(item: item) }
+                }
+                .padding(.horizontal, KlangradarTheme.pagePadding)
+            }
+        }
+    }
+
+    // MARK: Code
+
+    private var ticketSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionTitle("Per Code verbinden")
+            FriendCodeTicket(code: code)
+                .padding(.horizontal, KlangradarTheme.pagePadding)
+            HStack(spacing: 10) {
+                TextField("Code eines Freundes", text: $codeInput)
                     .textInputAutocapitalization(.characters)
                     .autocorrectionDisabled()
                     .font(.body.monospaced())
+                    .padding(.horizontal, 14).padding(.vertical, 11)
+                    .background(Color(uiColor: .secondarySystemBackground), in: .capsule)
                 Button("Hinzufügen") { Task { await add(codeInput) } }
+                    .buttonStyle(.borderedProminent).tint(KlangradarTheme.accent)
                     .disabled(codeInput.trimmingCharacters(in: .whitespaces).count < 6)
             }
-            if let message { Text(message).font(.footnote).foregroundStyle(.secondary) }
-        } header: {
-            Text("Per Code")
-        } footer: {
-            if let code { Text("Dein Code: \(code). Wer ihn eingibt, ist sofort mit dir befreundet.") }
-        }
-
-        Section("Freunde") {
-            if friends.isEmpty && !isLoading {
-                Text("Noch keine Freunde. Lade jemanden ein oder finde Freunde über deine Kontakte.").foregroundStyle(.secondary)
+            .padding(.horizontal, KlangradarTheme.pagePadding)
+            if let message {
+                Text(message).font(.footnote).foregroundStyle(.secondary).padding(.horizontal, KlangradarTheme.pagePadding)
             }
-            ForEach(friends) { friend in
-                NavigationLink(value: ProfileRoute(id: friend.id)) {
-                    HStack(spacing: 12) {
-                        SocialAvatar(name: friend.name, url: friend.avatarURL, size: 44)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(friend.name).font(.headline)
-                            Text(friend.upcomingCount == 0 ? "Keine geplanten Konzerte" : friend.upcomingCount == 1 ? "1 kommendes Konzert" : "\(friend.upcomingCount) kommende Konzerte")
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                    }
-                }
-            }
-        }
-
-        let outgoing = requests.filter { !$0.incoming }
-        if !outgoing.isEmpty {
-            Section("Gesendete Anfragen") {
-                ForEach(outgoing) { request in
-                    HStack(spacing: 12) {
-                        SocialAvatar(name: request.person.name, url: request.person.avatarURL, size: 36)
-                        Text(request.person.name)
-                        Spacer()
-                        RelationButton(person: SocialPerson(id: request.person.id, name: request.person.name, avatarURL: request.person.avatarURL, status: .requested), source: "profile") { _ in
-                            Task { await load() }
-                        }
-                    }
-                }
+            let outgoing = requests.filter { !$0.incoming }
+            if !outgoing.isEmpty {
+                Text("Gesendet an \(AvatarStack.names(outgoing.map(\.person)))")
+                    .font(.footnote).foregroundStyle(.secondary)
+                    .padding(.horizontal, KlangradarTheme.pagePadding)
             }
         }
     }
@@ -323,42 +380,237 @@ struct FriendsView: View {
 struct PlanRoute: Hashable { let id: UUID }
 struct ProfileRoute: Hashable { let id: UUID }
 
-/// Eintrag im Freunde-Feed.
-private struct ActivityRow: View {
+struct FriendsGoingGroup: Identifiable, Hashable {
+    var id: UUID { event.id }
+    let event: SocialEvent
+    var people: [SocialPerson]
+}
+
+/// Freund im Freundeskreis-Band: großes Porträt, Vorname, optional Anzahl
+/// kommender Konzerte als kleines Siegel.
+private struct FriendCircleTile<Content: View>: View {
+    let title: String
+    var badge: String? = nil
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        VStack(spacing: 7) {
+            content
+                .frame(width: 68, height: 68)
+                .overlay(alignment: .bottomTrailing) {
+                    if let badge {
+                        Text(badge)
+                            .font(.caption2.weight(.bold)).monospacedDigit()
+                            .foregroundStyle(.white)
+                            .frame(minWidth: 22, minHeight: 22)
+                            .background(KlangradarTheme.accent, in: .circle)
+                            .overlay { Circle().stroke(Color(uiColor: .systemBackground), lineWidth: 2.5) }
+                            .accessibilityLabel("\(badge) kommende Konzerte")
+                    }
+                }
+            Text(title).font(.caption.weight(.medium)).lineLimit(1).frame(width: 76)
+        }
+    }
+}
+
+/// Gemeinsamer Abend als Plakat: Bild randlos, großer Datumsblock,
+/// Titel, wer zugesagt hat, eigener Status.
+private struct PlanPosterCard: View {
+    let plan: ConcertPlan
+
+    var body: some View {
+        ZStack(alignment: .bottomLeading) {
+            CachedAsyncImage(url: plan.event.imageURL, maxPixel: 700) { phase in
+                if let image = phase.image { image.resizable().scaledToFill() }
+                else { LinearGradient(colors: [KlangradarTheme.accent, KlangradarTheme.deepInk], startPoint: .topLeading, endPoint: .bottomTrailing) }
+            }
+            .frame(width: 270, height: 330)
+            .clipped()
+            LinearGradient(colors: [.clear, .black.opacity(0.25), .black.opacity(0.82)], startPoint: .top, endPoint: .bottom)
+            VStack(alignment: .leading, spacing: 10) {
+                Text(plan.event.title)
+                    .font(.system(.title3, design: .serif).weight(.semibold))
+                    .lineLimit(3)
+                if let meeting = meetingLine {
+                    Label(meeting, systemImage: "mappin.and.ellipse").font(.caption.weight(.medium)).lineLimit(1)
+                } else if let venue = plan.event.venue {
+                    Text(venue).font(.caption).opacity(0.85).lineLimit(1)
+                }
+                HStack(spacing: 8) {
+                    AvatarStack(people: plan.going.map(\.person), size: 26)
+                    Text(plan.going.isEmpty ? "Noch keine Zusagen" : "\(plan.going.count) dabei").font(.caption.weight(.medium))
+                }
+            }
+            .foregroundStyle(.white)
+            .padding(16)
+        }
+        .frame(width: 270, height: 330)
+        .overlay(alignment: .topLeading) { dateBlock.padding(14) }
+        .overlay(alignment: .topTrailing) { statusPill.padding(14) }
+        .clipShape(.rect(cornerRadius: 26, style: .continuous))
+        .contentShape(.rect(cornerRadius: 26, style: .continuous))
+    }
+
+    @ViewBuilder private var dateBlock: some View {
+        if let start = plan.event.start {
+            VStack(spacing: 0) {
+                Text(KlangradarDateTime.string(start, format: "MMM").uppercased()).font(.caption2.weight(.bold)).foregroundStyle(KlangradarTheme.accent)
+                Text(KlangradarDateTime.string(start, format: "d")).font(.system(size: 26, weight: .semibold, design: .serif))
+                Text(KlangradarDateTime.string(start, format: "EE")).font(.caption2).foregroundStyle(.secondary)
+            }
+            .frame(width: 52, height: 64)
+            .background(.regularMaterial, in: .rect(cornerRadius: 14, style: .continuous))
+        }
+    }
+
+    @ViewBuilder private var statusPill: some View {
+        let text: String? = switch plan.myStatus {
+        case "invited": "Einladung"
+        case "going": "Dabei"
+        case "maybe": "Vielleicht"
+        default: plan.isOwner ? "Dein Plan" : nil
+        }
+        if let text {
+            Text(text)
+                .font(.caption.weight(.semibold))
+                .padding(.horizontal, 10).padding(.vertical, 5)
+                .foregroundStyle(plan.myStatus == "invited" ? .white : .primary)
+                .background(plan.myStatus == "invited" ? AnyShapeStyle(KlangradarTheme.accent) : AnyShapeStyle(.regularMaterial), in: .capsule)
+        }
+    }
+
+    private var meetingLine: String? {
+        let parts = [plan.meetingTime.map { "\(KlangradarDateTime.string($0, format: "HH:mm")) Uhr" }, plan.meetingPoint].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+}
+
+/// Konzertplakat im Raster, unten links die Freunde, die hingehen.
+private struct FriendsGoingPoster: View {
+    let group: FriendsGoingGroup
+
+    var body: some View {
+        Button {
+            DeepLinkRouter.shared.handle(route: "/event/\(group.event.slug)")
+        } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                Color.clear
+                    .aspectRatio(0.78, contentMode: .fit)
+                    .overlay {
+                        CachedAsyncImage(url: group.event.imageURL, maxPixel: 500) { phase in
+                            if let image = phase.image { image.resizable().scaledToFill() }
+                            else { KlangradarTheme.accent.opacity(0.15).overlay { Image(systemName: "music.note").font(.title).foregroundStyle(KlangradarTheme.accent) } }
+                        }
+                    }
+                    .overlay(alignment: .bottomLeading) {
+                        AvatarStack(people: group.people, size: 30, limit: 3).padding(10)
+                    }
+                    .clipShape(.rect(cornerRadius: 18, style: .continuous))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(group.event.title).font(.subheadline.weight(.semibold)).lineLimit(2).multilineTextAlignment(.leading)
+                    Text("\(AvatarStack.names(group.people)) · \(group.event.start.map { KlangradarDateTime.string($0, format: "EE d. MMM") } ?? "")")
+                        .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                }
+            }
+            .foregroundStyle(.primary)
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// Bewertung eines Freundes als Zitat: großes Anführungszeichen, Sterne,
+/// Konzert klein darunter.
+private struct EchoQuoteCard: View {
     let item: ActivityItem
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top, spacing: 10) {
-                NavigationLink(value: ProfileRoute(id: item.person.id)) {
-                    SocialAvatar(name: item.person.name, url: item.person.avatarURL, size: 36)
-                }
-                .buttonStyle(.plain)
-                VStack(alignment: .leading, spacing: 2) {
-                    (Text(item.person.name).fontWeight(.semibold) + Text(" " + verb))
-                        .font(.subheadline)
-                    if let date = item.happenedAt {
-                        Text(date.socialRelative).font(.caption).foregroundStyle(.secondary)
-                    }
+        VStack(alignment: .leading, spacing: 12) {
+            Text("“").font(.system(size: 54, weight: .regular, design: .serif)).foregroundStyle(KlangradarTheme.accent).frame(height: 30, alignment: .top)
+            Text(item.comment ?? "\(item.stars ?? 0) von 5 Sternen")
+                .font(.system(.body, design: .serif)).italic()
+                .lineLimit(5)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Spacer(minLength: 0)
+            StarRating(stars: .constant(item.stars ?? 0), size: 12, editable: false)
+            HStack(spacing: 8) {
+                SocialAvatar(name: item.person.name, url: item.person.avatarURL, size: 26)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(item.person.name).font(.caption.weight(.semibold))
+                    Text(item.event.title).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
                 }
             }
-            if item.kind == .rated, let stars = item.stars {
-                VStack(alignment: .leading, spacing: 4) {
-                    StarRating(stars: .constant(stars), size: 14, editable: false)
-                    if let comment = item.comment { Text("„\(comment)“").font(.subheadline).italic() }
-                }
-                .padding(.leading, 46)
-            }
-            SocialEventRow(event: item.event).padding(.leading, 46)
         }
-        .padding(.vertical, 4)
+        .padding(18)
+        .frame(width: 250, height: 230, alignment: .topLeading)
+        .background(Color(uiColor: .secondarySystemBackground), in: .rect(cornerRadius: 22, style: .continuous))
+        .onTapGesture { DeepLinkRouter.shared.handle(route: "/event/\(item.event.slug)") }
     }
+}
 
-    private var verb: String {
-        switch item.kind {
-        case .attending: "geht hin"
-        case .attended: "war dort"
-        case .rated: "hat bewertet"
+/// Eigener Freundescode als Eintrittskarte mit Abriss.
+private struct FriendCodeTicket: View {
+    let code: String?
+
+    var body: some View {
+        HStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("DEIN FREUNDESCODE").font(.caption2.weight(.bold)).tracking(1.4).foregroundStyle(.white.opacity(0.7))
+                Text(code ?? "······").font(.system(size: 30, weight: .semibold, design: .monospaced)).foregroundStyle(.white)
+                Text("Wer ihn eingibt, ist sofort mit dir befreundet.").font(.caption).foregroundStyle(.white.opacity(0.75))
+            }
+            .padding(18)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Rectangle()
+                .fill(.white.opacity(0.45))
+                .frame(width: 1)
+                .mask { VStack(spacing: 5) { ForEach(0..<14, id: \.self) { _ in Rectangle().frame(height: 4) } } }
+                .padding(.vertical, 14)
+            Group {
+                if let code {
+                    ShareLink(item: FriendInvite.message(code: code)) {
+                        Image(systemName: "square.and.arrow.up").font(.title3.weight(.semibold)).foregroundStyle(.white)
+                    }
+                    .accessibilityLabel("Einladung teilen")
+                }
+            }
+            .frame(width: 70)
         }
+        .background(
+            LinearGradient(colors: [KlangradarTheme.accent, KlangradarTheme.deepInk], startPoint: .topLeading, endPoint: .bottomTrailing),
+            in: TicketShape()
+        )
+    }
+}
+
+/// Rechteck mit zwei halbrunden Kerben auf Höhe des Abrisses.
+private struct TicketShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let notchX = rect.maxX - 70
+        let radius: CGFloat = 10
+        var notches = Path()
+        notches.addEllipse(in: CGRect(x: notchX - radius, y: rect.minY - radius, width: radius * 2, height: radius * 2))
+        notches.addEllipse(in: CGRect(x: notchX - radius, y: rect.maxY - radius, width: radius * 2, height: radius * 2))
+        return Path(roundedRect: rect, cornerRadius: 20, style: .continuous).subtracting(notches)
+    }
+}
+
+/// Leerer Zustand als ruhige Karte statt ContentUnavailableView-Liste.
+private struct EmptyStageCard: View {
+    let symbol: String
+    let title: String
+    let text: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 14) {
+            Image(systemName: symbol).font(.title2).foregroundStyle(KlangradarTheme.accent).frame(width: 30)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title).font(.headline)
+                Text(text).font(.subheadline).foregroundStyle(.secondary)
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(uiColor: .secondarySystemBackground), in: .rect(cornerRadius: 22, style: .continuous))
     }
 }
