@@ -4,7 +4,7 @@
 // Duplicate-Candidate ist, oder komplett neu angelegt wird. Siehe
 // docs/06-mvp-plan.md "Ingestion-Pipeline (Basis)" für den Gesamtkontext.
 
-import { detectTitleStatus } from "./cancellation.ts";
+import { detectEventStatus } from "./cancellation.ts";
 import { findEventMatch, resolveVenue } from "./matching.ts";
 import type { RawEvent } from "./types.ts";
 import { detectEventCoverImage } from "../_shared/coverImageDetection.ts";
@@ -218,7 +218,7 @@ export async function upsertRawEvent(
       const { data: existing, error } = await supabase
         .from("events")
         .select(
-          "id, title, description_de, start_datetime, end_datetime, price_min, price_max, is_free, website_url, ticket_url, image_urls, content_hash, primary_image_id",
+          "id, title, description_de, start_datetime, end_datetime, price_min, price_max, is_free, website_url, ticket_url, image_urls, content_hash, primary_image_id, status, source_id",
         )
         .eq("source_id", source.id)
         .eq("external_id", raw.externalId)
@@ -258,7 +258,7 @@ export async function upsertRawEvent(
       const { data: existing, error } = await supabase
         .from("events")
         .select(
-          "id, title, description_de, start_datetime, end_datetime, price_min, price_max, is_free, website_url, ticket_url, image_urls, content_hash, primary_image_id",
+          "id, title, description_de, start_datetime, end_datetime, price_min, price_max, is_free, website_url, ticket_url, image_urls, content_hash, primary_image_id, status, source_id",
         )
         .eq("id", match.id)
         .maybeSingle();
@@ -319,7 +319,11 @@ export async function upsertRawEvent(
         // Mindestauflösung der Pipeline besteht (siehe dortiger Kommentar).
         image_urls: [],
         // Titel wie "ABGESAGT: …" -> sofort als abgesagt/verschoben anlegen.
-        status: detectTitleStatus(raw.title) ?? (source.config?.autoPublish === true ? "scheduled" : "draft"),
+        // Importierte Konzerte werden direkt veröffentlicht (Nutzerwunsch
+        // 23.10.2026, statt Entwurf + Redaktionsfreigabe). Absagen und
+        // Verschiebungen aus Titel ODER Beschreibung haben Vorrang;
+        // review_status bleibt als Triage für die Redaktion erhalten.
+        status: detectEventStatus(raw.title, raw.description) ?? "scheduled",
         source_id: source.id,
         external_id: raw.externalId,
         content_hash: contentHash,
@@ -391,7 +395,12 @@ async function applyUpdate(
       ...updates,
       // Fehlt der Marker später im Titel, bleibt der Status unverändert
       // (Redaktion entscheidet) — nur das Hinzukommen setzt ihn.
-      ...(detectTitleStatus(raw.title) ? { status: detectTitleStatus(raw.title) } : {}),
+      // Absage/Verschiebung aus Titel oder Beschreibung übernehmen; ein noch
+      // als Entwurf liegendes Import-Konzert wird beim erneuten Einlesen
+      // veröffentlicht.
+      ...(detectEventStatus(raw.title, raw.description)
+        ? { status: detectEventStatus(raw.title, raw.description) }
+        : existing.status === "draft" && existing.source_id === source.id ? { status: "scheduled" } : {}),
       content_hash: contentHash,
       last_verified_at: nowIso,
       last_seen_at: nowIso,
