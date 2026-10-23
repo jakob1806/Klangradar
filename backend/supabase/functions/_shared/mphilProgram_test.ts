@@ -23,3 +23,16 @@ Deno.test("liest Programm mit Pause und Komponisten", () => {
 Deno.test("ohne Werkliste kein Programm", () => {
   assertEquals(parseMphilProgram("<div>kein Programm</div>"), []);
 });
+
+Deno.test("parseMphilProgram: englische Seite mit __work-title-Span (live 23.10.2026)", () => {
+  const html = `<ul class="m-mphil-concert-detail__work-list">
+<li class="m-mphil-concert-detail__work-item"><a class="m-mphil-concert-detail__work-composer --wrap" href="/a">Dmitrij Schostakowitsch</a>
+<p class="m-mphil-concert-detail__work-paragraph"><span class="m-mphil-concert-detail__work-title">Concerto for Violin and Orchestra No. 1 in A minor, Opus 77</span></p></li>
+<li class="m-mphil-concert-detail__work-item"><p class="m-mphil-concert-detail__work-paragraph m-mphil-concert-detail__work-title -pause">Intermission</p></li>
+<li class="m-mphil-concert-detail__work-item"><a class="m-mphil-concert-detail__work-composer --wrap" href="/b">Modest Mussorgsky</a>
+<p class="m-mphil-concert-detail__work-paragraph"><span class="m-mphil-concert-detail__work-title">»Pictures at an Exhibition« (Orchestrated by Maurice Ravel)</span></p></li>
+</ul>`;
+  const works = parseMphilProgram(html);
+  if (works.length !== 2) throw new Error(`erwartet 2 Werke, war ${works.length}`);
+  if (!works[1].afterIntermission || works[1].composerName !== "Modest Mussorgsky") throw new Error("Pause/Komponist falsch");
+});

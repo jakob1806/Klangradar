@@ -21,8 +21,10 @@ Deno.serve(async (req) => {
   const supabase = createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "");
 
   const { data: events, error } = await supabase.from("events")
-    .select("id,title,website_url")
-    .ilike("website_url", "%mphil.de/%")
+    .select("id,title,website_url,external_id,venue_id,start_datetime")
+    // Beim Zusammenführen mit Aggregatoren (concerti, in-muenchen) wird
+    // website_url überschrieben; die mphil-URL bleibt in external_id.
+    .or("website_url.ilike.%mphil.de/%,external_id.ilike.%mphil.de/%")
     .gte("start_datetime", new Date().toISOString())
     .in("status", ["scheduled", "sold_out"])
     .is("mphil_detail_synced_at", null)
@@ -32,9 +34,10 @@ Deno.serve(async (req) => {
 
   const results = await mapLimit(events ?? [], 3, async (event: any) => {
     try {
-      const res = await fetch(event.website_url, { headers: { "User-Agent": USER_AGENT } });
+      const pageUrl = /mphil\.de\//.test(event.external_id ?? "") ? event.external_id : event.website_url;
+      const res = await fetch(pageUrl, { headers: { "User-Agent": USER_AGENT } });
       if (!res.ok) return { id: event.id, error: `HTTP ${res.status}` };
-      const detail = parseMphilEventDetail(await res.text(), event.website_url);
+      const detail = parseMphilEventDetail(await res.text(), pageUrl);
       const participantsAdded = await replaceEventParticipants(supabase, event.id, detail.participants);
 
       // Offizielles Programm ersetzt die KI-Extraktion vollständig, aber nur
@@ -53,12 +56,15 @@ Deno.serve(async (req) => {
         }
       }
 
+      const duplicatesHidden = await hideSameSlotDuplicates(supabase, event);
+
       await supabase.from("events").update({
+        website_url: pageUrl,
         mphil_detail_synced_at: new Date().toISOString(),
         mphil_detail_sync_error: null,
         ...(detail.works.length > 0 ? { program_extraction_status: "complete" } : {}),
       }).eq("id", event.id);
-      return { id: event.id, participantsFound: detail.participants.length, participantsAdded, worksFound: detail.works.length, worksAdded };
+      return { id: event.id, participantsFound: detail.participants.length, participantsAdded, duplicatesHidden, worksFound: detail.works.length, worksAdded };
     } catch (err) {
       await supabase.from("events").update({
         mphil_detail_synced_at: new Date().toISOString(),
@@ -69,3 +75,25 @@ Deno.serve(async (req) => {
   });
   return json({ processed: results.length, remaining: results.length === limit, results });
 });
+
+// Dasselbe Konzert kommt zusätzlich über Aggregatoren (gasteig.de, concerti,
+// in-muenchen) mit schlechterem Programm/Besetzung herein. Gleicher Saal,
+// Beginn ±20 Min. und "Philharmoniker" im Titel = Dublette: als abgelehnter
+// Entwurf ausblenden (nicht löschen, Redaktion kann es zurückholen).
+// deno-lint-ignore no-explicit-any
+async function hideSameSlotDuplicates(supabase: any, event: any): Promise<number> {
+  if (!event.venue_id || !event.start_datetime) return 0;
+  const start = new Date(event.start_datetime).getTime();
+  const { data } = await supabase.from("events")
+    .select("id")
+    .eq("venue_id", event.venue_id)
+    .neq("id", event.id)
+    .ilike("title", "%philharmoniker%")
+    .in("status", ["scheduled", "sold_out"])
+    .gte("start_datetime", new Date(start - 20 * 60_000).toISOString())
+    .lte("start_datetime", new Date(start + 20 * 60_000).toISOString());
+  const ids = (data ?? []).map((row: { id: string }) => row.id);
+  if (ids.length === 0) return 0;
+  await supabase.from("events").update({ status: "draft", review_status: "rejected" }).in("id", ids);
+  return ids.length;
+}
