@@ -129,6 +129,14 @@ function localPlan(message: string, defaultCity?: string): { intent: string; sho
   return { intent, shouldSearchEvents: search, filters: Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== undefined)) };
 }
 
+/** Klare Suchanfrage: lokale Vorplanung genügt, KI-Planer unnötig. */
+function isClearSearch(message: string, plan: ReturnType<typeof localPlan>): boolean {
+  const q = message.toLocaleLowerCase("de-DE");
+  if (/merk dir|merke dir|vergiss|mein ziel|ziel:|ich möchte (mehr|öfter|jeden)/.test(q)) return false;
+  if (!plan.shouldSearchEvents) return false;
+  return Boolean(plan.filters.date_from || plan.filters.query || plan.filters.max_budget !== undefined);
+}
+
 function safeObject(raw: unknown): Json | undefined {
   if (typeof raw !== "string" || !raw.trim()) return undefined;
   try { const parsed = JSON.parse(raw); return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : undefined; } catch { return undefined; }
@@ -218,13 +226,21 @@ Deno.serve(async (req) => {
   // Chat braucht nur Kontext/Trends fuer den Prompt, keine Insights/Favoriten
   // (die macht nur die "dashboard"-Aktion) -- spart pro Chat-Nachricht mehrere
   // DB-Roundtrips und einen Upsert, die sowieso nie in die Antwort einfliessen.
-  const dashboard = await loadContext(db);
+  // Tempo (Nutzerfeedback "muss schneller sein"): Kontext laden und Planen
+  // laufen parallel; der KI-Planer entfällt bei klaren Suchanfragen, die die
+  // lokale Vorplanung sicher erkennt (Datum/Werk/Name, kein "merk dir"/Ziel).
   let local = localPlan(message, defaultCity);
-  const planned = await callAiFunctionPreferGemini(
-    "Du bist der Planer der Klangradar KI. Verwende niemals die Bezeichnung Coach. Extrahiere nur die Absicht. Erfinde keine Events, Daten oder Präferenzen. Relative Daten beziehen sich auf " + new Date().toISOString() + ". Memory nur vorschlagen, wenn der Nutzer ausdrücklich 'merk dir' o.ä. sagt; Ziele nur bei klarer Zielsetzung.",
-    `Nachricht: ${message}\nBestätigter Kontext: ${JSON.stringify(dashboard.context)}`,
-    PLAN_FUNCTION,
-  );
+  const needsPlanner = !isClearSearch(message, local);
+  const [dashboard, planned] = await Promise.all([
+    loadContext(db),
+    needsPlanner
+      ? callAiFunctionPreferGemini(
+        "Du bist der Planer der Klangradar KI. Verwende niemals die Bezeichnung Coach. Extrahiere nur die Absicht. Erfinde keine Events, Daten oder Präferenzen. Relative Daten beziehen sich auf " + new Date().toISOString() + ". Memory nur vorschlagen, wenn der Nutzer ausdrücklich 'merk dir' o.ä. sagt; Ziele nur bei klarer Zielsetzung.",
+        `Nachricht: ${message}`,
+        PLAN_FUNCTION,
+      )
+      : Promise.resolve(null),
+  ]);
   let provider = planned?.provider ?? "local";
   let memoryProposal: Json | undefined;
   let goalProposal: Json | undefined;
@@ -312,10 +328,16 @@ Deno.serve(async (req) => {
     ...(memoryProposal ? [{ type: "confirm_memory", proposal: memoryProposal, label: "Merken" }] : []),
     ...(goalProposal ? [{ type: "confirm_goal", proposal: goalProposal, label: "Ziel übernehmen" }] : []),
   ];
-  if (conversationID) await Promise.all([
-    db.from("coach_messages").insert({ conversation_id: conversationID, role: "user", content: message, intent: local.intent }),
-    db.from("coach_messages").insert({ conversation_id: conversationID, role: "assistant", content: answer, intent: local.intent, evidence, actions }),
-    db.from("coach_conversations").update({ context: local.filters, updated_at: new Date().toISOString() }).eq("id", conversationID),
-  ]);
+  // Verlauf im Hintergrund speichern: die Antwort wartet nicht darauf.
+  if (conversationID) {
+    const persist = Promise.all([
+      db.from("coach_messages").insert({ conversation_id: conversationID, role: "user", content: message, intent: local.intent }),
+      db.from("coach_messages").insert({ conversation_id: conversationID, role: "assistant", content: answer, intent: local.intent, evidence, actions }),
+      db.from("coach_conversations").update({ context: local.filters, updated_at: new Date().toISOString() }).eq("id", conversationID),
+    ]);
+    // deno-lint-ignore no-explicit-any
+    const runtime = (globalThis as any).EdgeRuntime;
+    if (runtime?.waitUntil) runtime.waitUntil(persist); else await persist;
+  }
   return json({ conversation_id: conversationID, answer, intent: local.intent, filters: local.filters, context: dashboard.context, trends: dashboard.trends, events, events_are_alternatives: usedRelaxedSearch, evidence, actions, memory_proposal: memoryProposal, goal_proposal: goalProposal, suggested_prompts: suggestedPrompts, provider });
 });

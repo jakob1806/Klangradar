@@ -868,24 +868,24 @@ struct KlangradarCoachView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 13) {
-                    ForEach(messages) { message in
-                        VStack(alignment: message.user ? .trailing : .leading, spacing: 8) {
-                            HStack { if message.user { Spacer(minLength: 45) }; Text(message.text).padding(.horizontal, 14).padding(.vertical, 11).background(message.user ? AnyShapeStyle(KlangradarTheme.accent) : AnyShapeStyle(.thinMaterial)).foregroundStyle(message.user ? .white : .primary).clipShape(.rect(cornerRadius: 18, style: .continuous)); if !message.user { Spacer(minLength: 45) } }
-                            if !message.events.isEmpty { eventCarousel(message.events, isAlternatives: message.eventsAreAlternatives) }
+                    // Redesign: Willkommensbildschirm statt Starttext-Blase.
+                    if messages.count <= 1 && !isSending {
+                        CoachWelcome(prompts: suggestedPrompts) { prompt in sendTask = Task { await send(prompt) } }
+                            .transition(.opacity.combined(with: .scale(scale: 0.97)))
+                    } else {
+                        ForEach(messages.dropFirst()) { message in
+                            CoachMessageRow(text: message.text, isUser: message.user, animate: message.id == messages.last?.id && !message.user) {
+                                if !message.events.isEmpty { eventCarousel(message.events, isAlternatives: message.eventsAreAlternatives) }
+                            }
+                            .transition(.asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .opacity))
                         }
-                        .frame(maxWidth: .infinity, alignment: message.user ? .trailing : .leading)
                     }
-                    // Lade-Hinweis, solange die Antwort der KI aussteht.
+                    // Statt Spinner: springende Punkte mit wechselndem Status.
                     if isSending {
-                        HStack(spacing: 10) {
-                            ProgressView().controlSize(.small)
-                            Text("Klangradar KI sucht passende Konzerte …").font(.subheadline).foregroundStyle(.secondary)
-                        }
-                        .padding(.horizontal, 14).padding(.vertical, 11)
-                        .background(.thinMaterial, in: .rect(cornerRadius: 18, style: .continuous))
-                        .id("coach-loading")
-                        .transition(.opacity)
-                        .accessibilityLabel("Klangradar KI lädt die Antwort")
+                        CoachTypingIndicator()
+                            .id("coach-loading")
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                            .accessibilityLabel("Klangradar KI lädt die Antwort")
                     }
                     if let proposal = memoryProposal { proposalCard("Soll ich mir das merken?", proposal, action: "confirm_memory") }
                     if let proposal = goalProposal { proposalCard("Dieses Ziel übernehmen?", proposal, action: "confirm_goal") }
@@ -915,7 +915,7 @@ struct KlangradarCoachView: View {
             }
             .safeAreaInset(edge: .bottom) {
                 VStack(spacing: 10) {
-                    if !suggestedPrompts.isEmpty {
+                    if !suggestedPrompts.isEmpty && messages.count > 1 {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 8) {
                                 ForEach(suggestedPrompts, id: \.self) { prompt in
@@ -959,7 +959,8 @@ struct KlangradarCoachView: View {
                                 .font(.system(size: isSending ? 15 : 17, weight: .bold))
                                 .foregroundStyle(.white)
                                 .frame(width: 50, height: 50)
-                                .background(KlangradarTheme.accent, in: Circle())
+                                .background(LinearGradient(colors: [KlangradarTheme.accent, .purple], startPoint: .topLeading, endPoint: .bottomTrailing), in: Circle())
+                                .shadow(color: KlangradarTheme.accent.opacity(0.35), radius: 8, y: 3)
                         }
                         .buttonStyle(CoachSendButtonStyle())
                         .disabled(!isSending && draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -971,6 +972,9 @@ struct KlangradarCoachView: View {
                 .background(.clear)
                 .overlay(alignment: .top) { Divider().opacity(0.45) }
             }
+            .animation(.spring(duration: 0.45, bounce: 0.25), value: messages.count)
+            .animation(.spring(duration: 0.35), value: isSending)
+            .background { CoachAmbientBackground(isThinking: isSending) }
             .onChange(of: messages.count) { _, _ in withAnimation { proxy.scrollTo("coach-bottom") } }
             .onChange(of: isSending) { _, sending in if sending { withAnimation { proxy.scrollTo("coach-bottom") } } }
         }
@@ -1078,6 +1082,7 @@ struct KlangradarCoachView: View {
             guard !Task.isCancelled else { return }
             conversationID = reply.conversationID
             messages.append(ChatMessage(text: reply.answer, user: false, events: reply.events, eventsAreAlternatives: reply.eventsAreAlternatives))
+            Haptics.light()
             memoryProposal = reply.memoryProposal; goalProposal = reply.goalProposal; suggestedPrompts = reply.suggestedPrompts; retryDraft = nil
             if !PlusStore.shared.isPlus { CoachQuota.recordQuestion() }
         } catch is CancellationError {
@@ -2438,5 +2443,186 @@ private struct ProfileContentSection: View {
         summary = await summaryValue
         lists = await listRows ?? []
         isLoading = false
+    }
+}
+
+
+// MARK: - Klangradar KI: Gestaltung (Redesign 23.10.2026)
+
+/// Leuchtender "Klang-Orb" als Gesicht der KI; atmet, schneller beim Nachdenken.
+struct CoachOrb: View {
+    var size: CGFloat = 34
+    var isThinking = false
+    @State private var pulse = false
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(AngularGradient(colors: [KlangradarTheme.accent, .purple, .pink, .orange, KlangradarTheme.accent], center: .center))
+                .blur(radius: size * 0.08)
+                .rotationEffect(.degrees(pulse ? 360 : 0))
+            Circle().fill(.white.opacity(0.18)).padding(size * 0.18)
+            Image(systemName: "sparkles").font(.system(size: size * 0.42, weight: .semibold)).foregroundStyle(.white)
+        }
+        .frame(width: size, height: size)
+        .scaleEffect(pulse ? 1.06 : 0.96)
+        .shadow(color: .purple.opacity(0.35), radius: size * 0.25)
+        .onAppear {
+            withAnimation(.easeInOut(duration: isThinking ? 0.8 : 2.4).repeatForever(autoreverses: true)) { pulse = true }
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+/// Willkommensbildschirm: Orb, Begrüßung, große Vorschlagskarten.
+struct CoachWelcome: View {
+    let prompts: [String]
+    let onSelect: (String) -> Void
+
+    private let icons = ["calendar.badge.clock", "person.crop.circle.badge.questionmark", "eurosign.circle", "music.quarternote.3"]
+
+    var body: some View {
+        VStack(spacing: 22) {
+            CoachOrb(size: 92)
+                .padding(.top, 28)
+            VStack(spacing: 8) {
+                Text("Was möchtest du erleben?").font(.title2.bold())
+                Text("Frag nach Konzerten, deinem Geschmack oder einem ganzen Abend. Ich suche in echten Spielplänen.")
+                    .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+            }
+            .padding(.horizontal, 12)
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+                ForEach(Array((prompts + ["Was läuft heute Abend?"]).prefix(4).enumerated()), id: \.offset) { index, prompt in
+                    Button {
+                        Haptics.light()
+                        onSelect(prompt)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Image(systemName: icons[index % icons.count])
+                                .font(.title3.weight(.semibold))
+                                .foregroundStyle(KlangradarTheme.accent)
+                            Text(prompt).font(.subheadline.weight(.semibold)).foregroundStyle(.primary).multilineTextAlignment(.leading).lineLimit(3)
+                            Spacer(minLength: 0)
+                        }
+                        .padding(14)
+                        .frame(maxWidth: .infinity, minHeight: 108, alignment: .topLeading)
+                        .background(.regularMaterial, in: .rect(cornerRadius: 20, style: .continuous))
+                        .overlay { RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(Color.primary.opacity(0.06)) }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+/// Nachrichtenzeile: KI mit Orb und Schreibmaschinen-Effekt, Nutzer mit Verlauf.
+struct CoachMessageRow<Attachment: View>: View {
+    let text: String
+    let isUser: Bool
+    var animate = false
+    @ViewBuilder var attachment: () -> Attachment
+
+    var body: some View {
+        if isUser {
+            HStack {
+                Spacer(minLength: 48)
+                Text(text)
+                    .padding(.horizontal, 15).padding(.vertical, 11)
+                    .foregroundStyle(.white)
+                    .background(LinearGradient(colors: [KlangradarTheme.accent, .purple.opacity(0.85)], startPoint: .topLeading, endPoint: .bottomTrailing),
+                                in: UnevenRoundedRectangle(topLeadingRadius: 20, bottomLeadingRadius: 20, bottomTrailingRadius: 6, topTrailingRadius: 20, style: .continuous))
+            }
+        } else {
+            HStack(alignment: .top, spacing: 10) {
+                CoachOrb(size: 30)
+                VStack(alignment: .leading, spacing: 10) {
+                    TypewriterText(text: text, animate: animate)
+                        .padding(.horizontal, 15).padding(.vertical, 12)
+                        .background(.regularMaterial, in: UnevenRoundedRectangle(topLeadingRadius: 6, bottomLeadingRadius: 20, bottomTrailingRadius: 20, topTrailingRadius: 20, style: .continuous))
+                    attachment()
+                }
+                Spacer(minLength: 24)
+            }
+        }
+    }
+}
+
+/// Zeigt neue Antworten zügig Wort für Wort an (wirkt lebendiger und schneller).
+struct TypewriterText: View {
+    let text: String
+    let animate: Bool
+    @State private var visibleWords = Int.max
+
+    var body: some View {
+        let words = text.split(separator: " ", omittingEmptySubsequences: false)
+        Text(words.prefix(visibleWords).joined(separator: " "))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .task(id: text) {
+                guard animate, words.count > 3 else { visibleWords = .max; return }
+                visibleWords = 0
+                for index in 1...words.count {
+                    try? await Task.sleep(for: .milliseconds(28))
+                    visibleWords = index
+                }
+            }
+    }
+}
+
+/// Springende Punkte mit wechselndem Status statt Spinner.
+struct CoachTypingIndicator: View {
+    @State private var phase = 0
+    @State private var bounce = false
+    private let steps = ["Durchsuche Spielpläne …", "Prüfe deinen Geschmack …", "Wähle die besten Abende …", "Formuliere Antwort …"]
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 10) {
+            CoachOrb(size: 30, isThinking: true)
+            HStack(spacing: 10) {
+                HStack(spacing: 4) {
+                    ForEach(0..<3) { index in
+                        Circle().fill(KlangradarTheme.accent.opacity(0.8)).frame(width: 7, height: 7)
+                            .offset(y: bounce ? -4 : 2)
+                            .animation(.easeInOut(duration: 0.45).repeatForever().delay(Double(index) * 0.15), value: bounce)
+                    }
+                }
+                Text(steps[phase % steps.count])
+                    .font(.subheadline).foregroundStyle(.secondary)
+                    .contentTransition(.opacity)
+                    .id(phase)
+                    .transition(.opacity)
+            }
+            .padding(.horizontal, 15).padding(.vertical, 12)
+            .background(.regularMaterial, in: UnevenRoundedRectangle(topLeadingRadius: 6, bottomLeadingRadius: 20, bottomTrailingRadius: 20, topTrailingRadius: 20, style: .continuous))
+            Spacer(minLength: 0)
+        }
+        .onAppear { bounce = true }
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1.6))
+                withAnimation(.easeInOut(duration: 0.3)) { phase += 1 }
+            }
+        }
+    }
+}
+
+/// Sanft bewegter Farbschimmer hinter dem Chat.
+struct CoachAmbientBackground: View {
+    var isThinking: Bool
+    @State private var drift = false
+
+    var body: some View {
+        ZStack {
+            Circle().fill(KlangradarTheme.accent.opacity(isThinking ? 0.28 : 0.16)).frame(width: 340).blur(radius: 90)
+                .offset(x: drift ? 120 : -100, y: drift ? -220 : -140)
+            Circle().fill(Color.purple.opacity(isThinking ? 0.24 : 0.12)).frame(width: 300).blur(radius: 90)
+                .offset(x: drift ? -130 : 110, y: drift ? 160 : 240)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .allowsHitTesting(false)
+        .animation(.easeInOut(duration: 1.2), value: isThinking)
+        .onAppear { withAnimation(.easeInOut(duration: 9).repeatForever(autoreverses: true)) { drift = true } }
+        .ignoresSafeArea()
     }
 }
