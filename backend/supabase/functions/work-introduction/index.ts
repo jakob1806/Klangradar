@@ -56,7 +56,10 @@ async function processWork(supabase: any, work: any) {
   const user = `Werk: ${work.title}\nKomponist:in: ${composer}\nWerkverzeichnis: ${work.catalog_number ?? "–"}\n\n` +
     (extract ? `Quelltext (${extract.pageUrl}):\n${extract.text.slice(0, 9000)}` : "Kein Quelltext gefunden.");
   const result = await callAiFunction(SYSTEM, user, FN);
-  const args = result?.args ?? {};
+  // Keine KI-Antwort (Anbieter-Fehler/Limit): NICHT als geprüft markieren,
+  // sonst wäre das Werk 30 Tage gesperrt.
+  if (!result) return { id: work.id, introduction: work.introduction_de ?? null, movements: work.movements ?? [], error: "ai_unavailable", source: extract?.pageUrl ?? null };
+  const args = result.args ?? {};
 
   const update: Record<string, unknown> = { introduction_checked_at: new Date().toISOString() };
   const intro = typeof args.introduction === "string" ? args.introduction.trim() : "";
@@ -72,7 +75,15 @@ async function processWork(supabase: any, work: any) {
     update.movements_source = fromSource ? "wikipedia" : "ai_knowledge";
   }
   await supabase.from("works").update(update).eq("id", work.id);
-  return { id: work.id, introduction: update.introduction_de ?? work.introduction_de ?? null, sourceUrl: update.introduction_source_url ?? null, movements: update.movements ?? work.movements ?? [] };
+  return {
+    id: work.id,
+    introduction: update.introduction_de ?? work.introduction_de ?? null,
+    sourceUrl: update.introduction_source_url ?? null,
+    movements: update.movements ?? work.movements ?? [],
+    provider: result.provider,
+    sourceMatches: Boolean(args.sourceMatches),
+    source: extract?.pageUrl ?? null,
+  };
 }
 
 const SELECT = "id,title,catalog_number,movements,introduction_de,introduction_checked_at,composer:persons(full_name)";
