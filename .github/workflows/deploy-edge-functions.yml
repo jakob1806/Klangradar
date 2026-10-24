@@ -45,7 +45,10 @@ jobs:
 
       - name: Alle Edge Functions deployen
         working-directory: backend
-        run: supabase functions deploy --project-ref zqgzcspeqllrihfwmayn
+        # --use-api: Bündeln auf dem Supabase-Server statt per Docker-Image
+        # (Docker-Pulls scheiterten wiederholt an "toomanyrequests: Data
+        # limit exceeded", 24.10.2026).
+        run: supabase functions deploy --use-api --project-ref zqgzcspeqllrihfwmayn
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
 
