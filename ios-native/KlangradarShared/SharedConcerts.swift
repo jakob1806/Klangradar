@@ -49,20 +49,3 @@ struct ConcertActivityAttributes: ActivityAttributes {
     let start: Date
 }
 #endif
-
-/// "Heute"-Widget: die nächsten Konzerte des Tages in der gewählten Stadt.
-/// Die App schreibt sie beim Laden des Home-Feeds.
-enum SharedTonightStore {
-    private static let key = "tonightConcerts"
-
-    static func save(_ concerts: [SharedConcert]) {
-        guard let defaults = UserDefaults(suiteName: SharedConcertStore.appGroup), let data = try? JSONEncoder().encode(concerts) else { return }
-        defaults.set(data, forKey: key)
-    }
-
-    static func load() -> [SharedConcert] {
-        guard let data = UserDefaults(suiteName: SharedConcertStore.appGroup)?.data(forKey: key),
-              let concerts = try? JSONDecoder().decode([SharedConcert].self, from: data) else { return [] }
-        return concerts.filter { $0.start > .now.addingTimeInterval(-15 * 60) && Calendar.current.isDateInToday($0.start) }
-    }
-}
