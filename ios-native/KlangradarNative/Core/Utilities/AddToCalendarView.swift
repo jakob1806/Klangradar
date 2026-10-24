@@ -132,3 +132,55 @@ struct AddToCalendarButton<Label: View>: View {
 extension EKEvent: @retroactive Identifiable {
     public var id: ObjectIdentifier { ObjectIdentifier(self) }
 }
+
+/// Kalender-Dialog über einen Auslöser (z. B. Menüeintrag im "…"-Menü der
+/// Konzertseite, 24.10.2026) statt über einen eigenen Button – Sheets an
+/// Menüeinträgen würden sofort wieder geschlossen.
+struct AddToCalendarPresenter: ViewModifier {
+    let input: CalendarEventInput?
+    @Binding var trigger: Bool
+
+    @State private var eventStore = EKEventStore()
+    @State private var pendingEvent: EKEvent?
+    @State private var errorMessage: String?
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: trigger) { _, value in
+                guard value else { return }
+                trigger = false
+                Task { await present() }
+            }
+            .sheet(item: $pendingEvent) { event in
+                AddToCalendarSheet(event: event, eventStore: eventStore) { pendingEvent = nil }
+            }
+            .alert("Kalenderzugriff", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
+                Button("OK") { errorMessage = nil }
+            } message: {
+                Text(errorMessage ?? "")
+            }
+    }
+
+    @MainActor
+    private func present() async {
+        guard let input else { return }
+        do {
+            guard try await eventStore.requestWriteOnlyAccessToEvents() else {
+                errorMessage = "Bitte erlaube Klangradar in den iPhone-Einstellungen den Kalenderzugriff, um Konzerte hinzuzufügen."
+                return
+            }
+        } catch {
+            errorMessage = "Der Kalenderzugriff konnte nicht angefragt werden."
+            return
+        }
+        let event = EKEvent(eventStore: eventStore)
+        event.title = input.title
+        event.startDate = input.start
+        event.endDate = input.effectiveEnd
+        event.notes = input.notes
+        event.location = input.location
+        event.url = input.url
+        event.calendar = eventStore.defaultCalendarForNewEvents
+        pendingEvent = event
+    }
+}

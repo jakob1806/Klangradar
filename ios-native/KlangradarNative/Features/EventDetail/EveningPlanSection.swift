@@ -255,14 +255,14 @@ struct EveningPlanSection: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 10)
-            .foregroundStyle(recommendation?.mode == mode ? Color.white : Color.primary)
-            .background(
-                recommendation?.mode == mode ? AnyShapeStyle(KlangradarTheme.accent) : AnyShapeStyle(Color(uiColor: .tertiarySystemFill)),
-                in: .rect(cornerRadius: 16, style: .continuous)
-            )
+            .foregroundStyle(.primary)
+            // Einheitlich weiß (Nutzerwunsch 24.10.2026): die wechselnde
+            // blaue Hervorhebung der "Empfehlung" war nicht nachvollziehbar.
+            .background(Color(uiColor: .systemBackground), in: .rect(cornerRadius: 16, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.primary.opacity(0.08), lineWidth: 1))
         }
         .buttonStyle(.plain)
-        .accessibilityHint(recommendation?.mode == mode ? "Empfohlen. Öffnet die Route in Apple Karten." : "Öffnet die Route in Apple Karten.")
+        .accessibilityHint("Öffnet die Route in Apple Karten.")
     }
 
     private func openDirections(mode: String) {
@@ -459,11 +459,14 @@ struct EveningPlanSection: View {
         Group {
             if let ticketImage {
                 Button { showsTicket = true } label: {
+                    // Ganzes Ticket unverzerrt (vorher beschnittener Streifen).
                     VStack(alignment: .leading, spacing: 8) {
-                        Image(uiImage: ticketImage).resizable().scaledToFill()
-                            .frame(height: 74).frame(maxWidth: .infinity).clipped()
-                            .clipShape(.rect(cornerRadius: 10, style: .continuous))
-                        Label("Ticket öffnen", systemImage: "ticket").font(.subheadline.weight(.semibold))
+                        Image(uiImage: ticketImage).resizable().scaledToFit()
+                            .frame(maxWidth: .infinity, maxHeight: 120)
+                            .padding(6)
+                            .background(.white, in: .rect(cornerRadius: 10, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Color.primary.opacity(0.08)))
+                        Label("Ticket öffnen", systemImage: "ticket").font(.subheadline.weight(.semibold)).foregroundStyle(KlangradarTheme.accent)
                     }
                 }
             } else {

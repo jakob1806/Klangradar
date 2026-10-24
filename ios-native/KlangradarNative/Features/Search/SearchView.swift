@@ -28,6 +28,10 @@ struct SearchView: View {
     @ObservedObject private var promoted = PromotedEventsStore.shared
     @State private var query = ""
     @State private var events: [ConcertEvent] = []
+    /// Einmal berechnet statt bei jedem Body-Durchlauf: das Sortieren und
+    /// Filtern der kompletten Terminliste (tausende Einträge) ließ die App
+    /// beim Wischen durch "Konzerte entdecken" hängen (Nutzermeldung 24.10.2026).
+    @State private var discoveryCache: [ConcertEvent] = []
     @State private var hits: [SearchHit] = []
     @State private var directories: [EntityKind: [DirectoryItem]] = [:]
     @State private var errorMessage: String?
@@ -130,6 +134,8 @@ struct SearchView: View {
                 Button("OK") { speechSearch.dismissError() }
             } message: { Text(speechSearch.errorMessage ?? "") }
         }
+        .onChange(of: events, initial: true) { _, _ in refreshDiscovery() }
+        .onChange(of: cityStore.selectedCity?.id) { _, _ in refreshDiscovery() }
     }
 
     private var searchBar: some View {
@@ -233,7 +239,7 @@ struct SearchView: View {
                 }
                 .padding(.top, 10)
                 ScrollView(.horizontal) {
-                    LazyHStack(spacing: 14) {
+                    HStack(spacing: 14) {
                         ForEach(discoveryEvents) { event in
                             NavigationLink(value: event) {
                                 SearchDiscoveryEventCard(event: event)
@@ -263,9 +269,11 @@ struct SearchView: View {
     /// Kurze, visuelle Auswahl statt einer chronologischen „Nächste
     /// Konzerte“-Liste. Bevorzugt bebilderte Events und vermeidet direkt
     /// nebeneinander dieselbe Spielstätte bzw. dasselbe Genre.
-    private var discoveryEvents: [ConcertEvent] {
+    private var discoveryEvents: [ConcertEvent] { discoveryCache }
+
+    private func refreshDiscovery() {
         // Gebuchtes "Featured" steht als erste Karte vorn.
-        Array(promoted.boosting(organicDiscoveryEvents, placement: "featured", regionID: cityStore.selectedCity?.id).prefix(8))
+        discoveryCache = Array(promoted.boosting(organicDiscoveryEvents, placement: "featured", regionID: cityStore.selectedCity?.id).prefix(8))
     }
 
     private var organicDiscoveryEvents: [ConcertEvent] {
