@@ -262,6 +262,17 @@ struct HomeView: View {
                         .buttonStyle(.plain)
                     }
 
+                    if !usesPreviewData {
+                        let todayCount = events.filter { ($0.startDate.map { Calendar.current.isDateInToday($0) && $0 > .now }) ?? false }.count
+                        NavigationLink {
+                            TonightView(repository: model.repository, contentRepository: contentRepository, regionID: cityStore.selectedCity?.id)
+                        } label: {
+                            TonightEntryCard(count: todayCount)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.horizontal, KlangradarTheme.pagePadding)
+                    }
+
                     FriendsPopularRail(events: social.friendsPopular, names: social.friendsPopularNames)
 
                     ForEach(categoryOrder) { category in
