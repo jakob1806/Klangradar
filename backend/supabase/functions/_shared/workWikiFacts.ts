@@ -132,19 +132,26 @@ export function cleanIntro(text: string): string | null {
 const SECTION = /^(sätze|satzfolge|satzbezeichnungen|aufbau|gliederung|movements|structure)$/i;
 const HEADING_DE = /^(?:\d+\.|[IVX]+\.)\s*Satz\s*[:–-]\s*(.+)$/i;
 
+/** Entfernt Markup wiederholt, bis nichts mehr übrig ist (verschachtelte
+ * Tags wie "<scr<b>ipt>" würden ein einmaliges Ersetzen überleben). */
+function stripTags(value: string): string {
+  let previous: string;
+  let current = value;
+  do {
+    previous = current;
+    current = current.replace(/<ref[^<>]*\/>/g, "").replace(/<ref[^<>]*>[^<]*<\/ref>/g, "").replace(/<[^<>]*>/g, "");
+  } while (current !== previous);
+  return current.replace(/[<>]/g, "");
+}
+
 function cleanCell(value: string): string {
-  return value
+  return stripTags(value)
     .replace(/^[#*;:|!]+\s*/, "")
     .replace(/style="[^"]*"\s*\|/g, "")
     .replace(/\[\[(?:[^|\]]*\|)?([^\]]+)\]\]/g, "$1")
     .replace(/'''?|''/g, "")
-    .replace(/<ref[\s\S]*?(?:<\/ref>|\/>)/g, "")
-    .replace(/<[^>]+>/g, "")
     .replace(/\{\{[^}]*\}\}/g, "")
     .replace(/&nbsp;/g, " ")
-    // Reiner Text: verbliebene spitze Klammern komplett entfernen (CodeQL:
-    // unvollständige Tag-Bereinigung bei verschachteltem Markup).
-    .replace(/[<>]/g, "")
     .replace(/^Satz\s*:\s*/i, "")
     .replace(/\s+/g, " ")
     .trim();
