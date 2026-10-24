@@ -1,5 +1,6 @@
 import SwiftUI
 import MapKit
+import PhotosUI
 
 /// Abendplanung auf der Konzertseite: Zeitplan (Einlass, Beginn, Pause, Ende),
 /// Anreise mit ÖPNV/zu Fuß/Auto über Apple Maps und Restaurants in der Nähe.
@@ -21,6 +22,9 @@ struct EveningPlanSection: View {
     @State private var lastOrigin: CLLocation?
     @State private var lastEstimate: Date?
     @Environment(\.scenePhase) private var scenePhase
+    @State private var ticketImage: UIImage?
+    @State private var ticketPick: PhotosPickerItem?
+    @State private var showsTicket = false
 
     /// Fahrzeit je Verkehrsmittel (Schlüssel: MKLaunchOptionsDirectionsMode*).
     private struct TravelETA {
@@ -105,10 +109,31 @@ struct EveningPlanSection: View {
                         .padding(16)
                     }
                 }
+                HStack(alignment: .top, spacing: 12) {
+                    ticketCard
+                    if !goodToKnow.isEmpty { goodToKnowCard }
+                }
                 if !restaurants.isEmpty { restaurantList }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .task { await search() }
+            .task { ticketImage = TicketStore.image(for: event.id) }
+            .onChange(of: ticketPick) { _, item in
+                guard let item else { return }
+                Task {
+                    if let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) {
+                        TicketStore.save(image, for: event.id)
+                        ticketImage = image
+                        Haptics.confirm()
+                    }
+                    ticketPick = nil
+                }
+            }
+            .fullScreenCover(isPresented: $showsTicket) {
+                if let ticketImage { TicketFullScreen(image: ticketImage) { showsTicket = false } onRemove: {
+                    TicketStore.remove(for: event.id); self.ticketImage = nil; showsTicket = false
+                } }
+            }
             .task(id: venueItem?.placemark.coordinate.latitude) { await followLocation() }
             .onChange(of: scenePhase) { _, phase in
                 // Zurück in der App: Standort kann sich geändert haben.
@@ -447,6 +472,90 @@ struct EveningPlanSection: View {
             }
         }
         etas = result
+        publishPlan()
+    }
+
+    /// Losgeh-Zeit an Live Activity und Erinnerung weitergeben.
+    private func publishPlan() {
+        guard let startDate, let arrival = arrivalTarget, let pick = recommendation else { return }
+        let leave = arrival.addingTimeInterval(TimeInterval(-(pick.minutes + pick.buffer) * 60))
+        let pause: Date? = detail.bool("has_intermission") == true
+            ? endDate.map { startDate.addingTimeInterval($0.timeIntervalSince(startDate) / 2 - 10 * 60) } : nil
+        let plan = ConcertDayCoordinator.Plan(
+            slug: event.slug, title: event.title, venue: venue?.string("name") ?? event.venueName,
+            start: startDate, leaveAt: leave, travel: "\(pick.minutes) Min. \(pick.label)", pauseAt: pause
+        )
+        Task { await ConcertDayCoordinator.shared.update(plan) }
+    }
+
+    // MARK: Ticket & Gut zu wissen
+
+    private var ticketCard: some View {
+        Group {
+            if let ticketImage {
+                Button { showsTicket = true } label: {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Image(uiImage: ticketImage).resizable().scaledToFill()
+                            .frame(height: 74).frame(maxWidth: .infinity).clipped()
+                            .clipShape(.rect(cornerRadius: 10, style: .continuous))
+                        Label("Ticket öffnen", systemImage: "ticket").font(.subheadline.weight(.semibold))
+                    }
+                }
+            } else {
+                PhotosPicker(selection: $ticketPick, matching: .images) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Image(systemName: "ticket").font(.title2).foregroundStyle(KlangradarTheme.accent)
+                        Text("Ticket ablegen").font(.subheadline.weight(.semibold))
+                        Text("Screenshot oder Foto – bleibt nur auf deinem iPhone.").font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.leading)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .padding(14)
+        .frame(maxWidth: .infinity, minHeight: 130, alignment: .topLeading)
+        .background(Color(uiColor: .secondarySystemBackground), in: .rect(cornerRadius: 20, style: .continuous))
+    }
+
+    /// Einlass/Garderobe, Anreise, Parken, Gastronomie, Barrierefreiheit der
+    /// Spielstätte. Platzhaltertexte aus dem Import ("… prüfen") werden
+    /// ausgeblendet.
+    private var goodToKnow: [(symbol: String, title: String, text: String)] {
+        guard let venue else { return [] }
+        func clean(_ value: String?) -> String? {
+            guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty,
+                  !value.localizedCaseInsensitiveContains("prüfen"), !value.localizedCaseInsensitiveContains("ergänzen") else { return nil }
+            return value
+        }
+        var items: [(String, String, String)] = []
+        if let text = clean(venue.string("doors_info_de")) { items.append(("door.left.hand.open", "Einlass & Garderobe", text)) }
+        if let text = clean(venue.string("arrival_info_de")) { items.append(("tram", "Anreise", text)) }
+        if let text = clean(venue.string("parking_info_de")) { items.append(("parkingsign", "Parken", text)) }
+        if let text = clean(venue.string("catering_info_de")) { items.append(("wineglass", "Gastronomie", text)) }
+        if let access = venue.object("accessibility"), !access.isEmpty {
+            let labels: [(String, String)] = [("wheelchair", "Rollstuhlplätze"), ("step_free", "Stufenloser Zugang"), ("hearing_loop", "Induktionsschleife"), ("elevator", "Aufzug"), ("accessible_toilet", "Barrierefreies WC")]
+            let present = labels.filter { access.bool($0.0) == true }.map(\.1)
+            if !present.isEmpty { items.append(("figure.roll", "Barrierefrei", present.joined(separator: " · "))) }
+        }
+        return items
+    }
+
+    private var goodToKnowCard: some View {
+        Menu {
+            ForEach(goodToKnow, id: \.title) { item in
+                Section(item.title) { Text(item.text) }
+            }
+        } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                Image(systemName: "info.circle").font(.title2).foregroundStyle(KlangradarTheme.accent)
+                Text("Gut zu wissen").font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+                Text(goodToKnow.map(\.title).joined(separator: " · ")).font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.leading).lineLimit(3)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, minHeight: 130, alignment: .topLeading)
+            .background(Color(uiColor: .secondarySystemBackground), in: .rect(cornerRadius: 20, style: .continuous))
+        }
     }
 
     /// Fahrzeit immer vom aktuellen Standort (Nutzerwunsch 24.10.2026):
@@ -535,5 +644,31 @@ private struct EveningTimeline: View {
                 }
             }
         }
+    }
+}
+
+/// Ticket im Vollbild mit voller Helligkeit (für den Einlass-Scanner).
+private struct TicketFullScreen: View {
+    let image: UIImage
+    let onClose: () -> Void
+    let onRemove: () -> Void
+    @State private var previousBrightness: CGFloat = 0.5
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Color.white.ignoresSafeArea()
+                Image(uiImage: image).resizable().scaledToFit().padding()
+            }
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) { Button("Fertig", action: onClose) }
+                ToolbarItem(placement: .topBarTrailing) { Button("Entfernen", role: .destructive, action: onRemove) }
+            }
+        }
+        .onAppear {
+            previousBrightness = UIScreen.main.brightness
+            UIScreen.main.brightness = 1
+        }
+        .onDisappear { UIScreen.main.brightness = previousBrightness }
     }
 }

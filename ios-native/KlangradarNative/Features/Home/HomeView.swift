@@ -262,6 +262,17 @@ struct HomeView: View {
                         .buttonStyle(.plain)
                     }
 
+                    if !usesPreviewData {
+                        let todayCount = events.filter { ($0.startDate.map { Calendar.current.isDateInToday($0) && $0 > .now }) ?? false }.count
+                        NavigationLink {
+                            TonightView(repository: model.repository, contentRepository: contentRepository, regionID: cityStore.selectedCity?.id)
+                        } label: {
+                            TonightEntryCard(count: todayCount)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.horizontal, KlangradarTheme.pagePadding)
+                    }
+
                     if let pending = model.pendingRatingEvents.first, let userRepository, let auth {
                         AfterglowCard(event: pending, repository: userRepository, auth: auth) {
                             model.markRated(pending.id)
