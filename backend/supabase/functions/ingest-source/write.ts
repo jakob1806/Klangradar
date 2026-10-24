@@ -218,7 +218,7 @@ export async function upsertRawEvent(
       const { data: existing, error } = await supabase
         .from("events")
         .select(
-          "id, title, description_de, start_datetime, end_datetime, price_min, price_max, is_free, website_url, ticket_url, image_urls, content_hash, primary_image_id, status, source_id",
+          "id, title, description_de, start_datetime, end_datetime, price_min, price_max, is_free, website_url, ticket_url, image_urls, content_hash, primary_image_id, status, source_id, review_status",
         )
         .eq("source_id", source.id)
         .eq("external_id", raw.externalId)
@@ -258,7 +258,7 @@ export async function upsertRawEvent(
       const { data: existing, error } = await supabase
         .from("events")
         .select(
-          "id, title, description_de, start_datetime, end_datetime, price_min, price_max, is_free, website_url, ticket_url, image_urls, content_hash, primary_image_id, status, source_id",
+          "id, title, description_de, start_datetime, end_datetime, price_min, price_max, is_free, website_url, ticket_url, image_urls, content_hash, primary_image_id, status, source_id, review_status",
         )
         .eq("id", match.id)
         .maybeSingle();
@@ -400,7 +400,11 @@ async function applyUpdate(
       // veröffentlicht.
       ...(detectEventStatus(raw.title, raw.description)
         ? { status: detectEventStatus(raw.title, raw.description) }
-        : existing.status === "draft" && existing.source_id === source.id ? { status: "scheduled" } : {}),
+        // Abgelehnte Entwürfe (Redaktion oder hide_cross_source_duplicates,
+        // Migration 000104) bleiben ausgeblendet – sonst tauchten Dubletten
+        // beim nächsten Import wieder auf (Nutzermeldung 24.10.2026).
+        : existing.status === "draft" && existing.source_id === source.id && existing.review_status !== "rejected"
+          ? { status: "scheduled" } : {}),
       content_hash: contentHash,
       last_verified_at: nowIso,
       last_seen_at: nowIso,
