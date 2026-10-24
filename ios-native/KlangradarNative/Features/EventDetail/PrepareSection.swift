@@ -207,47 +207,13 @@ private struct WorkIntroductionSheet: View {
     }
 }
 
-/// Apple-Music-App-Symbol nachgebaut (rot-pinker Verlauf, weiße Note), damit
-/// keine fremde Bilddatei eingebunden werden muss.
+/// Original-Symbole (Quellen: docs/asset-quellen.md).
 struct AppleMusicLogo: View {
-    var body: some View {
-        RoundedRectangle(cornerRadius: 8, style: .continuous)
-            .fill(LinearGradient(colors: [Color(red: 0.98, green: 0.36, blue: 0.47), Color(red: 0.98, green: 0.14, blue: 0.24)], startPoint: .top, endPoint: .bottom))
-            .overlay { Image(systemName: "music.note").font(.system(size: 17, weight: .semibold)).foregroundStyle(.white) }
-    }
+    var body: some View { Image("AppleMusicLogo").resizable().scaledToFit() }
 }
 
-/// Spotify-Symbol: grüner Kreis mit drei schwarzen Bögen.
 struct SpotifyLogo: View {
-    var body: some View {
-        GeometryReader { proxy in
-            let size = min(proxy.size.width, proxy.size.height)
-            ZStack {
-                Circle().fill(Color(red: 0.118, green: 0.843, blue: 0.376))
-                ForEach(0..<3, id: \.self) { index in
-                    SpotifyArc(index: index)
-                        .stroke(Color.black, style: StrokeStyle(lineWidth: size * [0.105, 0.085, 0.07][index], lineCap: .round))
-                }
-            }
-            .frame(width: size, height: size)
-        }
-        .aspectRatio(1, contentMode: .fit)
-    }
-}
-
-private struct SpotifyArc: Shape {
-    let index: Int
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width
-        let widths: [CGFloat] = [0.62, 0.52, 0.42]
-        let ys: [CGFloat] = [0.36, 0.52, 0.66]
-        let half = w * widths[index] / 2
-        let y = rect.minY + w * ys[index]
-        var path = Path()
-        path.move(to: CGPoint(x: rect.midX - half, y: y))
-        path.addQuadCurve(to: CGPoint(x: rect.midX + half, y: y + w * 0.04), control: CGPoint(x: rect.midX, y: y - w * 0.11))
-        return path
-    }
+    var body: some View { Image("SpotifyLogo").resizable().scaledToFit() }
 }
 
 /// Punkt 10: Freunde, deren Geschmack zu diesem Konzert passt.

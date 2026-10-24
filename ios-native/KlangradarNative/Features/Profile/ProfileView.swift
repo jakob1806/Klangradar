@@ -728,20 +728,12 @@ struct KlangradarCoachView: View {
         self.contentRepository = contentRepository
         self.showsDismissButton = showsDismissButton
         self.presentsChatDirectly = startsInChat
-        _selectedSection = State(initialValue: startsInChat ? .chat : .overview)
+        // Nutzerwunsch 24.10.2026: nur noch die KI, kein "Heute"-Bereich.
+        _selectedSection = State(initialValue: .chat)
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            if !presentsChatDirectly {
-                Picker("Bereich", selection: $selectedSection) {
-                    ForEach(Section.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal, 16)
-                .padding(.bottom, 10)
-            }
-
             switch selectedSection {
             case .overview: overview
             case .chat: chat
@@ -2192,6 +2184,15 @@ private enum ProfileContentTab: String, CaseIterable, Identifiable {
     case following = "Gefolgt"
     case lists = "Listen"
     var id: String { rawValue }
+
+    var symbol: String {
+        switch self {
+        case .upcoming: "calendar"
+        case .experienced: "music.note.list"
+        case .following: "person.2"
+        case .lists: "list.bullet.rectangle"
+        }
+    }
 }
 
 /// Zeigt im Profil direkt die eigenen Inhalte (geplante und gemerkte
@@ -2213,10 +2214,31 @@ private struct ProfileContentSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Picker("Bereich", selection: $tab.animation(.snappy)) {
-                ForEach(ProfileContentTab.allCases) { Text($0.rawValue).tag($0) }
+            // Große Kacheln mit Symbol und Anzahl statt schmaler
+            // Segment-Leiste (Nutzerwunsch 24.10.2026: "zu linear und schmal").
+            HStack(spacing: 8) {
+                ForEach(ProfileContentTab.allCases) { item in
+                    Button {
+                        withAnimation(.snappy) { tab = item }
+                        Haptics.light()
+                    } label: {
+                        VStack(spacing: 6) {
+                            Image(systemName: item.symbol).font(.title3.weight(.semibold))
+                            Text(count(for: item).map(String.init) ?? " ").font(.headline.monospacedDigit())
+                            Text(item.rawValue).font(.caption2.weight(.semibold))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .foregroundStyle(tab == item ? Color.white : Color.primary)
+                        .background(
+                            tab == item ? AnyShapeStyle(KlangradarTheme.accent) : AnyShapeStyle(Color(uiColor: .secondarySystemBackground)),
+                            in: .rect(cornerRadius: 18, style: .continuous)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(tab == item ? .isSelected : [])
+                }
             }
-            .pickerStyle(.segmented)
 
             Group {
                 switch tab {
@@ -2236,6 +2258,16 @@ private struct ProfileContentSection: View {
     }
 
     private struct RecapSelection: Identifiable { let id: Int }
+
+    private func count(for item: ProfileContentTab) -> Int? {
+        guard !isLoading else { return nil }
+        switch item {
+        case .upcoming: return planned.count + saved.count
+        case .experienced: return summary.visits.count
+        case .following: return summary.followed.count
+        case .lists: return lists.count
+        }
+    }
 
     // MARK: Demnächst
 
@@ -2306,11 +2338,7 @@ private struct ProfileContentSection: View {
                         HStack(spacing: 12) {
                             ForEach(unlocked) { achievement in
                                 VStack(spacing: 6) {
-                                    Image(systemName: achievement.symbol)
-                                        .font(.title3.weight(.semibold))
-                                        .foregroundStyle(KlangradarTheme.accent)
-                                        .frame(width: 56, height: 56)
-                                        .background(KlangradarTheme.accent.opacity(0.12), in: .circle)
+                                    AchievementBadge(achievement: achievement, size: 56)
                                     Text(achievement.title).font(.caption2.weight(.semibold)).lineLimit(2).multilineTextAlignment(.center).frame(width: 72)
                                 }
                             }

@@ -56,7 +56,13 @@ struct CitySwitcherView: View {
         .toolbar {
             if embedsNavigationStack {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Fertig") { dismiss() }.fontWeight(.semibold)
+                    // Glas explizit (24.10.2026: im Sheet fehlte die
+                    // automatische Kapsel weiterhin).
+                    if #available(iOS 26.0, *) {
+                        Button("Fertig") { dismiss() }.fontWeight(.semibold).buttonStyle(.glass)
+                    } else {
+                        Button("Fertig") { dismiss() }.fontWeight(.semibold)
+                    }
                 }
             }
         }

@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// Konzertseite (kommend): Freunde, die hingehen, plus Planen/Fragen/Teilen.
+/// Konzertseite (kommend): Freunde, die hingehen. Planen/Fragen/Teilen
+/// liegen seit 24.10.2026 im "…"-Menü oben (EventDetailView).
 struct FriendsAttendingRow: View {
     let event: ConcertEvent
     let shareURL: URL?
@@ -25,27 +26,6 @@ struct FriendsAttendingRow: View {
                         .lineLimit(2)
                 }
             }
-            HStack(spacing: 8) {
-                if isUpcoming && follows.isSignedIn {
-                    Menu {
-                        Button("Konzertabend planen", systemImage: "calendar.badge.plus") { composer = .plan }
-                        Button("Wer kommt mit?", systemImage: "questionmark.bubble") { composer = .ask }
-                    } label: {
-                        Label("Mit Freunden", systemImage: "person.2.fill")
-                            .font(.subheadline.weight(.semibold))
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(KlangradarTheme.accent)
-                }
-                ShareLink(item: shareText) {
-                    Label("Teilen", systemImage: "square.and.arrow.up")
-                        .font(.subheadline.weight(.semibold))
-                        .frame(maxWidth: isUpcoming && follows.isSignedIn ? nil : .infinity)
-                }
-                .buttonStyle(.bordered)
-            }
-            .controlSize(.regular)
         }
         .task {
             friends = await follows.friendsAttending(eventID: event.id)
