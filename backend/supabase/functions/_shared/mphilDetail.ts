@@ -46,11 +46,14 @@ export interface MphilEventDetail {
 const WORK_LIST_PATTERN = /<ul class="m-mphil-concert-detail__work-list">([\s\S]*?)<\/ul>/;
 const WORK_ITEM_PATTERN = /<li class="m-mphil-concert-detail__work-item">([\s\S]*?)<\/li>/g;
 const WORK_COMPOSER_PATTERN = /class="m-mphil-concert-detail__work-composer[^"]*"[^>]*>([\s\S]*?)<\/a>/;
-// Deutsche Seiten: "__work-title-text", englische Seiten (die der Kalender
-// liefert, verifiziert 23.10.2026): "__work-title". Vorher griff nur die
-// deutsche Variante, auf /en/ blieb das Programm leer und die doppelten
-// KI-Werke standen weiter in der App.
-const WORK_TITLE_PATTERN = /<span class="m-mphil-concert-detail__work-title(?:-text)?">([\s\S]*?)<\/span>/;
+// Drei Schreibweisen auf mphil.de (alle live gesehen, Stand 24.10.2026):
+//   DE: <a class="…__work-title --wrap"><span class="…__work-title-text">Titel</span></a>
+//   EN: <p class="…__work-paragraph"><span class="…__work-title">Titel</span></p>
+//   EN: <p class="…__work-paragraph …__work-title">Titel</p>   (ohne span!)
+// Die dritte Variante fehlte bisher – dadurch fielen ganze Werke weg
+// (z. B. Korngold/Williams am 05.12.). Gesucht wird daher das erste Element
+// mit einer __work-title(-text)-Klasse; die Pause hat zusätzlich "-pause".
+const WORK_TITLE_PATTERN = /class="[^"]*__work-title(?:-text)?(?:\s[^"]*)?"[^>]*>([\s\S]*?)<\/(?:span|p|a)>/;
 const WORK_PAUSE_PATTERN = /m-mphil-concert-detail__work-title -pause/;
 
 function decodeEntities(value: string): string {

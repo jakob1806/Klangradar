@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { saveProgramBooklet } from "../_shared/programBooklet.ts";
 import { parseMphilEventDetail } from "../_shared/mphilDetail.ts";
 import { USER_AGENT } from "../_shared/robots.ts";
 import { json, mapLimit, replaceEventParticipants, resolveComposer, resolveWork } from "../_shared/eventParticipantResolution.ts";
@@ -37,7 +38,9 @@ Deno.serve(async (req) => {
       const pageUrl = /mphil\.de\//.test(event.external_id ?? "") ? event.external_id : event.website_url;
       const res = await fetch(pageUrl, { headers: { "User-Agent": USER_AGENT } });
       if (!res.ok) return { id: event.id, error: `HTTP ${res.status}` };
-      const detail = parseMphilEventDetail(await res.text(), pageUrl);
+      const html = await res.text();
+      const detail = parseMphilEventDetail(html, pageUrl);
+      await saveProgramBooklet(supabase, event.id, html, pageUrl);
       const participantsAdded = await replaceEventParticipants(supabase, event.id, detail.participants);
 
       // Offizielles Programm ersetzt die KI-Extraktion vollständig, aber nur

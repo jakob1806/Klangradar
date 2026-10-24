@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { saveProgramBooklet } from "../_shared/programBooklet.ts";
 import { parseGasteigEventDetail } from "../_shared/gasteigDetail.ts";
 import { USER_AGENT } from "../_shared/robots.ts";
 import { json, mapLimit, replaceEventParticipants } from "../_shared/eventParticipantResolution.ts";
@@ -34,7 +35,9 @@ Deno.serve(async (req) => {
     try {
       const res = await fetch(event.website_url, { headers: { "User-Agent": USER_AGENT } });
       if (!res.ok) return { id: event.id, error: `HTTP ${res.status}` };
-      const detail = parseGasteigEventDetail(await res.text());
+      const html = await res.text();
+      const detail = parseGasteigEventDetail(html);
+      await saveProgramBooklet(supabase, event.id, html, event.website_url);
       const participantsAdded = await replaceEventParticipants(supabase, event.id, detail.participants);
 
       await supabase.from("events").update({
