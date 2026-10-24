@@ -580,7 +580,7 @@ struct LiveEventRepository: EventRepository {
         }
     }
 
-    private static let coreDetailSelection = "id,slug,title,subtitle,category,description_de,program_notes_de,program_extraction_status,start_datetime,end_datetime,duration_minutes,has_intermission,venue_detail,ticket_url,price_min,price_max,price_currency,is_free,remaining_tickets_status,doors_info,age_restriction,discount_info,target_audience,performance_language,website_url,accessibility,status,image_urls,program_id,source_id,attribution_notice,attribution_license_url,last_verified_at,venues(id,slug,name,address_street,address_zip,address_city,photo_url,description_de)"
+    private static let coreDetailSelection = "id,slug,title,subtitle,category,description_de,program_notes_de,program_extraction_status,start_datetime,end_datetime,duration_minutes,has_intermission,venue_detail,ticket_url,price_min,price_max,price_currency,is_free,remaining_tickets_status,doors_info,age_restriction,discount_info,target_audience,performance_language,website_url,accessibility,status,image_urls,program_id,source_id,attribution_notice,attribution_license_url,last_verified_at,venues(id,slug,name,address_street,address_zip,address_city,photo_url,description_de,doors_info_de,arrival_info_de,catering_info_de,parking_info_de,accessibility)"
 
     // PostgREST lehnt echte Zeilenumbrüche innerhalb des select-Parameters ab
     // (PGRST100: "unexpected \"\n\""), sobald sie URL-kodiert übertragen werden —

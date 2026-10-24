@@ -36,6 +36,12 @@ enum SharedConcertStore {
 struct ConcertActivityAttributes: ActivityAttributes {
     struct ContentState: Codable, Hashable {
         var phase: String // "upcoming" | "doors" | "running"
+        /// Empfohlene Losgeh-Zeit vom aktuellen Standort (nil = unbekannt).
+        var leaveAt: Date? = nil
+        /// z. B. "17 Min. mit ÖPNV"
+        var travel: String? = nil
+        /// Geschätzter Pausenbeginn, falls bekannt.
+        var pauseAt: Date? = nil
     }
     let slug: String
     let title: String
@@ -43,3 +49,20 @@ struct ConcertActivityAttributes: ActivityAttributes {
     let start: Date
 }
 #endif
+
+/// "Heute"-Widget: die nächsten Konzerte des Tages in der gewählten Stadt.
+/// Die App schreibt sie beim Laden des Home-Feeds.
+enum SharedTonightStore {
+    private static let key = "tonightConcerts"
+
+    static func save(_ concerts: [SharedConcert]) {
+        guard let defaults = UserDefaults(suiteName: SharedConcertStore.appGroup), let data = try? JSONEncoder().encode(concerts) else { return }
+        defaults.set(data, forKey: key)
+    }
+
+    static func load() -> [SharedConcert] {
+        guard let data = UserDefaults(suiteName: SharedConcertStore.appGroup)?.data(forKey: key),
+              let concerts = try? JSONDecoder().decode([SharedConcert].self, from: data) else { return [] }
+        return concerts.filter { $0.start > .now.addingTimeInterval(-15 * 60) && Calendar.current.isDateInToday($0.start) }
+    }
+}
