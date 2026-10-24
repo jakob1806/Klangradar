@@ -83,7 +83,7 @@ Deno.serve(async (req) => {
   // deno-lint-ignore no-explicit-any
   const works = (rows ?? []).map((r: any) => r.works).filter((w: any) => w && !seen.has(w.id) && seen.add(w.id)).slice(0, limit);
   const results = [];
-  for (const work of works) results.push(await processWork(supabase, work).catch((e) => ({ id: work.id, error: String(e) })));
+  for (const work of works) results.push(await processWork(supabase, work).catch(() => ({ id: work.id, error: "Fehler beim Abruf" })));
   return json({ processed: results.length, results });
 });
 
@@ -104,7 +104,7 @@ async function diagnoseProviders() {
         body: JSON.stringify({ model, messages: [{ role: "user", content: "Sag ok." }], tools: [{ type: "function", function: fn }], tool_choice: { type: "function", function: { name: "ping" } } }),
       });
       results[name] = { status: res.status, body: (await res.text()).slice(0, 300) };
-    } catch (e) { results[name] = String(e); }
+    } catch { results[name] = "Netzwerkfehler"; }
   }
   const gKey = Deno.env.get("GEMINI_API_KEY");
   if (!gKey) results.gemini = "kein Schlüssel";
@@ -116,7 +116,7 @@ async function diagnoseProviders() {
         body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: "Sag ok." }] }] }),
       });
       results.gemini = { status: res.status, body: (await res.text()).slice(0, 300) };
-    } catch (e) { results.gemini = String(e); }
+    } catch { results.gemini = "Netzwerkfehler"; }
   }
   return results;
 }

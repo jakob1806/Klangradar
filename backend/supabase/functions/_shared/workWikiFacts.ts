@@ -106,6 +106,7 @@ export function cleanIntro(text: string): string | null {
   const plain = text
     .replace(/\s*\([^()]*[Ѐ-ӿͰ-Ͽ][^()]*\)/g, "")
     .replace(/\s*\[[^\]]*\]/g, "")
+    .replace(/[<>]/g, "")
     .replace(/\s+/g, " ")
     .trim();
   // Satzende nur bei ". " + Großbuchstabe und NICHT nach Zahl/Abkürzung.
@@ -141,6 +142,9 @@ function cleanCell(value: string): string {
     .replace(/<[^>]+>/g, "")
     .replace(/\{\{[^}]*\}\}/g, "")
     .replace(/&nbsp;/g, " ")
+    // Reiner Text: verbliebene spitze Klammern komplett entfernen (CodeQL:
+    // unvollständige Tag-Bereinigung bei verschachteltem Markup).
+    .replace(/[<>]/g, "")
     .replace(/^Satz\s*:\s*/i, "")
     .replace(/\s+/g, " ")
     .trim();
