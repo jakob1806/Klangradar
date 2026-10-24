@@ -262,6 +262,14 @@ struct HomeView: View {
                         .buttonStyle(.plain)
                     }
 
+                    if let pending = model.pendingRatingEvents.first, let userRepository, let auth {
+                        AfterglowCard(event: pending, repository: userRepository, auth: auth) {
+                            model.markRated(pending.id)
+                            Task { await model.loadPersonalLayer() }
+                        }
+                        .padding(.horizontal, KlangradarTheme.pagePadding)
+                    }
+
                     FriendsPopularRail(events: social.friendsPopular, names: social.friendsPopularNames)
 
                     ForEach(categoryOrder) { category in
@@ -287,7 +295,14 @@ struct HomeView: View {
             // Kategorie „Für dich“ bleibt trotzdem sichtbar: persönliche
             // Treffer haben Vorrang, danach folgen die Server-Empfehlungen
             // und zuletzt kommende Events als sinnvoller Fallback.
-            EventRail(title: category.title(cityName: cityStore.selectedCity?.name), events: forYouEvents(from: events))
+            VStack(alignment: .leading, spacing: 34) {
+                EventRail(title: category.title(cityName: cityStore.selectedCity?.name), events: forYouEvents(from: events), captions: model.reasons)
+                EventRail(
+                    title: "Etwas Neues probieren",
+                    events: Array(model.outsideTasteEvents.prefix(10)),
+                    subtitle: "Abseits deiner Gewohnheiten – beliebt bei anderen"
+                )
+            }
         case .favorites:
             EventRail(title: category.title(cityName: cityStore.selectedCity?.name), events: Array(model.favoriteEvents.prefix(14)))
         case .taste:
@@ -706,19 +721,33 @@ private struct FriendsPopularRail: View {
 private struct EventRail: View {
     let title: String
     let events: [ConcertEvent]
+    /// Optionale Zeile unter der Karte, z. B. "Weil du Mahler magst".
+    var captions: [UUID: String] = [:]
+    var subtitle: String? = nil
 
     var body: some View {
         if !events.isEmpty {
             VStack(alignment: .leading, spacing: 16) {
-            Text(title)
-                .font(.title2.bold())
-                .padding(.horizontal, KlangradarTheme.pagePadding)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title).font(.title2.bold())
+                if let subtitle { Text(subtitle).font(.subheadline).foregroundStyle(.secondary) }
+            }
+            .padding(.horizontal, KlangradarTheme.pagePadding)
 
             ScrollView(.horizontal) {
                 LazyHStack(alignment: .top, spacing: 16) {
                     ForEach(events) { event in
                         NavigationLink(value: event) {
-                            EventCard(event: event)
+                            VStack(alignment: .leading, spacing: 6) {
+                                EventCard(event: event)
+                                if let caption = captions[event.id] {
+                                    Label(caption, systemImage: "sparkle")
+                                        .font(.caption.weight(.medium))
+                                        .foregroundStyle(KlangradarTheme.accent)
+                                        .lineLimit(1)
+                                        .frame(width: 196, alignment: .leading)
+                                }
+                            }
                         }
                         .buttonStyle(.plain)
                     }
