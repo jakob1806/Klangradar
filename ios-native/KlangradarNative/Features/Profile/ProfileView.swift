@@ -80,6 +80,12 @@ struct ProfileView: View {
                     plusHero
 
                     VStack(spacing: 0) {
+                        if auth.userID != nil, let userRepository {
+                            NavigationLink { TasteProfileView(auth: auth, repository: userRepository) } label: {
+                                ProfileRow(title: "Dein Geschmack", symbol: "waveform", color: KlangradarTheme.accent)
+                            }
+                            Divider().padding(.leading, 56)
+                        }
                         NavigationLink {
                             MyKlangradarHubView(auth: auth, repository: userRepository, eventRepository: eventRepository, contentRepository: contentRepository)
                         } label: {

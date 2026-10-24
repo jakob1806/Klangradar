@@ -895,6 +895,19 @@ struct EventDetailView: View {
                     if let status {
                     Text(status).font(.caption).foregroundStyle(.secondary)
                     }
+                    // Punkt 13: Restkarten-Alarm. Gemerkte Konzerte lösen
+                    // bereits den push-dispatcher-Fall almost_sold_out aus.
+                    if value.string("remaining_tickets_status") == "few_left" || value.string("remaining_tickets_status") == "available" {
+                        Button {
+                            Task { await favorites.toggle(event.id) }
+                        } label: {
+                            Label(favorites.ids.contains(event.id) ? "Restkarten-Alarm an" : "Bei Restkarten melden",
+                                  systemImage: favorites.ids.contains(event.id) ? "bell.fill" : "bell")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(KlangradarTheme.accent)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
             }
             Spacer(minLength: 8)

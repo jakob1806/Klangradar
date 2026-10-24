@@ -20,6 +20,12 @@ final class HomeViewModel: ObservableObject {
     @Published private(set) var personalizedEntityIDs: Set<UUID> = []
     @Published private(set) var hasPersonalizedInterests = false
     @Published private(set) var recommendedEvents: [ConcertEvent] = []
+    /// Begründung je Empfehlung ("Weil du Mahler magst"), Punkt 5.
+    @Published private(set) var reasons: [UUID: String] = [:]
+    /// Bewusst außerhalb des eigenen Geschmacks (Punkt 7).
+    @Published private(set) var outsideTasteEvents: [ConcertEvent] = []
+    /// Vorbei, gemerkt/besucht, noch nicht bewertet (Punkt 4).
+    @Published private(set) var pendingRatingEvents: [ConcertEvent] = []
     @Published private(set) var discoveryEvents: [ConcertEvent] = []
     @Published private(set) var popularEvents: [ConcertEvent] = []
     @Published private(set) var favoriteEvents: [ConcertEvent] = []
@@ -136,6 +142,7 @@ final class HomeViewModel: ObservableObject {
             let popular = modules.popular.map { enrichedByID[$0.id] ?? $0 }
             recommendedEvents = recommended
             discoveryEvents = discovery
+            Task { await loadPersonalLayer() }
             popularEvents = popular
             favoriteEvents = await favoritesTask
             let finalEvents = enriched ?? events
@@ -163,6 +170,39 @@ final class HomeViewModel: ObservableObject {
                 state = .failed(error.localizedDescription)
             }
         }
+    }
+
+    /// Persönliche Schicht über den Server-Modulen: Begründungen + gelernte
+    /// Zeiten/Orte sortieren "Für dich" um, dazu Entdecker-Reihe und offene
+    /// Bewertungen. Fehler hier lassen den Feed unverändert.
+    func loadPersonalLayer() async {
+        guard let userRepository else { return }
+        let token = auth?.accessToken
+        if let token {
+            if let found = try? await userRepository.tasteReasons(eventIDs: recommendedEvents.map(\.id), token: token), !found.isEmpty {
+                reasons = found.compactMapValues(\.reason)
+                let count = Double(recommendedEvents.count)
+                let ranked = recommendedEvents.enumerated().sorted { lhs, rhs in
+                    let left = (found[lhs.element.id]?.boost ?? 0) + (count - Double(lhs.offset)) * 0.3
+                    let right = (found[rhs.element.id]?.boost ?? 0) + (count - Double(rhs.offset)) * 0.3
+                    return left > right
+                }
+                recommendedEvents = ranked.map(\.element)
+            }
+            if let ids = try? await userRepository.pendingRatings(token: token), !ids.isEmpty {
+                pendingRatingEvents = (try? await repository.events(ids: ids)) ?? []
+            } else {
+                pendingRatingEvents = []
+            }
+        }
+        if let ids = try? await userRepository.discoverOutsideTaste(cityID: regionID, token: token), !ids.isEmpty {
+            let events = (try? await repository.events(ids: ids)) ?? []
+            outsideTasteEvents = await enrich(events)
+        }
+    }
+
+    func markRated(_ eventID: UUID) {
+        pendingRatingEvents.removeAll { $0.id == eventID }
     }
 
     private func loadPersonalizedEntityIDs() async -> (ids: Set<UUID>, hasAny: Bool) {
