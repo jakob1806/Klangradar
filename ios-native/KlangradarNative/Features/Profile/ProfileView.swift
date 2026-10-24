@@ -81,6 +81,10 @@ struct ProfileView: View {
 
                     VStack(spacing: 0) {
                         if auth.userID != nil, let userRepository {
+                            NavigationLink { TasteProfileView(auth: auth, repository: userRepository) } label: {
+                                ProfileRow(title: "Dein Geschmack", symbol: "waveform", color: KlangradarTheme.accent)
+                            }
+                            Divider().padding(.leading, 56)
                             NavigationLink { ConcertYearView(auth: auth, repository: userRepository) } label: {
                                 ProfileRow(title: "Dein Konzertjahr", symbol: "chart.bar.fill", color: .indigo)
                             }
