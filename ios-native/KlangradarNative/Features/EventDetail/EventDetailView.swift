@@ -50,13 +50,14 @@ struct EventDetailView: View {
 
                             otherDates(detail)
                             program(detail)
-                            PrepareSection(detail: detail)
+                            PrepareSection(event: event, detail: detail)
                             participants(detail)
                             ticketDetails(detail)
                             EveningPlanSection(event: event, detail: detail)
                             accessibility(detail)
                             venue(detail)
                             similarEvents(detail)
+                            ProgramBookletLink(event: event)
                             source(detail)
                             ReportContentLink(entityType: "event", entityID: event.id.uuidString)
                         } else if isLoading {

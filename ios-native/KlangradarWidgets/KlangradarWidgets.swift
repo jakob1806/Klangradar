@@ -11,7 +11,6 @@ private let ink = Color(red: 0.07, green: 0.08, blue: 0.10)
 struct KlangradarWidgetsBundle: WidgetBundle {
     var body: some Widget {
         NextConcertWidget()
-        TonightWidget()
         ConcertLiveActivity()
     }
 }
@@ -125,46 +124,6 @@ private struct ConcertLine: View {
                 Text(concert.venue).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
             }
         }
-    }
-}
-
-// MARK: - Widget "Heute Abend"
-
-struct TonightProvider: TimelineProvider {
-    func placeholder(in context: Context) -> NextConcertEntry {
-        NextConcertEntry(date: .now, concerts: [SharedConcert(id: "x", slug: "", title: "Kammerkonzert", venue: "Herkulessaal", start: .now.addingTimeInterval(7200))])
-    }
-    func getSnapshot(in context: Context, completion: @escaping (NextConcertEntry) -> Void) {
-        let concerts = SharedTonightStore.load()
-        completion(concerts.isEmpty ? placeholder(in: context) : NextConcertEntry(date: .now, concerts: concerts))
-    }
-    func getTimeline(in context: Context, completion: @escaping (Timeline<NextConcertEntry>) -> Void) {
-        let concerts = SharedTonightStore.load()
-        let next = concerts.first?.start ?? .now.addingTimeInterval(3 * 3600)
-        completion(Timeline(entries: [NextConcertEntry(date: .now, concerts: concerts)], policy: .after(min(next, .now.addingTimeInterval(2 * 3600)))))
-    }
-}
-
-struct TonightWidget: Widget {
-    var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "Tonight", provider: TonightProvider()) { entry in
-            VStack(alignment: .leading, spacing: 10) {
-                WidgetHeader(title: "Heute Abend")
-                if entry.concerts.isEmpty {
-                    Spacer(minLength: 0)
-                    Text("Öffne „Heute Abend“ in Klangradar, um zu sehen, was noch geht.").font(.caption).foregroundStyle(.secondary)
-                } else {
-                    ForEach(entry.concerts.prefix(3)) { concert in
-                        Link(destination: concert.deepLink) { ConcertLine(concert: concert) }
-                    }
-                }
-                Spacer(minLength: 0)
-            }
-            .containerBackground(.white, for: .widget)
-        }
-        .configurationDisplayName("Heute Abend")
-        .description("Konzerte, die heute noch stattfinden.")
-        .supportedFamilies([.systemMedium])
     }
 }
 

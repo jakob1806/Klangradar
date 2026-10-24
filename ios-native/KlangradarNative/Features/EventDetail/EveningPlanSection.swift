@@ -1,6 +1,8 @@
 import SwiftUI
 import MapKit
 import PhotosUI
+import PDFKit
+import UniformTypeIdentifiers
 
 /// Abendplanung auf der Konzertseite: Zeitplan (Einlass, Beginn, Pause, Ende),
 /// Anreise mit ÖPNV/zu Fuß/Auto über Apple Maps und Restaurants in der Nähe.
@@ -25,6 +27,8 @@ struct EveningPlanSection: View {
     @State private var ticketImage: UIImage?
     @State private var ticketPick: PhotosPickerItem?
     @State private var showsTicket = false
+    @State private var showsPhotoPicker = false
+    @State private var showsFileImporter = false
 
     /// Fahrzeit je Verkehrsmittel (Schlüssel: MKLaunchOptionsDirectionsMode*).
     private struct TravelETA {
@@ -102,11 +106,8 @@ struct EveningPlanSection: View {
                 LiquidGlassSurface(cornerRadius: 26) {
                     VStack(alignment: .leading, spacing: 0) {
                         venueMap
-                        VStack(alignment: .leading, spacing: 18) {
-                            travelButtons
-                            EveningTimeline(stops: stops)
-                        }
-                        .padding(16)
+                        travelButtons
+                            .padding(16)
                     }
                 }
                 HStack(alignment: .top, spacing: 12) {
@@ -127,6 +128,17 @@ struct EveningPlanSection: View {
                         Haptics.confirm()
                     }
                     ticketPick = nil
+                }
+            }
+            .photosPicker(isPresented: $showsPhotoPicker, selection: $ticketPick, matching: .images)
+            .fileImporter(isPresented: $showsFileImporter, allowedContentTypes: [.pdf, .image]) { result in
+                guard case let .success(url) = result else { return }
+                let scoped = url.startAccessingSecurityScopedResource()
+                defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+                if let image = Self.ticketImage(from: url) {
+                    TicketStore.save(image, for: event.id)
+                    ticketImage = image
+                    Haptics.confirm()
                 }
             }
             .fullScreenCover(isPresented: $showsTicket) {
@@ -181,56 +193,6 @@ struct EveningPlanSection: View {
                     .padding(10)
             }
         }
-    }
-
-    // MARK: Zeitleiste
-
-    /// Stationen des Abends in zeitlicher Reihenfolge.
-    private var stops: [EveningStop] {
-        var result: [EveningStop] = []
-        if let arrival = arrivalTarget, let pick = recommendation {
-            let leave = arrival.addingTimeInterval(TimeInterval(-(pick.minutes + pick.buffer) * 60))
-            result.append(EveningStop(
-                time: leave <= Date() ? "Jetzt" : clock(leave),
-                symbol: "figure.walk.departure",
-                title: "Losgehen",
-                detail: "\(pick.minutes) Min. \(pick.label)\(pick.buffer >= 10 ? ", 10 Min. fürs Parken eingeplant" : "")",
-                highlight: true
-            ))
-        }
-        if let arrival = arrivalTarget {
-            let doors = detail.string("doors_info")
-            result.append(EveningStop(
-                time: clock(arrival), symbol: "door.left.hand.open", title: "Ankommen",
-                detail: doors.flatMap { $0.isEmpty ? nil : $0 } ?? "Garderobe, Programmheft, Platz finden"
-            ))
-        }
-        if let startDate {
-            result.append(EveningStop(time: clock(startDate), symbol: "music.note", title: "Beginn", detail: durationText, highlight: true))
-        }
-        if detail.bool("has_intermission") == true {
-            let pause = startDate.flatMap { start in endDate.map { start.addingTimeInterval($0.timeIntervalSince(start) / 2 - 10 * 60) } }
-            result.append(EveningStop(time: pause.map { "ca. " + clock($0) } ?? "–", symbol: "cup.and.saucer", title: "Pause", detail: "Getränk schon vor Beginn an der Bar vorbestellen spart die Schlange"))
-        }
-        if let endDate {
-            result.append(EveningStop(time: "ca. " + clock(endDate), symbol: "moon.stars", title: "Ende", detail: afterText(endDate)))
-        }
-        return result
-    }
-
-    private func clock(_ date: Date) -> String { KlangradarDateTime.string(date, format: "HH:mm") }
-
-    private var durationText: String? {
-        guard let startDate, let endDate else { return nil }
-        let minutes = Int(endDate.timeIntervalSince(startDate) / 60)
-        return minutes >= 60 ? "Dauer ca. \(minutes / 60) Std.\(minutes % 60 >= 15 ? " \(minutes % 60) Min." : "")" : "Dauer ca. \(minutes) Min."
-    }
-
-    private func afterText(_ end: Date) -> String {
-        let hour = Calendar.current.component(.hour, from: end)
-        if hour >= 23 || hour < 4 { return "Spätes Ende – letzte Verbindung vorher prüfen" }
-        if hour < 15 { return "Zeit für ein Mittagessen in der Nähe" }
-        return restaurants.isEmpty ? "Gut nach Hause kommen" : "Noch auf ein Glas? Tipps unten"
     }
 
     // MARK: Anreise
@@ -328,27 +290,19 @@ struct EveningPlanSection: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
                     ForEach(restaurants, id: \.self) { item in
-                        Button { item.openInMaps() } label: {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Image(systemName: symbol(for: item))
-                                    .font(.title3)
-                                    .foregroundStyle(.orange)
-                                    .frame(width: 40, height: 40)
-                                    .background(Color.orange.opacity(0.14), in: .circle)
-                                Text(item.name ?? "Restaurant").font(.subheadline.weight(.semibold)).lineLimit(2).multilineTextAlignment(.leading)
-                                Spacer(minLength: 0)
-                                if let distance = distanceText(to: item) {
-                                    Label(distance, systemImage: "figure.walk").font(.caption).foregroundStyle(.secondary)
-                                }
-                            }
-                            .padding(14)
-                            .frame(width: 160, height: 150, alignment: .topLeading)
-                            .background(Color(uiColor: .secondarySystemBackground), in: .rect(cornerRadius: 20, style: .continuous))
-                        }
-                        .buttonStyle(.plain)
+                        PlaceCard(item: item, symbol: symbol(for: item), color: placeColor(for: item), distance: distanceText(to: item))
                     }
                 }
             }
+        }
+    }
+
+    /// Kategoriefarben wie in Apple Karten (Essen orange, Café braun, Bar lila).
+    private func placeColor(for item: MKMapItem) -> Color {
+        switch item.pointOfInterestCategory {
+        case .cafe?, .bakery?: Color(red: 0.64, green: 0.45, blue: 0.29)
+        case .brewery?, .winery?, .nightlife?: Color(red: 0.69, green: 0.32, blue: 0.87)
+        default: Color(red: 1.0, green: 0.58, blue: 0.0)
         }
     }
 
@@ -434,18 +388,16 @@ struct EveningPlanSection: View {
         lastOrigin = here
         lastEstimate = Date()
         let source = MKMapItem(placemark: MKPlacemark(coordinate: here.coordinate))
-        let arrival = arrivalTarget
-
         func eta(_ type: MKDirectionsTransportType) async -> (expectedTravelTime: TimeInterval, distance: Double)? {
             let request = MKDirections.Request()
             request.source = source
             request.destination = destination
             request.transportType = type
-            if let arrival, arrival > Date().addingTimeInterval(15 * 60) {
-                request.arrivalDate = arrival
-            } else {
-                request.departureDate = Date()
-            }
+            // Immer "Abfahrt jetzt vom aktuellen Standort": Mit arrivalDate
+            // (Konzertbeginn) rechnete Apple bei ÖPNV die Wartezeit bis zur
+            // passenden Verbindung mit ein – z. B. 64 statt real 45 Min.
+            // (Nutzermeldung 24.10.2026).
+            request.departureDate = Date()
             guard let response = try? await MKDirections(request: request).calculateETA() else { return nil }
             return (response.expectedTravelTime, response.distance)
         }
@@ -490,6 +442,19 @@ struct EveningPlanSection: View {
 
     // MARK: Ticket & Gut zu wissen
 
+    /// Bild aus Foto-Datei oder erster PDF-Seite (in hoher Auflösung, damit
+    /// QR-/Barcodes am Einlass scanbar bleiben).
+    private static func ticketImage(from url: URL) -> UIImage? {
+        if url.pathExtension.lowercased() == "pdf" || UTType(filenameExtension: url.pathExtension)?.conforms(to: .pdf) == true {
+            guard let page = PDFDocument(url: url)?.page(at: 0) else { return nil }
+            let bounds = page.bounds(for: .mediaBox)
+            let scale = 2400 / max(bounds.width, bounds.height)
+            return page.thumbnail(of: CGSize(width: bounds.width * scale, height: bounds.height * scale), for: .mediaBox)
+        }
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        return UIImage(data: data)
+    }
+
     private var ticketCard: some View {
         Group {
             if let ticketImage {
@@ -502,11 +467,17 @@ struct EveningPlanSection: View {
                     }
                 }
             } else {
-                PhotosPicker(selection: $ticketPick, matching: .images) {
+                Menu {
+                    Button("Foto auswählen", systemImage: "photo.on.rectangle") { showsPhotoPicker = true }
+                    Button("Datei auswählen", systemImage: "doc") { showsFileImporter = true }
+                } label: {
                     VStack(alignment: .leading, spacing: 8) {
                         Image(systemName: "ticket").font(.title2).foregroundStyle(KlangradarTheme.accent)
-                        Text("Ticket ablegen").font(.subheadline.weight(.semibold))
-                        Text("Screenshot oder Foto – bleibt nur auf deinem iPhone.").font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.leading)
+                        HStack(spacing: 4) {
+                            Text("Ticket ablegen").font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+                            Image(systemName: "chevron.up.chevron.down").font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
+                        }
+                        Text("Foto, Screenshot oder PDF – bleibt nur auf deinem iPhone.").font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.leading)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -600,53 +571,6 @@ struct EveningPlanSection: View {
     }
 }
 
-struct EveningStop: Identifiable {
-    var id: String { title }
-    let time: String
-    let symbol: String
-    let title: String
-    let detail: String?
-    var highlight = false
-}
-
-/// Senkrechte Zeitleiste: Uhrzeit groß links, verbundene Stationen rechts.
-private struct EveningTimeline: View {
-    let stops: [EveningStop]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(stops.enumerated()), id: \.element.id) { index, stop in
-                HStack(alignment: .top, spacing: 12) {
-                    Text(stop.time)
-                        .font(.system(.subheadline, design: .rounded).weight(.semibold).monospacedDigit())
-                        .foregroundStyle(stop.highlight ? KlangradarTheme.accent : .primary)
-                        .frame(width: 74, alignment: .trailing)
-                        .padding(.top, 6)
-                    VStack(spacing: 0) {
-                        Image(systemName: stop.symbol)
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(stop.highlight ? .white : KlangradarTheme.accent)
-                            .frame(width: 30, height: 30)
-                            .background(stop.highlight ? AnyShapeStyle(KlangradarTheme.accent) : AnyShapeStyle(KlangradarTheme.accent.opacity(0.14)), in: .circle)
-                        if index < stops.count - 1 {
-                            Rectangle().fill(KlangradarTheme.accent.opacity(0.25)).frame(width: 2).frame(maxHeight: .infinity)
-                        }
-                    }
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(stop.title).font(.subheadline.weight(.semibold))
-                        if let detail = stop.detail {
-                            Text(detail).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-                    .padding(.top, 5)
-                    .padding(.bottom, index < stops.count - 1 ? 16 : 0)
-                    Spacer(minLength: 0)
-                }
-            }
-        }
-    }
-}
-
 /// Ticket im Vollbild mit voller Helligkeit (für den Einlass-Scanner).
 private struct TicketFullScreen: View {
     let image: UIImage
@@ -670,5 +594,88 @@ private struct TicketFullScreen: View {
             UIScreen.main.brightness = 1
         }
         .onDisappear { UIScreen.main.brightness = previousBrightness }
+    }
+}
+
+/// Ort wie in Apple Karten: Look-Around-Foto, gefüllter Kategorie-Kreis,
+/// Name, Fußweg. Tippen öffnet die Apple-Karten-Ortskarte (iOS 18) bzw.
+/// Apple Karten.
+private struct PlaceCard: View {
+    let item: MKMapItem
+    let symbol: String
+    let color: Color
+    let distance: String?
+
+    @State private var photo: UIImage?
+    @State private var showsDetail = false
+
+    var body: some View {
+        Button {
+            if #available(iOS 18.0, *) { showsDetail = true } else { item.openInMaps() }
+        } label: {
+            VStack(alignment: .leading, spacing: 0) {
+                ZStack(alignment: .bottomLeading) {
+                    if let photo {
+                        Image(uiImage: photo).resizable().scaledToFill()
+                    } else {
+                        Rectangle().fill(color.opacity(0.12))
+                            .overlay { Image(systemName: symbol).font(.largeTitle).foregroundStyle(color.opacity(0.5)) }
+                    }
+                    Image(systemName: symbol)
+                        .font(.footnote.weight(.bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 28, height: 28)
+                        .background(color, in: .circle)
+                        .overlay { Circle().stroke(.white, lineWidth: 2) }
+                        .padding(8)
+                }
+                .frame(width: 180, height: 110)
+                .clipped()
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(item.name ?? "Restaurant").font(.subheadline.weight(.semibold)).foregroundStyle(.primary).lineLimit(1)
+                    Text([categoryName, distance].compactMap { $0 }.joined(separator: " · "))
+                        .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                }
+                .padding(.horizontal, 12).padding(.vertical, 10)
+            }
+            .frame(width: 180, alignment: .leading)
+            .background(Color(uiColor: .secondarySystemBackground))
+            .clipShape(.rect(cornerRadius: 16, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .modifier(MapItemDetailModifier(item: item, isPresented: $showsDetail))
+        .task { await loadPhoto() }
+    }
+
+    private var categoryName: String? {
+        switch item.pointOfInterestCategory {
+        case .cafe?: "Café"
+        case .bakery?: "Bäckerei"
+        case .brewery?: "Brauerei"
+        case .winery?: "Weinbar"
+        case .nightlife?: "Bar"
+        case .restaurant?: "Restaurant"
+        default: nil
+        }
+    }
+
+    private func loadPhoto() async {
+        guard photo == nil, let scene = try? await MKLookAroundSceneRequest(mapItem: item).scene else { return }
+        let options = MKLookAroundSnapshotter.Options()
+        options.size = CGSize(width: 360, height: 220)
+        photo = try? await MKLookAroundSnapshotter(scene: scene, options: options).snapshot.image
+    }
+}
+
+private struct MapItemDetailModifier: ViewModifier {
+    let item: MKMapItem
+    @Binding var isPresented: Bool
+
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content.mapItemDetailSheet(isPresented: $isPresented, item: item)
+        } else {
+            content
+        }
     }
 }
