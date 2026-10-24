@@ -18,6 +18,9 @@ struct EveningPlanSection: View {
     @State private var locationStatus = CLLocationManager().authorizationStatus
     @State private var isEstimating = false
     @State private var locationManager: CLLocationManager?
+    @State private var lastOrigin: CLLocation?
+    @State private var lastEstimate: Date?
+    @Environment(\.scenePhase) private var scenePhase
 
     /// Fahrzeit je Verkehrsmittel (Schlüssel: MKLaunchOptionsDirectionsMode*).
     private struct TravelETA {
@@ -106,6 +109,12 @@ struct EveningPlanSection: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .task { await search() }
+            .task(id: venueItem?.placemark.coordinate.latitude) { await followLocation() }
+            .onChange(of: scenePhase) { _, phase in
+                // Zurück in der App: Standort kann sich geändert haben.
+                guard phase == .active, let venueItem else { return }
+                Task { await estimateTravel(to: venueItem) }
+            }
         }
     }
 
@@ -388,13 +397,17 @@ struct EveningPlanSection: View {
     /// Liefert MapKit für ÖPNV nichts, wird aus der Entfernung geschätzt
     /// (Ø 18 km/h Fahrt + 8 Min. Fußweg/Warten), statt still aufs Auto zu
     /// wechseln.
-    private func estimateTravel(to destination: MKMapItem) async {
+    private func estimateTravel(to destination: MKMapItem, from given: CLLocation? = nil) async {
         let status = CLLocationManager().authorizationStatus
         locationStatus = status
         guard status == .authorizedWhenInUse || status == .authorizedAlways else { return }
-        isEstimating = true
+        isEstimating = etas.isEmpty
         defer { isEstimating = false }
-        guard let here = await currentLocation() else { return }
+        var origin = given
+        if origin == nil { origin = await currentLocation() }
+        guard let here = origin else { return }
+        lastOrigin = here
+        lastEstimate = Date()
         let source = MKMapItem(placemark: MKPlacemark(coordinate: here.coordinate))
         let arrival = arrivalTarget
 
@@ -436,10 +449,28 @@ struct EveningPlanSection: View {
         etas = result
     }
 
+    /// Fahrzeit immer vom aktuellen Standort (Nutzerwunsch 24.10.2026):
+    /// solange die Seite offen ist, bei mehr als 250 m Bewegung oder alle
+    /// 3 Minuten neu berechnen (Fahrplan und Verkehr ändern sich auch).
+    private func followLocation() async {
+        guard let venueItem, isUpcoming else { return }
+        let status = CLLocationManager().authorizationStatus
+        guard status == .authorizedWhenInUse || status == .authorizedAlways else { return }
+        do {
+            for try await update in CLLocationUpdate.liveUpdates() {
+                guard let location = update.location, location.horizontalAccuracy < 200 else { continue }
+                let moved = lastOrigin.map { location.distance(from: $0) > 250 } ?? true
+                let stale = lastEstimate.map { Date().timeIntervalSince($0) > 180 } ?? true
+                if moved || stale { await estimateTravel(to: venueItem, from: location) }
+            }
+        } catch {}
+    }
+
     /// Aktueller Standort: zuletzt bekannter, wenn frisch (< 5 Min.), sonst
-    /// das erste Update (max. 8 Sek.).
+    /// das erste Update (max. 8 Sek.). Nur Sekunden alt, damit die Fahrzeit
+    /// immer vom tatsächlichen Standort aus gilt.
     private func currentLocation() async -> CLLocation? {
-        if let cached = CLLocationManager().location, cached.timestamp.timeIntervalSinceNow > -300 { return cached }
+        if let cached = CLLocationManager().location, cached.timestamp.timeIntervalSinceNow > -60 { return cached }
         return await withTaskGroup(of: CLLocation?.self) { group in
             group.addTask {
                 do {
