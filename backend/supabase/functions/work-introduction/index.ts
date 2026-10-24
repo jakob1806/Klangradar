@@ -1,48 +1,17 @@
 // Erstellt von Claude Code (Nutzerwunsch 24.10.2026): Werkeinführung und
-// recherchierte Satzfolge.
-//
-// Quelle ist der passende Wikipedia-Artikel (de, sonst en), gesucht mit
-// Komponist + Titel + Werkverzeichnisnummer. Die KI fasst ihn auf Deutsch
-// zusammen (3–5 Sätze, nur Inhalte aus dem Text). Die Satzfolge kommt aus
-// dem Artikel; fehlt sie dort, darf die KI sie nur bei sicher bekannten
-// Standardwerken ergänzen ("high" confidence) – markiert als
-// movements_source = 'ai_knowledge', damit die Redaktion sie erkennt.
+// Satzfolge. Seit 25.10.2026 ohne KI direkt aus Wikipedia (de, sonst en),
+// siehe _shared/workWikiFacts.ts: Einleitung des Werkartikels als Einführung,
+// Satzfolge aus Überschriften/Abschnitt "Sätze"/englischem Artikel, mit
+// Quell-Link (CC BY-SA). Kein Treffer → keine Einführung statt einer
+// falschen.
 //
 // Aufrufe:
 //   intern (Cron): POST { limit } → Werke kommender Konzerte zuerst
 //   App:           POST { work_id } → einzelnes Werk, Ergebnis zurück
+//   Diagnose:      POST { diagnose: true } → Status der KI-Anbieter
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { callAiFunction, type AiFunctionDeclaration } from "../_shared/ai/router.ts";
-import { fetchWikipediaExtract } from "../_shared/wikipediaExtract.ts";
+import { fetchWorkWikiFacts } from "../_shared/workWikiFacts.ts";
 import { requireInternalAuth } from "../_shared/internalAuth.ts";
-
-const FN: AiFunctionDeclaration = {
-  name: "work_introduction",
-  description: "Werkeinführung und Satzfolge eines klassischen Musikwerks.",
-  parameters: {
-    type: "object",
-    properties: {
-      introduction: {
-        type: "string",
-        description: "3–5 Sätze auf Deutsch für Konzertbesucher:innen: Entstehung, Charakter, Besonderheit. NUR aus dem Quelltext; leer, wenn der Text nicht passt.",
-      },
-      sourceMatches: { type: "boolean", description: "true, wenn der Quelltext eindeutig genau dieses Werk beschreibt." },
-      movements: {
-        type: "array",
-        items: { type: "string" },
-        description: "Sätze in Reihenfolge mit Tempobezeichnung (z. B. 'I. Allegro moderato'). Leer bei einsätzigen Werken oder wenn unbekannt.",
-      },
-      movementsFromSource: { type: "boolean", description: "true, wenn die Satzfolge im Quelltext steht." },
-      movementsConfidence: { type: "string", description: "Sicherheit der Satzfolge: high, medium oder low." },
-    },
-    required: ["sourceMatches"],
-  },
-};
-
-const SYSTEM =
-  "Du bist Musikdramaturg:in. Schreibe sachlich, lebendig und ohne Superlative. Erfinde nichts: " +
-  "Werkeinführung nur aus dem gegebenen Quelltext. Satzfolgen nur angeben, wenn sie im Text stehen oder es sich um " +
-  "ein sehr bekanntes Standardwerk handelt, dessen Sätze du sicher kennst.";
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -50,31 +19,20 @@ function json(body: unknown, status = 200) {
 
 // deno-lint-ignore no-explicit-any
 async function processWork(supabase: any, work: any) {
-  const composer = work.composer?.full_name ?? "";
-  const query = [composer, work.title, work.catalog_number].filter(Boolean).join(" ");
-  const extract = await fetchWikipediaExtract(query).catch(() => null);
-  const user = `Werk: ${work.title}\nKomponist:in: ${composer}\nWerkverzeichnis: ${work.catalog_number ?? "–"}\n\n` +
-    (extract ? `Quelltext (${extract.pageUrl}):\n${extract.text.slice(0, 3500)}` : "Kein Quelltext gefunden.");
-  // Bis zu zwei Versuche: Gemini bricht nach 8 s ab, die übrigen Anbieter
-  // haben eigene Limits – ein zweiter Durchlauf fängt kurze Ausfälle ab.
-  const result = (await callAiFunction(SYSTEM, user, FN)) ?? (await callAiFunction(SYSTEM, user.slice(0, 2500), FN));
-  // Keine KI-Antwort (Anbieter-Fehler/Limit): NICHT als geprüft markieren,
-  // sonst wäre das Werk 30 Tage gesperrt.
-  if (!result) return { id: work.id, introduction: work.introduction_de ?? null, movements: work.movements ?? [], error: "ai_unavailable", source: extract?.pageUrl ?? null };
-  const args = result.args ?? {};
-
+  // Seit 25.10.2026 ohne KI: Einleitung + Satzfolge direkt aus Wikipedia
+  // (_shared/workWikiFacts.ts). Die KI-Anbieter lieferten wiederholt keine
+  // Antwort ("ai_unavailable"); Wikipedia ist zuverlässig, schnell und
+  // nennt die Quelle.
+  const facts = await fetchWorkWikiFacts(work.title, work.composer?.full_name ?? null, work.catalog_number ?? null).catch(() => null);
   const update: Record<string, unknown> = { introduction_checked_at: new Date().toISOString() };
-  const intro = typeof args.introduction === "string" ? args.introduction.trim() : "";
-  if (extract && args.sourceMatches && intro.length > 60) {
-    update.introduction_de = intro;
-    update.introduction_source_url = extract.pageUrl;
+  if (facts?.introduction) {
+    update.introduction_de = facts.introduction;
+    update.introduction_source_url = facts.pageUrl;
   }
-  const movements = Array.isArray(args.movements) ? args.movements.map(String).map((m: string) => m.trim()).filter(Boolean) : [];
-  const fromSource = Boolean(args.movementsFromSource) && Boolean(extract && args.sourceMatches);
   const hasMovements = Array.isArray(work.movements) && work.movements.length > 1;
-  if (!hasMovements && movements.length > 1 && (fromSource || args.movementsConfidence === "high")) {
-    update.movements = movements.slice(0, 12);
-    update.movements_source = fromSource ? "wikipedia" : "ai_knowledge";
+  if (!hasMovements && (facts?.movements.length ?? 0) > 1) {
+    update.movements = facts!.movements.slice(0, 20);
+    update.movements_source = "wikipedia";
   }
   await supabase.from("works").update(update).eq("id", work.id);
   return {
@@ -82,9 +40,7 @@ async function processWork(supabase: any, work: any) {
     introduction: update.introduction_de ?? work.introduction_de ?? null,
     sourceUrl: update.introduction_source_url ?? null,
     movements: update.movements ?? work.movements ?? [],
-    provider: result.provider,
-    sourceMatches: Boolean(args.sourceMatches),
-    source: extract?.pageUrl ?? null,
+    source: facts?.pageUrl ?? null,
   };
 }
 
@@ -105,7 +61,7 @@ Deno.serve(async (req) => {
   if (typeof body.work_id === "string") {
     const { data: work } = await supabase.from("works").select(SELECT).eq("id", body.work_id).maybeSingle();
     if (!work) return json({ error: "not found" }, 404);
-    const fresh = work.introduction_checked_at && Date.now() - Date.parse(work.introduction_checked_at) < 30 * 86_400_000;
+    const fresh = work.introduction_checked_at && Date.now() - Date.parse(work.introduction_checked_at) < 7 * 86_400_000;
     if (work.introduction_de || fresh) {
       return json({ id: work.id, introduction: work.introduction_de, movements: work.movements ?? [] });
     }
@@ -114,7 +70,7 @@ Deno.serve(async (req) => {
 
   const unauthorized = await requireInternalAuth(req);
   if (unauthorized) return unauthorized;
-  const limit = Math.min(Math.max(Number(body.limit) || 8, 1), 20);
+  const limit = Math.min(Math.max(Number(body.limit) || 25, 1), 40);
   // Werke kommender Konzerte zuerst (nächste 60 Tage), noch nie geprüft.
   const { data: rows } = await supabase
     .from("event_works")
