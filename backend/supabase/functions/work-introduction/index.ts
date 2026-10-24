@@ -95,6 +95,11 @@ Deno.serve(async (req) => {
   const body = await req.json().catch(() => ({}));
   const supabase = createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "");
 
+  // Diagnose: ruft jeden KI-Anbieter direkt mit einer Mini-Anfrage auf und
+  // meldet nur Statuscode + gekürzten Fehlertext (keine Schlüssel, keine
+  // Nutzerdaten) – um Ausfälle wie "ai_unavailable" einzugrenzen.
+  if (body.diagnose === true) return json(await diagnoseProviders());
+
   // Einzelnes Werk aus der App: ohne internes Secret erlaubt, aber nur, wenn
   // es noch nie (bzw. vor > 30 Tagen) geprüft wurde – begrenzt KI-Kosten.
   if (typeof body.work_id === "string") {
@@ -125,3 +130,37 @@ Deno.serve(async (req) => {
   for (const work of works) results.push(await processWork(supabase, work).catch((e) => ({ id: work.id, error: String(e) })));
   return json({ processed: results.length, results });
 });
+
+async function diagnoseProviders() {
+  const fn = { name: "ping", description: "Antwort", parameters: { type: "object", properties: { ok: { type: "boolean" } }, required: ["ok"] } };
+  const results: Record<string, unknown> = {};
+  const openAi = [
+    ["cerebras", "CEREBRAS_API_KEY", "https://api.cerebras.ai/v1/chat/completions", "gpt-oss-120b"],
+    ["nvidia", "NVIDIA_API_KEY", "https://integrate.api.nvidia.com/v1/chat/completions", "meta/llama-3.3-70b-instruct"],
+  ];
+  for (const [name, env, url, model] of openAi) {
+    const key = Deno.env.get(env);
+    if (!key) { results[name] = "kein Schlüssel"; continue; }
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
+        body: JSON.stringify({ model, messages: [{ role: "user", content: "Sag ok." }], tools: [{ type: "function", function: fn }], tool_choice: { type: "function", function: { name: "ping" } } }),
+      });
+      results[name] = { status: res.status, body: (await res.text()).slice(0, 300) };
+    } catch (e) { results[name] = String(e); }
+  }
+  const gKey = Deno.env.get("GEMINI_API_KEY");
+  if (!gKey) results.gemini = "kein Schlüssel";
+  else {
+    try {
+      const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-goog-api-key": gKey },
+        body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: "Sag ok." }] }] }),
+      });
+      results.gemini = { status: res.status, body: (await res.text()).slice(0, 300) };
+    } catch (e) { results.gemini = String(e); }
+  }
+  return results;
+}
