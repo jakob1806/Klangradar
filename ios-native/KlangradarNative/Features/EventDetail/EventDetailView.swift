@@ -14,6 +14,13 @@ struct EventDetailView: View {
     @State private var showsAllOtherDates = false
     @State private var showsAllParticipants = false
     @State private var isAttended = false
+    @State private var planComposer: PlanComposerMode?
+    @State private var calendarTrigger = false
+
+    enum PlanComposerMode: Int, Identifiable {
+        case plan, ask
+        var id: Int { rawValue }
+    }
     @State private var isUpdatingAttendance = false
     @State private var attendanceError: String?
     @State private var locationRequester = LocationRequester()
@@ -134,33 +141,33 @@ struct EventDetailView: View {
                     HStack(spacing: 10) {
                         heroButton(systemImage: "chevron.left", label: "Zurück") { dismiss() }
                         Spacer()
+                        if reportStore.auth.userID != nil {
+                            heroButton(
+                                systemImage: isAttended ? "checkmark.circle.fill" : "checkmark.circle",
+                                label: isAttended ? "Besucht" : "Als besucht markieren"
+                            ) { Task { await toggleAttendance() } }
+                        }
                         heroButton(
                             systemImage: favorites.ids.contains(event.id) ? "heart.fill" : "heart",
                             label: "Favorit"
                         ) { Task { await favorites.toggle(event.id) } }
-                        if let calendarInput = calendarEventInput() {
-                            // Nutzerfeedback: statt eines Popups mit
-                            // .ics-Downloadmöglichkeit öffnet sich jetzt
-                            // direkt Apples nativer Kalender-Editor
-                            // (EKEventEditViewController) mit "Hinzufügen"
-                            // oben rechts — siehe AddToCalendarView.swift.
-                            AddToCalendarButton(calendarInput) {
-                                heroButtonLabel(systemImage: "calendar.badge.plus")
+                        // Nutzerwunsch 24.10.2026: Kalender, Teilen und Freunde
+                        // in einem "…"-Menü statt drei einzelner Knöpfe.
+                        Menu {
+                            if (event.startDate ?? .distantPast) > .now && reportStore.auth.userID != nil {
+                                Section("Mit Freunden") {
+                                    Button("Konzertabend planen", systemImage: "person.2") { planComposer = .plan }
+                                    Button("Wer kommt mit?", systemImage: "questionmark.bubble") { planComposer = .ask }
+                                }
                             }
-                            .accessibilityLabel("Zum Kalender hinzufügen")
+                            if calendarEventInput() != nil {
+                                Button("Zum Kalender hinzufügen", systemImage: "calendar.badge.plus") { calendarTrigger = true }
+                            }
+                            ShareLink(item: shareText) { Label("Teilen", systemImage: "square.and.arrow.up") }
+                        } label: {
+                            heroButtonLabel(systemImage: "ellipsis")
                         }
-                        ShareLink(item: shareText) {
-                            // Nutzerfeedback: Teilen-Icon wirkte gegenüber
-                            // Zurück/Herz/Kalender leicht nach unten versetzt
-                            // — "square.and.arrow.up" hat als SF Symbol ein
-                            // optisch tiefer sitzendes Glyph-Zentrum als die
-                            // anderen drei (der Pfeil ragt oben heraus, das
-                            // Tablett sitzt unten). Manueller Ausgleich statt
-                            // eines echten Layout-Fehlers.
-                            heroButtonLabel(systemImage: "square.and.arrow.up")
-                                .offset(y: -1.5)
-                        }
-                        .accessibilityLabel("Teilen")
+                        .accessibilityLabel("Weitere Aktionen")
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, topInset + 10)
@@ -191,6 +198,14 @@ struct EventDetailView: View {
     }
 
     private var titleBlock: some View {
+        titleBlockContent
+            .sheet(item: $planComposer) { mode in
+                NavigationStack { PlanComposerView(event: event, quickAsk: mode == .ask) }
+            }
+            .modifier(AddToCalendarPresenter(input: calendarEventInput(), trigger: $calendarTrigger))
+    }
+
+    private var titleBlockContent: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(event.title)
                 // Nutzerfeedback: Überschrift in der Detailansicht war zu
@@ -207,27 +222,6 @@ struct EventDetailView: View {
                     systemImage: "calendar"
                 )
                 .font(.headline)
-            }
-            if reportStore.auth.userID != nil {
-                // Nutzerfeedback: Ein direkter Tap auf "Als besucht
-                // markieren" darf NIE an einer Standortprüfung scheitern
-                // ("nicht in der Nähe der Spielstätte") — das ist eine
-                // bewusste, manuelle Angabe der Nutzer:in. Die Standort-
-                // basierte Bestätigung läuft jetzt ausschließlich passiv im
-                // Hintergrund über AttendanceLocationMonitor (siehe dort) und
-                // fragt per eigenem Popup nach, wenn Ort und Zeit zum Event
-                // passen — sie hängt nicht mehr an diesem Button.
-                Button {
-                    Task { await toggleAttendance() }
-                } label: {
-                    Label(isAttended ? "Besucht" : "Als besucht markieren", systemImage: isAttended ? "checkmark.circle.fill" : "checkmark.circle")
-                        .font(.subheadline.weight(.semibold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 4)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(isAttended ? .green : KlangradarTheme.accent)
-                .disabled(isUpdatingAttendance)
             }
         }
     }

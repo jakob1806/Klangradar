@@ -615,26 +615,17 @@ struct LevelDetailView: View {
 
     private func achievementTile(_ achievement: KlangAchievement) -> some View {
         VStack(spacing: 8) {
-            ZStack {
-                Circle()
-                    .fill(achievement.isUnlocked ? KlangradarTheme.accent.opacity(0.14) : Color.secondary.opacity(0.07))
-                Circle()
-                    .stroke(achievement.isUnlocked ? KlangradarTheme.accent.opacity(0.7) : Color.secondary.opacity(0.2), lineWidth: 1)
-                    .padding(4)
-                Image(systemName: achievement.isUnlocked ? achievement.symbol : "lock.fill")
-                    .font(.title2.weight(.semibold))
-                    .foregroundStyle(achievement.isUnlocked ? KlangradarTheme.accent : Color.secondary.opacity(0.55))
-            }
-            .frame(width: 72, height: 72)
-
+            AchievementBadge(achievement: achievement, size: 76)
             Text(achievement.title)
                 .font(.caption.weight(.semibold))
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
                 .frame(minHeight: 32, alignment: .top)
-            Text(achievement.isUnlocked ? "Erreicht" : "\(min(achievement.progress, achievement.target)) von \(achievement.target)")
-                .font(.caption2.weight(.medium))
-                .foregroundStyle(achievement.isUnlocked ? KlangradarTheme.accent : .secondary)
+            Text(achievement.isUnlocked ? achievement.detail : "\(min(achievement.progress, achievement.target)) von \(achievement.target)")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
                 .monospacedDigit()
         }
         .frame(maxWidth: .infinity)
@@ -810,5 +801,51 @@ struct VisitedCitiesListView: View {
         }
         .overlay { if sorted.isEmpty { ContentUnavailableView("Noch keine Städte", systemImage: "map", description: Text("Städte aus besuchten Konzerten erscheinen hier.")) } }
         .navigationTitle("Städte")
+    }
+}
+
+/// Abzeichen als Medaille (Nutzerwunsch 24.10.2026: schöneres Design).
+/// Erreicht: gefüllte Plakette in eigener, gedeckter Farbe mit feinem
+/// Innenring. Offen: Fortschrittsring statt Schloss – man sieht, wie nah
+/// man dran ist.
+struct AchievementBadge: View {
+    let achievement: KlangAchievement
+    var size: CGFloat = 72
+
+    private static let palette: [String: Color] = [
+        "first": Color(red: 0.80, green: 0.60, blue: 0.24), "season": Color(red: 0.08, green: 0.38, blue: 0.58),
+        "mahler": Color(red: 0.42, green: 0.27, blue: 0.55), "opera": Color(red: 0.63, green: 0.17, blue: 0.24),
+        "new": Color(red: 0.16, green: 0.55, blue: 0.52), "mozart": Color(red: 0.75, green: 0.45, blue: 0.20),
+        "munich": Color(red: 0.13, green: 0.34, blue: 0.62), "cities": Color(red: 0.20, green: 0.50, blue: 0.33),
+        "premiere": Color(red: 0.78, green: 0.30, blue: 0.20), "symphonic": Color(red: 0.25, green: 0.30, blue: 0.45),
+        "chamber": Color(red: 0.50, green: 0.36, blue: 0.27), "baroque": Color(red: 0.55, green: 0.47, blue: 0.20),
+        "vocal": Color(red: 0.60, green: 0.25, blue: 0.45), "works": Color(red: 0.18, green: 0.42, blue: 0.40),
+        "venues": Color(red: 0.32, green: 0.40, blue: 0.20)
+    ]
+
+    private var color: Color { Self.palette[achievement.id] ?? KlangradarTheme.accent }
+    private var fraction: Double { min(1, Double(achievement.progress) / Double(max(achievement.target, 1))) }
+
+    var body: some View {
+        ZStack {
+            if achievement.isUnlocked {
+                Circle().fill(color)
+                Circle().stroke(.white.opacity(0.55), lineWidth: 1.5).padding(size * 0.07)
+                Image(systemName: achievement.symbol)
+                    .font(.system(size: size * 0.34, weight: .semibold))
+                    .foregroundStyle(.white)
+            } else {
+                Circle().fill(Color(uiColor: .secondarySystemBackground))
+                Circle().stroke(Color.primary.opacity(0.08), lineWidth: size * 0.06)
+                Circle()
+                    .trim(from: 0, to: fraction)
+                    .stroke(color, style: StrokeStyle(lineWidth: size * 0.06, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                Image(systemName: achievement.symbol)
+                    .font(.system(size: size * 0.3, weight: .semibold))
+                    .foregroundStyle(color.opacity(0.45))
+            }
+        }
+        .frame(width: size, height: size)
     }
 }
