@@ -36,3 +36,16 @@ Deno.test("parseMphilProgram: englische Seite mit __work-title-Span (live 23.10.
   if (works.length !== 2) throw new Error(`erwartet 2 Werke, war ${works.length}`);
   if (!works[1].afterIntermission || works[1].composerName !== "Modest Mussorgsky") throw new Error("Pause/Komponist falsch");
 });
+
+Deno.test("parseMphilProgram: Titel direkt im <p> ohne span (live 24.10.2026)", () => {
+  const html = `<ul class="m-mphil-concert-detail__work-list">
+<li class="m-mphil-concert-detail__work-item"><a class="m-mphil-concert-detail__work-composer --wrap" href="/k">Erich Wolfgang Korngold</a>
+<p class="m-mphil-concert-detail__work-paragraph m-mphil-concert-detail__work-title">Overture to »The Sea Hawk«</p></li>
+<li class="m-mphil-concert-detail__work-item"><p class="m-mphil-concert-detail__work-paragraph m-mphil-concert-detail__work-title -pause">Intermission</p></li>
+<li class="m-mphil-concert-detail__work-item"><a class="m-mphil-concert-detail__work-composer --wrap" href="/p">Sergei Prokofiev</a>
+<p class="m-mphil-concert-detail__work-paragraph"><span class="m-mphil-concert-detail__work-title">Symphonic Movements from »Roméo et Juliette«</span></p></li>
+</ul>`;
+  const works = parseMphilProgram(html);
+  assertEquals(works.map((w) => w.title), ["Overture to »The Sea Hawk«", "Symphonic Movements from »Roméo et Juliette«"]);
+  assertEquals(works[1].afterIntermission, true);
+});
