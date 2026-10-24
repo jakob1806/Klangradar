@@ -85,6 +85,10 @@ struct ProfileView: View {
                                 ProfileRow(title: "Dein Geschmack", symbol: "waveform", color: KlangradarTheme.accent)
                             }
                             Divider().padding(.leading, 56)
+                            NavigationLink { ConcertYearView(auth: auth, repository: userRepository) } label: {
+                                ProfileRow(title: "Dein Konzertjahr", symbol: "chart.bar.fill", color: .indigo)
+                            }
+                            Divider().padding(.leading, 56)
                         }
                         NavigationLink {
                             MyKlangradarHubView(auth: auth, repository: userRepository, eventRepository: eventRepository, contentRepository: contentRepository)

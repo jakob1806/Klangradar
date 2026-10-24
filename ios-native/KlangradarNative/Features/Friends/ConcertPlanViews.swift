@@ -63,6 +63,9 @@ struct PlanComposerView: View {
     @State private var note = ""
     @State private var isSending = false
     @State private var errorMessage: String?
+    /// Punkt 9: weitere gemerkte Konzerte zur Abstimmung stellen (max. 2).
+    @State private var alternatives: [ConcertEvent] = []
+    @State private var pollSelection: Set<UUID> = []
 
     var body: some View {
         Form {
@@ -86,7 +89,32 @@ struct PlanComposerView: View {
                 Text("Wer zusagt, bekommt das Konzert automatisch als „Ich gehe hin“ gemerkt.")
             }
 
-            if !quickAsk {
+            if !quickAsk && !alternatives.isEmpty {
+                Section {
+                    ForEach(alternatives.prefix(8)) { option in
+                        Button {
+                            if pollSelection.contains(option.id) { pollSelection.remove(option.id) }
+                            else if pollSelection.count < 2 { pollSelection.insert(option.id) }
+                        } label: {
+                            HStack(spacing: 12) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(option.title).font(.subheadline).foregroundStyle(.primary).lineLimit(1)
+                                    Text(option.startDate.map { KlangradarDateTime.string($0, format: "EE d. MMM, HH:mm") } ?? "").font(.caption).foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Image(systemName: pollSelection.contains(option.id) ? "checkmark.circle.fill" : "circle")
+                                    .foregroundStyle(pollSelection.contains(option.id) ? KlangradarTheme.accent : Color.secondary)
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Zur Wahl stellen (optional)")
+                } footer: {
+                    Text(pollSelection.isEmpty ? "Bis zu zwei weitere gemerkte Konzerte – deine Freunde stimmen ab, das mit den meisten Stimmen wird euer Abend." : "Abstimmung mit \(pollSelection.count + 1) Konzerten.")
+                }
+            }
+
+            if !quickAsk && pollSelection.isEmpty {
                 Section {
                     Toggle("Treffpunkt vereinbaren", isOn: $withMeeting.animation())
                     if withMeeting {
@@ -119,6 +147,13 @@ struct PlanComposerView: View {
             // Standard-Treffpunkt: 30 Minuten vor Beginn.
             if let start = event.startDate { meetingTime = start.addingTimeInterval(-30 * 60) }
         }
+        .task {
+            guard !quickAsk, let repository = SocialStore.shared.repository, let token = SocialStore.shared.token,
+                  let userID = SocialStore.shared.auth?.userID else { return }
+            alternatives = ((try? await repository.favoriteEvents(userID: userID, token: token)) ?? [])
+                .filter { $0.id != event.id && ($0.startDate ?? .distantPast) > Date() }
+                .sorted { ($0.startDate ?? .distantFuture) < ($1.startDate ?? .distantFuture) }
+        }
     }
 
     private func send() async {
@@ -126,6 +161,14 @@ struct PlanComposerView: View {
         isSending = true
         defer { isSending = false }
         do {
+            if !pollSelection.isEmpty {
+                try await repository.createPlanPoll(eventIDs: [event.id] + Array(pollSelection), friendIDs: Array(selection), note: note.isEmpty ? nil : note, token: token)
+                Haptics.confirm()
+                await SocialStore.shared.refresh()
+                onCreated?()
+                dismiss()
+                return
+            }
             try await repository.createConcertPlan(
                 eventID: event.id,
                 friendIDs: Array(selection),
@@ -156,12 +199,27 @@ struct PlanDetailView: View {
     @State private var inviteSelection: Set<UUID> = []
     @State private var showsEdit = false
     @State private var confirmsLeave = false
+    @State private var poll: [PlanPollOption] = []
 
     var body: some View {
         Group {
             if let plan {
                 List {
-                    Section { SocialEventRow(event: plan.event) }
+                    if poll.isEmpty {
+                        Section { SocialEventRow(event: plan.event) }
+                    } else {
+                        Section {
+                            PlanPollSection(options: poll, isOwner: plan.isOwner) { option in
+                                await vote(option)
+                            } onDecide: {
+                                await decide()
+                            }
+                        } header: {
+                            Text("Abstimmung")
+                        } footer: {
+                            Text("Sobald alle abgestimmt haben, steht euer Konzert fest.")
+                        }
+                    }
 
                     if plan.hasMeeting || plan.note != nil {
                         Section("Treffpunkt") {
@@ -258,7 +316,24 @@ struct PlanDetailView: View {
     private func load() async {
         guard let repository = SocialStore.shared.repository, let token = SocialStore.shared.token else { isLoading = false; return }
         plan = (try? await repository.concertPlans(token: token))?.first { $0.id == planID }
+        poll = (try? await repository.planPoll(planID, token: token)) ?? []
         isLoading = false
+    }
+
+    private func vote(_ option: PlanPollOption) async {
+        guard let repository = SocialStore.shared.repository, let token = SocialStore.shared.token else { return }
+        try? await repository.votePlanOption(planID, eventID: option.event.id, token: token)
+        Haptics.light()
+        await load()
+        await onChange?()
+    }
+
+    private func decide() async {
+        guard let repository = SocialStore.shared.repository, let token = SocialStore.shared.token else { return }
+        try? await repository.decidePlanPoll(planID, token: token)
+        Haptics.confirm()
+        await load()
+        await onChange?()
     }
 
     private func respond(_ status: String) async {
@@ -324,6 +399,47 @@ private struct PlanMeetingEditor: View {
             note = plan.note ?? ""
             hasTime = plan.meetingTime != nil
             time = plan.meetingTime ?? plan.event.start?.addingTimeInterval(-1800) ?? .now
+        }
+    }
+}
+
+/// Abstimmungsoptionen als flache Zeilen mit dünnem Stimmenbalken.
+private struct PlanPollSection: View {
+    let options: [PlanPollOption]
+    let isOwner: Bool
+    let onVote: (PlanPollOption) async -> Void
+    let onDecide: () async -> Void
+
+    var body: some View {
+        let total = max(options.map(\.votes).reduce(0, +), 1)
+        ForEach(options) { option in
+            Button { Task { await onVote(option) } } label: {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(alignment: .firstTextBaseline) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(option.event.title).font(.subheadline.weight(.semibold)).foregroundStyle(.primary).lineLimit(2)
+                            Text(option.event.dateLine).font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Text("\(option.votes)").font(.title3.weight(.semibold).monospacedDigit())
+                            .foregroundStyle(option.mine ? KlangradarTheme.accent : .secondary)
+                    }
+                    GeometryReader { proxy in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(Color(uiColor: .tertiarySystemFill))
+                            Capsule().fill(option.mine ? KlangradarTheme.accent : KlangradarTheme.accent.opacity(0.4))
+                                .frame(width: max(4, proxy.size.width * CGFloat(option.votes) / CGFloat(total)))
+                        }
+                    }
+                    .frame(height: 4)
+                    if option.mine { Text("Deine Stimme").font(.caption2.weight(.semibold)).foregroundStyle(KlangradarTheme.accent) }
+                }
+                .padding(.vertical, 4)
+            }
+            .buttonStyle(.plain)
+        }
+        if isOwner {
+            Button("Jetzt entscheiden", systemImage: "checkmark.seal") { Task { await onDecide() } }
         }
     }
 }

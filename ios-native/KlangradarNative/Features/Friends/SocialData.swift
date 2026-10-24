@@ -109,7 +109,7 @@ struct SharedList: Identifiable, Sendable, Hashable {
 
 // MARK: - Parsing
 
-private extension JSONObject {
+extension JSONObject {
     func uuid(_ key: String) -> UUID? { string(key).flatMap(UUID.init(uuidString:)) }
     func url(_ key: String) -> URL? { string(key).flatMap(URL.init(string:)) }
     func date(_ key: String) -> Date? { string(key).flatMap(FlexibleDateParser.date(from:)) }
