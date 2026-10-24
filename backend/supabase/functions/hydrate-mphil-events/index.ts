@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { saveProgramBooklet } from "../_shared/programBooklet.ts";
 import { parseMphilEventDetail } from "../_shared/mphilDetail.ts";
+import { germanizeWorkTitle } from "../_shared/workTitleGerman.ts";
 import { USER_AGENT } from "../_shared/robots.ts";
 import { json, mapLimit, replaceEventParticipants, resolveComposer, resolveWork } from "../_shared/eventParticipantResolution.ts";
 
@@ -50,7 +51,9 @@ Deno.serve(async (req) => {
         await supabase.from("event_works").delete().eq("event_id", event.id);
         for (const work of detail.works) {
           const composerId = work.composerName ? await resolveComposer(supabase, work.composerName) : null;
-          const workId = await resolveWork(supabase, work.title, composerId);
+          // Englische Seitentitel in deutsche Standardform (sonst Mischtitel wie
+          // "Konzert for Violin" und keine Treffer auf vorhandene Werke).
+          const workId = await resolveWork(supabase, germanizeWorkTitle(work.title), composerId);
           if (!workId) continue;
           const { error: workError } = await supabase.from("event_works").insert({
             event_id: event.id, work_id: workId, position: work.position, after_intermission: work.afterIntermission,
