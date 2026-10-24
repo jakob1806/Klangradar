@@ -80,6 +80,12 @@ struct ProfileView: View {
                     plusHero
 
                     VStack(spacing: 0) {
+                        if auth.userID != nil, let userRepository {
+                            NavigationLink { ConcertYearView(auth: auth, repository: userRepository) } label: {
+                                ProfileRow(title: "Dein Konzertjahr", symbol: "chart.bar.fill", color: .indigo)
+                            }
+                            Divider().padding(.leading, 56)
+                        }
                         NavigationLink {
                             MyKlangradarHubView(auth: auth, repository: userRepository, eventRepository: eventRepository, contentRepository: contentRepository)
                         } label: {

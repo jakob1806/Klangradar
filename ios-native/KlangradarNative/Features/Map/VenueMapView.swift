@@ -25,6 +25,9 @@ struct VenueMapView: View {
     @State private var dayFilterEnabled = false
     @State private var dayFilterDate = Date()
     @State private var venueIDsOnDay: Set<UUID>?
+    // Punkt 14 (Nutzerwunsch 24.10.2026): stufenlos erreichbare Orte.
+    @State private var stepFreeOnly = false
+    @State private var stepFreeVenueIDs: Set<UUID>?
     @State private var position: MapCameraPosition = .region(Self.munichRegion)
     @State private var locationRequester = LocationRequester()
     @State private var locationError: String?
@@ -44,6 +47,7 @@ struct VenueMapView: View {
             (!onlyWithEvents || venue.upcomingEventCount > 0)
                 && (filterText.isEmpty || venue.name.localizedStandardContains(filterText))
                 && (!dayFilterEnabled || venueIDsOnDay?.contains(venue.id) ?? true)
+                && (!stepFreeOnly || stepFreeVenueIDs?.contains(venue.id) ?? true)
         }
     }
 
@@ -75,6 +79,14 @@ struct VenueMapView: View {
         .sheet(isPresented: $showsFilter) { filterSheet }
         .task { await loadVenues() }
         .task(id: dayFilterKey) { await loadDayFilter() }
+        .task(id: stepFreeOnly) {
+            guard stepFreeOnly, stepFreeVenueIDs == nil, let client = SocialStore.shared.repository?.client else { return }
+            let rows: [JSONObject]? = try? await client.get(table: "venues", queryItems: [
+                URLQueryItem(name: "select", value: "id"),
+                URLQueryItem(name: "accessibility->>step_free", value: "eq.true")
+            ])
+            stepFreeVenueIDs = Set((rows ?? []).compactMap { $0.string("id").flatMap(UUID.init(uuidString:)) })
+        }
         .onChange(of: cityStore.selectedCity) { _, _ in
             hasAutoFitCamera = false
             Task { await loadVenues() }
@@ -287,6 +299,13 @@ struct VenueMapView: View {
                 Section {
                     Toggle("Nur Orte mit kommenden Konzerten", isOn: $onlyWithEvents)
                     TextField("Konzertort suchen", text: $filterText)
+                }
+                Section {
+                    Toggle(isOn: $stepFreeOnly) {
+                        Label("Stufenlos erreichbar", systemImage: "figure.roll")
+                    }
+                } footer: {
+                    Text("Zeigt Orte, die laut Angaben der Häuser stufenlos zugänglich sind. Details stehen auf der Seite des Konzertorts.")
                 }
                 Section {
                     Toggle("Nach Tag filtern", isOn: $dayFilterEnabled.animation(.snappy))
