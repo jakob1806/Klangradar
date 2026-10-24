@@ -33,9 +33,9 @@ const FN: AiFunctionDeclaration = {
         description: "Sätze in Reihenfolge mit Tempobezeichnung (z. B. 'I. Allegro moderato'). Leer bei einsätzigen Werken oder wenn unbekannt.",
       },
       movementsFromSource: { type: "boolean", description: "true, wenn die Satzfolge im Quelltext steht." },
-      movementsConfidence: { type: "string", enum: ["high", "medium", "low"], description: "Sicherheit der Satzfolge." },
+      movementsConfidence: { type: "string", description: "Sicherheit der Satzfolge: high, medium oder low." },
     },
-    required: ["sourceMatches", "movements", "movementsConfidence"],
+    required: ["sourceMatches"],
   },
 };
 
@@ -54,8 +54,10 @@ async function processWork(supabase: any, work: any) {
   const query = [composer, work.title, work.catalog_number].filter(Boolean).join(" ");
   const extract = await fetchWikipediaExtract(query).catch(() => null);
   const user = `Werk: ${work.title}\nKomponist:in: ${composer}\nWerkverzeichnis: ${work.catalog_number ?? "–"}\n\n` +
-    (extract ? `Quelltext (${extract.pageUrl}):\n${extract.text.slice(0, 9000)}` : "Kein Quelltext gefunden.");
-  const result = await callAiFunction(SYSTEM, user, FN);
+    (extract ? `Quelltext (${extract.pageUrl}):\n${extract.text.slice(0, 3500)}` : "Kein Quelltext gefunden.");
+  // Bis zu zwei Versuche: Gemini bricht nach 8 s ab, die übrigen Anbieter
+  // haben eigene Limits – ein zweiter Durchlauf fängt kurze Ausfälle ab.
+  const result = (await callAiFunction(SYSTEM, user, FN)) ?? (await callAiFunction(SYSTEM, user.slice(0, 2500), FN));
   // Keine KI-Antwort (Anbieter-Fehler/Limit): NICHT als geprüft markieren,
   // sonst wäre das Werk 30 Tage gesperrt.
   if (!result) return { id: work.id, introduction: work.introduction_de ?? null, movements: work.movements ?? [], error: "ai_unavailable", source: extract?.pageUrl ?? null };

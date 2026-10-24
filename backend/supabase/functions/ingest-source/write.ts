@@ -4,6 +4,7 @@
 // Duplicate-Candidate ist, oder komplett neu angelegt wird. Siehe
 // docs/06-mvp-plan.md "Ingestion-Pipeline (Basis)" für den Gesamtkontext.
 
+import { upgradeImageUrl } from "../_shared/imageUrlUpgrade.ts";
 import { detectEventStatus } from "./cancellation.ts";
 import { findEventMatch, resolveVenue } from "./matching.ts";
 import type { RawEvent } from "./types.ts";
@@ -496,6 +497,7 @@ async function attachCoverImage(
   currentImageUrls: string[],
   trustImage: boolean,
 ): Promise<void> {
+  if (raw.imageUrl) raw = { ...raw, imageUrl: upgradeImageUrl(raw.imageUrl) };
   try {
     const authoritative = raw.imageUrl != null;
     let detected: { url: string; credits: string | null } | null = authoritative
