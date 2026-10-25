@@ -99,12 +99,21 @@ Deno.serve(async (req) => {
     .order("start_datetime")
     .limit(limit);
 
+  // Parallel (6 gleichzeitig) mit Zeitbudget, damit ein Lauf vor dem
+  // 150-s-Limit der Edge Functions fertig wird.
   let found = 0;
-  for (const event of events ?? []) {
-    const isMphil = /mphil\.de\//.test(`${event.external_id} ${event.website_url}`);
-    const booklet = isMphil ? (await mphilBooklet(supabase, event)) ?? (await pageBooklet(event)) : await pageBooklet(event);
-    await supabase.from("events").update({ program_booklet_url: booklet, program_booklet_checked_at: new Date().toISOString() }).eq("id", event.id);
-    if (booklet) found++;
-  }
-  return json({ processed: events?.length ?? 0, found });
+  let processed = 0;
+  const started = Date.now();
+  const queue = [...(events ?? [])];
+  await Promise.all(Array.from({ length: 6 }, async () => {
+    while (queue.length && Date.now() - started < 110_000) {
+      const event = queue.shift();
+      const isMphil = /mphil\.de\//.test(`${event.external_id} ${event.website_url}`);
+      const booklet = isMphil ? (await mphilBooklet(supabase, event)) ?? (await pageBooklet(event)) : await pageBooklet(event);
+      await supabase.from("events").update({ program_booklet_url: booklet, program_booklet_checked_at: new Date().toISOString() }).eq("id", event.id);
+      processed++;
+      if (booklet) found++;
+    }
+  }));
+  return json({ processed, found });
 });
