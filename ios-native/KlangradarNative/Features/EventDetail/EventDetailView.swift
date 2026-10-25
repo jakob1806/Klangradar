@@ -894,6 +894,7 @@ struct EventDetailView: View {
     private func ticketBar(_ value: JSONObject) -> some View {
         HStack(spacing: 12) {
             if reportStore.auth.userID != nil { attendanceButton }
+            Spacer(minLength: 0)
             ticketButton(value)
         }
         .padding(.horizontal, KlangradarTheme.pagePadding)
@@ -902,32 +903,23 @@ struct EventDetailView: View {
         .overlay(alignment: .top) { Divider() }
     }
 
+    /// Kapsel wie der Ticket-Knopf (gleiche Ecken), zurückhaltend; gefüllt
+    /// grün, wenn besucht (Nutzerwunsch 25.10.2026).
     private var attendanceButton: some View {
         Button {
             Task { await toggleAttendance() }
         } label: {
-            ZStack {
-                Circle()
-                    .fill(isAttended ? Color.green : Color(uiColor: .systemBackground))
-                Circle()
-                    .stroke(isAttended ? Color.green : Color.primary.opacity(0.15), lineWidth: 1.5)
-                Image(systemName: "checkmark")
-                    .font(.system(size: 19, weight: .bold))
-                    .foregroundStyle(isAttended ? Color.white : Color.secondary)
-            }
-            .frame(width: 52, height: 52)
-            .overlay(alignment: .bottom) {
-                Text(isAttended ? "Besucht" : "Besucht?")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .fixedSize()
-                    .offset(y: 13)
-            }
-            .contentShape(.circle)
-            .animation(.snappy, value: isAttended)
+            Label(isAttended ? "Besucht" : "Besucht?", systemImage: isAttended ? "checkmark.circle.fill" : "checkmark.circle")
+                .font(.subheadline.weight(.semibold))
+                .padding(.horizontal, 16)
+                .frame(height: 50)
+                .foregroundStyle(isAttended ? Color.white : Color.primary)
+                .background(isAttended ? AnyShapeStyle(Color.green) : AnyShapeStyle(Color(uiColor: .systemBackground)), in: .capsule)
+                .overlay(Capsule().stroke(isAttended ? Color.clear : Color.primary.opacity(0.12), lineWidth: 1))
+                .contentShape(.capsule)
+                .animation(.snappy, value: isAttended)
         }
         .buttonStyle(.plain)
-        .padding(.bottom, 8)
         .disabled(isUpdatingAttendance)
         .accessibilityLabel(isAttended ? "Als besucht markiert" : "Als besucht markieren")
     }
@@ -954,14 +946,12 @@ struct EventDetailView: View {
                                 .minimumScaleFactor(0.8)
                         }
                     }
-                    Spacer(minLength: 0)
-                    Image(systemName: "arrow.up.right").font(.subheadline.weight(.bold)).opacity(0.8)
                 }
                 .foregroundStyle(.white)
-                .padding(.horizontal, 18)
-                .frame(height: 56)
-                .frame(maxWidth: .infinity)
-                .background(KlangradarTheme.accent, in: .rect(cornerRadius: 18, style: .continuous))
+                .padding(.leading, 18)
+                .padding(.trailing, 20)
+                .frame(height: 50)
+                .background(KlangradarTheme.accent, in: .capsule)
             }
             .simultaneousGesture(TapGesture().onEnded { EngagementLogger.shared.logTicketClick(eventID: event.id) })
             .accessibilityLabel(link.isAffiliate ? "Tickets kaufen, Partnerlink" : "Tickets kaufen")
@@ -969,9 +959,9 @@ struct EventDetailView: View {
             Text("Keine Ticketseite")
                 .font(.headline)
                 .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity)
-                .frame(height: 56)
-                .background(Color(uiColor: .secondarySystemBackground), in: .rect(cornerRadius: 18, style: .continuous))
+                .padding(.horizontal, 20)
+                .frame(height: 50)
+                .background(Color(uiColor: .secondarySystemBackground), in: .capsule)
         }
     }
 

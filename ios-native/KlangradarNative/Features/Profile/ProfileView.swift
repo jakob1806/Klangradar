@@ -583,30 +583,49 @@ private struct MyKlangradarHubView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
-                Text("Deine Klassikwelt auf einen Blick").font(.title2.bold())
                 if let stats {
-                    LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 10) {
-                        NavigationLink {
-                            FavoriteEventsView(auth: auth, repository: repository, eventRepository: eventRepository, contentRepository: contentRepository)
-                        } label: { stat("Gespeichert", stats.savedEvents, "heart.fill") }
+                    // Neu gestaltet (Nutzerwunsch 25.10.2026: "farblos, linear").
+                    VStack(alignment: .leading, spacing: 14) {
+                        Text("DEINE KLASSIKWELT").font(.caption.weight(.bold)).tracking(1.2).foregroundStyle(.white.opacity(0.8))
+                        HStack(alignment: .lastTextBaseline, spacing: 0) {
+                            heroNumber(stats.plannedEvents, "geplant")
+                            heroNumber(stats.visitedEvents, "erlebt")
+                            heroNumber(stats.savedEvents, "gemerkt")
+                        }
+                        Text(heroLine(stats)).font(.subheadline).foregroundStyle(.white.opacity(0.85))
+                    }
+                    .padding(20)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(KlangradarTheme.accent, in: .rect(cornerRadius: 24, style: .continuous))
+
+                    Text("Deine Konzerte").font(.headline).padding(.top, 4)
+                    HStack(spacing: 10) {
                         NavigationLink {
                             PlannedEventsListView(auth: auth, repository: repository, eventRepository: eventRepository, contentRepository: contentRepository)
-                        } label: { stat("Geplant", stats.plannedEvents, "calendar.badge.checkmark") }
+                        } label: { tile("Geplant", stats.plannedEvents, "calendar.badge.checkmark", Color(red: 0.08, green: 0.38, blue: 0.58)) }
                         NavigationLink {
                             VisitedConcertsView(auth: auth, repository: repository, eventRepository: eventRepository, contentRepository: contentRepository)
-                        } label: { stat("Besucht", stats.visitedEvents, "checkmark.seal.fill") }
+                        } label: { tile("Besucht", stats.visitedEvents, "checkmark.seal.fill", Color(red: 0.16, green: 0.55, blue: 0.40)) }
+                        NavigationLink {
+                            FavoriteEventsView(auth: auth, repository: repository, eventRepository: eventRepository, contentRepository: contentRepository)
+                        } label: { tile("Gemerkt", stats.savedEvents, "heart.fill", Color(red: 0.75, green: 0.25, blue: 0.32)) }
+                    }
+                    .buttonStyle(.plain)
+
+                    Text("Du folgst").font(.headline).padding(.top, 4)
+                    LazyVGrid(columns: [.init(.flexible(), spacing: 10), .init(.flexible(), spacing: 10)], spacing: 10) {
                         NavigationLink {
                             FollowedPeopleView(auth: auth, repository: repository, contentRepository: contentRepository, filterKind: .person)
-                        } label: { stat("Personen", stats.followedPersons, "person.fill") }
+                        } label: { followRow("Personen", stats.followedPersons, "person.fill", Color(red: 0.42, green: 0.27, blue: 0.55)) }
                         NavigationLink {
                             FollowedPeopleView(auth: auth, repository: repository, contentRepository: contentRepository, filterKind: .ensemble)
-                        } label: { stat("Ensembles", stats.followedEnsembles, "person.3.fill") }
+                        } label: { followRow("Ensembles", stats.followedEnsembles, "person.3.fill", Color(red: 0.75, green: 0.45, blue: 0.20)) }
                         NavigationLink {
                             FollowedPeopleView(auth: auth, repository: repository, contentRepository: contentRepository, filterKind: .venue)
-                        } label: { stat("Orte", stats.followedVenues, "building.columns.fill") }
+                        } label: { followRow("Orte", stats.followedVenues, "building.columns.fill", Color(red: 0.16, green: 0.50, blue: 0.55)) }
                         NavigationLink {
                             FollowedWorksListView(auth: auth, repository: repository, contentRepository: contentRepository)
-                        } label: { stat("Werke", stats.followedWorks, "music.note.list") }
+                        } label: { followRow("Werke", stats.followedWorks, "music.note.list", Color(red: 0.55, green: 0.47, blue: 0.20)) }
                     }
                     .buttonStyle(.plain)
                 } else if auth.accessToken == nil {
@@ -636,6 +655,54 @@ private struct MyKlangradarHubView: View {
         .background(Color(uiColor: .systemGroupedBackground))
         .navigationTitle("Mein Klangradar")
         .task { await load() }
+    }
+
+    private func heroNumber(_ value: Int, _ label: String) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(value.formatted()).font(.system(size: 34, weight: .bold, design: .rounded)).monospacedDigit().foregroundStyle(.white)
+            Text(label).font(.caption.weight(.semibold)).foregroundStyle(.white.opacity(0.8))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func heroLine(_ stats: KlangradarStats) -> String {
+        if stats.plannedEvents > 0 { return "Dein nächster Konzertabend wartet schon." }
+        if stats.savedEvents > 0 { return "Aus deinen gemerkten Konzerten wird ein Abend – plane ihn." }
+        return "Merke dir Konzerte mit ♡, dann füllt sich deine Klassikwelt."
+    }
+
+    private func tile(_ title: String, _ value: Int, _ icon: String, _ color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Image(systemName: icon)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white)
+                .frame(width: 34, height: 34)
+                .background(color, in: .circle)
+            Spacer(minLength: 0)
+            Text(value.formatted()).font(.title2.weight(.bold)).monospacedDigit()
+            Text(title).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, minHeight: 124, alignment: .topLeading)
+        .background(color.opacity(0.09), in: .rect(cornerRadius: 20, style: .continuous))
+    }
+
+    private func followRow(_ title: String, _ value: Int, _ icon: String, _ color: Color) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(color)
+                .frame(width: 32, height: 32)
+                .background(color.opacity(0.12), in: .rect(cornerRadius: 10, style: .continuous))
+            VStack(alignment: .leading, spacing: 0) {
+                Text(value.formatted()).font(.headline).monospacedDigit()
+                Text(title).font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+            Image(systemName: "chevron.right").font(.caption2.bold()).foregroundStyle(.tertiary)
+        }
+        .padding(12)
+        .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 16, style: .continuous))
     }
 
     private func stat(_ title: String, _ value: Int, _ icon: String) -> some View {
@@ -2222,17 +2289,21 @@ private struct ProfileContentSection: View {
                         withAnimation(.snappy) { tab = item }
                         Haptics.light()
                     } label: {
-                        VStack(spacing: 6) {
-                            Image(systemName: item.symbol).font(.title3.weight(.semibold))
-                            Text(count(for: item).map(String.init) ?? " ").font(.headline.monospacedDigit())
-                            Text(item.rawValue).font(.caption2.weight(.semibold))
+                        // Mittleres Format (Nutzerwunsch 25.10.2026): zwischen
+                        // schmaler Segment-Leiste und großen Kacheln.
+                        VStack(spacing: 2) {
+                            HStack(spacing: 4) {
+                                Image(systemName: item.symbol).font(.caption.weight(.semibold))
+                                Text(count(for: item).map(String.init) ?? "–").font(.subheadline.weight(.bold).monospacedDigit())
+                            }
+                            Text(item.rawValue).font(.caption2.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.85)
                         }
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
+                        .padding(.vertical, 8)
                         .foregroundStyle(tab == item ? Color.white : Color.primary)
                         .background(
                             tab == item ? AnyShapeStyle(KlangradarTheme.accent) : AnyShapeStyle(Color(uiColor: .secondarySystemBackground)),
-                            in: .rect(cornerRadius: 18, style: .continuous)
+                            in: .rect(cornerRadius: 12, style: .continuous)
                         )
                     }
                     .buttonStyle(.plain)

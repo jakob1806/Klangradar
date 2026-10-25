@@ -36,6 +36,9 @@ final class AuthStore: ObservableObject {
 
     func bootstrap() async {
         guard let service else { return }
+        SupabaseTokenRefresher.refresh = { [weak self] in
+            await self?.refreshedAccessToken()
+        }
         operationGeneration += 1
         let generation = operationGeneration
         if case .failed = state { state = .loading }
@@ -135,6 +138,14 @@ final class AuthStore: ObservableObject {
         } catch {
             callbackErrorMessage = error.localizedDescription
         }
+    }
+
+    /// Für SupabaseTokenRefresher: Sitzung erneuern (Refresh-Token) und das
+    /// neue Zugriffstoken liefern.
+    func refreshedAccessToken() async -> String? {
+        guard let service, let session = try? await service.restoreOrCreateSession() else { return nil }
+        apply(session)
+        return session.accessToken
     }
 
     private func apply(_ session: AuthSession) {

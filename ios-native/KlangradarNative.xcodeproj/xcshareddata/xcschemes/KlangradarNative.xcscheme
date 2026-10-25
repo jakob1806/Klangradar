@@ -14,7 +14,7 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "A16F05F1049B5038187660F7"
+               BlueprintIdentifier = "D3F700C640F6D1C6AB4CC815"
                BuildableName = "KlangradarNative.app"
                BlueprintName = "KlangradarNative"
                ReferencedContainer = "container:KlangradarNative.xcodeproj">
@@ -30,7 +30,7 @@
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "A16F05F1049B5038187660F7"
+            BlueprintIdentifier = "D3F700C640F6D1C6AB4CC815"
             BuildableName = "KlangradarNative.app"
             BlueprintName = "KlangradarNative"
             ReferencedContainer = "container:KlangradarNative.xcodeproj">
@@ -41,7 +41,7 @@
             skipped = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "EBFA060130E30E472EB24AED"
+               BlueprintIdentifier = "1FC2423F4DA7FE4AE2646A81"
                BuildableName = "KlangradarNativeTests.xctest"
                BlueprintName = "KlangradarNativeTests"
                ReferencedContainer = "container:KlangradarNative.xcodeproj">
@@ -51,7 +51,7 @@
             skipped = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "8097E859A8C476AAC5F7D0C3"
+               BlueprintIdentifier = "33AEFBC5C7FAF1F1C364F9D5"
                BuildableName = "KlangradarNativeUITests.xctest"
                BlueprintName = "KlangradarNativeUITests"
                ReferencedContainer = "container:KlangradarNative.xcodeproj">
@@ -73,7 +73,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "A16F05F1049B5038187660F7"
+            BlueprintIdentifier = "D3F700C640F6D1C6AB4CC815"
             BuildableName = "KlangradarNative.app"
             BlueprintName = "KlangradarNative"
             ReferencedContainer = "container:KlangradarNative.xcodeproj">
@@ -90,7 +90,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "A16F05F1049B5038187660F7"
+            BlueprintIdentifier = "D3F700C640F6D1C6AB4CC815"
             BuildableName = "KlangradarNative.app"
             BlueprintName = "KlangradarNative"
             ReferencedContainer = "container:KlangradarNative.xcodeproj">
