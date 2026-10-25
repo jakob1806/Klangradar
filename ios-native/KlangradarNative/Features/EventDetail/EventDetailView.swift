@@ -69,7 +69,6 @@ struct EventDetailView: View {
                             accessibility(detail)
                             venue(detail)
                             similarEvents(detail)
-                            ProgramBookletLink(event: event)
                             source(detail)
                             ReportContentLink(entityType: "event", entityID: event.id.uuidString)
                         } else if isLoading {
@@ -165,6 +164,12 @@ struct EventDetailView: View {
                             }
                             if calendarEventInput() != nil {
                                 Button("Zum Kalender hinzufügen", systemImage: "calendar.badge.plus") { calendarTrigger = true }
+                            }
+                            if (event.startDate ?? .distantPast) > .now {
+                                Button(favorites.ids.contains(event.id) ? "Restkarten-Alarm an" : "Bei Restkarten melden",
+                                       systemImage: favorites.ids.contains(event.id) ? "bell.fill" : "bell") {
+                                    Task { await favorites.toggle(event.id) }
+                                }
                             }
                         } label: {
                             heroButtonLabel(systemImage: "ellipsis")
@@ -884,91 +889,89 @@ struct EventDetailView: View {
         .foregroundStyle(.tertiary)
     }
 
+    /// Ticketleiste (Nutzerwunsch 25.10.2026): links "Besucht", rechts EIN
+    /// Ticket-Knopf, der Preis und Verfügbarkeit gleich mit enthält.
     private func ticketBar(_ value: JSONObject) -> some View {
-        let price = priceText(value)
-        let status = ticketStatus(value.string("remaining_tickets_status"))
-        return HStack(spacing: 12) {
-            if reportStore.auth.userID != nil {
-                // "Besucht" unten links neben dem Ticket-Button: sichtbar,
-                // aber zurückhaltend (Nutzerwunsch 25.10.2026).
-                Button {
-                    Task { await toggleAttendance() }
-                } label: {
-                    VStack(spacing: 2) {
-                        Image(systemName: isAttended ? "checkmark.circle.fill" : "checkmark.circle")
-                            .font(.title3)
-                        Text(isAttended ? "Besucht" : "Besucht?")
-                            .font(.caption2.weight(.semibold))
-                    }
-                    .foregroundStyle(isAttended ? Color.green : Color.secondary)
-                    .frame(minWidth: 52)
-                }
-                .buttonStyle(.plain)
-                .disabled(isUpdatingAttendance)
-                .accessibilityLabel(isAttended ? "Als besucht markiert" : "Als besucht markieren")
-            }
-            if price != nil || status != nil {
-                VStack(alignment: .leading, spacing: 3) {
-                    if let price { Text(price).font(.headline) }
-                    if let status {
-                    Text(status).font(.caption).foregroundStyle(.secondary)
-                    }
-                    // Punkt 13: Restkarten-Alarm. Gemerkte Konzerte lösen
-                    // bereits den push-dispatcher-Fall almost_sold_out aus.
-                    if value.string("remaining_tickets_status") == "few_left" || value.string("remaining_tickets_status") == "available" {
-                        Button {
-                            Task { await favorites.toggle(event.id) }
-                        } label: {
-                            Label(favorites.ids.contains(event.id) ? "Restkarten-Alarm an" : "Bei Restkarten melden",
-                                  systemImage: favorites.ids.contains(event.id) ? "bell.fill" : "bell")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(KlangradarTheme.accent)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-            Spacer(minLength: 8)
+        HStack(spacing: 12) {
+            if reportStore.auth.userID != nil { attendanceButton }
             ticketButton(value)
         }
         .padding(.horizontal, KlangradarTheme.pagePadding)
-        .padding(.vertical, 12)
+        .padding(.vertical, 10)
         .background(.ultraThinMaterial)
         .overlay(alignment: .top) { Divider() }
     }
 
+    private var attendanceButton: some View {
+        Button {
+            Task { await toggleAttendance() }
+        } label: {
+            ZStack {
+                Circle()
+                    .fill(isAttended ? Color.green : Color(uiColor: .systemBackground))
+                Circle()
+                    .stroke(isAttended ? Color.green : Color.primary.opacity(0.15), lineWidth: 1.5)
+                Image(systemName: "checkmark")
+                    .font(.system(size: 19, weight: .bold))
+                    .foregroundStyle(isAttended ? Color.white : Color.secondary)
+            }
+            .frame(width: 52, height: 52)
+            .overlay(alignment: .bottom) {
+                Text(isAttended ? "Besucht" : "Besucht?")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .fixedSize()
+                    .offset(y: 13)
+            }
+            .contentShape(.circle)
+            .animation(.snappy, value: isAttended)
+        }
+        .buttonStyle(.plain)
+        .padding(.bottom, 8)
+        .disabled(isUpdatingAttendance)
+        .accessibilityLabel(isAttended ? "Als besucht markiert" : "Als besucht markieren")
+    }
+
     @ViewBuilder private func ticketButton(_ value: JSONObject) -> some View {
         let rawURL = value.string("ticket_url") ?? value.string("website_url")
+        let detailLine = [priceText(value), ticketStatus(value.string("remaining_tickets_status"))]
+            .compactMap { $0 }.joined(separator: " · ")
         if let rawURL, let url = URL(string: rawURL) {
             // Partnerprogramme (affiliate_rules): Link ggf. umschreiben und als
             // Partnerlink kennzeichnen.
             let link = PartnerStore.shared.ticketLink(for: url)
             Link(destination: link.url) {
-                // Immer "Tickets kaufen" (Nutzerwunsch 25.10.2026), auch wenn nur die
-                // Veranstaltungsseite verlinkt ist.
-                Label("Tickets kaufen", systemImage: "ticket")
-                    .font(.headline)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.82)
-                    .padding(.horizontal, 4)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .simultaneousGesture(TapGesture().onEnded { EngagementLogger.shared.logTicketClick(eventID: event.id) })
-            .overlay(alignment: .bottom) {
-                if link.isAffiliate {
-                    Text("Partnerlink")
-                        .font(.system(size: 9, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .offset(y: 13)
-                        .accessibilityLabel("Partnerlink, Klangradar erhält eventuell eine Provision")
+                HStack(spacing: 12) {
+                    Image(systemName: "ticket.fill").font(.title3)
+                    VStack(alignment: .leading, spacing: 1) {
+                        // Immer "Tickets kaufen" (Nutzerwunsch 25.10.2026).
+                        Text("Tickets kaufen").font(.headline)
+                        if !detailLine.isEmpty || link.isAffiliate {
+                            Text([detailLine.isEmpty ? nil : detailLine, link.isAffiliate ? "Partnerlink" : nil].compactMap { $0 }.joined(separator: " · "))
+                                .font(.caption.weight(.medium))
+                                .opacity(0.85)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
+                        }
+                    }
+                    Spacer(minLength: 0)
+                    Image(systemName: "arrow.up.right").font(.subheadline.weight(.bold)).opacity(0.8)
                 }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 18)
+                .frame(height: 56)
+                .frame(maxWidth: .infinity)
+                .background(KlangradarTheme.accent, in: .rect(cornerRadius: 18, style: .continuous))
             }
+            .simultaneousGesture(TapGesture().onEnded { EngagementLogger.shared.logTicketClick(eventID: event.id) })
+            .accessibilityLabel(link.isAffiliate ? "Tickets kaufen, Partnerlink" : "Tickets kaufen")
         } else {
-            Button("Keine Ticketseite", systemImage: "ticket") {}
-                .buttonStyle(.bordered)
-                .controlSize(.large)
-                .disabled(true)
+            Text("Keine Ticketseite")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity)
+                .frame(height: 56)
+                .background(Color(uiColor: .secondarySystemBackground), in: .rect(cornerRadius: 18, style: .continuous))
         }
     }
 
