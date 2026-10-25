@@ -25,7 +25,8 @@ async function processWork(supabase: any, work: any) {
   // nennt die Quelle.
   const facts = await fetchWorkWikiFacts(work.title, work.composer?.full_name ?? null, work.catalog_number ?? null).catch(() => null);
   const update: Record<string, unknown> = { introduction_checked_at: new Date().toISOString() };
-  if (facts?.introduction) {
+  // Von der Redaktion geschriebene Einführungen/Satzfolgen nie überschreiben.
+  if (facts?.introduction && work.introduction_source !== "redaktion") {
     update.introduction_de = facts.introduction;
     update.introduction_source_url = facts.pageUrl;
     update.introduction_source = "wikipedia";
@@ -33,7 +34,7 @@ async function processWork(supabase: any, work: any) {
   // Recherchierte Satzfolge ersetzt eine kürzere/fehlende (Quelle der
   // Daten oft nur die Veranstalterseite mit unvollständigen Sätzen).
   const existing = Array.isArray(work.movements) ? work.movements.length : 0;
-  if ((facts?.movements.length ?? 0) > Math.max(existing, 1)) {
+  if (work.movements_source !== "redaktion" && (facts?.movements.length ?? 0) > Math.max(existing, 1)) {
     update.movements = facts!.movements.slice(0, 20);
     update.movements_source = "wikipedia";
   }
@@ -47,7 +48,7 @@ async function processWork(supabase: any, work: any) {
   };
 }
 
-const SELECT = "id,title,catalog_number,movements,introduction_de,introduction_checked_at,composer:persons(full_name)";
+const SELECT = "id,title,catalog_number,movements,movements_source,introduction_de,introduction_source,introduction_checked_at,composer:persons(full_name)";
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
@@ -64,8 +65,10 @@ Deno.serve(async (req) => {
   if (typeof body.work_id === "string") {
     const { data: work } = await supabase.from("works").select(SELECT).eq("id", body.work_id).maybeSingle();
     if (!work) return json({ error: "not found" }, 404);
+    // "force" (Redaktion: "Automatisch recherchieren") nur mit internem Secret.
+    const force = body.force === true && !(await requireInternalAuth(req));
     const fresh = work.introduction_checked_at && Date.now() - Date.parse(work.introduction_checked_at) < 7 * 86_400_000;
-    if (fresh) {
+    if (fresh && !force) {
       return json({ id: work.id, introduction: work.introduction_de, movements: work.movements ?? [] });
     }
     return json(await processWork(supabase, work));
@@ -85,6 +88,14 @@ Deno.serve(async (req) => {
   const seen = new Set<string>();
   // deno-lint-ignore no-explicit-any
   const works = (rows ?? []).map((r: any) => r.works).filter((w: any) => w && !seen.has(w.id) && seen.add(w.id)).slice(0, limit);
+  // Danach alle übrigen Werke der Datenbank (Redaktions-Wunsch 25.10.2026:
+  // für alle vorhandenen Werke recherchieren).
+  if (works.length < limit) {
+    const { data: rest } = await supabase.from("works").select(SELECT)
+      .is("introduction_checked_at", null).order("id").limit(limit - works.length + 10);
+    // deno-lint-ignore no-explicit-any
+    for (const w of rest ?? []) if (!seen.has((w as any).id) && works.length < limit) { seen.add((w as any).id); works.push(w); }
+  }
   // Parallel (6 gleichzeitig) und mit Zeitbudget: nacheinander schaffte ein
   // Lauf vor dem 150-s-Limit der Edge Functions nur ~6 Werke.
   const started = Date.now();
