@@ -28,6 +28,7 @@ async function processWork(supabase: any, work: any) {
   if (facts?.introduction) {
     update.introduction_de = facts.introduction;
     update.introduction_source_url = facts.pageUrl;
+    update.introduction_source = "wikipedia";
   }
   // Recherchierte Satzfolge ersetzt eine kürzere/fehlende (Quelle der
   // Daten oft nur die Veranstalterseite mit unvollständigen Sätzen).

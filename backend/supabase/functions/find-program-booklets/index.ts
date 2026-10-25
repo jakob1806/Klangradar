@@ -111,7 +111,12 @@ Deno.serve(async (req) => {
       if (!event) break;
       const isMphil = /mphil\.de\//.test(`${event.external_id} ${event.website_url}`);
       const booklet = isMphil ? (await mphilBooklet(supabase, event)) ?? (await pageBooklet(event)) : await pageBooklet(event);
-      await supabase.from("events").update({ program_booklet_url: booklet, program_booklet_checked_at: new Date().toISOString() }).eq("id", event.id);
+      await supabase.from("events").update({
+        program_booklet_url: booklet,
+        program_booklet_checked_at: new Date().toISOString(),
+        // Neues Heft → Werkangaben daraus neu auswerten (booklet-work-facts).
+        ...(booklet ? { booklet_facts_checked_at: null } : {}),
+      }).eq("id", event.id);
       processed++;
       if (booklet) found++;
     }

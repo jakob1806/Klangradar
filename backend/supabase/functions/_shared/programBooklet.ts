@@ -33,5 +33,5 @@ export function findProgramBooklet(html: string, pageUrl: string): string | null
 export async function saveProgramBooklet(supabase: any, eventId: string, html: string, pageUrl: string): Promise<void> {
   const url = findProgramBooklet(html, pageUrl);
   if (!url) return;
-  await supabase.from("events").update({ program_booklet_url: url }).eq("id", eventId).is("program_booklet_url", null);
+  await supabase.from("events").update({ program_booklet_url: url, booklet_facts_checked_at: null }).eq("id", eventId).is("program_booklet_url", null);
 }

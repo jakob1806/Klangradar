@@ -18,6 +18,7 @@ struct PrepareSection: View {
         let title: String
         let composer: String?
         let movements: [String]
+        var durationMinutes: Int? = nil
     }
 
     private var works: [WorkRef] {
@@ -30,7 +31,7 @@ struct PrepareSection: View {
                 if case let .array(items)? = work["movements"] {
                     movements = items.compactMap { if case let .string(text) = $0 { text } else { nil } }
                 }
-                return WorkRef(id: id, title: title, composer: work.object("composer")?.string("full_name"), movements: movements)
+                return WorkRef(id: id, title: title, composer: work.object("composer")?.string("full_name"), movements: movements, durationMinutes: work.integer("duration_minutes"))
             }
     }
 
@@ -77,7 +78,7 @@ struct PrepareSection: View {
                             VStack(alignment: .leading, spacing: 10) {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(work.title).font(.subheadline.weight(.semibold)).lineLimit(2)
-                                    Text([work.composer, work.movements.count > 1 ? "\(work.movements.count) Sätze" : nil].compactMap { $0 }.joined(separator: " · "))
+                                    Text([work.composer, work.movements.count > 1 ? "\(work.movements.count) Sätze" : nil, work.durationMinutes.map { "ca. \($0) Min." }].compactMap { $0 }.joined(separator: " · "))
                                         .font(.caption).foregroundStyle(.secondary)
                                 }
                                 HStack(spacing: 8) {
@@ -177,6 +178,7 @@ private struct WorkIntroductionSheet: View {
 
     @State private var introduction: String?
     @State private var sourceURL: URL?
+    @State private var sourceKind: String?
     @State private var movements: [String] = []
     @State private var isLoading = true
 
@@ -207,7 +209,7 @@ private struct WorkIntroductionSheet: View {
                     }
                     if let sourceURL {
                         Link(destination: sourceURL) {
-                            Label("Quelle: Wikipedia", systemImage: "link").font(.footnote)
+                            Label(sourceLabel, systemImage: "link").font(.footnote)
                         }
                     }
                 }
@@ -225,7 +227,7 @@ private struct WorkIntroductionSheet: View {
         defer { isLoading = false }
         guard let client = SocialStore.shared.repository?.client else { return }
         let rows: [JSONObject]? = try? await client.get(table: "works", queryItems: [
-            URLQueryItem(name: "select", value: "introduction_de,introduction_source_url,movements"),
+            URLQueryItem(name: "select", value: "introduction_de,introduction_source_url,introduction_source,movements"),
             URLQueryItem(name: "id", value: "eq.\(work.id.uuidString)")
         ])
         if let row = rows?.first, let text = row.string("introduction_de"), !text.isEmpty {
@@ -243,7 +245,16 @@ private struct WorkIntroductionSheet: View {
         }
     }
 
+    private var sourceLabel: String {
+        switch sourceKind {
+        case "programmheft": "Auszug aus dem Programmheft"
+        case "veranstalter": "Quelle: Veranstalter"
+        default: "Quelle: Wikipedia"
+        }
+    }
+
     private func apply(_ row: JSONObject) {
+        sourceKind = row.string("introduction_source")
         introduction = row.string("introduction_de")
         sourceURL = row.string("introduction_source_url").flatMap(URL.init(string:))
         if case let .array(items)? = row["movements"] {

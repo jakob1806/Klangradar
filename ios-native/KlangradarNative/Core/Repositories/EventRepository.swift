@@ -569,7 +569,7 @@ struct LiveEventRepository: EventRepository {
             URLQueryItem(name: "id", value: "neq.\(eventID)"),
             URLQueryItem(name: "status", value: "neq.draft")
         ] }
-        let selection = "program_notes_de,program_extraction_status,event_works(position,after_intermission,works(id,title,catalog_number,key_signature,instrumentation,movements,composer:persons(id,slug,full_name,photo_url))),event_participants(role,role_label,persons(id,slug,full_name,photo_url,member_of:ensembles!member_of_ensemble_id(slug,name)),ensembles(id,slug,name,photo_url,parent_ensemble_id))"
+        let selection = "program_notes_de,program_extraction_status,event_works(position,after_intermission,works(id,title,catalog_number,key_signature,instrumentation,movements,duration_minutes,composer:persons(id,slug,full_name,photo_url))),event_participants(role,role_label,persons(id,slug,full_name,photo_url,member_of:ensembles!member_of_ensemble_id(slug,name)),ensembles(id,slug,name,photo_url,parent_ensemble_id))"
         var rows: [JSONObject]? = try? await client.get(table: "events", queryItems: queryItems(selection))
         if rows == nil {
             rows = try? await client.get(table: "events", queryItems: queryItems(selection.replacingOccurrences(of: "role,role_label", with: "role")))
@@ -597,7 +597,7 @@ struct LiveEventRepository: EventRepository {
     attribution_license_url,last_verified_at,
     venues(id,slug,name,address_street,address_zip,address_city,photo_url,description_de),
     organizers(name),event_genres(genres(id,slug,label_de)),
-    event_works(position,after_intermission,works(id,title,catalog_number,key_signature,instrumentation,movements,composer:persons(id,slug,full_name,photo_url))),
+    event_works(position,after_intermission,works(id,title,catalog_number,key_signature,instrumentation,movements,duration_minutes,composer:persons(id,slug,full_name,photo_url))),
     event_participants(role,role_label,persons(id,slug,full_name,photo_url,member_of:ensembles!member_of_ensemble_id(slug,name)),ensembles(id,slug,name,photo_url,parent_ensemble_id))
     """
     .components(separatedBy: .newlines)
