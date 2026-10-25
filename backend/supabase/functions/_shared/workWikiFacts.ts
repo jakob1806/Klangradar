@@ -102,7 +102,7 @@ async function search(lang: Lang, query: string): Promise<string[]> {
   return (data?.query?.search ?? []).map((r: any) => r.title);
 }
 
-export function cleanIntro(text: string): string | null {
+export function cleanIntro(text: string, limit = 900): string | null {
   const plain = text
     .replace(/\s*\([^()]*[Ѐ-ӿͰ-Ͽ][^()]*\)/g, "")
     .replace(/\s*\[[^\]]*\]/g, "")
@@ -122,9 +122,9 @@ export function cleanIntro(text: string): string | null {
   if (start < plain.length) sentences.push(plain.slice(start).trim());
   let out = "";
   for (const sentence of sentences) {
-    if (out.length > 120 && (out + sentence).length > 560) break;
+    if (out.length > 120 && (out + sentence).length > limit) break;
     out += (out ? " " : "") + sentence;
-    if (out.length > 420) break;
+    if (out.length > limit - 140) break;
   }
   return out.length >= 60 ? out : null;
 }
@@ -196,6 +196,55 @@ async function movementsFor(lang: Lang, title: string): Promise<string[]> {
   return items.length >= 2 ? items.slice(0, 20) : [];
 }
 
+/** Voller Klartext eines Artikels mit "== Abschnitt =="-Markierungen. */
+async function fullText(lang: Lang, title: string): Promise<string> {
+  const data = await get(`https://${lang}.wikipedia.org/w/api.php?action=query&format=json&prop=extracts&explaintext=1&exsectionformat=wiki&redirects=1&titles=${encodeURIComponent(title)}`);
+  return (Object.values(data?.query?.pages ?? {})[0] as any)?.extract ?? "";
+}
+
+const CONTEXT_SECTIONS = /^(entstehung|entstehungsgeschichte|hintergrund|geschichte|charakteristik|zur musik|musik|werkbeschreibung|werk|history|background|composition)$/i;
+
+/** Zweiter Absatz der Einführung: erster gehaltvoller Absatz aus
+ * Entstehung/Hintergrund/Werkbeschreibung (Nutzerwunsch 25.10.2026:
+ * Einführungen ausführlicher). */
+function contextParagraphs(text: string): string[] {
+  const parts = text.split(/^==+\s*(.+?)\s*==+$/m);
+  const out: string[] = [];
+  for (let i = 1; i < parts.length && out.length < 2; i += 2) {
+    if (!CONTEXT_SECTIONS.test(parts[i].trim())) continue;
+    const paragraph = parts[i + 1].split("\n").map((l) => l.trim())
+      .find((l) => l.length > 160 && !/^(Besetzung|Instrumentation|Scored)\b/i.test(l));
+    const cleaned = paragraph ? cleanIntro(paragraph, 750) : null;
+    if (cleaned) out.push(cleaned);
+  }
+  return out;
+}
+
+const LABEL = /^(Satzfolge|Sätze|Satzbezeichnungen|Die Sätze|Movements|Structure)\s*:?\s*$/i;
+
+/** Satzliste aus dem Klartext: Zeilen nach "Satzfolge:" o. ä. bzw. unter
+ * einem gleichnamigen Abschnitt, solange sie kurz sind. */
+function movementsFromText(text: string): string[] {
+  const lines = text.split("\n").map((l) => l.trim());
+  for (let i = 0; i < lines.length; i++) {
+    const heading = lines[i].match(/^==+\s*(.+?)\s*==+$/)?.[1];
+    if (!LABEL.test(heading ?? lines[i]) && !/^Satzfolge\s*:/i.test(lines[i])) continue;
+    const items: string[] = [];
+    for (let j = i + 1; j < lines.length && items.length < 15; j++) {
+      const line = lines[j];
+      if (!line) { if (items.length) break; else continue; }
+      if (/^==/.test(line) || line.length > 110) break;
+      items.push(line.replace(/^(\d+|[IVX]+)[.)]\s*/, ""));
+    }
+    if (items.length >= 2) return items.map((item, n) => `${n + 1}. ${item}`);
+  }
+  return [];
+}
+
+function best(...lists: string[][]): string[] {
+  return lists.filter((l) => l.length >= 2 && l.length <= 16).sort((a, b) => b.length - a.length)[0] ?? [];
+}
+
 export async function fetchWorkWikiFacts(title: string, composer: string | null, catalog: string | null): Promise<WorkWikiFacts | null> {
   const tried = new Set<string>();
   const candidates = candidateTitles(title, composer);
@@ -219,21 +268,29 @@ export async function fetchWorkWikiFacts(title: string, composer: string | null,
   }
   if (!found) return null;
 
+
   // Englischer Treffer: Einführung möglichst aus dem deutschen Artikel.
   let intro = found;
+  let enTitle: string | null = found.lang === "en" ? found.title : null;
   if (found.lang === "en") {
     const ll = await get(`https://en.wikipedia.org/w/api.php?action=query&format=json&prop=langlinks&lllang=de&titles=${encodeURIComponent(found.title)}`);
     const deTitle = (Object.values(ll?.query?.pages ?? {})[0] as any)?.langlinks?.[0]?.["*"];
     const dePage = deTitle ? await page("de", deTitle) : null;
     if (dePage) intro = dePage;
-  }
-
-  let movements = await movementsFor(found.lang, found.title);
-  if (movements.length < 2 && found.lang === "de") {
-    // Englischer Artikel desselben Werks über den Sprachlink.
+  } else {
     const ll = await get(`https://de.wikipedia.org/w/api.php?action=query&format=json&prop=langlinks&lllang=en&titles=${encodeURIComponent(found.title)}`);
-    const enTitle = (Object.values(ll?.query?.pages ?? {})[0] as any)?.langlinks?.[0]?.["*"];
-    if (enTitle) movements = await movementsFor("en", enTitle);
+    enTitle = (Object.values(ll?.query?.pages ?? {})[0] as any)?.langlinks?.[0]?.["*"] ?? null;
   }
-  return { introduction: cleanIntro(intro.extract), movements, pageUrl: intro.url };
+  const deText = intro.lang === "de" ? await fullText("de", intro.title) : "";
+  const deMovements = intro.lang === "de" ? best(await movementsFor("de", intro.title), movementsFromText(deText)) : [];
+  // Satzliste: deutsch bevorzugt, außer der englische Artikel nennt mehr
+  // Sätze (z. B. Beethoven 9: de 2 von 4 in der Liste, en alle 4).
+  const enMovements = enTitle ? best(await movementsFor("en", enTitle), movementsFromText(await fullText("en", enTitle))) : [];
+  const movements = enMovements.length > deMovements.length ? enMovements : deMovements;
+  const lead = cleanIntro(intro.extract);
+  const context = intro.lang === "de" ? contextParagraphs(deText) : [];
+  const introduction = lead
+    ? [lead, ...context.filter((p) => !lead.includes(p.slice(0, 40)))].join("\n\n")
+    : null;
+  return { introduction, movements, pageUrl: intro.url };
 }
