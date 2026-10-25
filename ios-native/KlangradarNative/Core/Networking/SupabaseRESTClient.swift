@@ -1,5 +1,11 @@
 import Foundation
 
+/// Liefert ein frisches Zugriffstoken (gesetzt von AuthStore), damit ein
+/// abgelaufenes Token nicht alle Anfragen scheitern lässt.
+enum SupabaseTokenRefresher {
+    nonisolated(unsafe) static var refresh: (@Sendable () async -> String?)?
+}
+
 struct SupabaseRESTClient: Sendable {
     private let configuration: APIConfiguration
     private let httpClient: any HTTPClient
@@ -208,6 +214,9 @@ struct SupabaseRESTClient: Sendable {
         // umgangen statt nur nicht befüllt (reloadIgnoringLocalCacheData), damit
         // bereits vorhandene veraltete Einträge ebenfalls nicht mehr greifen.
         request.cachePolicy = .reloadIgnoringLocalCacheData
+        // 20 statt 60 s: kein "ewiges Laden" mehr bei hängender Verbindung
+        // (Nutzermeldung 25.10.2026).
+        request.timeoutInterval = 20
         request.setValue(configuration.supabaseAnonKey, forHTTPHeaderField: "apikey")
         request.setValue(
             "Bearer \(accessToken ?? configuration.supabaseAnonKey)",
@@ -218,7 +227,22 @@ struct SupabaseRESTClient: Sendable {
     }
 
     private func perform(_ request: URLRequest) async throws -> Data {
-        let (data, response) = try await httpClient.data(for: request)
+        var (data, response) = try await httpClient.data(for: request)
+        // Abgelaufenes/ungültiges Nutzer-Token (401): einmal erneuern und
+        // wiederholen; klappt das nicht, öffentliche Daten mit dem anonymen
+        // Schlüssel laden statt die ganze Seite scheitern zu lassen.
+        let anonHeader = "Bearer \(configuration.supabaseAnonKey)"
+        if response.statusCode == 401, request.value(forHTTPHeaderField: "Authorization") != anonHeader {
+            var retry = request
+            if let token = await SupabaseTokenRefresher.refresh?() {
+                retry.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                (data, response) = try await httpClient.data(for: retry)
+            }
+            if response.statusCode == 401 {
+                retry.setValue(anonHeader, forHTTPHeaderField: "Authorization")
+                (data, response) = try await httpClient.data(for: retry)
+            }
+        }
         guard 200..<300 ~= response.statusCode else {
             let message = String(data: data, encoding: .utf8) ?? "Unbekannter Fehler"
             throw APIError.httpStatus(response.statusCode, message)

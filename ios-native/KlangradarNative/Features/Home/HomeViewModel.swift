@@ -76,10 +76,10 @@ final class HomeViewModel: ObservableObject {
     func load() async {
         guard case .idle = state else { return }
         hasStartedLoading = true
-        if let auth, case .loading = auth.state {
-            state = .loading
-            return
-        }
+        // Öffentliche Inhalte sofort laden, nicht auf die Anmeldung warten
+        // (hing die Sitzungswiederherstellung, blieb Home bis zu 20 s leer und
+        // zeigte dann einen Fehler). Die Personalisierung folgt über den
+        // auth-Sink, sobald die Sitzung steht.
         if let cached = HomeCache.load(for: auth?.userID), cached.regionID == regionID {
             applySnapshot(cached)
             await refresh(showsLoading: false, usesCacheOnFailure: true)
