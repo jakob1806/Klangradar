@@ -27,6 +27,7 @@ struct FriendsAttendingRow: View {
                 }
             }
         }
+        .padding(.bottom, friends.isEmpty ? 0 : 20)
         .task {
             friends = await follows.friendsAttending(eventID: event.id)
             // Schnellaktion "Freunde fragen" aus einer Push-Mitteilung.
@@ -112,6 +113,7 @@ struct EventRatingSection: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.bottom, 20)
             .task { await load() }
         }
     }

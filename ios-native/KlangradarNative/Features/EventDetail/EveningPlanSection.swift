@@ -458,16 +458,15 @@ struct EveningPlanSection: View {
     private var ticketCard: some View {
         Group {
             if let ticketImage {
+                // Kein Vorschaubild mehr: nach dem Ablegen wird die Kachel
+                // einfach zu "Ticket öffnen" (Nutzerwunsch 25.10.2026).
                 Button { showsTicket = true } label: {
-                    // Ganzes Ticket unverzerrt (vorher beschnittener Streifen).
                     VStack(alignment: .leading, spacing: 8) {
-                        Image(uiImage: ticketImage).resizable().scaledToFit()
-                            .frame(maxWidth: .infinity, maxHeight: 120)
-                            .padding(6)
-                            .background(.white, in: .rect(cornerRadius: 10, style: .continuous))
-                            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Color.primary.opacity(0.08)))
-                        Label("Ticket öffnen", systemImage: "ticket").font(.subheadline.weight(.semibold)).foregroundStyle(KlangradarTheme.accent)
+                        Image(systemName: "ticket.fill").font(.title2).foregroundStyle(KlangradarTheme.accent)
+                        Text("Ticket öffnen").font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+                        Text("Mit voller Bildschirmhelligkeit für den Einlass.").font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.leading)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             } else {
                 Menu {
@@ -601,8 +600,7 @@ private struct TicketFullScreen: View {
 }
 
 /// Ort wie in Apple Karten: Look-Around-Foto, gefüllter Kategorie-Kreis,
-/// Name, Fußweg. Tippen öffnet die Apple-Karten-Ortskarte (iOS 18) bzw.
-/// Apple Karten.
+/// Name, Fußweg. Tippen öffnet das Lokal direkt in Apple Karten.
 private struct PlaceCard: View {
     let item: MKMapItem
     let symbol: String
@@ -610,11 +608,11 @@ private struct PlaceCard: View {
     let distance: String?
 
     @State private var photo: UIImage?
-    @State private var showsDetail = false
 
     var body: some View {
         Button {
-            if #available(iOS 18.0, *) { showsDetail = true } else { item.openInMaps() }
+            // Direkt in Apple Karten mit dem Lokal (Nutzerwunsch 25.10.2026).
+            item.openInMaps()
         } label: {
             VStack(alignment: .leading, spacing: 0) {
                 ZStack(alignment: .bottomLeading) {
@@ -646,7 +644,6 @@ private struct PlaceCard: View {
             .clipShape(.rect(cornerRadius: 16, style: .continuous))
         }
         .buttonStyle(.plain)
-        .modifier(MapItemDetailModifier(item: item, isPresented: $showsDetail))
         .task { await loadPhoto() }
     }
 
@@ -667,18 +664,5 @@ private struct PlaceCard: View {
         let options = MKLookAroundSnapshotter.Options()
         options.size = CGSize(width: 360, height: 220)
         photo = try? await MKLookAroundSnapshotter(scene: scene, options: options).snapshot.image
-    }
-}
-
-private struct MapItemDetailModifier: ViewModifier {
-    let item: MKMapItem
-    @Binding var isPresented: Bool
-
-    func body(content: Content) -> some View {
-        if #available(iOS 18.0, *) {
-            content.mapItemDetailSheet(isPresented: $isPresented, item: item)
-        } else {
-            content
-        }
     }
 }

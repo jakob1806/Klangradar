@@ -43,10 +43,15 @@ struct EventDetailView: View {
                         titleBlock
 
                         if let detail {
-                            FriendsAttendingRow(event: event, shareURL: (detail.string("ticket_url") ?? detail.string("website_url")).flatMap(URL.init(string:)))
-                            EventRatingSection(event: event)
-                            FriendTasteRow(event: event)
-                            genres(detail)
+                            // In einem Block ohne Zwischenabstand: leere Zeilen
+                            // (keine Freunde/Bewertungen) erzeugten sonst je 28 pt
+                            // Leerraum (Nutzermeldung 25.10.2026).
+                            VStack(alignment: .leading, spacing: 0) {
+                                FriendsAttendingRow(event: event, shareURL: (detail.string("ticket_url") ?? detail.string("website_url")).flatMap(URL.init(string:)))
+                                EventRatingSection(event: event)
+                                FriendTasteRow(event: event)
+                                genres(detail)
+                            }
                             essentialFacts(detail)
 
                             if let description = detail.string("description_de"), !description.isEmpty {
@@ -141,12 +146,10 @@ struct EventDetailView: View {
                     HStack(spacing: 10) {
                         heroButton(systemImage: "chevron.left", label: "Zurück") { dismiss() }
                         Spacer()
-                        if reportStore.auth.userID != nil {
-                            heroButton(
-                                systemImage: isAttended ? "checkmark.circle.fill" : "checkmark.circle",
-                                label: isAttended ? "Besucht" : "Als besucht markieren"
-                            ) { Task { await toggleAttendance() } }
+                        ShareLink(item: shareText) {
+                            heroButtonLabel(systemImage: "square.and.arrow.up").offset(y: -1.5)
                         }
+                        .accessibilityLabel("Teilen")
                         heroButton(
                             systemImage: favorites.ids.contains(event.id) ? "heart.fill" : "heart",
                             label: "Favorit"
@@ -163,7 +166,6 @@ struct EventDetailView: View {
                             if calendarEventInput() != nil {
                                 Button("Zum Kalender hinzufügen", systemImage: "calendar.badge.plus") { calendarTrigger = true }
                             }
-                            ShareLink(item: shareText) { Label("Teilen", systemImage: "square.and.arrow.up") }
                         } label: {
                             heroButtonLabel(systemImage: "ellipsis")
                         }
@@ -885,7 +887,26 @@ struct EventDetailView: View {
     private func ticketBar(_ value: JSONObject) -> some View {
         let price = priceText(value)
         let status = ticketStatus(value.string("remaining_tickets_status"))
-        return HStack(spacing: 16) {
+        return HStack(spacing: 12) {
+            if reportStore.auth.userID != nil {
+                // "Besucht" unten links neben dem Ticket-Button: sichtbar,
+                // aber zurückhaltend (Nutzerwunsch 25.10.2026).
+                Button {
+                    Task { await toggleAttendance() }
+                } label: {
+                    VStack(spacing: 2) {
+                        Image(systemName: isAttended ? "checkmark.circle.fill" : "checkmark.circle")
+                            .font(.title3)
+                        Text(isAttended ? "Besucht" : "Besucht?")
+                            .font(.caption2.weight(.semibold))
+                    }
+                    .foregroundStyle(isAttended ? Color.green : Color.secondary)
+                    .frame(minWidth: 52)
+                }
+                .buttonStyle(.plain)
+                .disabled(isUpdatingAttendance)
+                .accessibilityLabel(isAttended ? "Als besucht markiert" : "Als besucht markieren")
+            }
             if price != nil || status != nil {
                 VStack(alignment: .leading, spacing: 3) {
                     if let price { Text(price).font(.headline) }
@@ -918,17 +939,14 @@ struct EventDetailView: View {
 
     @ViewBuilder private func ticketButton(_ value: JSONObject) -> some View {
         let rawURL = value.string("ticket_url") ?? value.string("website_url")
-        // Ohne echte ticket_url ist der Link nur die Veranstaltungsseite —
-        // "Tickets kaufen" wäre dann ein Versprechen, das die Seite nicht
-        // zwingend einlöst (Parität zur Flutter-App).
-        let hasTicketURL = !(value.string("ticket_url") ?? "").isEmpty
-        let unavailable = value.string("remaining_tickets_status") == "sold_out" || !hasTicketURL
         if let rawURL, let url = URL(string: rawURL) {
             // Partnerprogramme (affiliate_rules): Link ggf. umschreiben und als
             // Partnerlink kennzeichnen.
             let link = PartnerStore.shared.ticketLink(for: url)
             Link(destination: link.url) {
-                Label(unavailable ? "Zur Veranstaltungsseite" : "Tickets kaufen", systemImage: "ticket")
+                // Immer "Tickets kaufen" (Nutzerwunsch 25.10.2026), auch wenn nur die
+                // Veranstaltungsseite verlinkt ist.
+                Label("Tickets kaufen", systemImage: "ticket")
                     .font(.headline)
                     .lineLimit(1)
                     .minimumScaleFactor(0.82)
