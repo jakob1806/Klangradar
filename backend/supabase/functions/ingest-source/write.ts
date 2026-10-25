@@ -4,6 +4,7 @@
 // Duplicate-Candidate ist, oder komplett neu angelegt wird. Siehe
 // docs/06-mvp-plan.md "Ingestion-Pipeline (Basis)" für den Gesamtkontext.
 
+import { splitPriceInfo } from "../_shared/priceInText.ts";
 import { upgradeImageUrl } from "../_shared/imageUrlUpgrade.ts";
 import { detectEventStatus } from "./cancellation.ts";
 import { findEventMatch, resolveVenue } from "./matching.ts";
@@ -187,10 +188,15 @@ export async function upsertRawEvent(
     // als DOM-basierte Scrape-Quellen (scrape.ts), deren textContent das
     // schon automatisch dekodiert. Zentral hier statt in jedem Parser
     // einzeln, damit kein zukünftiger JSON-Parser dieselbe Lücke wiederholt.
+    // Preisangaben im Beschreibungstext (staatsoper.de: "Preise H , € 88 / 77
+    // / …") herauslösen und als Preis übernehmen statt anzuzeigen.
+    const priceSplit = splitPriceInfo(rawInRaw.description ? decodeHtmlEntities(rawInRaw.description) : rawInRaw.description);
     const rawIn: RawEvent = {
       ...rawInRaw,
       title: decodeHtmlEntities(rawInRaw.title),
-      description: rawInRaw.description ? decodeHtmlEntities(rawInRaw.description) : rawInRaw.description,
+      description: priceSplit.description,
+      priceMin: rawInRaw.priceMin ?? priceSplit.priceMin,
+      priceMax: rawInRaw.priceMax ?? priceSplit.priceMax,
     };
 
     // Manche Quellen liefern als "Titel" nur eine Komponisten-Liste (z.B.
