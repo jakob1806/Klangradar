@@ -23,6 +23,13 @@ struct EventCalendarView: View {
     enum CalendarMode: String, CaseIterable, Identifiable {
         case month = "Monat", week = "Woche", day = "Tag"
         var id: String { rawValue }
+        var symbol: String {
+            switch self {
+            case .month: "calendar"
+            case .week: "rectangle.split.3x1"
+            case .day: "clock"
+            }
+        }
     }
 
     private var weekCalendar: Calendar {
@@ -66,10 +73,7 @@ struct EventCalendarView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    Picker("Ansicht", selection: $mode.animation(.snappy)) {
-                        ForEach(CalendarMode.allCases) { Text($0.rawValue).tag($0) }
-                    }
-                    .pickerStyle(.segmented)
+                    CalendarModeSwitcher(mode: $mode)
 
                     switch mode {
                     case .month:
@@ -357,6 +361,58 @@ private struct DayTimeline: View {
                     .buttonStyle(.plain)
                 }
             }
+        }
+    }
+}
+
+/// Ansichtsumschalter als schwebende Glas-Kapsel (Nutzerwunsch 25.10.2026:
+/// Segment-Leiste "zu linear"): Symbol + Bezeichnung, die Auswahl gleitet
+/// als getönte Glas-Pille zwischen den Feldern (matchedGeometryEffect).
+private struct CalendarModeSwitcher: View {
+    @Binding var mode: EventCalendarView.CalendarMode
+    @Namespace private var selection
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(EventCalendarView.CalendarMode.allCases) { item in
+                let isSelected = item == mode
+                Button {
+                    Haptics.light()
+                    withAnimation(.spring(response: 0.38, dampingFraction: 0.78)) { mode = item }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: item.symbol).font(.footnote.weight(.semibold))
+                        Text(item.rawValue).font(.subheadline.weight(.semibold))
+                    }
+                    .foregroundStyle(isSelected ? Color.white : Color.primary.opacity(0.75))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 40)
+                    .background {
+                        if isSelected {
+                            Capsule()
+                                .fill(KlangradarTheme.accent.gradient)
+                                .shadow(color: KlangradarTheme.accent.opacity(0.35), radius: 8, y: 3)
+                                .matchedGeometryEffect(id: "pill", in: selection)
+                        }
+                    }
+                    .contentShape(.capsule)
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(isSelected ? .isSelected : [])
+            }
+        }
+        .padding(5)
+        .modifier(SwitcherGlass())
+    }
+}
+
+private struct SwitcherGlass: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.glassEffect(.regular.interactive(), in: .capsule)
+        } else {
+            content.background(.regularMaterial, in: .capsule)
+                .overlay(Capsule().stroke(Color.white.opacity(0.4), lineWidth: 0.5))
         }
     }
 }
