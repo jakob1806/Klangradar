@@ -9,6 +9,9 @@ struct PrepareSection: View {
     let detail: JSONObject
 
     @State private var introWork: WorkRef?
+    @State private var bookletURL: URL?
+    @State private var applePlaylist: URL?
+    @State private var spotifyPlaylist: URL?
 
     struct WorkRef: Identifiable, Hashable {
         let id: UUID
@@ -33,11 +36,41 @@ struct PrepareSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 28) {
-            if !works.isEmpty {
+            if !works.isEmpty || bookletURL != nil || applePlaylist != nil || spotifyPlaylist != nil {
                 VStack(alignment: .leading, spacing: 14) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("In 3 Minuten vorbereitet").font(.title2.bold())
-                        Text("Einführung lesen und reinhören").font(.subheadline).foregroundStyle(.secondary)
+                        Text("Programmheft, Einführung und Reinhören").font(.subheadline).foregroundStyle(.secondary)
+                    }
+                    // Programmheft und offizielle Playlist zum Konzert
+                    // (Nutzerwunsch 25.10.2026: hier statt ganz unten).
+                    if bookletURL != nil || applePlaylist != nil || spotifyPlaylist != nil {
+                        HStack(spacing: 10) {
+                            if let bookletURL {
+                                Link(destination: bookletURL) {
+                                    HStack(spacing: 10) {
+                                        Image(systemName: "book.pages.fill").font(.title3).foregroundStyle(KlangradarTheme.accent)
+                                        VStack(alignment: .leading, spacing: 1) {
+                                            Text("Programmheft").font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+                                            Text("PDF des Veranstalters").font(.caption).foregroundStyle(.secondary)
+                                        }
+                                        Spacer(minLength: 0)
+                                    }
+                                    .padding(12)
+                                    .frame(maxWidth: .infinity)
+                                    .background(KlangradarTheme.accent.opacity(0.08), in: .rect(cornerRadius: 16, style: .continuous))
+                                }
+                            }
+                            if applePlaylist != nil || spotifyPlaylist != nil {
+                                HStack(spacing: 8) {
+                                    if let applePlaylist { Link(destination: applePlaylist) { AppleMusicLogo().frame(width: 34, height: 34) }.accessibilityLabel("Playlist zum Konzert in Apple Music") }
+                                    if let spotifyPlaylist { Link(destination: spotifyPlaylist) { SpotifyLogo().frame(width: 34, height: 34) }.accessibilityLabel("Playlist zum Konzert in Spotify") }
+                                    Text("Playlist\nzum Konzert").font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
+                                }
+                                .padding(10)
+                                .background(Color(uiColor: .secondarySystemBackground), in: .rect(cornerRadius: 16, style: .continuous))
+                            }
+                        }
                     }
                     VStack(spacing: 0) {
                         ForEach(Array(works.enumerated()), id: \.element.id) { index, work in
@@ -73,6 +106,19 @@ struct PrepareSection: View {
                     }
                 }
             }
+        }
+        .task(id: event.id) {
+            // Separat und fehlertolerant, damit die Detailseite nicht von den
+            // neuen Spalten abhängt.
+            guard let client = SocialStore.shared.repository?.client else { return }
+            let rows: [JSONObject]? = try? await client.get(table: "events", queryItems: [
+                URLQueryItem(name: "select", value: "program_booklet_url,playlist_urls"),
+                URLQueryItem(name: "id", value: "eq.\(event.id.uuidString)")
+            ])
+            let row = rows?.first
+            bookletURL = row?.string("program_booklet_url").flatMap(URL.init(string:))
+            applePlaylist = row?.object("playlist_urls")?.string("apple_music").flatMap(URL.init(string:))
+            spotifyPlaylist = row?.object("playlist_urls")?.string("spotify").flatMap(URL.init(string:))
         }
         .sheet(item: $introWork) { work in
             WorkIntroductionSheet(work: work)
