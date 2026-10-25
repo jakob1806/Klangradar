@@ -29,8 +29,10 @@ async function processWork(supabase: any, work: any) {
     update.introduction_de = facts.introduction;
     update.introduction_source_url = facts.pageUrl;
   }
-  const hasMovements = Array.isArray(work.movements) && work.movements.length > 1;
-  if (!hasMovements && (facts?.movements.length ?? 0) > 1) {
+  // Recherchierte Satzfolge ersetzt eine kürzere/fehlende (Quelle der
+  // Daten oft nur die Veranstalterseite mit unvollständigen Sätzen).
+  const existing = Array.isArray(work.movements) ? work.movements.length : 0;
+  if ((facts?.movements.length ?? 0) > Math.max(existing, 1)) {
     update.movements = facts!.movements.slice(0, 20);
     update.movements_source = "wikipedia";
   }
@@ -62,7 +64,7 @@ Deno.serve(async (req) => {
     const { data: work } = await supabase.from("works").select(SELECT).eq("id", body.work_id).maybeSingle();
     if (!work) return json({ error: "not found" }, 404);
     const fresh = work.introduction_checked_at && Date.now() - Date.parse(work.introduction_checked_at) < 7 * 86_400_000;
-    if (work.introduction_de || fresh) {
+    if (fresh) {
       return json({ id: work.id, introduction: work.introduction_de, movements: work.movements ?? [] });
     }
     return json(await processWork(supabase, work));

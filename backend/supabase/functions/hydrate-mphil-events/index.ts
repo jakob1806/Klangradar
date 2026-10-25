@@ -64,7 +64,17 @@ Deno.serve(async (req) => {
 
       const duplicatesHidden = await hideSameSlotDuplicates(supabase, event);
 
+      // Offizielle Playlists der Philharmoniker (Apple Music/Spotify-Embeds
+      // auf der Konzertseite) für "In 3 Minuten vorbereitet".
+      const appleId = html.match(/embed\.music\.apple\.com\/de\/playlist\/([^"'?]+)/)?.[1];
+      const spotifyId = html.match(/open\.spotify\.com\/embed\/playlist\/([A-Za-z0-9]+)/)?.[1];
+      const playlists = {
+        ...(appleId ? { apple_music: `https://music.apple.com/de/playlist/${appleId}` } : {}),
+        ...(spotifyId ? { spotify: `https://open.spotify.com/playlist/${spotifyId}` } : {}),
+      };
+
       await supabase.from("events").update({
+        ...(Object.keys(playlists).length ? { playlist_urls: playlists } : {}),
         website_url: pageUrl,
         mphil_detail_synced_at: new Date().toISOString(),
         mphil_detail_sync_error: null,
