@@ -84,8 +84,18 @@ Deno.serve(async (req) => {
   const seen = new Set<string>();
   // deno-lint-ignore no-explicit-any
   const works = (rows ?? []).map((r: any) => r.works).filter((w: any) => w && !seen.has(w.id) && seen.add(w.id)).slice(0, limit);
-  const results = [];
-  for (const work of works) results.push(await processWork(supabase, work).catch(() => ({ id: work.id, error: "Fehler beim Abruf" })));
+  // Parallel (6 gleichzeitig) und mit Zeitbudget: nacheinander schaffte ein
+  // Lauf vor dem 150-s-Limit der Edge Functions nur ~6 Werke.
+  const started = Date.now();
+  const results: unknown[] = [];
+  const queue = [...works];
+  await Promise.all(Array.from({ length: 6 }, async () => {
+    while (queue.length && Date.now() - started < 110_000) {
+      const work = queue.shift();
+      if (!work) break;
+      results.push(await processWork(supabase, work).catch(() => ({ id: work.id, error: "Fehler beim Abruf" })));
+    }
+  }));
   return json({ processed: results.length, results });
 });
 
