@@ -22,10 +22,15 @@ async function bookletText(url: string): Promise<string | null> {
     const bytes = new Uint8Array(await res.arrayBuffer());
     if (bytes.length > 25_000_000) return null;
     if (type.includes("pdf") || /\.pdf(\?|$)/i.test(url)) return await pdfText(bytes);
-    // HTML-Programmheft (z. B. mphil.de/…/programmheft): Text ohne Markup.
+    // HTML-Programmheft (z. B. mphil.de/…/programmheft): reiner Text.
+    // Tags wiederholt entfernen, bis nichts mehr übrig ist (verschachteltes
+    // Markup), danach übrige spitze Klammern löschen.
     let html = new TextDecoder().decode(bytes);
     let previous: string;
-    do { previous = html; html = html.replace(/<(script|style)[^<]*>[^<]*<\/\1>/gi, "").replace(/<[^<>]*>/g, " "); } while (html !== previous);
+    do {
+      previous = html;
+      html = html.replace(/<[^<>]*>/g, " ");
+    } while (html !== previous);
     return html.replace(/[<>]/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ");
   } catch {
     return null;
