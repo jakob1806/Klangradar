@@ -31,7 +31,7 @@ export function stripHtml(html: string): string {
     s = s.replace(/<[^<>]*>/g, " ");
   } while (s !== prev);
   return s.replace(/[<>]/g, "")
-    .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, " ").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&")
     .replace(/[ \t]+/g, " ").replace(/ *\n */g, "\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
