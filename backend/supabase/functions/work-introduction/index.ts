@@ -92,6 +92,7 @@ Deno.serve(async (req) => {
   await Promise.all(Array.from({ length: 6 }, async () => {
     while (queue.length && Date.now() - started < 110_000) {
       const work = queue.shift();
+      if (!work) break;
       results.push(await processWork(supabase, work).catch(() => ({ id: work.id, error: "Fehler beim Abruf" })));
     }
   }));

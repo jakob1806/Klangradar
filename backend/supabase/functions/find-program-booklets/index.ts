@@ -108,6 +108,7 @@ Deno.serve(async (req) => {
   await Promise.all(Array.from({ length: 6 }, async () => {
     while (queue.length && Date.now() - started < 110_000) {
       const event = queue.shift();
+      if (!event) break;
       const isMphil = /mphil\.de\//.test(`${event.external_id} ${event.website_url}`);
       const booklet = isMphil ? (await mphilBooklet(supabase, event)) ?? (await pageBooklet(event)) : await pageBooklet(event);
       await supabase.from("events").update({ program_booklet_url: booklet, program_booklet_checked_at: new Date().toISOString() }).eq("id", event.id);
