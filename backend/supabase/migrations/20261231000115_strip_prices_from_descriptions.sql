@@ -6,7 +6,7 @@ with parsed as (
          regexp_replace(
            regexp_replace(description_de, '\s*(Preise?\s+[A-Z]{0,3}\s*,?\s*)?€\s*([0-9.,]+|-)(\s*/\s*([0-9.,]+|-))+(\s*<\s*30)?(\s+Abo[A-Za-zÄÖÜäöü-]*(\s+[A-Za-zÄÖÜäöü-]+){0,3})?', ' ', 'g'),
            '\s{2,}', ' ', 'g') as cleaned,
-         (select array_agg(n::numeric) from regexp_matches(substring(description_de from '€\s*[0-9.,/ -]+'), '([0-9]+)', 'g') as m(n)) as prices
+         (select array_agg((m.n)[1]::numeric) from regexp_matches(substring(description_de from '€\s*[0-9.,/ -]+'), '([0-9]+)', 'g') as m(n)) as prices
   from events
   where description_de ~ '€\s*([0-9.,]+|-)(\s*/\s*([0-9.,]+|-))+'
 )
