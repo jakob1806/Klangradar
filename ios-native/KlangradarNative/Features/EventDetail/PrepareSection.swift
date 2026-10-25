@@ -244,6 +244,7 @@ struct FriendTasteRow: View {
             }
         }
         }
+        .padding(.bottom, matches.isEmpty ? 0 : 20)
         .task {
                 guard let repository = SocialStore.shared.repository, let token = SocialStore.shared.token else { return }
                 matches = (try? await repository.friendTaste(eventID: event.id, token: token)) ?? []
