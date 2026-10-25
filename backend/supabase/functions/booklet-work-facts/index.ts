@@ -22,10 +22,15 @@ async function bookletText(url: string): Promise<string | null> {
     const bytes = new Uint8Array(await res.arrayBuffer());
     if (bytes.length > 25_000_000) return null;
     if (type.includes("pdf") || /\.pdf(\?|$)/i.test(url)) return await pdfText(bytes);
-    // HTML-Programmheft (z. B. mphil.de/…/programmheft): Text ohne Markup.
+    // HTML-Programmheft (z. B. mphil.de/…/programmheft): reiner Text.
+    // Tags wiederholt entfernen, bis nichts mehr übrig ist (verschachteltes
+    // Markup), danach übrige spitze Klammern löschen.
     let html = new TextDecoder().decode(bytes);
     let previous: string;
-    do { previous = html; html = html.replace(/<(script|style)[^<]*>[^<]*<\/\1>/gi, "").replace(/<[^<>]*>/g, " "); } while (html !== previous);
+    do {
+      previous = html;
+      html = html.replace(/<[^<>]*>/g, " ");
+    } while (html !== previous);
     return html.replace(/[<>]/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ");
   } catch {
     return null;
@@ -40,7 +45,7 @@ Deno.serve(async (req) => {
   const supabase = createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "");
 
   const { data: events } = await supabase.from("events")
-    .select("id,website_url,program_booklet_url,description_de,program_notes_de,event_works(works(id,title,movements,duration_minutes,introduction_de,composer:persons(full_name)))")
+    .select("id,website_url,program_booklet_url,description_de,program_notes_de,event_works(works(id,title,movements,movements_source,duration_minutes,introduction_de,composer:persons(full_name)))")
     .is("booklet_facts_checked_at", null)
     .gte("start_datetime", new Date(Date.now() - 14 * 86_400_000).toISOString())
     .order("start_datetime")
@@ -66,7 +71,7 @@ Deno.serve(async (req) => {
         const update: Record<string, unknown> = {};
         if (booklet) {
           const facts = factsForWork(booklet, work.title, composer, others);
-          if (facts.movements.length > Math.max(work.movements?.length ?? 0, 1)) {
+          if (work.movements_source !== "redaktion" && facts.movements.length > Math.max(work.movements?.length ?? 0, 1)) {
             update.movements = facts.movements;
             update.movements_source = "programmheft";
           }

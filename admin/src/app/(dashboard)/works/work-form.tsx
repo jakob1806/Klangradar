@@ -5,7 +5,14 @@ export interface WorkFormValues {
   title: string; composer_id: string | null; catalog_number: string | null; key_signature: string | null;
   composition_year: number | null; duration_minutes: number | null; genre: string | null;
   instrumentation: string | null; description_de: string | null;
+  introduction_de?: string | null; introduction_source?: string | null; introduction_source_url?: string | null;
+  movements?: string[] | null; movements_source?: string | null;
 }
+
+const SOURCE_LABEL: Record<string, string> = {
+  wikipedia: "automatisch aus Wikipedia", programmheft: "Auszug aus einem Programmheft",
+  veranstalter: "aus der Veranstalter-Beschreibung", redaktion: "von der Redaktion",
+};
 
 export function WorkForm({ action, initial, persons }: { action: (data: FormData) => void; initial?: WorkFormValues; persons: { id: string; full_name: string }[] }) {
   return (
@@ -18,7 +25,22 @@ export function WorkForm({ action, initial, persons }: { action: (data: FormData
       <Field label="Entstehungsjahr"><TextInput name="composition_year" type="number" defaultValue={initial?.composition_year ?? ""} /></Field>
       <Field label="Dauer in Minuten"><TextInput name="duration_minutes" type="number" min="1" defaultValue={initial?.duration_minutes ?? ""} /></Field>
       <div className="sm:col-span-2"><Field label="Besetzung"><TextInput name="instrumentation" defaultValue={initial?.instrumentation ?? ""} placeholder="z. B. Orchester mit Solovioline" /></Field></div>
-      <div className="sm:col-span-2"><Field label="Werkbeschreibung"><TextArea name="description_de" rows={6} defaultValue={initial?.description_de ?? ""} /></Field></div>
+      <div className="sm:col-span-2"><Field label="Werkbeschreibung (intern)"><TextArea name="description_de" rows={4} defaultValue={initial?.description_de ?? ""} /></Field></div>
+      <div className="sm:col-span-2">
+        <Field label="Werkeinführung in der App">
+          <TextArea name="introduction_de" rows={9} defaultValue={initial?.introduction_de ?? ""} placeholder="Entstehung, Charakter, Besonderheiten – 2–4 Absätze für Konzertbesucher:innen" />
+        </Field>
+        <p className="mt-1.5 text-xs text-neutral-500">
+          {initial?.introduction_source ? <>Quelle: {SOURCE_LABEL[initial.introduction_source] ?? initial.introduction_source}{initial.introduction_source_url && <> · <a href={initial.introduction_source_url} target="_blank" rel="noreferrer" className="underline">Link</a></>}. </> : null}
+          Wenn du den Text änderst, gilt er als Redaktionstext und wird von der automatischen Recherche nicht mehr überschrieben.
+        </p>
+      </div>
+      <div className="sm:col-span-2">
+        <Field label="Satzfolge (ein Satz pro Zeile)">
+          <TextArea name="movements" rows={6} defaultValue={(initial?.movements ?? []).join("\n")} placeholder={"I. Allegro ma non troppo\nII. Molto vivace\nIII. Adagio molto e cantabile\nIV. Finale"} />
+        </Field>
+        <p className="mt-1.5 text-xs text-neutral-500">{initial?.movements_source ? <>Quelle: {SOURCE_LABEL[initial.movements_source] ?? initial.movements_source}. </> : null}Leer lassen bei einsätzigen Werken.</p>
+      </div>
       <div className="sm:col-span-2"><SubmitButton>{initial ? "Werk speichern" : "Werk anlegen"}</SubmitButton></div>
     </form>
   );
