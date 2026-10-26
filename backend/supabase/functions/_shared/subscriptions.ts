@@ -109,12 +109,12 @@ export async function linkEventSubscriptions(supabase: any, eventId: string, sta
   const season = seasonFor(start);
   const ids: string[] = [];
   for (const s of subs) {
-    const { data, error } = await supabase.from("subscriptions").upsert({
+    const { data, error } = await supabase.from("concert_subscriptions").upsert({
       organizer: s.organizer, organizer_name: ORGANIZER_LABEL[s.organizer], code: s.code, name: s.name, season, url: s.url,
     }, { onConflict: "organizer,season,code" }).select("id").single();
     if (!error && data?.id) ids.push(data.id);
   }
-  await supabase.from("event_subscriptions").delete().eq("event_id", eventId);
-  if (ids.length) await supabase.from("event_subscriptions").insert(ids.map((id) => ({ event_id: eventId, subscription_id: id })));
+  await supabase.from("event_concert_subscriptions").delete().eq("event_id", eventId);
+  if (ids.length) await supabase.from("event_concert_subscriptions").insert(ids.map((id) => ({ event_id: eventId, subscription_id: id })));
   return ids.length;
 }
