@@ -89,20 +89,34 @@ struct PerformerBriefs: View {
         let list = candidates
         guard !list.isEmpty, let client = SocialStore.shared.repository?.client else { return }
         let rows: [JSONObject]? = try? await client.get(table: "persons", queryItems: [
-            URLQueryItem(name: "select", value: "id,slug,full_name,photo_url,biography_de,current_roles_de,instrument"),
+            URLQueryItem(name: "select", value: "id,slug,full_name,photo_url,biography_de,instrument"),
             URLQueryItem(name: "id", value: "in.(\(list.map(\.id.uuidString).joined(separator: ",")))")
         ])
         let byID = Dictionary((rows ?? []).compactMap { row in row.string("id").flatMap(UUID.init(uuidString:)).map { ($0, row) } }, uniquingKeysWith: { a, _ in a })
         briefs = list.compactMap { candidate in
             guard let row = byID[candidate.id], let name = row.string("full_name") else { return nil }
             let bio = (row.string("biography_de") ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            let current = row.string("current_roles_de")?.trimmingCharacters(in: .whitespacesAndNewlines)
-            let full = [current, bio].compactMap { $0?.isEmpty == false ? $0 : nil }.joined(separator: "\n\n")
+            // Nur die Biografie: current_roles_de enthält teils redaktionelle
+            // Prüfvermerke ("… saisonbezogen prüfen").
+            let full = Self.withoutEditorialNotes(bio)
             guard !full.isEmpty else { return nil }
             return Brief(id: candidate.id, name: name, role: candidate.role ?? row.string("instrument"),
                          photoURL: row.string("photo_url").flatMap(URL.init(string:)),
                          route: EntityRoute(kind: .person, identifier: row.string("slug") ?? candidate.id.uuidString), text: Self.firstSentences(full, count: 2), fullText: full)
         }
+    }
+
+    /// Importierte Biografien enthalten teils interne Vermerke wie
+    /// "Amtsstatus und Gasttermine saisonbezogen prüfen" – solche Sätze weg.
+    static func withoutEditorialNotes(_ text: String) -> String {
+        var kept: [String] = []
+        text.enumerateSubstrings(in: text.startIndex..., options: .bySentences) { sentence, _, _, _ in
+            guard let sentence else { return }
+            let parts = sentence.split(separator: ";").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { $0.range(of: #"\b(prüfen|verifizieren|TODO|klären)\b"#, options: [.regularExpression, .caseInsensitive]) == nil && !$0.isEmpty }
+            if !parts.isEmpty { kept.append(parts.joined(separator: "; ")) }
+        }
+        return kept.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     static func firstSentences(_ text: String, count: Int) -> String {
