@@ -13,7 +13,7 @@ struct DiaryEntryCard: View {
     private var hasStarted: Bool { (event.startDate ?? .distantFuture) <= .now }
 
     var body: some View {
-        Group {
+        VStack(alignment: .leading, spacing: 0) {
             if hasStarted && SocialStore.shared.isSignedIn {
                 Button { showsEditor = true } label: {
                     HStack(spacing: 12) {

@@ -9,7 +9,7 @@ struct EventSubscriptionsRow: View {
     @State private var subscriptions: [ConcertSubscription] = []
 
     var body: some View {
-        Group {
+        VStack(alignment: .leading, spacing: 0) {
             if !subscriptions.isEmpty {
                 ScrollView(.horizontal) {
                     HStack(spacing: 8) {
@@ -175,7 +175,7 @@ struct MySubscriptionsSection: View {
     @State private var suggestions: [SubscriptionSuggestion] = []
 
     var body: some View {
-        Group {
+        VStack(alignment: .leading, spacing: 0) {
             if !mine.isEmpty || !suggestions.isEmpty {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Meine Abos").font(.title3.bold())
