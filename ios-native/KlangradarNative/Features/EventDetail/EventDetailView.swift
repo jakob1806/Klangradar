@@ -116,10 +116,16 @@ struct EventDetailView: View {
         }
         .task {
             EngagementLogger.shared.logView(eventID: event.id)
-            do { detail = try await repository.eventDetail(slug: event.slug) }
-            catch { loadError = error.localizedDescription }
+            async let attendance: Void = loadAttendance()
+            do {
+                if let base = try await repository.eventDetailBase(slug: event.slug) {
+                    detail = base
+                    isLoading = false
+                    detail = await repository.enrichingDetail(base)
+                }
+            } catch { loadError = error.localizedDescription }
             isLoading = false
-            await loadAttendance()
+            await attendance
         }
     }
 

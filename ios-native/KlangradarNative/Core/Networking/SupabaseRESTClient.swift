@@ -216,7 +216,7 @@ struct SupabaseRESTClient: Sendable {
         request.cachePolicy = .reloadIgnoringLocalCacheData
         // 20 statt 60 s: kein "ewiges Laden" mehr bei hängender Verbindung
         // (Nutzermeldung 25.10.2026).
-        request.timeoutInterval = 20
+        request.timeoutInterval = 15
         request.setValue(configuration.supabaseAnonKey, forHTTPHeaderField: "apikey")
         request.setValue(
             "Bearer \(accessToken ?? configuration.supabaseAnonKey)",

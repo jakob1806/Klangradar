@@ -122,21 +122,25 @@ final class HomeViewModel: ObservableObject {
             // vorgeschlagen" — 40 war zu knapp, sobald "Heute in München"
             // schon ein paar Events abzieht und danach noch personalisiert
             // sortiert wird. 100 deckt realistisch mehrere Wochen ab.
-            let events = try await repository.upcomingEvents(limit: 100, regionID: regionID)
-            async let enrichedTask: [ConcertEvent]? = try? repository.enrichingImages(in: events)
-            async let personalizedTask = loadPersonalizedEntityIDs()
+            // Alle unabhängigen Anfragen sofort gleichzeitig starten (vorher
+            // warteten Module/Favoriten auf die Terminliste) und die Bilder
+            // aller Listen in EINEM Durchgang nachladen.
             async let modulesTask = loadHomeModules()
+            async let personalizedTask = loadPersonalizedEntityIDs()
             async let favoritesTask = fetchFavoriteEvents()
-            let enriched = await enrichedTask
-            let personalization = await personalizedTask
+            let events = try await repository.upcomingEvents(limit: 100, regionID: regionID)
+            guard requestedRegion == regionID else { return }
+            // Liste sofort zeigen, wenn noch nichts zu sehen ist; die Bilder
+            // aus der images-Tabelle folgen gleich danach.
+            if showsLoading { state = .loaded(events) }
             let modules = await modulesTask
+            let personalization = await personalizedTask
             personalizedEntityIDs = personalization.ids
             hasPersonalizedInterests = personalization.hasAny
             guard requestedRegion == regionID else { return }
-            // Bilder aller Module in EINEM Durchgang statt drei nacheinander.
             var seen = Set<UUID>()
-            let moduleEvents = (modules.recommended + modules.discovery + modules.popular).filter { seen.insert($0.id).inserted }
-            let enrichedByID = Dictionary((await enrich(moduleEvents)).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            let allEvents = (events + modules.recommended + modules.discovery + modules.popular).filter { seen.insert($0.id).inserted }
+            let enrichedByID = Dictionary((await enrich(allEvents)).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
             let recommended = modules.recommended.map { enrichedByID[$0.id] ?? $0 }
             let discovery = modules.discovery.map { enrichedByID[$0.id] ?? $0 }
             let popular = modules.popular.map { enrichedByID[$0.id] ?? $0 }
@@ -145,6 +149,7 @@ final class HomeViewModel: ObservableObject {
             Task { await loadPersonalLayer() }
             popularEvents = popular
             favoriteEvents = await favoritesTask
+            let enriched: [ConcertEvent]? = events.map { enrichedByID[$0.id] ?? $0 }
             let finalEvents = enriched ?? events
             guard requestedRegion == regionID else { return }
             state = .loaded(finalEvents)
