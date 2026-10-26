@@ -12,6 +12,7 @@ struct PerformerBriefs: View {
         let name: String
         let role: String?
         let photoURL: URL?
+        let route: EntityRoute?
         let text: String
         let fullText: String
     }
@@ -19,13 +20,15 @@ struct PerformerBriefs: View {
     @State private var briefs: [Brief] = []
     @State private var expanded: Set<UUID> = []
 
+    /// Nutzerwunsch 26.10.2026: Kurzporträts nur bei bis zu 4 Künstler:innen –
+    /// bei größeren Besetzungen bleibt es bei der Mitwirkenden-Liste.
     private var candidates: [(id: UUID, role: String?)] {
         var seen = Set<UUID>()
-        return detail.objects("event_participants").compactMap { row in
+        let all = detail.objects("event_participants").compactMap { row -> (id: UUID, role: String?)? in
             guard let person = row.object("persons"), let id = person.string("id").flatMap(UUID.init(uuidString:)), seen.insert(id).inserted else { return nil }
             return (id, row.string("role_label") ?? row.string("role"))
         }
-        .prefix(5).map { $0 }
+        return all.count <= 4 ? all : []
     }
 
     var body: some View {
@@ -35,6 +38,7 @@ struct PerformerBriefs: View {
                     Text("Wer spielt?").font(.headline)
                     ForEach(briefs) { brief in
                         VStack(alignment: .leading, spacing: 8) {
+                            profileLink(brief) {
                             HStack(spacing: 10) {
                                 CachedAsyncImage(url: brief.photoURL) { phase in
                                     if let image = phase.image { image.resizable().scaledToFill() }
@@ -45,6 +49,12 @@ struct PerformerBriefs: View {
                                     Text(brief.name).font(.subheadline.weight(.semibold))
                                     if let role = brief.role { Text(role).font(.caption).foregroundStyle(.secondary) }
                                 }
+                                Spacer(minLength: 0)
+                                if brief.route != nil {
+                                    Text("Profil").font(.caption.weight(.semibold)).foregroundStyle(KlangradarTheme.accent)
+                                    Image(systemName: "chevron.right").font(.caption2.weight(.bold)).foregroundStyle(KlangradarTheme.accent)
+                                }
+                            }
                             }
                             Text(expanded.contains(brief.id) ? brief.fullText : brief.text)
                                 .font(.footnote).foregroundStyle(.primary.opacity(0.85))
@@ -67,11 +77,19 @@ struct PerformerBriefs: View {
         .task(id: candidates.map(\.id)) { await load() }
     }
 
+    @ViewBuilder private func profileLink<Content: View>(_ brief: Brief, @ViewBuilder content: () -> Content) -> some View {
+        if let route = brief.route {
+            NavigationLink(value: route) { content().contentShape(.rect) }.buttonStyle(.plain)
+        } else {
+            content()
+        }
+    }
+
     private func load() async {
         let list = candidates
         guard !list.isEmpty, let client = SocialStore.shared.repository?.client else { return }
         let rows: [JSONObject]? = try? await client.get(table: "persons", queryItems: [
-            URLQueryItem(name: "select", value: "id,full_name,photo_url,biography_de,current_roles_de,instrument"),
+            URLQueryItem(name: "select", value: "id,slug,full_name,photo_url,biography_de,current_roles_de,instrument"),
             URLQueryItem(name: "id", value: "in.(\(list.map(\.id.uuidString).joined(separator: ",")))")
         ])
         let byID = Dictionary((rows ?? []).compactMap { row in row.string("id").flatMap(UUID.init(uuidString:)).map { ($0, row) } }, uniquingKeysWith: { a, _ in a })
@@ -82,7 +100,8 @@ struct PerformerBriefs: View {
             let full = [current, bio].compactMap { $0?.isEmpty == false ? $0 : nil }.joined(separator: "\n\n")
             guard !full.isEmpty else { return nil }
             return Brief(id: candidate.id, name: name, role: candidate.role ?? row.string("instrument"),
-                         photoURL: row.string("photo_url").flatMap(URL.init(string:)), text: Self.firstSentences(full, count: 2), fullText: full)
+                         photoURL: row.string("photo_url").flatMap(URL.init(string:)),
+                         route: EntityRoute(kind: .person, identifier: row.string("slug") ?? candidate.id.uuidString), text: Self.firstSentences(full, count: 2), fullText: full)
         }
     }
 

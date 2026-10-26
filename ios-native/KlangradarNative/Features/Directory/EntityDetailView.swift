@@ -352,53 +352,77 @@ struct EntityDetailView: View {
         case "apple_music": return "Apple Music"
         case "tiktok": return "TikTok"
         case "linkedin": return "LinkedIn"
+        case "x", "twitter": return "X (Twitter)"
+        case "threads": return "Threads"
+        case "bluesky": return "Bluesky"
+        case "soundcloud": return "SoundCloud"
         default: return platform.prefix(1).uppercased() + platform.dropFirst()
         }
     }
 
 }
 
-/// Eigenständige, farbige Plattform-Badges statt generischer Link-Symbole.
-/// Die Elemente bleiben bewusst ohne externe Bild-Downloads zuverlässig
-/// offline sichtbar und geben jeder Plattform sofort ihre übliche Identität.
-private struct SocialPlatformIcon: View {
+/// Echte Marken-Glyphen (Simple Icons, CC0) in den offiziellen Markenfarben –
+/// als Vektor im Asset-Katalog, damit sie offline und gestochen scharf sind.
+/// Erstellt von Claude Code (Nutzerwunsch 26.10.2026: "keine Dummies").
+struct SocialPlatformIcon: View {
     let platform: String
+
+    private struct Style {
+        let asset: String
+        let glyph: Color
+        let background: AnyShapeStyle
+    }
+
+    private var style: Style? {
+        switch platform.lowercased() {
+        case "instagram":
+            return Style(asset: "SocialInstagram", glyph: .white, background: AnyShapeStyle(LinearGradient(
+                colors: [Color(hex: 0xFEDA75), Color(hex: 0xFA7E1E), Color(hex: 0xD62976), Color(hex: 0x962FBF), Color(hex: 0x4F5BD5)],
+                startPoint: .bottomLeading, endPoint: .topTrailing)))
+        case "facebook": return Style(asset: "SocialFacebook", glyph: Color(hex: 0x0866FF), background: AnyShapeStyle(Color.white))
+        case "x", "twitter": return Style(asset: "SocialX", glyph: .white, background: AnyShapeStyle(Color.black))
+        case "youtube": return Style(asset: "SocialYoutube", glyph: Color(hex: 0xFF0000), background: AnyShapeStyle(Color.white))
+        case "tiktok": return Style(asset: "SocialTiktok", glyph: .white, background: AnyShapeStyle(Color.black))
+        case "linkedin": return Style(asset: "SocialLinkedin", glyph: Color(hex: 0x0A66C2), background: AnyShapeStyle(Color.white))
+        case "threads": return Style(asset: "SocialThreads", glyph: .white, background: AnyShapeStyle(Color.black))
+        case "bluesky": return Style(asset: "SocialBluesky", glyph: .white, background: AnyShapeStyle(Color(hex: 0x0085FF)))
+        case "soundcloud": return Style(asset: "SocialSoundcloud", glyph: .white, background: AnyShapeStyle(Color(hex: 0xFF5500)))
+        default: return nil
+        }
+    }
 
     var body: some View {
         Group {
             switch platform.lowercased() {
-            case "instagram":
-                Image(systemName: "camera.fill")
-                    .foregroundStyle(.white)
-                    .background(
-                        LinearGradient(colors: [.purple, .pink, .orange], startPoint: .topLeading, endPoint: .bottomTrailing)
-                            .padding(-7)
-                    )
-            case "facebook":
-                Text("f").font(.system(size: 19, weight: .bold, design: .rounded)).foregroundStyle(.white)
-                    .background(Color(red: 0.05, green: 0.40, blue: 1).padding(-8))
-            case "youtube":
-                Image(systemName: "play.fill").font(.caption.weight(.bold)).foregroundStyle(.white)
-                    .background(Color.red.padding(.horizontal, -8).padding(.vertical, -6))
-            case "spotify":
-                Image(systemName: "wave.3.right.circle.fill").font(.title3).foregroundStyle(.black)
-                    .background(Color(red: 0.12, green: 0.84, blue: 0.38).padding(-5))
-            case "apple_music":
-                Image(systemName: "music.note").font(.body.weight(.bold)).foregroundStyle(.white)
-                    .background(Color.pink.padding(-7))
-            case "tiktok":
-                Image(systemName: "music.note").font(.body.weight(.bold)).foregroundStyle(.white)
-                    .background(Color.black.padding(-7))
-            case "linkedin":
-                Text("in").font(.system(size: 14, weight: .heavy, design: .rounded)).foregroundStyle(.white)
-                    .background(Color(red: 0.04, green: 0.39, blue: 0.68).padding(-7))
+            case "spotify": SpotifyLogo()
+            case "apple_music": AppleMusicLogo()
             default:
-                Image(systemName: "link").foregroundStyle(.white).background(Color.secondary.padding(-7))
+                if let style {
+                    ZStack {
+                        Rectangle().fill(style.background)
+                        Image(style.asset).resizable().renderingMode(.template).scaledToFit()
+                            .foregroundStyle(style.glyph)
+                            .padding(style.glyph == .white ? 6 : 3)
+                    }
+                } else {
+                    ZStack {
+                        Rectangle().fill(Color.secondary)
+                        Image(systemName: "link").foregroundStyle(.white)
+                    }
+                }
             }
         }
         .frame(width: 28, height: 28)
         .clipShape(.rect(cornerRadius: 8))
+        .overlay { RoundedRectangle(cornerRadius: 8).strokeBorder(.black.opacity(0.08), lineWidth: 0.5) }
         .accessibilityHidden(true)
+    }
+}
+
+private extension Color {
+    init(hex: UInt32) {
+        self.init(red: Double((hex >> 16) & 0xFF) / 255, green: Double((hex >> 8) & 0xFF) / 255, blue: Double(hex & 0xFF) / 255)
     }
 }
 

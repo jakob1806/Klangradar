@@ -21,6 +21,7 @@ export const NAV_GROUPS = [
       { href: "/review-queue", label: "Review-Queue" },
       { href: "/cancellations", label: "Absage-Review" },
       { href: "/content-reports", label: "Meldungen & Fehler" },
+      { href: "/entity-requests", label: "Nutzeranfragen" },
     ],
   },
   {
