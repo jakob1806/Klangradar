@@ -12,6 +12,7 @@ struct PerformerBriefs: View {
         let name: String
         let role: String?
         let photoURL: URL?
+        let route: EntityRoute?
         let text: String
         let fullText: String
     }
@@ -19,22 +20,25 @@ struct PerformerBriefs: View {
     @State private var briefs: [Brief] = []
     @State private var expanded: Set<UUID> = []
 
+    /// Nutzerwunsch 26.10.2026: Kurzporträts nur bei bis zu 4 Künstler:innen –
+    /// bei größeren Besetzungen bleibt es bei der Mitwirkenden-Liste.
     private var candidates: [(id: UUID, role: String?)] {
         var seen = Set<UUID>()
-        return detail.objects("event_participants").compactMap { row in
+        let all = detail.objects("event_participants").compactMap { row -> (id: UUID, role: String?)? in
             guard let person = row.object("persons"), let id = person.string("id").flatMap(UUID.init(uuidString:)), seen.insert(id).inserted else { return nil }
             return (id, row.string("role_label") ?? row.string("role"))
         }
-        .prefix(5).map { $0 }
+        return all.count <= 4 ? all : []
     }
 
     var body: some View {
-        Group {
+        VStack(alignment: .leading, spacing: 0) {
             if !briefs.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Wer spielt?").font(.headline)
                     ForEach(briefs) { brief in
                         VStack(alignment: .leading, spacing: 8) {
+                            profileLink(brief) {
                             HStack(spacing: 10) {
                                 CachedAsyncImage(url: brief.photoURL) { phase in
                                     if let image = phase.image { image.resizable().scaledToFill() }
@@ -45,6 +49,12 @@ struct PerformerBriefs: View {
                                     Text(brief.name).font(.subheadline.weight(.semibold))
                                     if let role = brief.role { Text(role).font(.caption).foregroundStyle(.secondary) }
                                 }
+                                Spacer(minLength: 0)
+                                if brief.route != nil {
+                                    Text("Profil").font(.caption.weight(.semibold)).foregroundStyle(KlangradarTheme.accent)
+                                    Image(systemName: "chevron.right").font(.caption2.weight(.bold)).foregroundStyle(KlangradarTheme.accent)
+                                }
+                            }
                             }
                             Text(expanded.contains(brief.id) ? brief.fullText : brief.text)
                                 .font(.footnote).foregroundStyle(.primary.opacity(0.85))
@@ -67,23 +77,46 @@ struct PerformerBriefs: View {
         .task(id: candidates.map(\.id)) { await load() }
     }
 
+    @ViewBuilder private func profileLink<Content: View>(_ brief: Brief, @ViewBuilder content: () -> Content) -> some View {
+        if let route = brief.route {
+            NavigationLink(value: route) { content().contentShape(.rect) }.buttonStyle(.plain)
+        } else {
+            content()
+        }
+    }
+
     private func load() async {
         let list = candidates
         guard !list.isEmpty, let client = SocialStore.shared.repository?.client else { return }
         let rows: [JSONObject]? = try? await client.get(table: "persons", queryItems: [
-            URLQueryItem(name: "select", value: "id,full_name,photo_url,biography_de,current_roles_de,instrument"),
+            URLQueryItem(name: "select", value: "id,slug,full_name,photo_url,biography_de,instrument"),
             URLQueryItem(name: "id", value: "in.(\(list.map(\.id.uuidString).joined(separator: ",")))")
         ])
         let byID = Dictionary((rows ?? []).compactMap { row in row.string("id").flatMap(UUID.init(uuidString:)).map { ($0, row) } }, uniquingKeysWith: { a, _ in a })
         briefs = list.compactMap { candidate in
             guard let row = byID[candidate.id], let name = row.string("full_name") else { return nil }
             let bio = (row.string("biography_de") ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            let current = row.string("current_roles_de")?.trimmingCharacters(in: .whitespacesAndNewlines)
-            let full = [current, bio].compactMap { $0?.isEmpty == false ? $0 : nil }.joined(separator: "\n\n")
+            // Nur die Biografie: current_roles_de enthält teils redaktionelle
+            // Prüfvermerke ("… saisonbezogen prüfen").
+            let full = Self.withoutEditorialNotes(bio)
             guard !full.isEmpty else { return nil }
             return Brief(id: candidate.id, name: name, role: candidate.role ?? row.string("instrument"),
-                         photoURL: row.string("photo_url").flatMap(URL.init(string:)), text: Self.firstSentences(full, count: 2), fullText: full)
+                         photoURL: row.string("photo_url").flatMap(URL.init(string:)),
+                         route: EntityRoute(kind: .person, identifier: row.string("slug") ?? candidate.id.uuidString), text: Self.firstSentences(full, count: 2), fullText: full)
         }
+    }
+
+    /// Importierte Biografien enthalten teils interne Vermerke wie
+    /// "Amtsstatus und Gasttermine saisonbezogen prüfen" – solche Sätze weg.
+    static func withoutEditorialNotes(_ text: String) -> String {
+        var kept: [String] = []
+        text.enumerateSubstrings(in: text.startIndex..., options: .bySentences) { sentence, _, _, _ in
+            guard let sentence else { return }
+            let parts = sentence.split(separator: ";").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { $0.range(of: #"\b(prüfen|verifizieren|TODO|klären)\b"#, options: [.regularExpression, .caseInsensitive]) == nil && !$0.isEmpty }
+            if !parts.isEmpty { kept.append(parts.joined(separator: "; ")) }
+        }
+        return kept.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     static func firstSentences(_ text: String, count: Int) -> String {
@@ -102,7 +135,7 @@ struct CastChangeBanner: View {
     @State private var message: String?
 
     var body: some View {
-        Group {
+        VStack(alignment: .leading, spacing: 0) {
             if let message {
                 HStack(alignment: .top, spacing: 10) {
                     Image(systemName: "person.2.badge.gearshape.fill").foregroundStyle(.orange)
@@ -148,7 +181,7 @@ struct SeatCard: View {
     private var isUpcoming: Bool { (event.startDate ?? .distantPast).addingTimeInterval(3 * 3600) > .now }
 
     var body: some View {
-        Group {
+        VStack(alignment: .leading, spacing: 0) {
             if isUpcoming {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(spacing: 12) {

@@ -13,7 +13,7 @@ struct DiaryEntryCard: View {
     private var hasStarted: Bool { (event.startDate ?? .distantFuture) <= .now }
 
     var body: some View {
-        Group {
+        VStack(alignment: .leading, spacing: 0) {
             if hasStarted && SocialStore.shared.isSignedIn {
                 Button { showsEditor = true } label: {
                     HStack(spacing: 12) {
@@ -185,15 +185,38 @@ struct ConcertDiaryListView: View {
     @State private var isLoading = true
     @State private var editing: ConcertEvent?
     @State private var covers: [UUID: URL] = [:]
+    @State private var journal: [ConcertJournalEntry] = []
+    @State private var journalCovers: [UUID: URL] = [:]
+    @State private var editingJournal: ConcertJournalEntry?
+    @State private var showsNewJournal = false
 
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 14) {
+                Button { showsNewJournal = true } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "square.and.pencil").font(.title3.weight(.semibold)).foregroundStyle(.white)
+                            .frame(width: 44, height: 44).background(KlangradarTheme.accent, in: .rect(cornerRadius: 13, style: .continuous))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Konzert eintragen").font(.headline)
+                            Text("Auch Abende, die nicht in Klangradar stehen").font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 0)
+                        Image(systemName: "plus").font(.subheadline.weight(.bold)).foregroundStyle(KlangradarTheme.accent)
+                    }
+                    .padding(14)
+                    .background(Color(uiColor: .systemBackground).opacity(0.9), in: .rect(cornerRadius: 20, style: .continuous))
+                }
+                .buttonStyle(.plain)
+
                 if isLoading {
                     ProgressView().frame(maxWidth: .infinity).padding(.vertical, 40)
-                } else if items.isEmpty {
+                } else if items.isEmpty && journal.isEmpty {
                     ContentUnavailableView("Noch keine Einträge", systemImage: "book.closed",
-                                           description: Text("Nach einem Konzert kannst du auf der Konzertseite Notizen, Fotos und den Abend festhalten."))
+                                           description: Text("Nach einem Konzert kannst du auf der Konzertseite Notizen, Fotos und den Abend festhalten – oder oben ein eigenes Konzert eintragen."))
+                }
+                ForEach(journal) { entry in
+                    Button { editingJournal = entry } label: { journalCard(entry) }.buttonStyle(.plain)
                 }
                 ForEach(items, id: \.event.id) { item in
                     Button { editing = item.event } label: { card(item.event, item.entry) }.buttonStyle(.plain)
@@ -206,6 +229,12 @@ struct ConcertDiaryListView: View {
         .task { await load() }
         .sheet(item: $editing, onDismiss: { Task { await load() } }) { event in
             NavigationStack { DiaryEditorView(event: event) }
+        }
+        .sheet(item: $editingJournal) { entry in
+            NavigationStack { ConcertJournalEditor(existing: entry) { Task { await load() } } }
+        }
+        .sheet(isPresented: $showsNewJournal) {
+            NavigationStack { ConcertJournalEditor { Task { await load() } } }
         }
     }
 
@@ -235,8 +264,39 @@ struct ConcertDiaryListView: View {
         .background(Color(uiColor: .systemBackground).opacity(0.9), in: .rect(cornerRadius: 20, style: .continuous))
     }
 
+    private func journalCard(_ entry: ConcertJournalEntry) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if let cover = journalCovers[entry.id] {
+                CachedAsyncImage(url: cover) { phase in
+                    if let image = phase.image { image.resizable().scaledToFill() } else { Color.secondary.opacity(0.12) }
+                }
+                .frame(height: 160).frame(maxWidth: .infinity).clipped()
+                .clipShape(.rect(cornerRadius: 16))
+            }
+            VStack(alignment: .leading, spacing: 3) {
+                Text(entry.startsAt.formatted(.dateTime.day().month(.wide).year())).font(.caption.weight(.semibold)).foregroundStyle(KlangradarTheme.accent)
+                Text(entry.title.isEmpty ? (entry.program.first?.name ?? entry.venue?.name ?? "Konzertabend") : entry.title)
+                    .font(.system(.title3, design: .serif).weight(.semibold)).lineLimit(2)
+            }
+            let facts = [entry.venue.map { ("building.columns", $0.name) },
+                         entry.program.isEmpty ? nil : ("music.note", entry.program.map(\.name).joined(separator: " · ")),
+                         entry.participants.isEmpty ? nil : ("person.2", entry.participants.map(\.name).joined(separator: ", "))].compactMap { $0 }
+            ForEach(facts, id: \.1) { fact in
+                Label(fact.1, systemImage: fact.0).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+            }
+            if !entry.note.isEmpty { Text(entry.note).font(.system(.subheadline, design: .serif)).lineLimit(4) }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(uiColor: .systemBackground).opacity(0.9), in: .rect(cornerRadius: 20, style: .continuous))
+    }
+
     private func load() async {
         defer { isLoading = false }
+        journal = await JournalAPI.entries()
+        for entry in journal where journalCovers[entry.id] == nil {
+            if let first = entry.photoPaths.first { journalCovers[entry.id] = await PlannerAPI.signedPhotoURL(first) }
+        }
         let entries = await PlannerAPI.diaryEntries()
         let events = Dictionary(await PlannerAPI.events(ids: entries.map(\.eventID)).map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         items = entries.compactMap { pair in events[pair.eventID].map { ($0, pair.entry) } }

@@ -545,6 +545,10 @@ private struct DeepLinkEventSheet: View {
                     Button("Schließen", systemImage: "xmark") { dismiss() }
                 }
             }
+            // Ohne diese Ziele waren Profile, ähnliche Konzerte und Abo-Termine
+            // auf per Link geöffneten Konzertseiten nicht antippbar.
+            .navigationDestination(for: EntityRoute.self) { EntityDetailView(route: $0, repository: contentRepository) }
+            .navigationDestination(for: ConcertEvent.self) { EventDetailView(event: $0, repository: repository, contentRepository: contentRepository) }
         }
         .task {
             event = try? await repository.event(slug: slug)

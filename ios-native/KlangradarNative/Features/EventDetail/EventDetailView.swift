@@ -569,7 +569,10 @@ struct EventDetailView: View {
                                     .font(.caption.monospacedDigit())
                                     .foregroundStyle(.tertiary)
                                     .frame(width: 20, alignment: .trailing)
-                                Text(movement).font(.subheadline)
+                                // Quellen liefern Sätze teils schon nummeriert ("1. Allegro",
+                                // "III. Lento", "2. Satz: Adagio") – sonst stünde "1. 1. …" da.
+                                Text(movement.replacingOccurrences(of: #"^\s*(\d+|[IVX]+)\.\s*(Satz:\s*)?"#, with: "", options: .regularExpression))
+                                    .font(.subheadline)
                             }
                         }
                     }

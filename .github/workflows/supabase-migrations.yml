@@ -46,7 +46,9 @@ jobs:
 
       - name: Lokale Supabase-Instanz starten (Docker, im Runner vorinstalliert)
         working-directory: backend
-        run: supabase start
+        # Mailpit/Imgproxy/Studio werden für Migrationstests nicht gebraucht; die
+        # Images sind zeitweise nicht mehr öffentlich abrufbar ("pull access denied").
+        run: supabase start -x imgproxy,inbucket,mailpit,studio,edge-runtime,analytics,vector
 
       - name: Migrationen + Seed anwenden
         working-directory: backend
