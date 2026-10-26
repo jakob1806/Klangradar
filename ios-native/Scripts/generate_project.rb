@@ -190,6 +190,11 @@ app_target.build_configurations.each do |config|
     "CODE_SIGN_ENTITLEMENTS" => "KlangradarNative/KlangradarNative.entitlements",
     "ENABLE_PREVIEWS" => "YES",
     "GENERATE_INFOPLIST_FILE" => "YES",
+    # Erstellt von Claude Code (26.10.2026): Die eigene Info.plist wurde
+    # bisher nicht eingebunden – dadurch fehlte das URL-Schema
+    # de.klangradar.native:// (Widget, Live Activity, Spotlight, Push-Links).
+    # Die INFOPLIST_KEY_*-Einträge unten werden mit der Datei zusammengeführt.
+    "INFOPLIST_FILE" => "KlangradarNative/Info.plist",
     "INFOPLIST_KEY_CFBundleDisplayName" => "Klangradar",
     "INFOPLIST_KEY_LSApplicationCategoryType" => "public.app-category.music",
     # Nur Standard-HTTPS — erspart die Exportkontroll-Frage bei jedem Upload.

@@ -181,6 +181,14 @@ struct RootTabView: View {
             set: { deepLinks.pendingEventSlug = $0?.id }
         )) { link in
             DeepLinkEventSheet(slug: link.id, repository: environment.events, contentRepository: environment.content)
+                // Sheets erben die environmentObjects nicht (sie hängen außen
+                // an der View): ohne sie stürzte jede per Link geöffnete
+                // Konzertseite in EventDetailView ab (FavoriteStore fehlt).
+                .environmentObject(favorites)
+                .environmentObject(follows)
+                .environmentObject(reportStore)
+                .environmentObject(genreFilterRouter)
+                .environmentObject(cityStore)
         }
         .task {
             EngagementLogger.shared.configure(client: environment.restClient, auth: environment.auth)
