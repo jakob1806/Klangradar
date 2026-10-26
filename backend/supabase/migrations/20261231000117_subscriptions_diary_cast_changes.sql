@@ -173,3 +173,7 @@ begin
 end;
 $$;
 select cron.schedule('detect-cast-changes', '20 * * * *', $$ select detect_cast_changes(); $$);
+
+-- 4. Saalplan je Spielstätte (redaktionell gepflegt; die App verlinkt ihn
+--    neben dem eigenen Sitzplatz, falls vorhanden).
+alter table public.venues add column if not exists seating_plan_url text;

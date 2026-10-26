@@ -612,6 +612,18 @@ private struct MyKlangradarHubView: View {
                     }
                     .buttonStyle(.plain)
 
+                    HStack(spacing: 10) {
+                        NavigationLink { SeasonPlannerView(repository: eventRepository) } label: {
+                            plannerTile("Saisonplaner", "Deine nächsten Monate", "calendar.day.timeline.left", Color(red: 0.08, green: 0.38, blue: 0.58))
+                        }
+                        NavigationLink { ConcertDiaryListView() } label: {
+                            plannerTile("Tagebuch", "Notizen & Fotos", "book.closed.fill", Color(red: 0.55, green: 0.35, blue: 0.20))
+                        }
+                    }
+                    .buttonStyle(.plain)
+
+                    MySubscriptionsSection(repository: eventRepository)
+
                     Text("Du folgst").font(.headline).padding(.top, 4)
                     LazyVGrid(columns: [.init(.flexible(), spacing: 10), .init(.flexible(), spacing: 10)], spacing: 10) {
                         NavigationLink {
@@ -655,6 +667,21 @@ private struct MyKlangradarHubView: View {
         .background(Color(uiColor: .systemGroupedBackground))
         .navigationTitle("Mein Klangradar")
         .task { await load() }
+    }
+
+    private func plannerTile(_ title: String, _ subtitle: String, _ icon: String, _ color: Color) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon).font(.headline).foregroundStyle(.white)
+                .frame(width: 38, height: 38).background(color, in: .rect(cornerRadius: 11, style: .continuous))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+                Text(subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity)
+        .background(Color(uiColor: .systemBackground), in: .rect(cornerRadius: 16, style: .continuous))
     }
 
     private func heroNumber(_ value: Int, _ label: String) -> some View {

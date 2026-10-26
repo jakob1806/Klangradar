@@ -50,6 +50,24 @@ struct SupabaseRESTClient: Sendable {
         return publicStorageURL(bucket: bucket, path: path)
     }
 
+    /// Signierte URL für private Buckets (z. B. Tagebuchfotos).
+    func signedStorageURL(bucket: String, path: String, expiresIn: Int, accessToken: String) async throws -> URL {
+        let url = configuration.supabaseURL
+            .appendingPathComponent("storage/v1/object/sign")
+            .appendingPathComponent(bucket)
+            .appendingPathComponent(path)
+        var request = authorizedRequest(url: url, accessToken: accessToken)
+        request.httpMethod = "POST"
+        request.httpBody = try JSONEncoder().encode(["expiresIn": expiresIn])
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let response = try decoder.decode(JSONObject.self, from: try await perform(request))
+        guard let signed = response.string("signedURL") ?? response.string("signedUrl"),
+              let result = URL(string: configuration.supabaseURL.absoluteString + "/storage/v1" + signed) else {
+            throw APIError.invalidURL
+        }
+        return result
+    }
+
     func deleteStorageObject(
         bucket: String,
         path: String,

@@ -26,6 +26,7 @@ doppelt gebaute Features (Coach vs. Personal Concierge), ein komplett
 
 | Agent  | Datum      | Branch                        | Woran                                                                 |
 |--------|------------|--------------------------------|------------------------------------------------------------------------|
+| Claude | 2026-10-26 | claude/abos-saisonplaner, claude/perf-home | Abos/Zyklen, Saisonplaner, Konzerttagebuch, Besetzungsänderungen, Live-Aktivität, Performance (ios-native + backend) |
 | Claude | 2026-10-18 | claude/email-preferences | E-Mail-Einstellungen (iOS + Flutter): Newsletter-Einwilligung mit Zeitstempel, E-Mail-Schalter pro Anlass, Abmelde-Token. Versand selbst noch nicht gebaut (Mail-Provider offen). |
 | Claude | 2026-10-15 | claude/onboarding-follow-speed | Onboarding-Folgen-Schritt (iOS + Flutter): gerankte Top-Vorschläge + Serversuche per RPC onboarding_follow_suggestions statt kompletter Tabellen (persons >3.000). |
 | Claude | 2026-10-12 | claude/fix-ingestion-starvation | Quellen-Audit #2: run-all-sources hängt seit 2026-09-30 in Endlosschleife an 5 Quellen (Abbruch → nie last_run_at → sofort wieder fällig), alle anderen Quellen verhungern. Fix in run-all-sources + Quellen-Configs reparieren. |
