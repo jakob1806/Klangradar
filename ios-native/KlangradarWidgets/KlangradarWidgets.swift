@@ -196,6 +196,9 @@ private struct LockScreenConcertView: View {
                 Spacer()
                 Text(attributes.venue).font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
+            if let seat = SharedSeatStore.seat(forSlug: attributes.slug) {
+                Label(seat.summary, systemImage: "chair.fill").font(.caption.weight(.semibold)).foregroundStyle(accent).lineLimit(1)
+            }
             HStack(spacing: 0) {
                 step("Losgehen", state.leaveAt, active: (state.leaveAt ?? .distantPast) > .now)
                 line

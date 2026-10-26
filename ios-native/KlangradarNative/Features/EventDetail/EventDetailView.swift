@@ -52,6 +52,9 @@ struct EventDetailView: View {
                                 FriendTasteRow(event: event)
                                 genres(detail)
                             }
+                            CastChangeBanner(eventID: event.id)
+                            EventSubscriptionsRow(event: event, repository: repository)
+                            DiaryEntryCard(event: event)
                             essentialFacts(detail)
 
                             if let description = detail.string("description_de"), !description.isEmpty {
@@ -65,6 +68,7 @@ struct EventDetailView: View {
                             PrepareSection(event: event, detail: detail)
                             participants(detail)
                             ticketDetails(detail)
+                            SeatCard(event: event, detail: detail)
                             EveningPlanSection(event: event, detail: detail)
                             accessibility(detail)
                             venue(detail)

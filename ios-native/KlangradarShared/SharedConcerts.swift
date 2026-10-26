@@ -31,6 +31,40 @@ enum SharedConcertStore {
     }
 }
 
+/// Erstellt von Claude Code (26.10.2026): Sitzplatz je Konzert, nur lokal
+/// (App Group), damit Live Activity und Widget ihn anzeigen können.
+struct ConcertSeat: Codable, Hashable, Sendable {
+    var entrance = ""
+    var block = ""
+    var row = ""
+    var seat = ""
+
+    var isEmpty: Bool { [entrance, block, row, seat].allSatisfy { $0.trimmingCharacters(in: .whitespaces).isEmpty } }
+
+    /// z. B. "Block A · Reihe 5 · Platz 12"
+    var summary: String {
+        [entrance.isEmpty ? nil : "Eingang \(entrance)", block.isEmpty ? nil : "Block \(block)",
+         row.isEmpty ? nil : "Reihe \(row)", seat.isEmpty ? nil : "Platz \(seat)"]
+            .compactMap { $0 }.joined(separator: " · ")
+    }
+}
+
+enum SharedSeatStore {
+    private static func key(_ slug: String) -> String { "seat.\(slug)" }
+
+    static func seat(forSlug slug: String) -> ConcertSeat? {
+        guard let data = UserDefaults(suiteName: SharedConcertStore.appGroup)?.data(forKey: key(slug)),
+              let seat = try? JSONDecoder().decode(ConcertSeat.self, from: data), !seat.isEmpty else { return nil }
+        return seat
+    }
+
+    static func save(_ seat: ConcertSeat, forSlug slug: String) {
+        let defaults = UserDefaults(suiteName: SharedConcertStore.appGroup)
+        if seat.isEmpty { defaults?.removeObject(forKey: key(slug)); return }
+        defaults?.set(try? JSONEncoder().encode(seat), forKey: key(slug))
+    }
+}
+
 #if canImport(ActivityKit)
 /// Live Activity am Konzerttag: Sperrbildschirm und Dynamic Island.
 struct ConcertActivityAttributes: ActivityAttributes {

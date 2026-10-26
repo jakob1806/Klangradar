@@ -21,6 +21,8 @@ struct PrepareSection: View {
         var durationMinutes: Int? = nil
     }
 
+    private var hasPerformers: Bool { detail.objects("event_participants").contains { $0.object("persons") != nil } }
+
     private var works: [WorkRef] {
         detail.objects("event_works")
             .sorted { ($0.integer("position") ?? 0) < ($1.integer("position") ?? 0) }
@@ -37,11 +39,11 @@ struct PrepareSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 28) {
-            if !works.isEmpty || bookletURL != nil || applePlaylist != nil || spotifyPlaylist != nil {
+            if !works.isEmpty || hasPerformers || bookletURL != nil || applePlaylist != nil || spotifyPlaylist != nil {
                 VStack(alignment: .leading, spacing: 14) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("In 3 Minuten vorbereitet").font(.title2.bold())
-                        Text("Programmheft, Einführung und Reinhören").font(.subheadline).foregroundStyle(.secondary)
+                        Text("Programmheft, Werke und wer auf der Bühne steht").font(.subheadline).foregroundStyle(.secondary)
                     }
                     // Programmheft und offizielle Playlist zum Konzert
                     // (Nutzerwunsch 25.10.2026: hier statt ganz unten).
@@ -105,6 +107,7 @@ struct PrepareSection: View {
                             if index < works.count - 1 { Divider() }
                         }
                     }
+                    PerformerBriefs(detail: detail)
                 }
             }
         }

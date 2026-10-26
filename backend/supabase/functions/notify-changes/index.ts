@@ -69,6 +69,16 @@ function notificationFor(
         body: `Die Veranstaltung wurde ${label}.`,
       };
     }
+    case "cast": {
+      // Erstellt von Claude Code (26.10.2026): Besetzungsänderung aus
+      // detect_cast_changes() — new_value "+ Name, …", old_value "− Name, …".
+      const added = change.new_value?.trim();
+      const removed = change.old_value?.trim();
+      const body = added && removed
+        ? `Besetzungsänderung: ${added} statt ${removed}.`
+        : added ? `Neu dabei: ${added}.` : `Nicht mehr dabei: ${removed}.`;
+      return { type: "cast_changed", prefsColumn: null, title: eventTitle, body };
+    }
     default:
       return null;
   }
