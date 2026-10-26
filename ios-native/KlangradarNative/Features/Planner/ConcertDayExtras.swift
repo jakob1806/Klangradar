@@ -29,7 +29,7 @@ struct PerformerBriefs: View {
     }
 
     var body: some View {
-        Group {
+        VStack(alignment: .leading, spacing: 0) {
             if !briefs.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Wer spielt?").font(.headline)
@@ -102,7 +102,7 @@ struct CastChangeBanner: View {
     @State private var message: String?
 
     var body: some View {
-        Group {
+        VStack(alignment: .leading, spacing: 0) {
             if let message {
                 HStack(alignment: .top, spacing: 10) {
                     Image(systemName: "person.2.badge.gearshape.fill").foregroundStyle(.orange)
@@ -148,7 +148,7 @@ struct SeatCard: View {
     private var isUpcoming: Bool { (event.startDate ?? .distantPast).addingTimeInterval(3 * 3600) > .now }
 
     var body: some View {
-        Group {
+        VStack(alignment: .leading, spacing: 0) {
             if isUpcoming {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(spacing: 12) {
