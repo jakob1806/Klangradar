@@ -72,6 +72,11 @@ protocol EventRepository: Sendable {
     func events(from: Date, to: Date, regionID: UUID?) async throws -> [ConcertEvent]
     /// Ein Event per Slug (Deep-Links aus Push, Widget, Spotlight).
     func event(slug: String) async throws -> ConcertEvent?
+    /// Konzertseite in zwei Stufen: erst der Termin selbst (eine Anfrage),
+    /// dann Weitere Termine, Ähnliche, Tickets und Bilder. So steht die Seite
+    /// sofort, statt auf vier Anfragewellen hintereinander zu warten.
+    func eventDetailBase(slug: String) async throws -> JSONObject?
+    func enrichingDetail(_ detail: JSONObject) async -> JSONObject
 }
 
 extension EventRepository {
@@ -83,6 +88,8 @@ extension EventRepository {
         }
     }
     func event(slug: String) async throws -> ConcertEvent? { nil }
+    func eventDetailBase(slug: String) async throws -> JSONObject? { try await eventDetail(slug: slug) }
+    func enrichingDetail(_ detail: JSONObject) async -> JSONObject { detail }
 
     func upcomingEvents(limit: Int) async throws -> [ConcertEvent] {
         try await upcomingEvents(limit: limit, regionID: nil)
@@ -315,6 +322,15 @@ struct LiveEventRepository: EventRepository {
     }
 
     func eventDetail(slug: String) async throws -> JSONObject? {
+        guard let baseDetail = try await eventDetailBase(slug: slug) else { return nil }
+        return await enrichingRelatedContent(baseDetail)
+    }
+
+    func enrichingDetail(_ detail: JSONObject) async -> JSONObject {
+        await enrichingRelatedContent(detail)
+    }
+
+    func eventDetailBase(slug: String) async throws -> JSONObject? {
         let baseDetail: JSONObject?
         do {
             let rows: [JSONObject] = try await client.get(
@@ -341,8 +357,7 @@ struct LiveEventRepository: EventRepository {
                 baseDetail = rows.first
             }
         }
-        guard let baseDetail else { return nil }
-        return await enrichingRelatedContent(baseDetail)
+        return baseDetail
     }
 
     private func detailQuery(slug: String, selection: String) -> [URLQueryItem] {
