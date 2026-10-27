@@ -239,7 +239,7 @@ extension UserRepository {
         let rows: [JSONObject] = try await client.get(table: "event_attendance", queryItems: [
             URLQueryItem(name: "select", value: selection), URLQueryItem(name: "user_id", value: "eq.\(userID.uuidString)"), URLQueryItem(name: "order", value: "attended_at.desc.nullslast,created_at.desc")
         ], accessToken: token)
-        return rows.compactMap { row in
+        let attended = rows.compactMap { row -> VisitedConcert? in
             guard let id = row.string("event_id").flatMap(UUID.init(uuidString:)), let event = row.object("events") else { return nil }
             let venue = event.object("venues")
             let genres = event.objects("event_genres").compactMap { $0.object("genres")?.string("label_de") }
@@ -249,6 +249,41 @@ extension UserRepository {
                 return VisitedWork(id: workID, title: work.string("title") ?? "Werk", composerID: composer?.string("id").flatMap(UUID.init(uuidString:)), composerName: composer?.string("full_name"), compositionYear: work.integer("composition_year"))
             }
             return VisitedConcert(id: id, title: event.string("title") ?? "Konzert", venueID: venue?.string("id").flatMap(UUID.init(uuidString:)), venue: venue?.string("name") ?? "Ort folgt", city: venue?.string("address_city"), attendedAt: (row.string("attended_at") ?? row.string("created_at")).flatMap(FlexibleDateParser.date(from:)), genres: genres, works: works, event: ConcertEvent(json: event))
+        }
+        let journal = (try? await journalVisits(userID: userID, token: token)) ?? []
+        return (attended + journal).sorted { ($0.attendedAt ?? .distantPast) > ($1.attendedAt ?? .distantPast) }
+    }
+
+    /// Selbst eingetragene Konzerte (Konzert-Journal) zählen wie Besuche –
+    /// für Besuchszähler, Level, Achievements und Jahresrückblick. Nur
+    /// vergangene Abende; Werke werden über ihre IDs mit Komponist und
+    /// Entstehungsjahr nachgeladen.
+    private func journalVisits(userID: UUID, token: String) async throws -> [VisitedConcert] {
+        let rows: [JSONObject] = try await client.get(table: "user_concert_entries", queryItems: [
+            URLQueryItem(name: "select", value: "id,title,starts_at,venue_name,program,venues(id,name,address_city)"),
+            URLQueryItem(name: "user_id", value: "eq.\(userID.uuidString)"),
+            URLQueryItem(name: "starts_at", value: "lte.\(ISO8601DateFormatter().string(from: .now))")
+        ], accessToken: token)
+        guard !rows.isEmpty else { return [] }
+        let workIDs = Set(rows.flatMap { $0.objects("program").compactMap { $0.string("work_id") } })
+        var worksByID: [String: VisitedWork] = [:]
+        if !workIDs.isEmpty {
+            let workRows: [JSONObject] = (try? await client.get(table: "works", queryItems: [
+                URLQueryItem(name: "select", value: "id,title,composition_year,composer:persons(id,full_name)"),
+                URLQueryItem(name: "id", value: "in.(\(workIDs.joined(separator: ",")))")
+            ])) ?? []
+            for work in workRows {
+                guard let raw = work.string("id"), let workID = UUID(uuidString: raw) else { continue }
+                let composer = work.object("composer")
+                worksByID[raw] = VisitedWork(id: workID, title: work.string("title") ?? "Werk", composerID: composer?.string("id").flatMap(UUID.init(uuidString:)), composerName: composer?.string("full_name"), compositionYear: work.integer("composition_year"))
+            }
+        }
+        return rows.compactMap { row in
+            guard let id = row.string("id").flatMap(UUID.init(uuidString:)) else { return nil }
+            let venue = row.object("venues")
+            let works = row.objects("program").compactMap { item in item.string("work_id").flatMap { worksByID[$0] } }
+            let title = row.string("title") ?? row.objects("program").first?.string("title") ?? "Eigener Konzertabend"
+            return VisitedConcert(id: id, title: title, venueID: venue?.string("id").flatMap(UUID.init(uuidString:)), venue: venue?.string("name") ?? row.string("venue_name") ?? "Ort unbekannt", city: venue?.string("address_city"), attendedAt: row.string("starts_at").flatMap(FlexibleDateParser.date(from:)), genres: [], works: works, event: nil)
         }
     }
 

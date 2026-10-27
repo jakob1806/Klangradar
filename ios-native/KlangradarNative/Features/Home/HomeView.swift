@@ -741,10 +741,14 @@ private struct EventRail: View {
                             VStack(alignment: .leading, spacing: 6) {
                                 EventCard(event: event)
                                 if let caption = captions[event.id] {
+                                    // Ganz lesbar statt nach einer Zeile
+                                    // abgeschnitten (Nutzerwunsch 27.10.2026).
                                     Label(caption, systemImage: "sparkle")
-                                        .font(.caption.weight(.medium))
+                                        .font(.footnote.weight(.semibold))
                                         .foregroundStyle(KlangradarTheme.accent)
-                                        .lineLimit(1)
+                                        .lineLimit(3)
+                                        .multilineTextAlignment(.leading)
+                                        .fixedSize(horizontal: false, vertical: true)
                                         .frame(width: 196, alignment: .leading)
                                 }
                             }

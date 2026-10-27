@@ -12,6 +12,9 @@ struct JournalPick: Identifiable, Hashable, Sendable {
     var id: String { entityID?.uuidString ?? "\(kind.rawValue):\(name)" }
 }
 
+// Equatable bewusst synthetisiert (alle Felder): ein nur-ID-Vergleich ließ
+// SwiftUI Änderungen an Ort/Dauer/Programm/Mitwirkenden im Editor als
+// "unverändert" verwerfen – sichtbar wurden sie erst nach dem Sichern.
 struct ConcertJournalEntry: Identifiable, Sendable, Equatable {
     var id: UUID = UUID()
     var title = ""
@@ -22,8 +25,6 @@ struct ConcertJournalEntry: Identifiable, Sendable, Equatable {
     var participants: [JournalPick] = []
     var note = ""
     var photoPaths: [String] = []
-
-    static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
 }
 
 @MainActor
@@ -39,15 +40,18 @@ enum JournalAPI {
         let pattern = "*\(q.replacingOccurrences(of: "*", with: ""))*"
         switch kind {
         case .person:
+            // Mitwirkende: Personen und Ensembles in einer Suche.
+            async let ensembles = search(.ensemble, q)
             let rows: [JSONObject] = (try? await client.get(table: "persons", queryItems: [
                 URLQueryItem(name: "select", value: "id,full_name,photo_url,instrument"),
                 URLQueryItem(name: "full_name", value: "ilike.\(pattern)"),
                 URLQueryItem(name: "limit", value: "20")
             ])) ?? []
-            return rows.compactMap { row in
+            let persons = rows.compactMap { row -> JournalPick? in
                 guard let id = row.string("id").flatMap(UUID.init(uuidString:)), let name = row.string("full_name") else { return nil }
                 return JournalPick(kind: .person, entityID: id, name: name, detail: row.string("instrument"), photoURL: row.string("photo_url").flatMap(URL.init(string:)))
             }
+            return persons + (await ensembles).map { var pick = $0; pick.detail = pick.detail ?? "Ensemble"; return pick }
         case .ensemble:
             let rows: [JSONObject] = (try? await client.get(table: "ensembles", queryItems: [
                 URLQueryItem(name: "select", value: "id,name,photo_url"),
@@ -93,6 +97,53 @@ enum JournalAPI {
                 let detail = [row.object("composer")?.string("full_name"), row.string("catalog_number")].compactMap { $0 }.joined(separator: " · ")
                 return JournalPick(kind: .work, entityID: id, name: title, detail: detail.isEmpty ? nil : detail)
             }
+        }
+    }
+
+    /// Vorschläge ohne Suchbegriff: bekannte Personen/Ensembles/Orte nach
+    /// kommenden Konzerten (Stadt des Nutzers zuerst) und Follower-Zahl –
+    /// dasselbe Ranking wie im Onboarding; Werke nach Häufigkeit in
+    /// kommenden Programmen.
+    static func suggestions(_ kind: EntityKind) async -> [JournalPick] {
+        guard let client else { return [] }
+        func ranked(_ rpcKind: EntityKind, limit: Int) async -> [JournalPick] {
+            let rows: [JSONObject] = (try? await client.rpc("onboarding_follow_suggestions", parameters: [
+                "p_kind": .string(rpcKind.rawValue), "p_limit": .number(Double(limit))
+            ], accessToken: token)) ?? []
+            return rows.compactMap { row in
+                guard let id = row.string("id").flatMap(UUID.init(uuidString:)), let name = row.string("label") else { return nil }
+                return JournalPick(kind: rpcKind, entityID: id, name: name, detail: rpcKind == .ensemble ? "Ensemble" : nil,
+                                   photoURL: row.string("photo_url").flatMap(URL.init(string:)))
+            }
+        }
+        switch kind {
+        case .person:
+            async let persons = ranked(.person, limit: 24)
+            async let ensembles = ranked(.ensemble, limit: 10)
+            let (p, e) = await (persons, ensembles)
+            // Personen und Ensembles abwechselnd mischen, damit beide oben auftauchen.
+            var mixed: [JournalPick] = []
+            for index in 0..<max(p.count, e.count * 3) {
+                if index < p.count { mixed.append(p[index]) }
+                if index % 3 == 2, index / 3 < e.count { mixed.append(e[index / 3]) }
+            }
+            return mixed
+        case .ensemble, .venue:
+            return await ranked(kind, limit: 30)
+        case .work:
+            let rows: [JSONObject] = (try? await client.get(table: "event_works", queryItems: [
+                URLQueryItem(name: "select", value: "work:works(id,title,catalog_number,composer:persons(full_name)),event:events!inner(start_datetime)"),
+                URLQueryItem(name: "event.start_datetime", value: "gt.\(ISO8601DateFormatter().string(from: .now))"),
+                URLQueryItem(name: "limit", value: "400")
+            ])) ?? []
+            var counts: [String: (pick: JournalPick, n: Int)] = [:]
+            for row in rows {
+                guard let work = row.object("work"), let raw = work.string("id"), let id = UUID(uuidString: raw), let title = work.string("title") else { continue }
+                if let existing = counts[raw] { counts[raw] = (existing.pick, existing.n + 1); continue }
+                let detail = [work.object("composer")?.string("full_name"), work.string("catalog_number")].compactMap { $0 }.joined(separator: " · ")
+                counts[raw] = (JournalPick(kind: .work, entityID: id, name: title, detail: detail.isEmpty ? nil : detail), 1)
+            }
+            return counts.values.sorted { $0.n > $1.n }.prefix(30).map(\.pick)
         }
     }
 

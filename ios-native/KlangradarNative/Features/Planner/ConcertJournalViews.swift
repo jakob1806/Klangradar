@@ -22,7 +22,7 @@ struct ConcertJournalEditor: View {
             VStack(alignment: .leading, spacing: 18) {
                 photoHeader
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(entry.startsAt.formatted(.dateTime.weekday(.wide).day().month(.wide).year()).uppercased())
+                    Text(entry.startsAt.formatted(.dateTime.locale(.klangradarGerman).weekday(.wide).day().month(.wide).year()).uppercased())
                         .font(.caption.weight(.semibold)).tracking(1).foregroundStyle(KlangradarTheme.accent)
                     TextField("Titel des Abends", text: $entry.title, axis: .vertical)
                         .font(.system(.largeTitle, design: .serif).weight(.semibold))
@@ -34,17 +34,25 @@ struct ConcertJournalEditor: View {
                         icon("calendar")
                         DatePicker("Wann", selection: $entry.startsAt, in: ...Date.now.addingTimeInterval(365 * 86_400))
                             .datePickerStyle(.compact)
+                            .environment(\.locale, .klangradarGerman)
                     }
                     Divider().padding(.leading, 44)
-                    Button { showsDuration.toggle() } label: {
-                        row(icon: "hourglass", title: "Dauer", value: entry.durationMinutes.map { "\($0) Min." } ?? "Hinzufügen")
+                    Button {
+                        showsDuration.toggle()
+                        if showsDuration, entry.durationMinutes == nil { entry.durationMinutes = 120 }
+                    } label: {
+                        row(icon: "hourglass", title: "Dauer", value: entry.durationMinutes.map(Self.durationText) ?? "Hinzufügen")
                     }
                     .buttonStyle(.plain)
                     if showsDuration {
-                        Stepper(value: Binding(get: { entry.durationMinutes ?? 120 }, set: { entry.durationMinutes = $0 }), in: 10...480, step: 5) {
-                            Text("\(entry.durationMinutes ?? 120) Minuten").font(.subheadline)
+                        HStack {
+                            Stepper(value: Binding(get: { entry.durationMinutes ?? 120 }, set: { entry.durationMinutes = $0 }), in: 10...480, step: 5) {
+                                Text(Self.durationText(entry.durationMinutes ?? 120)).font(.subheadline.weight(.semibold)).monospacedDigit()
+                            }
                         }
                         .padding(.leading, 44)
+                        Button("Dauer entfernen", role: .destructive) { entry.durationMinutes = nil; showsDuration = false }
+                            .font(.footnote).padding(.leading, 44)
                     }
                 }
 
@@ -56,6 +64,12 @@ struct ConcertJournalEditor: View {
                 }
 
                 section("Programm", add: { picker = .work }) {
+                    if entry.program.isEmpty {
+                        Button { picker = .work } label: {
+                            Label("Werk hinzufügen", systemImage: "plus.circle").font(.subheadline.weight(.semibold))
+                        }
+                        .tint(KlangradarTheme.accent)
+                    }
                     ForEach(entry.program) { work in
                         chipRow(icon: "music.note", title: work.name, detail: work.detail) { entry.program.removeAll { $0.id == work.id } }
                     }
@@ -67,8 +81,8 @@ struct ConcertJournalEditor: View {
                             entry.participants.removeAll { $0.id == person.id }
                         }
                     }
-                    Button { picker = .ensemble } label: {
-                        Label("Ensemble hinzufügen", systemImage: "plus.circle").font(.subheadline.weight(.semibold))
+                    Button { picker = .person } label: {
+                        Label("Person oder Ensemble hinzufügen", systemImage: "plus.circle").font(.subheadline.weight(.semibold))
                     }
                     .tint(KlangradarTheme.accent)
                     .padding(.top, 2)
@@ -101,10 +115,12 @@ struct ConcertJournalEditor: View {
         .sheet(item: $picker) { kind in
             NavigationStack {
                 JournalEntityPicker(kind: kind, contextHint: kind == .work ? entry.program.last?.detail : nil) { pick in
+                    withAnimation(.snappy) {
                     switch pick.kind {
                     case .venue: entry.venue = pick
                     case .work: if !entry.program.contains(pick) { entry.program.append(pick) }
-                    default: if !entry.participants.contains(pick) { entry.participants.append(pick) }
+                    default: if !entry.participants.contains(where: { $0.id == pick.id }) { entry.participants.append(pick) }
+                    }
                     }
                 }
             }
@@ -118,6 +134,10 @@ struct ConcertJournalEditor: View {
             if let existing { entry = existing }
             for path in entry.photoPaths where photoURLs[path] == nil { photoURLs[path] = await PlannerAPI.signedPhotoURL(path) }
         }
+    }
+
+    static func durationText(_ minutes: Int) -> String {
+        minutes < 60 ? "\(minutes) Min." : minutes % 60 == 0 ? "\(minutes / 60) Std." : "\(minutes / 60) Std. \(minutes % 60) Min."
     }
 
     private var journalBackground: some View {
@@ -257,6 +277,8 @@ struct JournalEntityPicker: View {
     @Environment(\.dismiss) private var dismiss
     @State private var query = ""
     @State private var results: [JournalPick] = []
+    @State private var suggestions: [JournalPick] = []
+    @State private var requestKind: EntityKind = .person
     @State private var isSearching = false
     @State private var showsAddForm = false
     @State private var context = ""
@@ -264,14 +286,23 @@ struct JournalEntityPicker: View {
     @State private var isRequesting = false
     @State private var errorMessage: String?
 
+    init(kind: EntityKind, contextHint: String? = nil, onPick: @escaping (JournalPick) -> Void) {
+        self.kind = kind
+        self.contextHint = contextHint
+        self.onPick = onPick
+        _requestKind = State(initialValue: kind)
+    }
+
     private var title: String {
         switch kind {
         case .venue: "Konzertort"
         case .work: "Werk"
         case .ensemble: "Ensemble"
-        default: "Person"
+        default: "Mitwirkende"
         }
     }
+
+    private var trimmedQuery: String { query.trimmingCharacters(in: .whitespaces) }
 
     private var contextPlaceholder: String? {
         switch kind {
@@ -288,28 +319,21 @@ struct JournalEntityPicker: View {
                     TextField("Rolle, z. B. Dirigent, Violine", text: $role)
                 } footer: { Text("Optional – erscheint in deinem Eintrag.") }
             }
-            Section {
-                ForEach(results) { pick in
-                    Button { choose(pick) } label: {
-                        HStack(spacing: 12) {
-                            CachedAsyncImage(url: pick.photoURL) { phase in
-                                if let image = phase.image { image.resizable().scaledToFill() }
-                                else { Image(systemName: symbol).foregroundStyle(KlangradarTheme.accent).frame(maxWidth: .infinity, maxHeight: .infinity).background(KlangradarTheme.accent.opacity(0.1)) }
-                            }
-                            .frame(width: 36, height: 36).clipShape(kind == .person ? AnyShape(.circle) : AnyShape(.rect(cornerRadius: 9)))
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(pick.name).foregroundStyle(.primary).lineLimit(2)
-                                if let detail = pick.detail { Text(detail).font(.caption).foregroundStyle(.secondary) }
-                            }
-                        }
-                    }
+            if trimmedQuery.count < 2 {
+                Section(kind == .venue ? "Beliebte Konzertorte" : kind == .work ? "Oft gespielt" : "Bekannt aus Klangradar") {
+                    if suggestions.isEmpty { ProgressView().frame(maxWidth: .infinity) }
+                    ForEach(suggestions) { pick in pickRow(pick) }
                 }
-                if query.trimmingCharacters(in: .whitespaces).count >= 2 && !isSearching {
-                    Button { context = contextHint ?? ""; showsAddForm = true } label: {
-                        Label("„\(query.trimmingCharacters(in: .whitespaces))“ hinzufügen", systemImage: "plus.circle.fill")
-                            .fontWeight(.semibold)
+            }
+            Section {
+                ForEach(results) { pick in pickRow(pick) }
+                if trimmedQuery.count >= 2 && !isSearching {
+                    if kind == .person {
+                        addButton("„\(trimmedQuery)“ als Person hinzufügen", as: .person)
+                        addButton("„\(trimmedQuery)“ als Ensemble hinzufügen", as: .ensemble)
+                    } else {
+                        addButton("„\(trimmedQuery)“ hinzufügen", as: kind)
                     }
-                    .tint(KlangradarTheme.accent)
                 }
             } footer: {
                 if query.count >= 2 && results.isEmpty && !isSearching {
@@ -318,6 +342,9 @@ struct JournalEntityPicker: View {
             }
         }
         .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "\(title) suchen")
+        .task {
+            suggestions = await JournalAPI.suggestions(kind)
+        }
         .task(id: query) {
             try? await Task.sleep(for: .milliseconds(250))
             guard !Task.isCancelled else { return }
@@ -333,12 +360,44 @@ struct JournalEntityPicker: View {
             Button("Abbrechen", role: .cancel) {}
             Button(isRequesting ? "Wird angelegt …" : "Hinzufügen") { Task { await request() } }
         } message: {
-            Text("„\(query.trimmingCharacters(in: .whitespaces))“ wird angelegt und automatisch mit Infos ergänzt.")
+            Text("„\(trimmedQuery)“ wird als \(requestKind == .ensemble ? "Ensemble" : requestKind == .person ? "Person" : title) angelegt und automatisch mit Infos ergänzt.")
         }
         .overlay(alignment: .bottom) {
             if let errorMessage {
                 Text(errorMessage).font(.footnote).padding(12).background(.regularMaterial, in: .capsule).padding()
             }
+        }
+    }
+
+    private func pickRow(_ pick: JournalPick) -> some View {
+        Button { choose(pick) } label: {
+            HStack(spacing: 12) {
+                CachedAsyncImage(url: pick.photoURL) { phase in
+                    if let image = phase.image { image.resizable().scaledToFill() }
+                    else { Image(systemName: symbol(for: pick.kind)).foregroundStyle(KlangradarTheme.accent).frame(maxWidth: .infinity, maxHeight: .infinity).background(KlangradarTheme.accent.opacity(0.1)) }
+                }
+                .frame(width: 36, height: 36).clipShape(pick.kind == .person ? AnyShape(.circle) : AnyShape(.rect(cornerRadius: 9)))
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(pick.name).foregroundStyle(.primary).lineLimit(2)
+                    if let detail = pick.detail { Text(detail).font(.caption).foregroundStyle(.secondary) }
+                }
+            }
+        }
+    }
+
+    private func addButton(_ label: String, as requested: EntityKind) -> some View {
+        Button { requestKind = requested; context = contextHint ?? ""; showsAddForm = true } label: {
+            Label(label, systemImage: "plus.circle.fill").fontWeight(.semibold)
+        }
+        .tint(KlangradarTheme.accent)
+    }
+
+    private func symbol(for kind: EntityKind) -> String {
+        switch kind {
+        case .venue: "building.columns"
+        case .work: "music.note"
+        case .ensemble: "person.3"
+        default: "person"
         }
     }
 
@@ -353,7 +412,7 @@ struct JournalEntityPicker: View {
 
     private func choose(_ pick: JournalPick) {
         var chosen = pick
-        if kind == .person, !role.trimmingCharacters(in: .whitespaces).isEmpty { chosen.role = role.trimmingCharacters(in: .whitespaces) }
+        if kind == .person, chosen.kind == .person, !role.trimmingCharacters(in: .whitespaces).isEmpty { chosen.role = role.trimmingCharacters(in: .whitespaces) }
         onPick(chosen)
         Haptics.light()
         dismiss()
@@ -363,7 +422,7 @@ struct JournalEntityPicker: View {
         isRequesting = true
         defer { isRequesting = false }
         do {
-            let pick = try await JournalAPI.request(kind, name: query.trimmingCharacters(in: .whitespaces), context: context.trimmingCharacters(in: .whitespaces))
+            let pick = try await JournalAPI.request(requestKind, name: trimmedQuery, context: context.trimmingCharacters(in: .whitespaces))
             choose(pick)
         } catch {
             errorMessage = "Konnte nicht angelegt werden. Bitte später erneut versuchen."

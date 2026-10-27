@@ -78,12 +78,12 @@ struct SeasonPlannerView: View {
                         RoundedRectangle(cornerRadius: 6, style: .continuous)
                             .fill(month.items.isEmpty ? AnyShapeStyle(Color.secondary.opacity(0.15)) : AnyShapeStyle(KlangradarTheme.accent.gradient))
                             .frame(height: 12 + 56 * CGFloat(month.items.count) / CGFloat(maxCount))
-                        Text(month.start.formatted(.dateTime.month(.abbreviated))).font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
+                        Text(month.start.formatted(.dateTime.locale(.klangradarGerman).month(.abbreviated))).font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("\(month.start.formatted(.dateTime.month(.wide))): \(month.items.count) Konzerte")
+                .accessibilityLabel("\(month.start.formatted(.dateTime.locale(.klangradarGerman).month(.wide))): \(month.items.count) Konzerte")
             }
         }
         .padding(14)
@@ -94,7 +94,7 @@ struct SeasonPlannerView: View {
         let conflicts = conflictDays(in: month)
         return VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
-                Text(month.start.formatted(.dateTime.month(.wide).year())).font(.title3.bold())
+                Text(month.start.formatted(.dateTime.locale(.klangradarGerman).month(.wide).year())).font(.title3.bold())
                 Spacer()
                 Text(month.items.isEmpty ? "frei" : "\(month.items.count) geplant").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
             }
@@ -129,8 +129,8 @@ struct SeasonPlannerView: View {
     private func row(_ item: Item, conflict: Bool) -> some View {
         HStack(spacing: 12) {
             VStack(spacing: 0) {
-                Text(item.event.startDate.map { $0.formatted(.dateTime.day()) } ?? "–").font(.title3.bold())
-                Text(item.event.startDate.map { $0.formatted(.dateTime.weekday(.abbreviated)) } ?? "").font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
+                Text(item.event.startDate.map { $0.formatted(.dateTime.locale(.klangradarGerman).day()) } ?? "–").font(.title3.bold())
+                Text(item.event.startDate.map { $0.formatted(.dateTime.locale(.klangradarGerman).weekday(.abbreviated)) } ?? "").font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
             }
             .frame(width: 40)
             VStack(alignment: .leading, spacing: 4) {
