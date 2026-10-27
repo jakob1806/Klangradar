@@ -17,6 +17,11 @@ enum FriendsHubTab: String, CaseIterable, Identifiable {
 }
 
 /// Freunde-Bereich: Aktivität, Konzertpläne, Freunde & Anfragen.
+/// Profile und Pläne werden direkt verlinkt (NavigationLink mit Ziel), nicht
+/// über navigationDestination: FriendsView liegt mal als Unterseite im
+/// Profil-Stapel, mal in einem eigenen Sheet. Als Unterseite registrierte
+/// Ziele schoben Profile doppelt auf (Nutzermeldung 27.10.2026: "Endlosschleife,
+/// erst nach Zurück kommt das Profil").
 struct FriendsView: View {
     @ObservedObject var auth: AuthStore
     let repository: UserRepository?
@@ -68,12 +73,6 @@ struct FriendsView: View {
         }
         .sheet(isPresented: $showsSettings) {
             NavigationStack { SocialSettingsView() }
-        }
-        .navigationDestination(for: PlanRoute.self) { route in
-            PlanDetailView(planID: route.id) { await load() }
-        }
-        .navigationDestination(for: ProfileRoute.self) { route in
-            UserProfileView(userID: route.id)
         }
         .task {
             tab = initialTab
@@ -164,7 +163,7 @@ struct FriendsView: View {
                     }
                     .buttonStyle(.plain)
                     ForEach(friends) { friend in
-                        NavigationLink(value: ProfileRoute(id: friend.id)) {
+                        NavigationLink { UserProfileView(userID: friend.id) } label: {
                             FriendCircleTile(title: friend.name.split(separator: " ").first.map(String.init) ?? friend.name, badge: friend.upcomingCount > 0 ? "\(friend.upcomingCount)" : nil) {
                                 SocialAvatar(name: friend.name, url: friend.avatarURL, size: 68)
                             }
@@ -192,7 +191,7 @@ struct FriendsView: View {
             VStack(spacing: 0) {
                 ForEach(incomingRequests) { request in
                     HStack(spacing: 12) {
-                        NavigationLink(value: ProfileRoute(id: request.person.id)) {
+                        NavigationLink { UserProfileView(userID: request.person.id) } label: {
                             HStack(spacing: 12) {
                                 SocialAvatar(name: request.person.name, url: request.person.avatarURL, size: 46)
                                 VStack(alignment: .leading, spacing: 2) {
@@ -244,7 +243,7 @@ struct FriendsView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(spacing: 14) {
                         ForEach(sortedPlans) { plan in
-                            NavigationLink(value: PlanRoute(id: plan.id)) { PlanPosterCard(plan: plan) }
+                            NavigationLink { PlanDetailView(planID: plan.id) { await load() } } label: { PlanPosterCard(plan: plan) }
                                 .buttonStyle(.plain)
                         }
                     }
@@ -377,8 +376,6 @@ struct FriendsView: View {
     }
 }
 
-struct PlanRoute: Hashable { let id: UUID }
-struct ProfileRoute: Hashable { let id: UUID }
 
 struct FriendsGoingGroup: Identifiable, Hashable {
     var id: UUID { event.id }

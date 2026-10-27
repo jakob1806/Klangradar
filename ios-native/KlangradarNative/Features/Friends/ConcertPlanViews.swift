@@ -14,7 +14,7 @@ struct PlanCard: View {
     let plan: ConcertPlan
 
     var body: some View {
-        NavigationLink(value: PlanRoute(id: plan.id)) {
+        NavigationLink { PlanDetailView(planID: plan.id) } label: {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 12) {
                     CachedAsyncImage(url: plan.event.imageURL, maxPixel: 240) { phase in

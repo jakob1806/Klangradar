@@ -1,9 +1,18 @@
 {
   "_hinweis": "Erstellt von Claude Code. Bei jedem Release mit Neuerungen hier pflegen und die id ändern: Die App zeigt den Inhalt einmal pro id als 'Neu in Klangradar', upload-testflight.sh übernimmt ihn als TestFlight-Testhinweis. Ton: kurz, sachlich, ganze Sätze, keine Aufzählungsflut.",
-  "id": "2026-10-27-plus-konzertjahr",
+  "id": "2026-10-27-freunde",
   "title": "Neu in Klangradar",
-  "intro": "Ein neues Konzertjahr und der erste Blick auf Klangradar Plus.",
+  "intro": "Freundesprofile sind neu gestaltet. Dazu ein neues Konzertjahr und der erste Blick auf Klangradar Plus.",
   "sections": [
+    {
+      "title": "Freunde",
+      "symbol": "person.2.fill",
+      "items": [
+        "Ein Tipp auf einen Freund öffnet jetzt direkt sein Profil. Vorher landete man erst nach einem Zurück dort.",
+        "Profile sind neu gestaltet: großer Kopf, Zahlen auf einen Blick und Konzerte als Karten.",
+        "Komponist:innen, die ihr beide gern hört, sind markiert."
+      ]
+    },
     {
       "title": "Dein Konzertjahr",
       "symbol": "chart.bar.fill",
