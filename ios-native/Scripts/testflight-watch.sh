@@ -43,8 +43,9 @@ SHORT=${SHA:0:7}
 TITLE=$(gh api "repos/$REPO/commits/$SHA" -q '.commit.message | split("\n")[0]' 2>/dev/null | cut -c1-80)
 
 # Betrifft der neue Stand die iOS-App? Sonst nur merken, kein Upload.
+# Doku (*.md) und die Upload-Skripte selbst zählen nicht als App-Änderung.
 if [ -n "$LAST" ]; then
-  IOS_CHANGES=$(gh api "repos/$REPO/compare/$LAST...$SHA" -q '[.files[].filename | select(startswith("ios-native/"))] | length' 2>/dev/null || echo "?")
+  IOS_CHANGES=$(gh api "repos/$REPO/compare/$LAST...$SHA" -q '[.files[].filename | select(startswith("ios-native/")) | select((test("\\.md$") or test("^ios-native/Scripts/(testflight-watch|install-testflight-watch|klangradar-testflight)\\.sh$")) | not)] | length' 2>/dev/null || echo "?")
   if [ "$IOS_CHANGES" = "0" ]; then
     log "$SHORT ohne iOS-Änderungen – kein Upload nötig"
     [ "${DRY_RUN:-0}" = "1" ] || echo "$SHA" > "$STATE"
