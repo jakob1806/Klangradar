@@ -39,23 +39,31 @@ struct EventDetailView: View {
                         topInset: max(screen.safeAreaInsets.top, 20)
                     )
 
-                    LazyVStack(alignment: .leading, spacing: 28) {
+                    // CollapsingVStack statt LazyVStack: leere Abschnitte (kein
+                    // Programm, keine Termine …) erzeugen keine 28-pt-Lücken.
+                    CollapsingVStack(spacing: 28) {
                         titleBlock
 
                         if let detail {
                             // In einem Block ohne Zwischenabstand: leere Zeilen
                             // (keine Freunde/Bewertungen) erzeugten sonst je 28 pt
                             // Leerraum (Nutzermeldung 25.10.2026).
-                            VStack(alignment: .leading, spacing: 0) {
-                                FriendsAttendingRow(event: event, shareURL: (detail.string("ticket_url") ?? detail.string("website_url")).flatMap(URL.init(string:)))
-                                EventRatingSection(event: event)
-                                FriendTasteRow(event: event)
-                                genres(detail)
+                            // Leere Bausteine (kein Hinweis, kein Abo, kein
+                            // Tagebuch) dürfen keinen Abstand erzeugen –
+                            // sonst klafft zwischen Kategorie und Ort eine
+                            // große Lücke (Nutzermeldung 27.10.2026).
+                            CollapsingVStack(spacing: 14) {
+                                VStack(alignment: .leading, spacing: 0) {
+                                    FriendsAttendingRow(event: event, shareURL: (detail.string("ticket_url") ?? detail.string("website_url")).flatMap(URL.init(string:)))
+                                    EventRatingSection(event: event)
+                                    FriendTasteRow(event: event)
+                                    genres(detail)
+                                }
+                                CastChangeBanner(eventID: event.id)
+                                EventSubscriptionsRow(event: event, repository: repository)
+                                DiaryEntryCard(event: event)
+                                essentialFacts(detail)
                             }
-                            CastChangeBanner(eventID: event.id)
-                            EventSubscriptionsRow(event: event, repository: repository)
-                            DiaryEntryCard(event: event)
-                            essentialFacts(detail)
 
                             if let description = detail.string("description_de"), !description.isEmpty {
                                 section("Zum Konzert") {
@@ -1202,6 +1210,36 @@ private struct EventHeroArtwork: View {
             Image(systemName: "music.note.list")
                 .font(.system(size: 46, weight: .light))
                 .foregroundStyle(.white.opacity(0.8))
+        }
+    }
+}
+
+/// VStack, der für unsichtbare (0 pt hohe) Kinder keinen Abstand einfügt –
+/// für Bausteine, die erst nach dem Laden entscheiden, ob sie etwas zeigen.
+struct CollapsingVStack: Layout {
+    var spacing: CGFloat = 12
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width
+        let sizes = subviews.map { $0.sizeThatFits(ProposedViewSize(width: width, height: nil)) }
+        let visible = sizes.filter { $0.height > 0.5 }
+        let height = visible.reduce(0) { $0 + $1.height } + spacing * CGFloat(max(visible.count - 1, 0))
+        return CGSize(width: width ?? (visible.map(\.width).max() ?? 0), height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var y = bounds.minY
+        var placedAny = false
+        for subview in subviews {
+            let size = subview.sizeThatFits(ProposedViewSize(width: bounds.width, height: nil))
+            guard size.height > 0.5 else {
+                subview.place(at: CGPoint(x: bounds.minX, y: y), proposal: ProposedViewSize(width: bounds.width, height: 0))
+                continue
+            }
+            if placedAny { y += spacing }
+            subview.place(at: CGPoint(x: bounds.minX, y: y), proposal: ProposedViewSize(width: bounds.width, height: size.height))
+            y += size.height
+            placedAny = true
         }
     }
 }

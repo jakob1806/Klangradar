@@ -209,3 +209,9 @@ enum PlannerAPI {
         return try? await client.signedStorageURL(bucket: "diary-photos", path: path, expiresIn: 3600, accessToken: token)
     }
 }
+
+extension Locale {
+    /// Klangradar ist deutschsprachig: Monats-/Wochentagsnamen immer deutsch,
+    /// auch wenn das iPhone auf Englisch steht (Nutzermeldung 27.10.2026).
+    static let klangradarGerman = Locale(identifier: "de_DE")
+}

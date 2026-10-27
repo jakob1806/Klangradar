@@ -59,3 +59,14 @@ xcodebuild -exportArchive -archivePath "$WORK/Klangradar.xcarchive" -exportOptio
 
 echo "$BUILD_NUMBER" > "$COUNTER"
 echo "✅ Hochgeladen: Version $VERSION (Build $BUILD_NUMBER). In 10–30 Min. unter TestFlight sichtbar."
+
+# Testhinweis ("Was testen?") aus KlangradarNative/Resources/WhatsNew.json –
+# im Hintergrund, weil App Store Connect den Build erst nach einigen Minuten
+# kennt. Script und Notizen vorher kopieren: der Worktree wird beim nächsten
+# Lauf neu angelegt.
+NOTES_DIR="$HOME/.klangradar-whatsnew"
+rm -rf "$NOTES_DIR"; mkdir -p "$NOTES_DIR/Scripts" "$NOTES_DIR/KlangradarNative/Resources"
+cp Scripts/testflight_whats_new.rb "$NOTES_DIR/Scripts/"
+cp KlangradarNative/Resources/WhatsNew.json "$NOTES_DIR/KlangradarNative/Resources/"
+nohup ruby "$NOTES_DIR/Scripts/testflight_whats_new.rb" "$BUILD_NUMBER" > /tmp/klangradar-whatsnew.log 2>&1 &
+echo "📝 TestFlight-Testhinweis wird gesetzt, sobald der Build verarbeitet ist (/tmp/klangradar-whatsnew.log)."

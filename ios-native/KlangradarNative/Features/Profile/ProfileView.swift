@@ -37,6 +37,7 @@ struct ProfileView: View {
     @State private var showsEditorialShell = false
     @State private var showsMarketingShell = ProcessInfo.processInfo.environment["KLANGRADAR_MARKETING_CAPTURE"] == "1"
     @State private var profileDestination: ProfileDestination?
+    @State private var showsNewJournalEntry = false
 
     var body: some View {
         NavigationStack {
@@ -54,6 +55,10 @@ struct ProfileView: View {
                     // Anmelden immer anbieten, solange kein echtes Konto aktiv
                     // ist – auch wenn die anonyme Sitzung hängt oder fehlte.
                     if showsSignInCard { signInCard }
+
+                    // Konzert eintragen direkt im Profil statt versteckt unter
+                    // "Mein Klangradar" → Tagebuch (Nutzerwunsch 27.10.2026).
+                    if auth.userID != nil { concertJournalCard }
 
                     // Neustrukturierung: eigene Inhalte direkt im Profil
                     // (Demnächst · Erlebt · Gefolgt · Listen) statt Kacheln,
@@ -110,6 +115,12 @@ struct ProfileView: View {
                             ProfileRow(title: "Stadt", symbol: "building.2.fill", color: .teal, value: cityStore.selectedCity?.name ?? "Alle Städte")
                         }
                         Divider().padding(.leading, 56)
+                        if let notes = WhatsNewNotes.current {
+                            NavigationLink { WhatsNewView(notes: notes) } label: {
+                                ProfileRow(title: "Neu in dieser Version", symbol: "sparkles", color: .orange)
+                            }
+                            Divider().padding(.leading, 56)
+                        }
                         NavigationLink { settingsList } label: {
                             ProfileRow(title: "Einstellungen", symbol: "gearshape.fill", color: .gray)
                         }
@@ -362,6 +373,39 @@ struct ProfileView: View {
         switch auth.state {
         case .anonymous, .loading, .failed: true
         case .authenticated, .unavailable: false
+        }
+    }
+
+    private var concertJournalCard: some View {
+        HStack(spacing: 12) {
+            Button { showsNewJournalEntry = true } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "square.and.pencil").font(.title3.weight(.semibold)).foregroundStyle(.white)
+                        .frame(width: 44, height: 44).background(KlangradarTheme.accent, in: .rect(cornerRadius: 13, style: .continuous))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Konzert eintragen").font(.headline).foregroundStyle(.primary)
+                        Text("Auch Abende, die nicht in Klangradar stehen").font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 0)
+                    Image(systemName: "plus").font(.subheadline.weight(.bold)).foregroundStyle(KlangradarTheme.accent)
+                }
+                .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            Divider().frame(height: 36)
+            NavigationLink { ConcertDiaryListView() } label: {
+                VStack(spacing: 2) {
+                    Image(systemName: "book.closed.fill").font(.subheadline).foregroundStyle(KlangradarTheme.accent)
+                    Text("Tagebuch").font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
+                }
+                .frame(width: 58)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(14)
+        .background(.regularMaterial, in: .rect(cornerRadius: 22, style: .continuous))
+        .sheet(isPresented: $showsNewJournalEntry) {
+            NavigationStack { ConcertJournalEditor() }
         }
     }
 

@@ -238,6 +238,7 @@ struct RootTabView: View {
             // der präsentierenden View nicht zuverlässig erben.
             .environmentObject(follows)
         }
+        .whatsNewSheet(blocked: showsOnboarding || auth.isCompletingPasswordRecovery)
         .sheet(isPresented: $auth.isCompletingPasswordRecovery) {
             PasswordResetCompletionView(auth: auth)
         }

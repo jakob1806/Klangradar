@@ -24,11 +24,6 @@ struct EveningPlanSection: View {
     @State private var lastOrigin: CLLocation?
     @State private var lastEstimate: Date?
     @Environment(\.scenePhase) private var scenePhase
-    @State private var ticketImage: UIImage?
-    @State private var ticketPick: PhotosPickerItem?
-    @State private var showsTicket = false
-    @State private var showsPhotoPicker = false
-    @State private var showsFileImporter = false
 
     /// Fahrzeit je Verkehrsmittel (Schlüssel: MKLaunchOptionsDirectionsMode*).
     private struct TravelETA {
@@ -110,42 +105,13 @@ struct EveningPlanSection: View {
                             .padding(16)
                     }
                 }
-                HStack(alignment: .top, spacing: 12) {
-                    ticketCard
-                    if !goodToKnow.isEmpty { goodToKnowCard }
-                }
+                // Ticket liegt jetzt zusammen mit dem Sitzplatz in der
+                // "Ticket & Platz"-Karte (SeatCard, Nutzerwunsch 27.10.2026).
+                if !goodToKnow.isEmpty { goodToKnowCard }
                 if !restaurants.isEmpty { restaurantList }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .task { await search() }
-            .task { ticketImage = TicketStore.image(for: event.id) }
-            .onChange(of: ticketPick) { _, item in
-                guard let item else { return }
-                Task {
-                    if let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) {
-                        TicketStore.save(image, for: event.id)
-                        ticketImage = image
-                        Haptics.confirm()
-                    }
-                    ticketPick = nil
-                }
-            }
-            .photosPicker(isPresented: $showsPhotoPicker, selection: $ticketPick, matching: .images)
-            .fileImporter(isPresented: $showsFileImporter, allowedContentTypes: [.pdf, .image]) { result in
-                guard case let .success(url) = result else { return }
-                let scoped = url.startAccessingSecurityScopedResource()
-                defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-                if let image = Self.ticketImage(from: url) {
-                    TicketStore.save(image, for: event.id)
-                    ticketImage = image
-                    Haptics.confirm()
-                }
-            }
-            .fullScreenCover(isPresented: $showsTicket) {
-                if let ticketImage { TicketFullScreen(image: ticketImage) { showsTicket = false } onRemove: {
-                    TicketStore.remove(for: event.id); self.ticketImage = nil; showsTicket = false
-                } }
-            }
             .task(id: venueItem?.placemark.coordinate.latitude) { await followLocation() }
             .onChange(of: scenePhase) { _, phase in
                 // Zurück in der App: Standort kann sich geändert haben.
@@ -442,55 +408,6 @@ struct EveningPlanSection: View {
 
     // MARK: Ticket & Gut zu wissen
 
-    /// Bild aus Foto-Datei oder erster PDF-Seite (in hoher Auflösung, damit
-    /// QR-/Barcodes am Einlass scanbar bleiben).
-    private static func ticketImage(from url: URL) -> UIImage? {
-        if url.pathExtension.lowercased() == "pdf" || UTType(filenameExtension: url.pathExtension)?.conforms(to: .pdf) == true {
-            guard let page = PDFDocument(url: url)?.page(at: 0) else { return nil }
-            let bounds = page.bounds(for: .mediaBox)
-            let scale = 2400 / max(bounds.width, bounds.height)
-            return page.thumbnail(of: CGSize(width: bounds.width * scale, height: bounds.height * scale), for: .mediaBox)
-        }
-        guard let data = try? Data(contentsOf: url) else { return nil }
-        return UIImage(data: data)
-    }
-
-    private var ticketCard: some View {
-        Group {
-            if let ticketImage {
-                // Kein Vorschaubild mehr: nach dem Ablegen wird die Kachel
-                // einfach zu "Ticket öffnen" (Nutzerwunsch 25.10.2026).
-                Button { showsTicket = true } label: {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Image(systemName: "ticket.fill").font(.title2).foregroundStyle(KlangradarTheme.accent)
-                        Text("Ticket öffnen").font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
-                        Text("Mit voller Bildschirmhelligkeit für den Einlass.").font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.leading)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            } else {
-                Menu {
-                    Button("Foto auswählen", systemImage: "photo.on.rectangle") { showsPhotoPicker = true }
-                    Button("Datei auswählen", systemImage: "doc") { showsFileImporter = true }
-                } label: {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Image(systemName: "ticket").font(.title2).foregroundStyle(KlangradarTheme.accent)
-                        HStack(spacing: 4) {
-                            Text("Ticket ablegen").font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
-                            Image(systemName: "chevron.up.chevron.down").font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
-                        }
-                        Text("Foto, Screenshot oder PDF – bleibt nur auf deinem iPhone.").font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.leading)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            }
-        }
-        .buttonStyle(.plain)
-        .padding(14)
-        .frame(maxWidth: .infinity, minHeight: 130, alignment: .topLeading)
-        .background(Color(uiColor: .secondarySystemBackground), in: .rect(cornerRadius: 20, style: .continuous))
-    }
-
     /// Einlass/Garderobe, Anreise, Parken, Gastronomie, Barrierefreiheit der
     /// Spielstätte. Platzhaltertexte aus dem Import ("… prüfen") werden
     /// ausgeblendet.
@@ -526,7 +443,7 @@ struct EveningPlanSection: View {
                 Text(goodToKnow.map(\.title).joined(separator: " · ")).font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.leading).lineLimit(3)
             }
             .padding(14)
-            .frame(maxWidth: .infinity, minHeight: 130, alignment: .topLeading)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
             .background(Color(uiColor: .secondarySystemBackground), in: .rect(cornerRadius: 20, style: .continuous))
         }
     }
@@ -574,7 +491,7 @@ struct EveningPlanSection: View {
 }
 
 /// Ticket im Vollbild mit voller Helligkeit (für den Einlass-Scanner).
-private struct TicketFullScreen: View {
+struct TicketFullScreen: View {
     let image: UIImage
     let onClose: () -> Void
     let onRemove: () -> Void

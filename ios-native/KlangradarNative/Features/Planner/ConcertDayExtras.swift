@@ -1,6 +1,7 @@
 // Erstellt von Claude Code (Nutzerwunsch 26.10.2026): Ergänzungen der
 // Konzertseite – Kurzporträts von Dirigent:in/Solist:innen für "In 3 Minuten
 // vorbereitet", Hinweis auf Besetzungsänderungen und eigener Sitzplatz.
+import PhotosUI
 import SwiftUI
 
 /// Wer steht auf der Bühne? Zwei Sätze aus der Biografie plus aktuelle Position.
@@ -170,69 +171,34 @@ struct CastChangeBanner: View {
     }
 }
 
-/// Eigener Platz (nur lokal) plus Saalplan der Spielstätte, falls gepflegt.
+/// "Ticket & Platz" (Nutzerwunsch 27.10.2026): eine einzige Kachel. Sie
+/// zeigt, ob ein Ticket hinterlegt und ein Platz eingetragen ist; ein Tipp
+/// öffnet alles zusammen (Ticket ablegen/öffnen, Platz, Saalplan). Beides
+/// bleibt nur auf dem Gerät.
 struct SeatCard: View {
     let event: ConcertEvent
     let detail: JSONObject
     @State private var seat = ConcertSeat()
-    @State private var isEditing = false
+    @State private var ticketImage: UIImage?
     @State private var seatingPlanURL: URL?
+    @State private var isEditing = false
 
     private var isUpcoming: Bool { (event.startDate ?? .distantPast).addingTimeInterval(3 * 3600) > .now }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if isUpcoming {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack(spacing: 12) {
-                        Image(systemName: "chair.fill").font(.title3).foregroundStyle(KlangradarTheme.accent)
-                            .frame(width: 44, height: 44)
-                            .background(KlangradarTheme.accent.opacity(0.1), in: .rect(cornerRadius: 14, style: .continuous))
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(seat.isEmpty ? "Dein Platz" : seat.summary).font(.headline).lineLimit(2)
-                            Text(seat.isEmpty ? "Eintragen – erscheint am Konzerttag auf dem Sperrbildschirm." : "Wird am Konzerttag in der Live-Aktivität angezeigt.")
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                        Spacer(minLength: 0)
-                        Button(seat.isEmpty ? "Eintragen" : "Ändern") { isEditing = true }.font(.subheadline.weight(.semibold))
+                Button { isEditing = true } label: { tile }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Ticket und Platz: \(ticketImage == nil ? "kein Ticket" : "Ticket hinterlegt"), \(seat.isEmpty ? "kein Platz" : seat.summary)")
+                    .sheet(isPresented: $isEditing, onDismiss: { SharedSeatStore.save(seat, forSlug: event.slug) }) {
+                        TicketSeatEditor(event: event, seat: $seat, ticketImage: $ticketImage, seatingPlanURL: seatingPlanURL)
                     }
-                    if let seatingPlanURL {
-                        Link(destination: seatingPlanURL) {
-                            Label("Saalplan ansehen", systemImage: "square.grid.3x3.topleft.filled").font(.subheadline.weight(.semibold))
-                        }
-                        .tint(KlangradarTheme.accent)
-                    }
-                }
-                .padding(14)
-                .background(Color(uiColor: .secondarySystemBackground), in: .rect(cornerRadius: 18, style: .continuous))
-                .sheet(isPresented: $isEditing) {
-                    NavigationStack {
-                        Form {
-                            Section {
-                                TextField("Eingang", text: $seat.entrance)
-                                TextField("Block / Rang", text: $seat.block)
-                                TextField("Reihe", text: $seat.row)
-                                TextField("Platz", text: $seat.seat)
-                            } footer: { Text("Bleibt nur auf diesem Gerät.") }
-                        }
-                        .navigationTitle("Sitzplatz")
-                        .navigationBarTitleDisplayMode(.inline)
-                        .toolbar {
-                            ToolbarItem(placement: .confirmationAction) {
-                                Button("Fertig") {
-                                    SharedSeatStore.save(seat, forSlug: event.slug)
-                                    Haptics.confirm()
-                                    isEditing = false
-                                }
-                            }
-                        }
-                    }
-                    .presentationDetents([.medium])
-                }
             }
         }
         .task(id: event.id) {
             seat = SharedSeatStore.seat(forSlug: event.slug) ?? ConcertSeat()
+            ticketImage = TicketStore.image(for: event.id)
             guard let venueID = detail.object("venues")?.string("id"), let client = SocialStore.shared.repository?.client else { return }
             let rows: [JSONObject]? = try? await client.get(table: "venues", queryItems: [
                 URLQueryItem(name: "select", value: "seating_plan_url"),
@@ -240,5 +206,137 @@ struct SeatCard: View {
             ])
             seatingPlanURL = rows?.first?.string("seating_plan_url").flatMap(URL.init(string:))
         }
+    }
+
+    private var tile: some View {
+        HStack(spacing: 14) {
+            ZStack(alignment: .bottomTrailing) {
+                if let ticketImage {
+                    Image(uiImage: ticketImage).resizable().scaledToFill()
+                        .frame(width: 58, height: 58).clipShape(.rect(cornerRadius: 14, style: .continuous))
+                } else {
+                    Image(systemName: "ticket").font(.title2).foregroundStyle(KlangradarTheme.accent)
+                        .frame(width: 58, height: 58)
+                        .background(KlangradarTheme.accent.opacity(0.12), in: .rect(cornerRadius: 14, style: .continuous))
+                }
+                if ticketImage != nil {
+                    Image(systemName: "checkmark.circle.fill").font(.body).foregroundStyle(.white, .green)
+                        .background(Circle().fill(.white).padding(2)).offset(x: 6, y: 6)
+                }
+            }
+            VStack(alignment: .leading, spacing: 5) {
+                Text("Ticket & Platz").font(.headline).foregroundStyle(.primary)
+                statusLine(ticketImage != nil ? "Ticket hinterlegt" : "Noch kein Ticket hinterlegt", symbol: "ticket.fill", done: ticketImage != nil)
+                statusLine(seat.isEmpty ? "Platz noch nicht eingetragen" : seat.summary, symbol: "chair.fill", done: !seat.isEmpty)
+            }
+            Spacer(minLength: 0)
+            Image(systemName: "chevron.right").font(.subheadline.weight(.semibold)).foregroundStyle(.tertiary)
+        }
+        .padding(14)
+        .background(Color(uiColor: .secondarySystemBackground), in: .rect(cornerRadius: 20, style: .continuous))
+        .contentShape(.rect(cornerRadius: 20))
+    }
+
+    private func statusLine(_ text: String, symbol: String, done: Bool) -> some View {
+        Label {
+            Text(text).font(.subheadline.weight(done ? .semibold : .regular)).foregroundStyle(done ? .primary : .secondary).lineLimit(2)
+        } icon: {
+            Image(systemName: done ? "checkmark.circle.fill" : symbol).font(.caption).foregroundStyle(done ? .green : .secondary).frame(width: 18)
+        }
+    }
+}
+
+/// Alles zu Ticket und Platz in einem Blatt.
+private struct TicketSeatEditor: View {
+    let event: ConcertEvent
+    @Binding var seat: ConcertSeat
+    @Binding var ticketImage: UIImage?
+    let seatingPlanURL: URL?
+    @Environment(\.dismiss) private var dismiss
+    @State private var ticketPick: PhotosPickerItem?
+    @State private var showsPhotoPicker = false
+    @State private var showsFileImporter = false
+    @State private var showsTicket = false
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    if let ticketImage {
+                        Button { showsTicket = true } label: {
+                            Image(uiImage: ticketImage).resizable().scaledToFit()
+                                .frame(maxWidth: .infinity, maxHeight: 220)
+                                .clipShape(.rect(cornerRadius: 12, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                        Button("Ticket öffnen (volle Helligkeit)", systemImage: "qrcode.viewfinder") { showsTicket = true }
+                            .fontWeight(.semibold)
+                        Menu { pickerButtons } label: { Label("Ticket ersetzen", systemImage: "arrow.triangle.2.circlepath") }
+                        Button("Ticket entfernen", systemImage: "trash", role: .destructive) {
+                            TicketStore.remove(for: event.id); self.ticketImage = nil
+                        }
+                    } else {
+                        pickerButtons
+                    }
+                } header: { Text("Ticket") } footer: { Text("Foto, Screenshot oder PDF – bleibt nur auf deinem iPhone.") }
+
+                Section {
+                    TextField("Eingang", text: $seat.entrance)
+                    TextField("Block / Rang", text: $seat.block)
+                    TextField("Reihe", text: $seat.row)
+                    TextField("Platz", text: $seat.seat)
+                } header: { Text("Platz") } footer: { Text("Erscheint am Konzerttag auf dem Sperrbildschirm und in der Live-Aktivität.") }
+
+                if let seatingPlanURL {
+                    Section {
+                        Link(destination: seatingPlanURL) { Label("Saalplan ansehen", systemImage: "square.grid.3x3.topleft.filled") }
+                    }
+                }
+            }
+            .navigationTitle("Ticket & Platz")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Fertig") {
+                        SharedSeatStore.save(seat, forSlug: event.slug)
+                        Haptics.confirm()
+                        dismiss()
+                    }
+                }
+            }
+            .photosPicker(isPresented: $showsPhotoPicker, selection: $ticketPick, matching: .images)
+            .fileImporter(isPresented: $showsFileImporter, allowedContentTypes: [.pdf, .image]) { result in
+                guard case let .success(url) = result else { return }
+                let scoped = url.startAccessingSecurityScopedResource()
+                defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+                if let image = TicketStore.image(from: url) { store(image) }
+            }
+            .onChange(of: ticketPick) { _, item in
+                guard let item else { return }
+                Task {
+                    if let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) { store(image) }
+                    ticketPick = nil
+                }
+            }
+            .fullScreenCover(isPresented: $showsTicket) {
+                if let ticketImage {
+                    TicketFullScreen(image: ticketImage) { showsTicket = false } onRemove: {
+                        TicketStore.remove(for: event.id); self.ticketImage = nil; showsTicket = false
+                    }
+                }
+            }
+        }
+        .presentationDetents([.large])
+    }
+
+    @ViewBuilder private var pickerButtons: some View {
+        Button("Foto oder Screenshot wählen", systemImage: "photo.on.rectangle") { showsPhotoPicker = true }
+        Button("PDF oder Datei wählen", systemImage: "doc") { showsFileImporter = true }
+    }
+
+    private func store(_ image: UIImage) {
+        TicketStore.save(image, for: event.id)
+        ticketImage = image
+        Haptics.confirm()
     }
 }

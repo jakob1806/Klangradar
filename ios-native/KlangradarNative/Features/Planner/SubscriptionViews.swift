@@ -117,8 +117,8 @@ struct SubscriptionDetailView: View {
                         NavigationLink(value: item) {
                             HStack(spacing: 12) {
                                 VStack(spacing: 0) {
-                                    Text(item.startDate.map { $0.formatted(.dateTime.day()) } ?? "–").font(.title3.bold())
-                                    Text(item.startDate.map { $0.formatted(.dateTime.month(.abbreviated)) } ?? "").font(.caption2.weight(.semibold)).textCase(.uppercase).foregroundStyle(.secondary)
+                                    Text(item.startDate.map { $0.formatted(.dateTime.locale(.klangradarGerman).day()) } ?? "–").font(.title3.bold())
+                                    Text(item.startDate.map { $0.formatted(.dateTime.locale(.klangradarGerman).month(.abbreviated)) } ?? "").font(.caption2.weight(.semibold)).textCase(.uppercase).foregroundStyle(.secondary)
                                 }
                                 .frame(width: 44)
                                 VStack(alignment: .leading, spacing: 2) {

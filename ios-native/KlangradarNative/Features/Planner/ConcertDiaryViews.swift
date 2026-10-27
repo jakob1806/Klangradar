@@ -248,7 +248,7 @@ struct ConcertDiaryListView: View {
                 .clipShape(.rect(cornerRadius: 16))
             }
             VStack(alignment: .leading, spacing: 3) {
-                Text(event.startDate.map { $0.formatted(.dateTime.day().month(.wide).year()) } ?? "").font(.caption.weight(.semibold)).foregroundStyle(KlangradarTheme.accent)
+                Text(event.startDate.map { $0.formatted(.dateTime.locale(.klangradarGerman).day().month(.wide).year()) } ?? "").font(.caption.weight(.semibold)).foregroundStyle(KlangradarTheme.accent)
                 Text(event.title).font(.headline).lineLimit(2)
             }
             if !entry.note.isEmpty { Text(entry.note).font(.subheadline).lineLimit(4) }
@@ -274,7 +274,7 @@ struct ConcertDiaryListView: View {
                 .clipShape(.rect(cornerRadius: 16))
             }
             VStack(alignment: .leading, spacing: 3) {
-                Text(entry.startsAt.formatted(.dateTime.day().month(.wide).year())).font(.caption.weight(.semibold)).foregroundStyle(KlangradarTheme.accent)
+                Text(entry.startsAt.formatted(.dateTime.locale(.klangradarGerman).day().month(.wide).year())).font(.caption.weight(.semibold)).foregroundStyle(KlangradarTheme.accent)
                 Text(entry.title.isEmpty ? (entry.program.first?.name ?? entry.venue?.name ?? "Konzertabend") : entry.title)
                     .font(.system(.title3, design: .serif).weight(.semibold)).lineLimit(2)
             }
