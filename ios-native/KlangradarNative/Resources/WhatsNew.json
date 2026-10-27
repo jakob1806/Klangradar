@@ -4,12 +4,12 @@
   "title": "Neu in Klangradar",
   "sections": [
     {
-      "title": "Neuer Start",
-      "symbol": "person.crop.square.filled.and.at.rectangle",
+      "title": "Zuverlässiger Start",
+      "symbol": "bolt.horizontal.circle.fill",
       "items": [
-        "Frisch gestaltete Startseite mit Porträts bekannter Künstler:innen",
-        "Anmelden mit Apple, Google oder E-Mail übersichtlich an einem Ort – auch auf dem iPad",
-        "Abgebrochene Anmeldung zeigt keine verwirrende Fehlermeldung mehr"
+        "Startseite lädt auch bei kurzer Serverlast zuverlässig – mit automatischem zweitem Versuch",
+        "Klappt es trotzdem nicht, siehst du den letzten Stand statt einer Fehlerseite",
+        "Verständliche Meldungen auf Deutsch statt „The request timed out“"
       ]
     },
     {
@@ -18,6 +18,15 @@
       "items": [
         "Abos jetzt auch für BR-Symphonieorchester, Münchner Rundfunkorchester, BR-Chor, Münchener Kammerorchester und Gärtnerplatztheater",
         "Auf der Konzertseite siehst du, zu welchem Abo ein Termin gehört – mit Link zum nächsten Abo-Konzert"
+      ]
+    },
+    {
+      "title": "Neuer Start",
+      "symbol": "person.crop.square.filled.and.at.rectangle",
+      "items": [
+        "Frisch gestaltete Startseite mit Porträts bekannter Künstler:innen",
+        "Anmelden mit Apple, Google oder E-Mail übersichtlich an einem Ort – auch auf dem iPad",
+        "Abgebrochene Anmeldung zeigt keine verwirrende Fehlermeldung mehr"
       ]
     },
     {
