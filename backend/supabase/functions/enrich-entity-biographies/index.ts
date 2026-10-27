@@ -4,7 +4,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { hasAnyAiProviderConfigured } from "../_shared/ai/router.ts";
-import { researchBiographyFromKnowledge } from "../_shared/bioResearch.ts";
+import { researchBiography } from "../_shared/bioResearch.ts";
 import { recordFieldSource } from "../_shared/provenance.ts";
 import { logSystemAction } from "../_shared/systemLog.ts";
 
@@ -113,7 +113,7 @@ Deno.serve(async (req) => {
         return typeof related === "object" && related ? String((related as { title?: unknown }).title ?? "") : "";
       }).filter(Boolean);
 
-      const result = await researchBiographyFromKnowledge(
+      const result = await researchBiography(
         entityType,
         entity.name,
         entityContext(entityType, entity, events),
@@ -142,8 +142,13 @@ Deno.serve(async (req) => {
         entityType,
         entityId: entity.id,
         fieldName: config.bioColumn,
-        sourceUrl: null,
-        sourceName: "KI-Wissen (automatische Hintergrundrecherche, ohne Webabruf)",
+        // Kennt die KI den Namen nicht sicher, fasst researchBiography einen
+        // passenden Wikipedia-Artikel zusammen (Nutzerwunsch 27.10.2026:
+        // alle Mitwirkenden kleiner Besetzungen brauchen eine Kurzbiografie).
+        sourceUrl: result?.sourceUrl ?? null,
+        sourceName: result?.source === "wikipedia"
+          ? "Wikipedia (automatisch zusammengefasst)"
+          : "KI-Wissen (automatische Hintergrundrecherche, ohne Webabruf)",
         confidence: "likely",
       });
     } catch (cause) {

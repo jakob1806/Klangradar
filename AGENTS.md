@@ -36,6 +36,7 @@ doppelt gebaute Features (Coach vs. Personal Concierge), ein komplett
 | Claude | 2026-09-30 | kein Branch (eigener Ordner `Knabenchor Kalender-Sync/`) | Eigenständiger Scraper: Tölzer-Knabenchor-Konzerte -> iCloud-Kalender "Konzert & Oper". Kein Bezug zu Klassik München/TKC Kocyan Map/Wiesn Buddy. |
 | Claude | 2026-10-04 | claude/hardening-* (Serie) | App-Review Punkte 1-11 (probe-source-Auth, Fehlerzustände iOS, iOS-CI, Tests, A11y) + Ticketlinks + Mehrstädte-Start; je Thema eigener PR |
 | Claude | 2026-10-27 | claude/journal-editor-fixes | Konzert-Journal: Editor-Fixes, Vorschläge, Eintrag im Profil; Journal zählt als Besuch (Migration 000122); Konzertseite: Lücken, „Ticket & Platz“-Kachel; „Neu in Klangradar“ (WhatsNew.json → App-Popup + TestFlight-Hinweis) |
+| Claude | 2026-10-27 | claude/onboarding-landing-redesign | Onboarding-Startseite neu, „Wer spielt?“ ersetzt Mitwirkende bei ≤4 (inkl. Ensembles), Biografie-Worker mit Wikipedia-Rückfall (Migration 000123), iPad-Titelbild |
 | Claude | 2026-09-02 | redesign/veranstalter-portal  | Klangradar-KI: Datenanbindung/Performance-Fixes im klangradar-coach Edge-Function; Supabase-Migrationshygiene |
 
 | Codex | 2026-09-24 | kein Branch (nur Analyse) | Wiesn Buddy: Strukturprüfung und externe Design-Mockups abgeschlossen; keine App-Dateien geändert. |

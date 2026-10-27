@@ -10,6 +10,7 @@ struct PerformerBriefs: View {
 
     struct Brief: Identifiable {
         let id: UUID
+        var isEnsemble = false
         let name: String
         let role: String?
         let photoURL: URL?
@@ -21,15 +22,35 @@ struct PerformerBriefs: View {
     @State private var briefs: [Brief] = []
     @State private var expanded: Set<UUID> = []
 
-    /// Nutzerwunsch 26.10.2026: Kurzporträts nur bei bis zu 4 Künstler:innen –
-    /// bei größeren Besetzungen bleibt es bei der Mitwirkenden-Liste.
-    private var candidates: [(id: UUID, role: String?)] {
+    struct Candidate: Equatable {
+        let id: UUID
+        let isEnsemble: Bool
+        let role: String?
+    }
+
+    /// Alle Mitwirkenden (Personen und Ensembles), ohne Doppelungen.
+    static func allCandidates(_ detail: JSONObject) -> [Candidate] {
         var seen = Set<UUID>()
-        let all = detail.objects("event_participants").compactMap { row -> (id: UUID, role: String?)? in
-            guard let person = row.object("persons"), let id = person.string("id").flatMap(UUID.init(uuidString:)), seen.insert(id).inserted else { return nil }
-            return (id, row.string("role_label") ?? row.string("role"))
+        return detail.objects("event_participants").compactMap { row -> Candidate? in
+            let role = row.string("role_label") ?? row.string("role")
+            if let id = row.object("persons")?.string("id").flatMap(UUID.init(uuidString:)), seen.insert(id).inserted {
+                return Candidate(id: id, isEnsemble: false, role: role)
+            }
+            if let id = row.object("ensembles")?.string("id").flatMap(UUID.init(uuidString:)), seen.insert(id).inserted {
+                return Candidate(id: id, isEnsemble: true, role: role ?? "Ensemble")
+            }
+            return nil
         }
-        return all.count <= 4 ? all : []
+    }
+
+    /// Nutzerwunsch 27.10.2026: Bei bis zu 4 Mitwirkenden stehen ALLE hier
+    /// mit Kurzbiografie und die Liste "Mitwirkende" entfällt (sonst doppelt).
+    static func replacesParticipantList(_ detail: JSONObject) -> Bool {
+        (1...4).contains(allCandidates(detail).count)
+    }
+
+    private var candidates: [Candidate] {
+        Self.replacesParticipantList(detail) ? Self.allCandidates(detail) : []
     }
 
     var body: some View {
@@ -45,7 +66,7 @@ struct PerformerBriefs: View {
                                     if let image = phase.image { image.resizable().scaledToFill() }
                                     else { Image(systemName: "person.fill").foregroundStyle(.secondary).frame(maxWidth: .infinity, maxHeight: .infinity).background(Color.secondary.opacity(0.12)) }
                                 }
-                                .frame(width: 40, height: 40).clipShape(.circle)
+                                .frame(width: 40, height: 40).clipShape(brief.isEnsemble ? AnyShape(.rect(cornerRadius: 10)) : AnyShape(.circle))
                                 VStack(alignment: .leading, spacing: 1) {
                                     Text(brief.name).font(.subheadline.weight(.semibold))
                                     if let role = brief.role { Text(role).font(.caption).foregroundStyle(.secondary) }
@@ -58,7 +79,7 @@ struct PerformerBriefs: View {
                             }
                             }
                             Text(expanded.contains(brief.id) ? brief.fullText : brief.text)
-                                .font(.footnote).foregroundStyle(.primary.opacity(0.85))
+                                .font(.footnote).foregroundStyle(brief.fullText.isEmpty ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary.opacity(0.85)))
                             if brief.fullText.count > brief.text.count {
                                 Button(expanded.contains(brief.id) ? "Weniger" : "Mehr lesen") {
                                     withAnimation(.snappy) {
@@ -89,22 +110,38 @@ struct PerformerBriefs: View {
     private func load() async {
         let list = candidates
         guard !list.isEmpty, let client = SocialStore.shared.repository?.client else { return }
-        let rows: [JSONObject]? = try? await client.get(table: "persons", queryItems: [
+        let personIDs = list.filter { !$0.isEnsemble }.map(\.id.uuidString)
+        let ensembleIDs = list.filter(\.isEnsemble).map(\.id.uuidString)
+        async let personRows: [JSONObject] = personIDs.isEmpty ? [] : ((try? await client.get(table: "persons", queryItems: [
             URLQueryItem(name: "select", value: "id,slug,full_name,photo_url,biography_de,instrument"),
-            URLQueryItem(name: "id", value: "in.(\(list.map(\.id.uuidString).joined(separator: ",")))")
-        ])
-        let byID = Dictionary((rows ?? []).compactMap { row in row.string("id").flatMap(UUID.init(uuidString:)).map { ($0, row) } }, uniquingKeysWith: { a, _ in a })
+            URLQueryItem(name: "id", value: "in.(\(personIDs.joined(separator: ",")))")
+        ])) ?? [])
+        async let ensembleRows: [JSONObject] = ensembleIDs.isEmpty ? [] : ((try? await client.get(table: "ensembles", queryItems: [
+            URLQueryItem(name: "select", value: "id,slug,name,photo_url,description_de"),
+            URLQueryItem(name: "id", value: "in.(\(ensembleIDs.joined(separator: ",")))")
+        ])) ?? [])
+        let rows = await personRows + ensembleRows
+        let byID = Dictionary(rows.compactMap { row in row.string("id").flatMap(UUID.init(uuidString:)).map { ($0, row) } }, uniquingKeysWith: { a, _ in a })
         briefs = list.compactMap { candidate in
-            guard let row = byID[candidate.id], let name = row.string("full_name") else { return nil }
-            let bio = (row.string("biography_de") ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let row = byID[candidate.id], let name = row.string(candidate.isEnsemble ? "name" : "full_name") else { return nil }
+            let bio = (row.string(candidate.isEnsemble ? "description_de" : "biography_de") ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             // Nur die Biografie: current_roles_de enthält teils redaktionelle
             // Prüfvermerke ("… saisonbezogen prüfen").
             let full = Self.withoutEditorialNotes(bio)
-            guard !full.isEmpty else { return nil }
-            return Brief(id: candidate.id, name: name, role: candidate.role ?? row.string("instrument"),
+            // Fehlt die Biografie noch, bleibt die Person trotzdem sichtbar –
+            // die Hintergrund-Recherche (KI + Wikipedia) ergänzt sie.
+            let short = full.isEmpty ? "Kurzbiografie wird gerade recherchiert." : Self.firstSentences(full, count: 2)
+            return Brief(id: candidate.id, isEnsemble: candidate.isEnsemble, name: name, role: Self.roleLabel(candidate.role ?? row.string("instrument")),
                          photoURL: row.string("photo_url").flatMap(URL.init(string:)),
-                         route: EntityRoute(kind: .person, identifier: row.string("slug") ?? candidate.id.uuidString), text: Self.firstSentences(full, count: 2), fullText: full)
+                         route: EntityRoute(kind: candidate.isEnsemble ? .ensemble : .person, identifier: row.string("slug") ?? candidate.id.uuidString),
+                         text: short, fullText: full)
         }
+    }
+
+    /// "dirigent" → "Dirigent" (Rollen kommen teils kleingeschrieben).
+    static func roleLabel(_ raw: String?) -> String? {
+        guard let raw = raw?.trimmingCharacters(in: .whitespaces), !raw.isEmpty else { return nil }
+        return raw.prefix(1).uppercased() + raw.dropFirst()
     }
 
     /// Importierte Biografien enthalten teils interne Vermerke wie

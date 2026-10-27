@@ -168,7 +168,10 @@ export async function researchBiography(
   const knowledgeResult = await researchBiographyFromKnowledge(entityType, name, context);
   if (knowledgeResult) return knowledgeResult;
 
-  const hit = await searchWikipediaExtract(context ? `${name} ${context}` : name);
+  // Kurzer Kontext (z.B. "Dirigent") schärft die Suche; lange Kontextblöcke
+  // der Hintergrund-Worker ("Rollen: …; Verknüpfte Programme: …") würden
+  // die Wikipedia-Volltextsuche dagegen verwässern.
+  const hit = await searchWikipediaExtract(context && context.length <= 40 ? `${name} ${context}` : name);
 
   if (hit?.extract) {
     const response = await callAiFunction(

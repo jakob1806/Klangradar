@@ -21,7 +21,7 @@ struct PrepareSection: View {
         var durationMinutes: Int? = nil
     }
 
-    private var hasPerformers: Bool { detail.objects("event_participants").contains { $0.object("persons") != nil } }
+    private var hasPerformers: Bool { PerformerBriefs.replacesParticipantList(detail) }
 
     private var works: [WorkRef] {
         detail.objects("event_works")

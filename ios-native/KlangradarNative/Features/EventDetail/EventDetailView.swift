@@ -35,7 +35,9 @@ struct EventDetailView: View {
             ScrollView {
                 VStack(spacing: 0) {
                     detailHero(
-                        height: 305 + max(screen.safeAreaInsets.top, 20),
+                        // iPad/breite Fenster: höher, damit Porträts nicht nur
+                        // als schmaler Streifen erscheinen.
+                        height: (screen.size.width > 700 ? 460 : 305) + max(screen.safeAreaInsets.top, 20),
                         topInset: max(screen.safeAreaInsets.top, 20)
                     )
 
@@ -74,7 +76,8 @@ struct EventDetailView: View {
                             otherDates(detail)
                             program(detail)
                             PrepareSection(event: event, detail: detail)
-                            participants(detail)
+                            // Bis zu 4 Mitwirkende stehen schon unter "Wer spielt?".
+                            if !PerformerBriefs.replacesParticipantList(detail) { participants(detail) }
                             ticketDetails(detail)
                             SeatCard(event: event, detail: detail)
                             EveningPlanSection(event: event, detail: detail)
@@ -141,11 +144,35 @@ struct EventDetailView: View {
         }
     }
 
+    /// Auf breiten Bildschirmen (iPad) würde ein bildschirmbreites Füllbild
+    /// Porträts auf Brust/Schultern zuschneiden (Nutzermeldung 27.10.2026).
+    /// Dort: unscharfe Füllung über die volle Breite, das eigentliche Bild
+    /// scharf in Inhaltsbreite darüber.
+    @ViewBuilder private func heroArtwork(width: CGFloat, height: CGFloat) -> some View {
+        if width > 700 {
+            ZStack {
+                EventHeroArtwork(event: event)
+                    .frame(width: width, height: height)
+                    .blur(radius: 40)
+                    .overlay(Color.black.opacity(0.12))
+                    .clipped()
+                EventHeroArtwork(event: event)
+                    .frame(width: min(width, max(760, height * 1.5)), height: height)
+                    .clipped()
+                    .shadow(color: .black.opacity(0.25), radius: 24)
+            }
+            .frame(width: width, height: height)
+            .clipped()
+        } else {
+            EventHeroArtwork(event: event)
+                .frame(width: width, height: height)
+                .clipped()
+        }
+    }
+
     private func detailHero(height: CGFloat, topInset: CGFloat) -> some View {
         GeometryReader { proxy in
-            EventHeroArtwork(event: event)
-                .frame(width: proxy.size.width, height: height)
-                .clipped()
+            heroArtwork(width: proxy.size.width, height: height)
                 .contentShape(.rect)
                 .onTapGesture {
                     if let url = event.primaryImageURL {

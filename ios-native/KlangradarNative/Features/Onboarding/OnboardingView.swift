@@ -70,6 +70,7 @@ struct OnboardingView: View {
         NavigationStack(path: $path) {
             WelcomeStepView(
                 auth: auth,
+                client: repository?.client,
                 onCreateAccount: { path.append(.signUp) },
                 onLogIn: { showsLogin = true },
                 onContinueAsGuest: { onFinished() },

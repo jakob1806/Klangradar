@@ -1,8 +1,32 @@
 {
   "_hinweis": "Erstellt von Claude Code. Bei jedem Release mit Neuerungen hier pflegen und die id ändern: Die App zeigt den Inhalt einmal pro id als 'Neu in Klangradar', upload-testflight.sh übernimmt ihn als TestFlight-Testhinweis.",
-  "id": "2026-10-27-konzert-journal",
+  "id": "2026-10-27-onboarding-redesign",
   "title": "Neu in Klangradar",
   "sections": [
+    {
+      "title": "Neuer Start",
+      "symbol": "person.crop.square.filled.and.at.rectangle",
+      "items": [
+        "Frisch gestaltete Startseite mit Porträts bekannter Künstler:innen",
+        "Anmelden mit Apple, Google oder E-Mail übersichtlich an einem Ort – auch auf dem iPad",
+        "Abgebrochene Anmeldung zeigt keine verwirrende Fehlermeldung mehr"
+      ]
+    },
+    {
+      "title": "Wer spielt?",
+      "symbol": "person.2.fill",
+      "items": [
+        "Bei bis zu 4 Mitwirkenden stehen alle – auch Orchester und Ensembles – mit Kurzbiografie unter „Wer spielt?“, ohne doppelte Liste",
+        "Fehlende Biografien recherchiert Klangradar automatisch nach, jetzt auch über Wikipedia"
+      ]
+    },
+    {
+      "title": "iPad",
+      "symbol": "ipad.landscape",
+      "items": [
+        "Titelbilder auf der Konzertseite werden nicht mehr abgeschnitten"
+      ]
+    },
     {
       "title": "Konzerte selbst eintragen",
       "symbol": "square.and.pencil",
