@@ -1,6 +1,6 @@
 {
   "_hinweis": "Erstellt von Claude Code. Bei jedem Release mit Neuerungen hier pflegen und die id ändern: Die App zeigt den Inhalt einmal pro id als 'Neu in Klangradar', upload-testflight.sh übernimmt ihn als TestFlight-Testhinweis.",
-  "id": "2026-10-27-onboarding-redesign",
+  "id": "2026-10-27-abos-muenchen",
   "title": "Neu in Klangradar",
   "sections": [
     {
@@ -10,6 +10,14 @@
         "Frisch gestaltete Startseite mit Porträts bekannter Künstler:innen",
         "Anmelden mit Apple, Google oder E-Mail übersichtlich an einem Ort – auch auf dem iPad",
         "Abgebrochene Anmeldung zeigt keine verwirrende Fehlermeldung mehr"
+      ]
+    },
+    {
+      "title": "Mehr Abos erkannt",
+      "symbol": "rectangle.stack.fill",
+      "items": [
+        "Abos jetzt auch für BR-Symphonieorchester, Münchner Rundfunkorchester, BR-Chor, Münchener Kammerorchester und Gärtnerplatztheater",
+        "Auf der Konzertseite siehst du, zu welchem Abo ein Termin gehört – mit Link zum nächsten Abo-Konzert"
       ]
     },
     {

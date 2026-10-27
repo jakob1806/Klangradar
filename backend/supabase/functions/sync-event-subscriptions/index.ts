@@ -4,15 +4,19 @@ import { json, mapLimit } from "../_shared/eventParticipantResolution.ts";
 import { requireInternalAuth } from "../_shared/internalAuth.ts";
 import { musikvereinId } from "../_shared/musikvereinDetail.ts";
 import {
-  brsoSubscriptions, linkEventSubscriptions, mphilSubscriptions, musikvereinSubscriptions,
-  type SubscriptionCandidate, wienerSymphonikerSubscriptions,
+  brChorSubscriptions, brsoSubscriptions, gaertnerplatzSeries, type GaertnerplatzSeries, gaertnerplatzSubscriptions,
+  linkEventSubscriptions, mkoSubscriptions, mphilSubscriptions, musikvereinSubscriptions, rundfunkorchesterSubscriptions,
+  seasonFor, type SubscriptionCandidate, wienerSymphonikerSubscriptions,
 } from "../_shared/subscriptions.ts";
 
 // Erstellt von Claude Code (26.10.2026): Ordnet kommende Termine ihren Abos
 // bzw. Zyklen zu (Grundlage für Abo-Anzeige, Abo-Erkennung und Saisonplaner).
 // Eigene Funktion statt Teil der hydrate-Pipelines, damit alle Veranstalter
 // an einer Stelle und mit einer Sync-Spalte laufen.
-const DOMAINS = ["mphil.de/", "brso.de/konzerte", "musikverein.at/konzert", "wienersymphoniker.at/konzert"];
+const DOMAINS = [
+  "mphil.de/", "brso.de/konzerte", "musikverein.at/konzert", "wienersymphoniker.at/konzert",
+  "rundfunkorchester.de/konzerte", "br-chor.de/konzerte", "m-k-o.eu/event-detail", "gaertnerplatztheater.de/de/produktionen",
+];
 
 Deno.serve(async (req) => {
   const unauthorized = await requireInternalAuth(req);
@@ -23,7 +27,7 @@ Deno.serve(async (req) => {
   const supabase = createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "");
 
   const { data: events, error } = await supabase.from("events")
-    .select("id,website_url,external_id,start_datetime")
+    .select("id,title,website_url,external_id,start_datetime")
     .or(DOMAINS.flatMap((d) => [`website_url.ilike.%${d}%`, `external_id.ilike.%${d}%`]).join(","))
     .gte("start_datetime", new Date().toISOString())
     .in("status", ["scheduled", "sold_out"])
@@ -32,6 +36,19 @@ Deno.serve(async (req) => {
     .limit(limit);
   if (error) return json({ error: error.message }, 500);
 
+  // Gärtnerplatztheater: eine Abo-Seite je Saison mit allen Serien und Terminen –
+  // pro Lauf nur einmal laden.
+  const gptPages = new Map<string, Promise<GaertnerplatzSeries[]>>();
+  const gptSeries = (start: string) => {
+    const season = seasonFor(start).replace("/", "-20"); // "2026/27" -> "2026-2027"
+    if (!gptPages.has(season)) {
+      gptPages.set(season, fetch(`https://www.gaertnerplatztheater.de/de/seiten/abos-${season}.html`, { headers: { "User-Agent": USER_AGENT } })
+        .then(async (res) => res.ok ? gaertnerplatzSeries(await res.text()) : [])
+        .catch(() => []));
+    }
+    return gptPages.get(season)!;
+  };
+
   // deno-lint-ignore no-explicit-any
   const results = await mapLimit(events ?? [], 4, async (event: any) => {
     const urls = [event.external_id, event.website_url].filter((u): u is string => typeof u === "string" && u.startsWith("http"));
@@ -39,7 +56,13 @@ Deno.serve(async (req) => {
     try {
       let subs: SubscriptionCandidate[] = [];
       const mvId = musikvereinId(url);
-      if (mvId) {
+      if (url.includes("gaertnerplatztheater.de")) {
+        const season = seasonFor(event.start_datetime).replace("/", "-20");
+        subs = gaertnerplatzSubscriptions(await gptSeries(event.start_datetime), event.start_datetime,
+          `https://www.gaertnerplatztheater.de/de/seiten/abos-${season}.html`);
+      } else if (url.includes("m-k-o.eu")) {
+        subs = mkoSubscriptions(url, event.title ?? "");
+      } else if (mvId) {
         const res = await fetch(`https://spielplan.musikverein.at/e/${mvId}.json`, { headers: { "User-Agent": USER_AGENT } });
         if (res.ok) subs = musikvereinSubscriptions(await res.json());
       } else {
@@ -49,6 +72,8 @@ Deno.serve(async (req) => {
           if (url.includes("mphil.de")) subs = mphilSubscriptions(html);
           else if (url.includes("brso.de")) subs = brsoSubscriptions(html, event.start_datetime);
           else if (url.includes("wienersymphoniker.at")) subs = wienerSymphonikerSubscriptions(html);
+          else if (url.includes("rundfunkorchester.de")) subs = rundfunkorchesterSubscriptions(html);
+          else if (url.includes("br-chor.de")) subs = brChorSubscriptions(html);
         }
       }
       const linked = await linkEventSubscriptions(supabase, event.id, event.start_datetime, subs);
