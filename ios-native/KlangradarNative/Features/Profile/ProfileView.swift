@@ -115,6 +115,12 @@ struct ProfileView: View {
                             ProfileRow(title: "Stadt", symbol: "building.2.fill", color: .teal, value: cityStore.selectedCity?.name ?? "Alle Städte")
                         }
                         Divider().padding(.leading, 56)
+                        if let notes = WhatsNewNotes.current {
+                            NavigationLink { WhatsNewView(notes: notes) } label: {
+                                ProfileRow(title: "Neu in dieser Version", symbol: "sparkles", color: .orange)
+                            }
+                            Divider().padding(.leading, 56)
+                        }
                         NavigationLink { settingsList } label: {
                             ProfileRow(title: "Einstellungen", symbol: "gearshape.fill", color: .gray)
                         }

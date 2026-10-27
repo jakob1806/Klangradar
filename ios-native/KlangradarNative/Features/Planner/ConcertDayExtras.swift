@@ -171,70 +171,29 @@ struct CastChangeBanner: View {
     }
 }
 
-/// "Ticket & Platz" (Nutzerwunsch 27.10.2026): Ticket ablegen/öffnen und
-/// eigener Sitzplatz in einer Karte, plus Saalplan der Spielstätte. Ein
-/// hinterlegtes Ticket ist auf einen Blick erkennbar (Vorschau + Häkchen).
-/// Beides bleibt nur auf dem Gerät.
+/// "Ticket & Platz" (Nutzerwunsch 27.10.2026): eine einzige Kachel. Sie
+/// zeigt, ob ein Ticket hinterlegt und ein Platz eingetragen ist; ein Tipp
+/// öffnet alles zusammen (Ticket ablegen/öffnen, Platz, Saalplan). Beides
+/// bleibt nur auf dem Gerät.
 struct SeatCard: View {
     let event: ConcertEvent
     let detail: JSONObject
     @State private var seat = ConcertSeat()
-    @State private var isEditing = false
-    @State private var seatingPlanURL: URL?
     @State private var ticketImage: UIImage?
-    @State private var ticketPick: PhotosPickerItem?
-    @State private var showsTicket = false
-    @State private var showsPhotoPicker = false
-    @State private var showsFileImporter = false
+    @State private var seatingPlanURL: URL?
+    @State private var isEditing = false
 
     private var isUpcoming: Bool { (event.startDate ?? .distantPast).addingTimeInterval(3 * 3600) > .now }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if isUpcoming {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Ticket & Platz").font(.title3.bold())
-                    VStack(alignment: .leading, spacing: 0) {
-                        ticketRow
-                        Divider().padding(.leading, 70)
-                        seatRow
-                        if let seatingPlanURL {
-                            Divider().padding(.leading, 70)
-                            Link(destination: seatingPlanURL) {
-                                HStack(spacing: 12) {
-                                    tileIcon("square.grid.3x3.topleft.filled", tint: KlangradarTheme.accent)
-                                    Text("Saalplan ansehen").font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
-                                    Spacer(minLength: 0)
-                                    Image(systemName: "arrow.up.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
-                                }
-                                .padding(12)
-                            }
-                        }
+                Button { isEditing = true } label: { tile }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Ticket und Platz: \(ticketImage == nil ? "kein Ticket" : "Ticket hinterlegt"), \(seat.isEmpty ? "kein Platz" : seat.summary)")
+                    .sheet(isPresented: $isEditing, onDismiss: { SharedSeatStore.save(seat, forSlug: event.slug) }) {
+                        TicketSeatEditor(event: event, seat: $seat, ticketImage: $ticketImage, seatingPlanURL: seatingPlanURL)
                     }
-                    .background(Color(uiColor: .secondarySystemBackground), in: .rect(cornerRadius: 20, style: .continuous))
-                }
-                .sheet(isPresented: $isEditing) { seatEditor }
-                .photosPicker(isPresented: $showsPhotoPicker, selection: $ticketPick, matching: .images)
-                .fileImporter(isPresented: $showsFileImporter, allowedContentTypes: [.pdf, .image]) { result in
-                    guard case let .success(url) = result else { return }
-                    let scoped = url.startAccessingSecurityScopedResource()
-                    defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-                    if let image = TicketStore.image(from: url) { store(image) }
-                }
-                .onChange(of: ticketPick) { _, item in
-                    guard let item else { return }
-                    Task {
-                        if let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) { store(image) }
-                        ticketPick = nil
-                    }
-                }
-                .fullScreenCover(isPresented: $showsTicket) {
-                    if let ticketImage {
-                        TicketFullScreen(image: ticketImage) { showsTicket = false } onRemove: {
-                            TicketStore.remove(for: event.id); self.ticketImage = nil; showsTicket = false
-                        }
-                    }
-                }
             }
         }
         .task(id: event.id) {
@@ -249,96 +208,130 @@ struct SeatCard: View {
         }
     }
 
-    @ViewBuilder private var ticketRow: some View {
-        if let ticketImage {
-            Button { showsTicket = true } label: {
-                HStack(spacing: 12) {
+    private var tile: some View {
+        HStack(spacing: 14) {
+            ZStack(alignment: .bottomTrailing) {
+                if let ticketImage {
                     Image(uiImage: ticketImage).resizable().scaledToFill()
-                        .frame(width: 46, height: 46).clipShape(.rect(cornerRadius: 12, style: .continuous))
-                        .overlay(alignment: .bottomTrailing) {
-                            Image(systemName: "checkmark.circle.fill").font(.subheadline).foregroundStyle(.white, .green)
-                                .background(Circle().fill(.white).padding(2)).offset(x: 5, y: 5)
-                        }
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Ticket hinterlegt").font(.headline).foregroundStyle(.primary)
-                        Text("Tippen zum Öffnen – mit voller Helligkeit für den Einlass").font(.caption).foregroundStyle(.secondary)
-                    }
-                    Spacer(minLength: 0)
-                    Text("Öffnen").font(.subheadline.weight(.semibold)).foregroundStyle(KlangradarTheme.accent)
+                        .frame(width: 58, height: 58).clipShape(.rect(cornerRadius: 14, style: .continuous))
+                } else {
+                    Image(systemName: "ticket").font(.title2).foregroundStyle(KlangradarTheme.accent)
+                        .frame(width: 58, height: 58)
+                        .background(KlangradarTheme.accent.opacity(0.12), in: .rect(cornerRadius: 14, style: .continuous))
                 }
-                .padding(12)
-                .contentShape(.rect)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Ticket hinterlegt, öffnen")
-        } else {
-            Menu {
-                Button("Foto auswählen", systemImage: "photo.on.rectangle") { showsPhotoPicker = true }
-                Button("Datei auswählen", systemImage: "doc") { showsFileImporter = true }
-            } label: {
-                HStack(spacing: 12) {
-                    tileIcon("ticket", tint: KlangradarTheme.accent)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Kein Ticket hinterlegt").font(.headline).foregroundStyle(.primary)
-                        Text("Foto, Screenshot oder PDF – bleibt nur auf deinem iPhone").font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.leading)
-                    }
-                    Spacer(minLength: 0)
-                    Text("Ablegen").font(.subheadline.weight(.semibold)).foregroundStyle(KlangradarTheme.accent)
+                if ticketImage != nil {
+                    Image(systemName: "checkmark.circle.fill").font(.body).foregroundStyle(.white, .green)
+                        .background(Circle().fill(.white).padding(2)).offset(x: 6, y: 6)
                 }
-                .padding(12)
-                .contentShape(.rect)
             }
-            .buttonStyle(.plain)
+            VStack(alignment: .leading, spacing: 5) {
+                Text("Ticket & Platz").font(.headline).foregroundStyle(.primary)
+                statusLine(ticketImage != nil ? "Ticket hinterlegt" : "Noch kein Ticket hinterlegt", symbol: "ticket.fill", done: ticketImage != nil)
+                statusLine(seat.isEmpty ? "Platz noch nicht eingetragen" : seat.summary, symbol: "chair.fill", done: !seat.isEmpty)
+            }
+            Spacer(minLength: 0)
+            Image(systemName: "chevron.right").font(.subheadline.weight(.semibold)).foregroundStyle(.tertiary)
         }
+        .padding(14)
+        .background(Color(uiColor: .secondarySystemBackground), in: .rect(cornerRadius: 20, style: .continuous))
+        .contentShape(.rect(cornerRadius: 20))
     }
 
-    private var seatRow: some View {
-        Button { isEditing = true } label: {
-            HStack(spacing: 12) {
-                tileIcon(seat.isEmpty ? "chair" : "chair.fill", tint: seat.isEmpty ? KlangradarTheme.accent : .green)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(seat.isEmpty ? "Platz eintragen" : seat.summary).font(.headline).foregroundStyle(.primary).lineLimit(2)
-                    Text(seat.isEmpty ? "Erscheint am Konzerttag auf dem Sperrbildschirm" : "Wird am Konzerttag in der Live-Aktivität angezeigt")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                Spacer(minLength: 0)
-                Text(seat.isEmpty ? "Eintragen" : "Ändern").font(.subheadline.weight(.semibold)).foregroundStyle(KlangradarTheme.accent)
-            }
-            .padding(12)
-            .contentShape(.rect)
+    private func statusLine(_ text: String, symbol: String, done: Bool) -> some View {
+        Label {
+            Text(text).font(.subheadline.weight(done ? .semibold : .regular)).foregroundStyle(done ? .primary : .secondary).lineLimit(2)
+        } icon: {
+            Image(systemName: done ? "checkmark.circle.fill" : symbol).font(.caption).foregroundStyle(done ? .green : .secondary).frame(width: 18)
         }
-        .buttonStyle(.plain)
     }
+}
 
-    private var seatEditor: some View {
+/// Alles zu Ticket und Platz in einem Blatt.
+private struct TicketSeatEditor: View {
+    let event: ConcertEvent
+    @Binding var seat: ConcertSeat
+    @Binding var ticketImage: UIImage?
+    let seatingPlanURL: URL?
+    @Environment(\.dismiss) private var dismiss
+    @State private var ticketPick: PhotosPickerItem?
+    @State private var showsPhotoPicker = false
+    @State private var showsFileImporter = false
+    @State private var showsTicket = false
+
+    var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    if let ticketImage {
+                        Button { showsTicket = true } label: {
+                            Image(uiImage: ticketImage).resizable().scaledToFit()
+                                .frame(maxWidth: .infinity, maxHeight: 220)
+                                .clipShape(.rect(cornerRadius: 12, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                        Button("Ticket öffnen (volle Helligkeit)", systemImage: "qrcode.viewfinder") { showsTicket = true }
+                            .fontWeight(.semibold)
+                        Menu { pickerButtons } label: { Label("Ticket ersetzen", systemImage: "arrow.triangle.2.circlepath") }
+                        Button("Ticket entfernen", systemImage: "trash", role: .destructive) {
+                            TicketStore.remove(for: event.id); self.ticketImage = nil
+                        }
+                    } else {
+                        pickerButtons
+                    }
+                } header: { Text("Ticket") } footer: { Text("Foto, Screenshot oder PDF – bleibt nur auf deinem iPhone.") }
+
                 Section {
                     TextField("Eingang", text: $seat.entrance)
                     TextField("Block / Rang", text: $seat.block)
                     TextField("Reihe", text: $seat.row)
                     TextField("Platz", text: $seat.seat)
-                } footer: { Text("Bleibt nur auf diesem Gerät.") }
+                } header: { Text("Platz") } footer: { Text("Erscheint am Konzerttag auf dem Sperrbildschirm und in der Live-Aktivität.") }
+
+                if let seatingPlanURL {
+                    Section {
+                        Link(destination: seatingPlanURL) { Label("Saalplan ansehen", systemImage: "square.grid.3x3.topleft.filled") }
+                    }
+                }
             }
-            .navigationTitle("Sitzplatz")
+            .navigationTitle("Ticket & Platz")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Fertig") {
                         SharedSeatStore.save(seat, forSlug: event.slug)
                         Haptics.confirm()
-                        isEditing = false
+                        dismiss()
+                    }
+                }
+            }
+            .photosPicker(isPresented: $showsPhotoPicker, selection: $ticketPick, matching: .images)
+            .fileImporter(isPresented: $showsFileImporter, allowedContentTypes: [.pdf, .image]) { result in
+                guard case let .success(url) = result else { return }
+                let scoped = url.startAccessingSecurityScopedResource()
+                defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+                if let image = TicketStore.image(from: url) { store(image) }
+            }
+            .onChange(of: ticketPick) { _, item in
+                guard let item else { return }
+                Task {
+                    if let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) { store(image) }
+                    ticketPick = nil
+                }
+            }
+            .fullScreenCover(isPresented: $showsTicket) {
+                if let ticketImage {
+                    TicketFullScreen(image: ticketImage) { showsTicket = false } onRemove: {
+                        TicketStore.remove(for: event.id); self.ticketImage = nil; showsTicket = false
                     }
                 }
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.large])
     }
 
-    private func tileIcon(_ name: String, tint: Color) -> some View {
-        Image(systemName: name).font(.title3).foregroundStyle(tint)
-            .frame(width: 46, height: 46)
-            .background(tint.opacity(0.12), in: .rect(cornerRadius: 12, style: .continuous))
+    @ViewBuilder private var pickerButtons: some View {
+        Button("Foto oder Screenshot wählen", systemImage: "photo.on.rectangle") { showsPhotoPicker = true }
+        Button("PDF oder Datei wählen", systemImage: "doc") { showsFileImporter = true }
     }
 
     private func store(_ image: UIImage) {

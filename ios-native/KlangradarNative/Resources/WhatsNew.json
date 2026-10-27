@@ -1,0 +1,42 @@
+{
+  "_hinweis": "Erstellt von Claude Code. Bei jedem Release mit Neuerungen hier pflegen und die id ändern: Die App zeigt den Inhalt einmal pro id als 'Neu in Klangradar', upload-testflight.sh übernimmt ihn als TestFlight-Testhinweis.",
+  "id": "2026-10-27-konzert-journal",
+  "title": "Neu in Klangradar",
+  "sections": [
+    {
+      "title": "Konzerte selbst eintragen",
+      "symbol": "square.and.pencil",
+      "items": [
+        "Direkt im Profil: „Konzert eintragen“ – auch für Abende, die nicht in Klangradar stehen",
+        "Ort, Dauer, Werke und Mitwirkende erscheinen sofort nach der Auswahl",
+        "Mitwirkende: eine Suche für Personen und Ensembles, Fehlendes einfach per Namen anlegen",
+        "Vorschläge bekannter Künstler, Orte und Werke schon vor dem Suchen"
+      ]
+    },
+    {
+      "title": "Zählt für deine Statistik",
+      "symbol": "chart.bar.fill",
+      "items": [
+        "Eingetragene Konzerte zählen als Besuch – für Zähler, Level und Achievements",
+        "Auch im Jahresrückblick und in „Dein Konzertjahr“"
+      ]
+    },
+    {
+      "title": "Ticket & Platz",
+      "symbol": "ticket.fill",
+      "items": [
+        "Ticket und Sitzplatz zusammen in einer Kachel auf der Konzertseite",
+        "Hinterlegtes Ticket auf einen Blick erkennbar und mit einem Tipp geöffnet"
+      ]
+    },
+    {
+      "title": "Aufgeräumter",
+      "symbol": "sparkles",
+      "items": [
+        "Keine Lücken mehr auf der Konzertseite",
+        "Empfehlungsgründe („Weil du …“) vollständig lesbar",
+        "Monatsnamen im Tagebuch und Planer auf Deutsch"
+      ]
+    }
+  ]
+}

@@ -133,6 +133,9 @@ embed_notification_file.settings = { "ATTRIBUTES" => ["RemoveHeadersOnCopy"] }
 # Datenschutz-Manifest (App-Store-Pflicht) als Ressource einbinden.
 privacy_manifest = app_target.project.main_group.find_subpath("KlangradarNative/Resources", true).new_reference(root.join("KlangradarNative", "Resources", "PrivacyInfo.xcprivacy").to_s)
 app_target.resources_build_phase.add_file_reference(privacy_manifest, true)
+# "Neu in Klangradar" (auch Quelle für den TestFlight-Testhinweis).
+whats_new = app_target.project.main_group.find_subpath("KlangradarNative/Resources", true).new_reference(root.join("KlangradarNative", "Resources", "WhatsNew.json").to_s)
+app_target.resources_build_phase.add_file_reference(whats_new, true)
 
 secrets_path = root.join("Config", "Secrets.plist")
 if secrets_path.exist?
