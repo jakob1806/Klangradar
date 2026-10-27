@@ -15,6 +15,7 @@ struct NotificationSettingsView: View {
     var introSubtitle: String? = nil
     @State private var preferences = NotificationPreferences()
     @State private var newsletter = false
+    @State private var showsPlusPaywall = false
 
     var body: some View {
         Form {
@@ -45,6 +46,16 @@ struct NotificationSettingsView: View {
                 Toggle("Neue Termine gefolgter Personen, Ensembles & Orte", isOn: binding(\.followedEnsembleNewEvent, "followed_ensemble_new_event"))
             } header: {
                 Text("Push-Mitteilungen")
+            } footer: {
+                // Plus-Hinweis (Claude Code, 27.10.2026)
+                if PlusStore.shared.isPlus {
+                    Label("Mit Plus kommen neue Termine gefolgter Künstler:innen sofort und einzeln.", systemImage: "bell.badge.fill")
+                } else {
+                    Button { showsPlusPaywall = true } label: {
+                        Text("Neue Termine gefolgter Künstler:innen kommen einmal täglich gesammelt. ") + Text("Mit Plus sofort und einzeln.").foregroundStyle(KlangradarTheme.accent).bold()
+                    }
+                    .buttonStyle(.plain)
+                }
             }
 
             if auth.userID != nil {
@@ -67,6 +78,7 @@ struct NotificationSettingsView: View {
             }
         }
         .navigationTitle("Benachrichtigungen")
+        .sheet(isPresented: $showsPlusPaywall) { PlusPaywallView(feature: .instantAlerts) }
         .task {
             guard let repository, let id = auth.userID, let token = auth.accessToken else { return }
             preferences = (try? await repository.preferences(userID: id, token: token)) ?? NotificationPreferences()

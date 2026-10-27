@@ -110,7 +110,7 @@ struct YearRecapView: View {
             }
             .task(id: year) { await loadTogether() }
             .sheet(isPresented: $showsPaywall) {
-                PlusPaywallView(reason: "Mit Plus siehst du deinen vollständigen Jahresrückblick mit allen Werken und Statistiken.")
+                PlusPaywallView(feature: .concertYear)
             }
         }
     }

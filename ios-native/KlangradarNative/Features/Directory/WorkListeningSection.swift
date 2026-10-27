@@ -29,7 +29,7 @@ struct WorkListeningSection: View {
         .task { await searchPreview() }
         .onDisappear { stop() }
         .sheet(isPresented: $showsPlusPaywall) {
-            PlusPaywallView(reason: "Du hast diese Woche deine \(CoachQuota.weeklyLimit) kostenlosen Fragen an die Klangradar KI genutzt. Mit Plus fragst du ohne Limit.")
+            PlusPaywallView(feature: .coach)
         }
     }
 

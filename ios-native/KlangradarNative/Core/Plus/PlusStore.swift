@@ -27,6 +27,8 @@ final class PlusStore: ObservableObject {
     /// Limits greifen nur, wenn Plus tatsächlich kaufbar ist — sonst würde
     /// man Nutzer ohne Ausweg blockieren (z. B. vor Freischaltung in App Store Connect).
     var isOfferAvailable: Bool { !products.isEmpty }
+    /// Plus über ein App-Store-Abo (dann gibt es "Abo verwalten").
+    var hasStoreKitSubscription: Bool { storeKitPlus }
     var enforcesLimits: Bool { isOfferAvailable && !isPlus }
 
     private var updatesTask: Task<Void, Never>?
