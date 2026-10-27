@@ -101,6 +101,12 @@ struct ProfileView: View {
                             ProfileRow(title: "Mein Klangradar", symbol: "person.crop.rectangle.stack.fill", color: KlangradarTheme.accent)
                         }
                         Divider().padding(.leading, 56)
+                        NavigationLink {
+                            SubscriptionCatalogView(repository: eventRepository, contentRepository: contentRepository, cityID: cityStore.selectedCity?.id)
+                        } label: {
+                            ProfileRow(title: "Abos", symbol: "rectangle.stack.fill", color: .teal)
+                        }
+                        Divider().padding(.leading, 56)
                         NavigationLink { PartnerOffersView() } label: {
                             ProfileRow(title: "Partner-Vorteile", symbol: "gift.fill", color: .red)
                         }
@@ -620,6 +626,7 @@ private struct MyKlangradarHubView: View {
     let repository: UserRepository?
     let eventRepository: any EventRepository
     let contentRepository: any ContentRepository
+    @EnvironmentObject private var cityStore: CityStore
     @State private var stats: KlangradarStats?
     @State private var isLoading = false
     @State private var errorMessage: String?
@@ -666,7 +673,7 @@ private struct MyKlangradarHubView: View {
                     }
                     .buttonStyle(.plain)
 
-                    MySubscriptionsSection(repository: eventRepository)
+                    MySubscriptionsSection(repository: eventRepository, contentRepository: contentRepository, cityID: cityStore.selectedCity?.id)
 
                     Text("Du folgst").font(.headline).padding(.top, 4)
                     LazyVGrid(columns: [.init(.flexible(), spacing: 10), .init(.flexible(), spacing: 10)], spacing: 10) {

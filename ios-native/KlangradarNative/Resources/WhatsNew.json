@@ -1,9 +1,19 @@
 {
   "_hinweis": "Erstellt von Claude Code. Bei jedem Release mit Neuerungen hier pflegen und die id ändern: Die App zeigt den Inhalt einmal pro id als 'Neu in Klangradar', upload-testflight.sh übernimmt ihn als TestFlight-Testhinweis. Ton: kurz, sachlich, ganze Sätze, keine Aufzählungsflut.",
-  "id": "2026-10-27-plus-konzertjahr",
+  "id": "2026-10-27-konzert-abos",
   "title": "Neu in Klangradar",
-  "intro": "Ein neues Konzertjahr und der erste Blick auf Klangradar Plus.",
+  "intro": "Konzert-Abos lassen sich jetzt richtig nutzen. Dazu ein neues Konzertjahr und der erste Blick auf Klangradar Plus.",
   "sections": [
+    {
+      "title": "Konzert-Abos",
+      "symbol": "rectangle.stack.fill",
+      "items": [
+        "Im Profil unter „Abos“ findest du alle Abos und Konzertreihen der Veranstalter, mit nächstem Termin und Bild.",
+        "Mit „Ich habe dieses Abo“ landet ein Abo in deinem Profil und alle Termine im Saisonplaner. Das hat vorher nicht gespeichert.",
+        "Auf der Abo-Seite öffnet jeder Termin direkt die Konzertseite. Die Bilder sitzen jetzt sauber.",
+        "Beim BR-Symphonieorchester erkennt Klangradar die Abos A bis D, S, Kammerkonzerte und musica viva jetzt bei fast allen Terminen."
+      ]
+    },
     {
       "title": "Dein Konzertjahr",
       "symbol": "chart.bar.fill",

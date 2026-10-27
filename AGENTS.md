@@ -38,6 +38,7 @@ doppelt gebaute Features (Coach vs. Personal Concierge), ein komplett
 | Claude | 2026-10-27 | claude/journal-editor-fixes | Konzert-Journal: Editor-Fixes, Vorschläge, Eintrag im Profil; Journal zählt als Besuch (Migration 000122); Konzertseite: Lücken, „Ticket & Platz“-Kachel; „Neu in Klangradar“ (WhatsNew.json → App-Popup + TestFlight-Hinweis) |
 | Claude | 2026-10-27 | claude/onboarding-landing-redesign | Onboarding-Startseite neu, „Wer spielt?“ ersetzt Mitwirkende bei ≤4 (inkl. Ensembles), Biografie-Worker mit Wikipedia-Rückfall (Migration 000123), iPad-Titelbild |
 | Claude | 2026-10-27 | claude/testflight-auto-watch | TestFlight-Wächter: lokaler launchd-Job lädt nach Merge + grünen/freigegebenen Deploys automatisch hoch (ios-native/Scripts/testflight-watch.sh) |
+| Claude | 2026-10-27 | claude/konzert-abos-ausbau | Konzert-Abos: BRSO über Konzertkalender, mphil-Mehrfach-Abos, Abo-Katalog „Abos entdecken“, Fix „Ich habe dieses Abo“ (Migration 000127), Abo-Seite Navigation/Bilder |
 | Claude | 2026-10-27 | claude/subscriptions-munich | Abo-Erkennung: BRSO-Parser repariert, neu Rundfunkorchester, BR-Chor, MKO, Gärtnerplatztheater (Migration 000125) |
 | Claude | 2026-10-27 | claude/premium-konzertjahr | Klangradar Plus serverseitig (Codes, Migration 000126), Sofort-Alarm für Plus im push-dispatcher, Konzertjahr-Redesign, schlichteres „Neu in Klangradar“ |
 | Claude | 2026-10-27 | claude/fix-home-timeouts | Störung Startseite: Beliebtheits-Cache für onboarding_follow_suggestions (Migration 000124), Retry/Cache-Fallback/deutsche Fehler im Home-Feed |

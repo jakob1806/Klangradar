@@ -1,8 +1,8 @@
 // Erstellt von Claude Code (27.10.2026): Abo-Erkennung der Münchner Quellen.
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
-  berlinLocal, brChorSubscriptions, brsoSubscriptions, gaertnerplatzSeries, gaertnerplatzSubscriptions,
-  mkoSubscriptions, rundfunkorchesterSubscriptions,
+  berlinLocal, brChorSubscriptions, brsoCalendarIndex, brsoKey, brsoSubscriptions, gaertnerplatzSeries, gaertnerplatzSubscriptions,
+  mkoSubscriptions, mphilSubscriptions, musikvereinSubscriptions, rundfunkorchesterSubscriptions,
 } from "./subscriptions.ts";
 
 Deno.test("brso: Inline-Skript mit '<' verschluckt den Seitentext nicht mehr", () => {
@@ -41,4 +41,30 @@ Deno.test("gärtnerplatz: Serien mit Terminen, Zuordnung über Ortszeit", () => 
   assertEquals(gaertnerplatzSubscriptions(series, "2026-10-16T17:30:00Z").map((s) => s.code), ["Serie 01"]);
   assertEquals(gaertnerplatzSubscriptions(series, "2026-10-16T18:30:00Z").length, 0);
   assertEquals(berlinLocal("2027-01-08T18:30:00Z"), "2027-01-08 19:30");
+});
+
+Deno.test("brso: Kalender ordnet je Datum zu, Gastkonzerte nicht", () => {
+  const index = brsoCalendarIndex({ data: { concerts: [
+    { url: "https://www.brso.de/konzerte/sir-simon-rattle-julia-hagen/", start: "2026-11-05T20:00:00+01:00", abo: "ABO A" },
+    { url: "https://www.brso.de/konzerte/sir-simon-rattle-julia-hagen/", start: "2026-11-07T19:00:00+01:00", abo: "Gastkonzert" },
+    { url: "https://www.brso.de/konzerte/kammerkonzert-12/", start: "2027-01-09T20:00:00+01:00", abo: "Kammerkonzert" },
+  ] } });
+  assertEquals(index.get(brsoKey("https://www.brso.de/konzerte/sir-simon-rattle-julia-hagen/", "2026-11-05T19:00:00Z"))?.map((s) => s.code), ["A"]);
+  assertEquals(index.get(brsoKey("https://www.brso.de/konzerte/sir-simon-rattle-julia-hagen", "2026-11-07T18:00:00Z")), undefined);
+  assertEquals(index.get(brsoKey("https://www.brso.de/konzerte/kammerkonzert-12/", "2027-01-09T19:00:00Z"))?.[0].name, "Abo Kammerkonzerte");
+});
+
+Deno.test("brso: URL-Kodierung egal", () => {
+  assertEquals(brsoKey("https://www.brso.de/konzerte/franck-ollu-reudenbach-%c2%b7-iannotta/", "2026-10-30T19:00:00Z"),
+    brsoKey("https://www.brso.de/konzerte/franck-ollu-reudenbach-%C2%B7-iannotta/", "2026-10-30T19:00:00Z"));
+});
+
+Deno.test("mphil: mehrere Abos in einer Zeile", () => {
+  const html = `<p class="concert-detail__topline">\n Subscription F,\n Subscription I4 </p>`;
+  assertEquals(mphilSubscriptions(html).map((s) => s.name), ["Abo F", "Abo I4"]);
+});
+
+Deno.test("musikverein: Zyklus ohne Namen wird übersprungen", () => {
+  const data = { distributionChannels: { data: [{ code: "AEG-K-2627", description_D: "-" }, { code: "KLZ2627", description_D: "Klavier-Zyklus" }] } };
+  assertEquals(musikvereinSubscriptions(data).map((s) => s.name), ["Klavier-Zyklus"]);
 });
