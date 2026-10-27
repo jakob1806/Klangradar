@@ -24,6 +24,15 @@ struct ConcertYear: Sendable {
     let topArtist: String?
     let bestRated: (title: String, stars: Int)?
     let first: String?
+    // Ab Migration 20261231000126 (ältere Server liefern sie nicht: leer/0).
+    var cities = 0
+    var works = 0
+    /// 12 Werte, Januar … Dezember.
+    var months: [Int] = []
+    /// 7 Werte, Montag … Sonntag.
+    var weekdays: [Int] = []
+    var topVenues: [(name: String, count: Int)] = []
+    var topArtists: [(name: String, count: Int)] = []
 }
 
 extension UserRepository {
@@ -63,6 +72,11 @@ extension UserRepository {
         }
     }
 
+    private static func int(_ value: JSONValue) -> Int {
+        if case let .number(number) = value { return Int(number) }
+        return 0
+    }
+
     func concertYear(_ year: Int? = nil, token: String) async throws -> ConcertYear {
         let row: JSONObject = try await client.rpc("my_concert_year", parameters: ["p_year": year.map { .number(Double($0)) } ?? .null], accessToken: token)
         let best = row.object("best_rated")
@@ -75,7 +89,13 @@ extension UserRepository {
             topVenue: row.string("top_venue"),
             topArtist: row.string("top_artist"),
             bestRated: best.flatMap { item in item.string("title").map { ($0, item.integer("stars") ?? 0) } },
-            first: row.object("first")?.string("title")
+            first: row.object("first")?.string("title"),
+            cities: row.integer("cities") ?? 0,
+            works: row.integer("works") ?? 0,
+            months: row.array("months").map(Self.int),
+            weekdays: row.array("weekdays").map(Self.int),
+            topVenues: row.objects("top_venues").compactMap { item in item.string("name").map { ($0, item.integer("count") ?? 0) } },
+            topArtists: row.objects("top_artists").compactMap { item in item.string("name").map { ($0, item.integer("count") ?? 0) } }
         )
     }
 }

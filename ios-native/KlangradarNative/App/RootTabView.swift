@@ -163,6 +163,7 @@ struct RootTabView: View {
                 await follows.load()
                 await SocialStore.shared.refresh()
                 await cityStore.load()
+                await PlusStore.shared.refreshServerStatus()
                 await attendanceMonitor.refresh()
             }
         }
@@ -194,7 +195,10 @@ struct RootTabView: View {
             EngagementLogger.shared.configure(client: environment.restClient, auth: environment.auth)
             PartnerStore.shared.configure(client: environment.restClient)
         }
-        .task { PlusStore.shared.start() }
+        .task {
+            PlusStore.shared.configure(client: environment.restClient, auth: environment.auth)
+            PlusStore.shared.start()
+        }
         .task { DiagnosticsReporter.shared.start(client: environment.restClient, auth: environment.auth) }
         .task { PushRegistration.shared.configure(client: environment.restClient, auth: environment.auth) }
         .task { await PromotedEventsStore.shared.load(client: environment.restClient, repository: environment.events) }

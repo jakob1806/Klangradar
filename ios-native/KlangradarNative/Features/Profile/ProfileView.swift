@@ -297,7 +297,7 @@ struct ProfileView: View {
                         .font(.title3.bold())
                         .foregroundStyle(.white)
                         .multilineTextAlignment(.leading)
-                    Text(plus.isPlus ? "Plus ist aktiv." : "KI ohne Limit · Jahresrückblick · Partner-Vorteile")
+                    Text(plus.isPlus ? "Plus ist aktiv." : "Neue Termine sofort · KI ohne Limit · ganzes Konzertjahr")
                         .font(.footnote)
                         .foregroundStyle(.white.opacity(0.85))
                         .multilineTextAlignment(.leading)

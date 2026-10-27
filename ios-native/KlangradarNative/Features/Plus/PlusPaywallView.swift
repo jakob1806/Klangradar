@@ -8,12 +8,16 @@ struct PlusPaywallView: View {
     @ObservedObject private var store = PlusStore.shared
     @Environment(\.dismiss) private var dismiss
     @State private var selectedID = PlusStore.productIDs[0]
+    @State private var code = ""
+    @State private var codeResult: (ok: Bool, message: String)?
+    @State private var showsCodeField = false
 
     private let benefits: [(icon: String, title: String, detail: String)] = [
-        ("sparkles", "Klangradar KI ohne Limit", "Frag so viel du willst – Programme, Abendplanung, Empfehlungen."),
-        ("bell.badge", "Vorverkaufs-Alarm sofort", "Neue Termine deiner Künstler und Ensembles in Echtzeit."),
-        ("list.bullet.rectangle", "Unbegrenzte Listen", "Sammle Konzerte für jede Saison und jeden Anlass."),
-        ("chart.bar.xaxis", "Konzerttagebuch", "Jahresrückblick und Statistiken zu deinen Konzertbesuchen."),
+        ("bell.badge", "Neue Termine sofort", "Kündigt jemand, dem du folgst, ein Konzert an, erfährst du es noch am selben Tag einzeln, statt am nächsten Tag gesammelt."),
+        ("sparkles", "Klangradar KI ohne Wochenlimit", "Programme erklären, Abende planen, Werke vorbereiten. Ohne Plus sind es 5 Fragen pro Woche."),
+        ("chart.bar.xaxis", "Dein Konzertjahr komplett", "Monatsrhythmus, Lieblingswochentag, alle Säle und Mitwirkenden. Dazu ein Bild im Story-Format zum Teilen."),
+        ("list.bullet.rectangle", "Unbegrenzte Listen", "Ohne Plus sind es drei. Mit Plus sammelst du für jede Saison und jeden Anlass."),
+        ("gift", "Partner-Vorteile", "Gutscheincodes von Konzerthäusern und Partnern, sobald welche verfügbar sind."),
     ]
 
     var body: some View {
@@ -27,7 +31,7 @@ struct PlusPaywallView: View {
                             .multilineTextAlignment(.center)
                             .foregroundStyle(.secondary)
                     }
-                    if store.isPlus { activeCard } else { benefitsCard; plans; purchaseButton; legal }
+                    if store.isPlus { activeCard } else { benefitsCard; plans; purchaseButton; codeSection; legal }
                 }
                 .padding(KlangradarTheme.pagePadding)
                 .frame(maxWidth: 560)
@@ -153,6 +157,44 @@ struct PlusPaywallView: View {
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
         }
+    }
+
+    @ViewBuilder private var codeSection: some View {
+        if showsCodeField || store.products.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Code einlösen").font(.headline)
+                HStack(spacing: 10) {
+                    TextField("Code", text: $code)
+                        .textInputAutocapitalization(.characters)
+                        .autocorrectionDisabled()
+                        .font(.body.monospaced())
+                        .padding(.horizontal, 14)
+                        .frame(height: 46)
+                        .background(.thinMaterial, in: .rect(cornerRadius: 14))
+                        .submitLabel(.go)
+                        .onSubmit(redeem)
+                    Button(action: redeem) {
+                        if store.isRedeeming { ProgressView() } else { Text("Einlösen").font(.headline) }
+                    }
+                    .buttonStyle(.bordered)
+                    .buttonBorderShape(.capsule)
+                    .disabled(store.isRedeeming || code.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+                if let codeResult {
+                    Label(codeResult.message, systemImage: codeResult.ok ? "checkmark.circle.fill" : "exclamationmark.circle")
+                        .font(.subheadline)
+                        .foregroundStyle(codeResult.ok ? Color.green : Color.secondary)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            Button("Ich habe einen Code") { withAnimation { showsCodeField = true } }
+                .font(.subheadline)
+        }
+    }
+
+    private func redeem() {
+        Task { codeResult = await store.redeem(code: code) }
     }
 
     private var legal: some View {

@@ -82,3 +82,18 @@ Kern bleibt kostenlos: Die App soll die beste Konzertübersicht sein, Plus verka
   - Profil → „Klangradar Plus“
   - beim Erreichen eines Limits (KI-Kontingent, 4. Liste) mit Erklärung
 - Für Plus-Mitglieder: Status-Zeile „Plus aktiv bis …“ und „Abo verwalten“.
+
+## 3. Stand 27.10.2026 (Claude Code)
+
+- **Serverseitige Freischaltung:** `plus_entitlements` und `my_plus_status()`. Die App wertet Plus als aktiv, wenn StoreKit oder der Server es meldet.
+- **Codes:**
+  - Tabellen `plus_codes` und `redeem_plus_code()`, einlösbar in der Paywall unter „Ich habe einen Code“.
+  - Ein Code kann an eine E-Mail-Adresse gebunden sein, eine Laufzeit haben (`duration`, null = unbegrenzt) und eine Höchstzahl an Einlösungen (`max_uses`).
+  - Neue Codes legt man per SQL an. `KLANGRADAR-GRUENDER` gilt nur für jakob@klangradar.com.
+- **Sofort-Alarm:**
+  - Plus-Mitglieder bekommen neue Konzerte von Gefolgten einzeln. Das läuft über `push_candidates` mit `facts.instant`, zwischen 8 und 21 Uhr und außerhalb des Tagesbudgets.
+  - Alle anderen bekommen sie wie bisher einmal täglich gesammelt.
+- **Konzertjahr komplett:** Monatsrhythmus, Lieblingswochentag, Ranglisten der Säle und Mitwirkenden sowie Teilen im Story-Format. Ohne Plus erscheinen diese Kacheln unscharf.
+- **Offen:**
+  - Die Abo-Produkte sind in App Store Connect noch nicht angelegt. Solange zeigt die Paywall nur das Code-Feld.
+  - App Store Server Notifications sollen später `plus_entitlements` mit `source = 'app_store'` füllen.

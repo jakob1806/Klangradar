@@ -1,82 +1,24 @@
 {
-  "_hinweis": "Erstellt von Claude Code. Bei jedem Release mit Neuerungen hier pflegen und die id ändern: Die App zeigt den Inhalt einmal pro id als 'Neu in Klangradar', upload-testflight.sh übernimmt ihn als TestFlight-Testhinweis.",
-  "id": "2026-10-27-abos-muenchen",
+  "_hinweis": "Erstellt von Claude Code. Bei jedem Release mit Neuerungen hier pflegen und die id ändern: Die App zeigt den Inhalt einmal pro id als 'Neu in Klangradar', upload-testflight.sh übernimmt ihn als TestFlight-Testhinweis. Ton: kurz, sachlich, ganze Sätze, keine Aufzählungsflut.",
+  "id": "2026-10-27-plus-konzertjahr",
   "title": "Neu in Klangradar",
+  "intro": "Ein neues Konzertjahr und der erste Blick auf Klangradar Plus.",
   "sections": [
     {
-      "title": "Zuverlässiger Start",
-      "symbol": "bolt.horizontal.circle.fill",
-      "items": [
-        "Startseite lädt auch bei kurzer Serverlast zuverlässig – mit automatischem zweitem Versuch",
-        "Klappt es trotzdem nicht, siehst du den letzten Stand statt einer Fehlerseite",
-        "Verständliche Meldungen auf Deutsch statt „The request timed out“"
-      ]
-    },
-    {
-      "title": "Mehr Abos erkannt",
-      "symbol": "rectangle.stack.fill",
-      "items": [
-        "Abos jetzt auch für BR-Symphonieorchester, Münchner Rundfunkorchester, BR-Chor, Münchener Kammerorchester und Gärtnerplatztheater",
-        "Auf der Konzertseite siehst du, zu welchem Abo ein Termin gehört – mit Link zum nächsten Abo-Konzert"
-      ]
-    },
-    {
-      "title": "Neuer Start",
-      "symbol": "person.crop.square.filled.and.at.rectangle",
-      "items": [
-        "Frisch gestaltete Startseite mit Porträts bekannter Künstler:innen",
-        "Anmelden mit Apple, Google oder E-Mail übersichtlich an einem Ort – auch auf dem iPad",
-        "Abgebrochene Anmeldung zeigt keine verwirrende Fehlermeldung mehr"
-      ]
-    },
-    {
-      "title": "Wer spielt?",
-      "symbol": "person.2.fill",
-      "items": [
-        "Bei bis zu 4 Mitwirkenden stehen alle – auch Orchester und Ensembles – mit Kurzbiografie unter „Wer spielt?“, ohne doppelte Liste",
-        "Fehlende Biografien recherchiert Klangradar automatisch nach, jetzt auch über Wikipedia"
-      ]
-    },
-    {
-      "title": "iPad",
-      "symbol": "ipad.landscape",
-      "items": [
-        "Titelbilder auf der Konzertseite werden nicht mehr abgeschnitten"
-      ]
-    },
-    {
-      "title": "Konzerte selbst eintragen",
-      "symbol": "square.and.pencil",
-      "items": [
-        "Direkt im Profil: „Konzert eintragen“ – auch für Abende, die nicht in Klangradar stehen",
-        "Ort, Dauer, Werke und Mitwirkende erscheinen sofort nach der Auswahl",
-        "Mitwirkende: eine Suche für Personen und Ensembles, Fehlendes einfach per Namen anlegen",
-        "Vorschläge bekannter Künstler, Orte und Werke schon vor dem Suchen"
-      ]
-    },
-    {
-      "title": "Zählt für deine Statistik",
+      "title": "Dein Konzertjahr",
       "symbol": "chart.bar.fill",
       "items": [
-        "Eingetragene Konzerte zählen als Besuch – für Zähler, Level und Achievements",
-        "Auch im Jahresrückblick und in „Dein Konzertjahr“"
+        "Der Rückblick ist neu gestaltet. Oben stehen die großen Zahlen, darunter Kacheln für deine Komponisten, Säle und den besten Abend.",
+        "Mit Plus siehst du außerdem, in welchen Monaten und an welchen Wochentagen du unterwegs warst, und kannst das Jahr als Story teilen."
       ]
     },
     {
-      "title": "Ticket & Platz",
-      "symbol": "ticket.fill",
-      "items": [
-        "Ticket und Sitzplatz zusammen in einer Kachel auf der Konzertseite",
-        "Hinterlegtes Ticket auf einen Blick erkennbar und mit einem Tipp geöffnet"
-      ]
-    },
-    {
-      "title": "Aufgeräumter",
+      "title": "Klangradar Plus",
       "symbol": "sparkles",
       "items": [
-        "Keine Lücken mehr auf der Konzertseite",
-        "Empfehlungsgründe („Weil du …“) vollständig lesbar",
-        "Monatsnamen im Tagebuch und Planer auf Deutsch"
+        "Wenn jemand, dem du folgst, ein neues Konzert ankündigt, bekommst du mit Plus noch am selben Tag Bescheid, für jedes Konzert einzeln.",
+        "Dazu kommen die Klangradar KI ohne Wochenlimit, beliebig viele Listen und Partner-Vorteile.",
+        "Hast du einen Code, kannst du ihn im Profil unter Klangradar Plus einlösen."
       ]
     }
   ]
