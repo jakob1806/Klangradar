@@ -9,6 +9,8 @@
 //  - Lernen: Arten, die ein Nutzer nach ≥ 8 Sendungen zu < 5 % öffnet,
 //    entfallen (außer sehr dringend, Priorität ≥ 80).
 //  - Pro Lauf höchstens eine Mitteilung je Nutzer (die wichtigste).
+//  - Klangradar Plus (facts.instant): neue Konzerte von Gefolgten kommen
+//    sofort, 8–21 Uhr, außerhalb des Budgets (Nachtrag 27.10.2026).
 
 export interface Candidate {
   user_id: string;
@@ -39,7 +41,12 @@ export function berlinHour(now: Date): number {
   return Number(part);
 }
 
-function inWindow(kind: string, hour: number, preferred: number): boolean {
+function isInstant(c: Candidate): boolean {
+  return c.facts?.instant === true;
+}
+
+function inWindow(kind: string, hour: number, preferred: number, instant = false): boolean {
+  if (instant) return hour >= 8 && hour < 21;
   switch (kind) {
     case "concert_day": return hour >= 9 && hour < 12;
     case "how_was_it": return hour >= 9 && hour < 11;
@@ -68,8 +75,8 @@ export function selectPushes(candidates: Candidate[], contexts: Map<string, User
   for (const [userId, list] of byUser) {
     const ctx = contexts.get(userId) ?? { sentLastDay: 0, sentLastWeek: 0, preferredHour: 18, engagement: {} };
     const eligible = list
-      .filter((c) => inWindow(c.kind, hour, ctx.preferredHour))
-      .filter((c) => c.transactional || (ctx.sentLastDay < DAILY_BUDGET && ctx.sentLastWeek < WEEKLY_BUDGET))
+      .filter((c) => inWindow(c.kind, hour, ctx.preferredHour, isInstant(c)))
+      .filter((c) => c.transactional || isInstant(c) || (ctx.sentLastDay < DAILY_BUDGET && ctx.sentLastWeek < WEEKLY_BUDGET))
       .filter((c) => !learnedAway(c.kind, c.priority, ctx))
       .sort((a, b) => b.priority - a.priority);
     if (eligible[0]) chosen.push(eligible[0]);

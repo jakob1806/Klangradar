@@ -3,8 +3,9 @@ import StoreKit
 
 /// Klangradar Plus über Apples In-App-Kauf (StoreKit 2). Die Freischaltung
 /// wird lokal aus den von Apple signierten Transaktionen abgeleitet
-/// (`Transaction.currentEntitlements`); ein Server-Abgleich folgt in einem
-/// zweiten Schritt (siehe docs/15-preise-und-klangradar-plus.md).
+/// (`Transaction.currentEntitlements`). Zusätzlich zählt eine serverseitige
+/// Freischaltung (`my_plus_status`, z. B. per eingelöstem Code – Nachtrag
+/// Claude Code 27.10.2026). Plus ist aktiv, wenn eins von beiden zutrifft.
 @MainActor
 final class PlusStore: ObservableObject {
     static let shared = PlusStore()
@@ -12,6 +13,13 @@ final class PlusStore: ObservableObject {
 
     @Published private(set) var products: [Product] = []
     @Published private(set) var isPlus = false
+    @Published private(set) var isRedeeming = false
+    private var storeKitPlus = false
+    private var storeKitExpiry: Date?
+    private var serverPlus = false
+    private var serverExpiry: Date?
+    private var client: SupabaseRESTClient?
+    private weak var auth: AuthStore?
     @Published private(set) var expirationDate: Date?
     @Published private(set) var isPurchasing = false
     @Published var errorMessage: String?
@@ -22,6 +30,50 @@ final class PlusStore: ObservableObject {
     var enforcesLimits: Bool { isOfferAvailable && !isPlus }
 
     private var updatesTask: Task<Void, Never>?
+
+    func configure(client: SupabaseRESTClient?, auth: AuthStore) {
+        self.client = client
+        self.auth = auth
+    }
+
+    /// Server-Freischaltung nach Login/Logout neu laden.
+    func refreshServerStatus() async {
+        guard let client, let token = auth?.accessToken else {
+            serverPlus = false; serverExpiry = nil; publish(); return
+        }
+        guard let row: JSONObject = try? await client.rpc("my_plus_status", accessToken: token) else { return }
+        serverPlus = row.bool("active") ?? false
+        serverExpiry = row.string("expires_at").flatMap(Self.parseDate) ?? (serverPlus ? .distantFuture : nil)
+        publish()
+    }
+
+    /// Löst einen Plus-Code ein. Liefert die Meldung für die Oberfläche.
+    func redeem(code: String) async -> (ok: Bool, message: String) {
+        let trimmed = code.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return (false, "Bitte gib einen Code ein.") }
+        guard let client, let token = auth?.accessToken else { return (false, "Bitte melde dich zuerst an.") }
+        isRedeeming = true
+        defer { isRedeeming = false }
+        do {
+            let row: JSONObject = try await client.rpc("redeem_plus_code", parameters: ["p_code": .string(trimmed)], accessToken: token)
+            let ok = row.bool("ok") ?? false
+            if ok { await refreshServerStatus(); Haptics.confirm() }
+            return (ok, row.string("message") ?? (ok ? "Klangradar Plus ist freigeschaltet." : "Der Code hat nicht funktioniert."))
+        } catch {
+            return (false, "Der Code konnte gerade nicht geprüft werden. Bitte versuch es gleich noch einmal.")
+        }
+    }
+
+    private func publish() {
+        isPlus = storeKitPlus || serverPlus
+        expirationDate = isPlus ? [storeKitPlus ? storeKitExpiry : nil, serverPlus ? serverExpiry : nil].compactMap { $0 }.max() : nil
+    }
+
+    private static func parseDate(_ value: String) -> Date? {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.date(from: value) ?? ISO8601DateFormatter().date(from: value)
+    }
 
     func start() {
         guard updatesTask == nil else { return }
@@ -34,6 +86,7 @@ final class PlusStore: ObservableObject {
         Task {
             await loadProducts()
             await refreshEntitlements()
+            await refreshServerStatus()
         }
     }
 
@@ -53,8 +106,9 @@ final class PlusStore: ObservableObject {
             active = true
             expiry = max(expiry ?? .distantPast, transaction.expirationDate ?? .distantFuture)
         }
-        isPlus = active
-        expirationDate = active ? expiry : nil
+        storeKitPlus = active
+        storeKitExpiry = active ? expiry : nil
+        publish()
     }
 
     /// true bei erfolgreichem Kauf.

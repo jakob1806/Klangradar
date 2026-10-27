@@ -6,12 +6,15 @@ import SwiftUI
 struct WhatsNewNotes: Decodable {
     struct Section: Decodable, Identifiable {
         let title: String
-        let symbol: String
+        /// Wird seit dem schlichteren Layout (27.10.2026) nicht mehr angezeigt.
+        let symbol: String?
         let items: [String]
         var id: String { title }
     }
     let id: String
     let title: String
+    /// Ein, zwei Sätze vorweg (optional).
+    let intro: String?
     let sections: [Section]
 
     static let current: WhatsNewNotes? = {
@@ -43,51 +46,60 @@ struct WhatsNewView: View {
     }
 
     private var content: some View {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 22) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(notes.title).font(.largeTitle.bold())
-                        Text(version).font(.subheadline).foregroundStyle(.secondary)
-                    }
-                    .padding(.top, 8)
-                    ForEach(notes.sections) { section in
-                        HStack(alignment: .top, spacing: 14) {
-                            Image(systemName: section.symbol)
-                                .font(.title3.weight(.semibold))
-                                .foregroundStyle(.white)
-                                .frame(width: 44, height: 44)
-                                .background(KlangradarTheme.accent.gradient, in: .rect(cornerRadius: 13, style: .continuous))
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text(section.title).font(.headline)
-                                ForEach(section.items, id: \.self) { item in
-                                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                                        Text("•").foregroundStyle(KlangradarTheme.accent)
-                                        Text(item).font(.subheadline).foregroundStyle(.secondary)
-                                            .fixedSize(horizontal: false, vertical: true)
-                                    }
-                                }
-                            }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(version.uppercased())
+                    .font(.caption.weight(.semibold))
+                    .tracking(1.2)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 12)
+                Text(notes.title)
+                    .font(.system(size: 38, weight: .semibold, design: .serif))
+                    .padding(.top, 6)
+                if let intro = notes.intro {
+                    Text(intro)
+                        .font(.system(.title3, design: .serif))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 10)
+                }
+                ForEach(notes.sections) { section in
+                    Divider().padding(.vertical, 22)
+                    Text(section.title)
+                        .font(.system(.title3, design: .serif).weight(.semibold))
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(section.items, id: \.self) { item in
+                            Text(item)
+                                .font(.body)
+                                .foregroundStyle(.primary.opacity(0.8))
+                                .lineSpacing(3)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                     }
+                    .padding(.top, 8)
                 }
-                .padding(KlangradarTheme.pagePadding)
-                .padding(.bottom, 90)
             }
-            .safeAreaInset(edge: .bottom) {
-                if isModal {
+            .frame(maxWidth: 560, alignment: .leading)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, KlangradarTheme.pagePadding + 4)
+            .padding(.bottom, 100)
+        }
+        .safeAreaInset(edge: .bottom) {
+            if isModal {
                 Button { dismiss() } label: {
                     Text("Weiter").font(.headline).frame(maxWidth: .infinity).frame(height: 50)
                 }
                 .buttonStyle(.borderedProminent)
                 .buttonBorderShape(.capsule)
                 .tint(KlangradarTheme.accent)
+                .frame(maxWidth: 520)
                 .padding(.horizontal, KlangradarTheme.pagePadding)
                 .padding(.vertical, 10)
                 .frame(maxWidth: .infinity)
-                .background(.regularMaterial)
-                }
+                .background(.bar)
             }
-            .background { KlangradarBackground().ignoresSafeArea() }
+        }
+        .background(Color(uiColor: .systemBackground).ignoresSafeArea())
     }
 }
 

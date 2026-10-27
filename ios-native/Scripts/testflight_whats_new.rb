@@ -20,7 +20,8 @@ KEY_ID = config.fetch("ASC_KEY_ID")
 ISSUER = config.fetch("ASC_ISSUER_ID")
 
 notes = JSON.parse(File.read(File.join(__dir__, "..", "KlangradarNative", "Resources", "WhatsNew.json")))
-text = ([notes["title"], ""] + notes["sections"].flat_map { |s| [s["title"]] + s["items"].map { |i| "• #{i}" } + [""] }).join("\n").strip[0, 4000]
+intro = notes["intro"] ? [notes["intro"], ""] : []
+text = ([notes["title"], ""] + intro + notes["sections"].flat_map { |s| [s["title"]] + s["items"] + [""] }).join("\n").strip[0, 4000]
 
 def b64(data) = Base64.urlsafe_encode64(data, padding: false)
 

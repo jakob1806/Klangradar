@@ -33,3 +33,11 @@ Deno.test("selten geöffnete Arten entfallen", () => {
   assertEquals(selectPushes([c("weekly_pick", 50)], bored, evening), []);
   assertEquals(selectPushes([c("almost_sold_out", 80)], ctx({ engagement: { almost_sold_out: { sent: 10, opened: 0 } } }), evening).length, 1);
 });
+
+Deno.test("Plus-Sofort-Alarm: außerhalb des Budgets, aber nicht nachts", () => {
+  const instant: Candidate = { ...c("new_followed", 90), facts: { instant: true } };
+  const busy = ctx({ sentLastDay: 1, sentLastWeek: 3 });
+  assertEquals(selectPushes([instant], busy, morning).map((x) => x.kind), ["new_followed"]);
+  assertEquals(selectPushes([instant], busy, night), []);
+  assertEquals(selectPushes([c("new_followed", 70)], busy, morning), []);
+});
