@@ -45,8 +45,8 @@ function clean(text: string): string {
   // Inline-Skripten ließen die Tag-Schleife sonst ganze Seitenbereiche
   // verschlucken (brso.de: von ~15.000 Zeichen Text blieben 675 übrig).
   let s = text
-    .replace(/<script\b[\s\S]*?<\/script\s*>/gi, " ")
-    .replace(/<style\b[\s\S]*?<\/style\s*>/gi, " ")
+    .replace(/<script\b[\s\S]*?<\/script\b[^>]*>/gi, " ")
+    .replace(/<style\b[\s\S]*?<\/style\b[^>]*>/gi, " ")
     .replace(/<!--[\s\S]*?-->/g, " ");
   let prev: string;
   do {
