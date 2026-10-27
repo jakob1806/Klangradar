@@ -1,13 +1,12 @@
-// Schneller, quellenunabhängiger Biografie-Backfill für Personen.
-// Anders als enrich-person-profile wartet dieser Worker nicht erst auf
-// Website-/Wikipedia-Abrufe, sondern stellt dieselbe Wissensfrage, die eine
-// Redaktion direkt in Gemini oder einem anderen LLM stellen würde. Er
-// schreibt ausschließlich LEERE Biografien und kennzeichnet die Provenienz
-// ausdrücklich als KI-Wissen ohne Webbeleg.
+// Schneller Biografie-Backfill für Personen.
+// Zuerst die Wissensfrage, die eine Redaktion direkt in Gemini oder einem
+// anderen LLM stellen würde; kennt das Modell den Namen nicht sicher, folgt
+// ein passender Wikipedia-Artikel als belegbarer Rückfall. Er schreibt
+// ausschließlich LEERE Biografien und kennzeichnet die Provenienz.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { hasAnyAiProviderConfigured } from "../_shared/ai/router.ts";
-import { researchBiographyFromKnowledge } from "../_shared/bioResearch.ts";
+import { researchBiography } from "../_shared/bioResearch.ts";
 import { recordFieldSource } from "../_shared/provenance.ts";
 import { logSystemAction } from "../_shared/systemLog.ts";
 
@@ -81,7 +80,7 @@ Deno.serve(async (req) => {
         const event = Array.isArray(row.events) ? row.events[0] : row.events;
         return `${event?.title ?? "Veranstaltung"}${row.role ? ` (${row.role})` : ""}`;
       });
-      const result = await researchBiographyFromKnowledge(
+      const result = await researchBiography(
         "person",
         person.full_name,
         personContext(person, eventContext),
@@ -120,8 +119,13 @@ Deno.serve(async (req) => {
         entityType: "person",
         entityId: person.id,
         fieldName: "biography_de",
-        sourceUrl: null,
-        sourceName: "KI-Wissen (automatische Hintergrundrecherche, ohne Webabruf)",
+        // Kennt die KI den Namen nicht sicher, fasst researchBiography einen
+        // passenden Wikipedia-Artikel zusammen (Nutzerwunsch 27.10.2026:
+        // alle Mitwirkenden kleiner Besetzungen brauchen eine Kurzbiografie).
+        sourceUrl: result?.sourceUrl ?? null,
+        sourceName: result?.source === "wikipedia"
+          ? "Wikipedia (automatisch zusammengefasst)"
+          : "KI-Wissen (automatische Hintergrundrecherche, ohne Webabruf)",
         confidence: "likely",
       });
     } catch (err) {
