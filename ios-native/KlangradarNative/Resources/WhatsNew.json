@@ -1,8 +1,17 @@
 {
   "_hinweis": "Erstellt von Claude Code. Bei jedem Release mit Neuerungen hier pflegen und die id ändern: Die App zeigt den Inhalt einmal pro id als 'Neu in Klangradar', upload-testflight.sh übernimmt ihn als TestFlight-Testhinweis.",
-  "id": "2026-10-27-onboarding-redesign",
+  "id": "2026-10-27-stabiler-start",
   "title": "Neu in Klangradar",
   "sections": [
+    {
+      "title": "Zuverlässiger Start",
+      "symbol": "bolt.horizontal.circle.fill",
+      "items": [
+        "Startseite lädt auch bei kurzer Serverlast zuverlässig – mit automatischem zweitem Versuch",
+        "Klappt es trotzdem nicht, siehst du den letzten Stand statt einer Fehlerseite",
+        "Verständliche Meldungen auf Deutsch statt „The request timed out“"
+      ]
+    },
     {
       "title": "Neuer Start",
       "symbol": "person.crop.square.filled.and.at.rectangle",

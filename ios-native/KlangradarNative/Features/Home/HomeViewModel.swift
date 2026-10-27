@@ -128,7 +128,9 @@ final class HomeViewModel: ObservableObject {
             async let modulesTask = loadHomeModules()
             async let personalizedTask = loadPersonalizedEntityIDs()
             async let favoritesTask = fetchFavoriteEvents()
-            let events = try await repository.upcomingEvents(limit: 100, regionID: regionID)
+            let events = try await Self.retryingOnce { [repository, regionID] in
+                try await repository.upcomingEvents(limit: 100, regionID: regionID)
+            }
             guard requestedRegion == regionID else { return }
             // Liste sofort zeigen, wenn noch nichts zu sehen ist; die Bilder
             // aus der images-Tabelle folgen gleich danach.
@@ -169,12 +171,46 @@ final class HomeViewModel: ObservableObject {
             // bereits angezeigte Cache-Stand bleibt stehen statt eines
             // Fehlerbildschirms — nur der explizite Ladefall zeigt den
             // Fehler.
-            if usesCacheOnFailure, let cached = HomeCache.load(for: auth?.userID) {
+            // Auch beim ersten Laden lieber den letzten Stand zeigen als einen
+            // Fehlerbildschirm (Nutzermeldung 27.10.2026).
+            if let cached = HomeCache.load(for: auth?.userID), usesCacheOnFailure || showsLoading {
                 applySnapshot(cached)
             } else if showsLoading {
-                state = .failed(error.localizedDescription)
+                state = .failed(Self.userMessage(for: error))
             }
         }
+    }
+
+    /// Ein zweiter Versuch bei Zeitüberschreitung, Verbindungsabbruch oder
+    /// Serverfehler – kurze Lastspitzen sollen nicht gleich als Fehler enden.
+    static func retryingOnce<T: Sendable>(_ operation: @Sendable () async throws -> T) async throws -> T {
+        do {
+            return try await operation()
+        } catch {
+            guard isTransient(error), !Task.isCancelled else { throw error }
+            try? await Task.sleep(for: .seconds(1.5))
+            return try await operation()
+        }
+    }
+
+    static func isTransient(_ error: Error) -> Bool {
+        if let urlError = error as? URLError {
+            return [.timedOut, .networkConnectionLost, .cannotConnectToHost, .dnsLookupFailed].contains(urlError.code)
+        }
+        if case let APIError.httpStatus(statusCode, _) = error { return statusCode >= 500 }
+        return false
+    }
+
+    /// Deutsche, verständliche Meldung statt "The request timed out." o. Ä.
+    static func userMessage(for error: Error) -> String {
+        if let urlError = error as? URLError {
+            switch urlError.code {
+            case .notConnectedToInternet, .dataNotAllowed: return "Keine Internetverbindung. Bitte prüfe dein Netz und versuche es erneut."
+            case .timedOut: return "Der Server antwortet gerade sehr langsam. Bitte versuche es gleich noch einmal."
+            default: break
+            }
+        }
+        return "Die Konzerte konnten gerade nicht geladen werden. Bitte versuche es gleich noch einmal."
     }
 
     /// Persönliche Schicht über den Server-Modulen: Begründungen + gelernte
