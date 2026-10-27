@@ -55,7 +55,7 @@ struct PartnerOffersView: View {
         .navigationTitle("Partner-Vorteile")
         .refreshable { await partners.load() }
         .sheet(isPresented: $showsPaywall) {
-            PlusPaywallView(reason: "Mit Plus erhältst du die Gutscheincodes unserer Partner.")
+            PlusPaywallView(feature: .partners)
         }
     }
 }

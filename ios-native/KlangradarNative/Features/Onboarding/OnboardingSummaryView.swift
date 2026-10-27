@@ -25,6 +25,7 @@ struct OnboardingSummaryView: View {
     @State private var followedVenueCount = 0
     @State private var activeNotificationCount = 0
     @State private var isLoading = true
+    @State private var showsPlus = false
 
     private var totalInterestCount: Int { interestCounts.values.reduce(0, +) }
 
@@ -92,6 +93,7 @@ struct OnboardingSummaryView: View {
                             action: onEditNotifications
                         )
                     }
+                    plusTeaser
                 }
             }
             .padding(.horizontal, 20)
@@ -109,7 +111,41 @@ struct OnboardingSummaryView: View {
             .authBottomActionLayout()
         }
         .task { await loadSummary() }
+        .sheet(isPresented: $showsPlus) { PlusPaywallView(feature: .instantAlerts) }
         .onboardingChrome()
+    }
+
+    // Plus-Hinweis zum Abschluss (Claude Code, 27.10.2026): freiwillig,
+    // knüpft an die eben gefolgten Profile an.
+    private var plusTeaser: some View {
+        Button { showsPlus = true } label: {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    PlusBadge()
+                    Text("Optional").font(.caption).opacity(0.8)
+                }
+                Text(followedTotalCount > 0
+                     ? "Erfahre als Erste:r, wenn \(followedTotalCount == 1 ? "dein gefolgtes Profil" : "deine \(followedTotalCount) gefolgten Profile") neue Konzerte ankündigen."
+                     : "Erfahre als Erste:r von neuen Konzerten deiner Lieblingskünstler:innen.")
+                    .font(.headline)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("Dazu KI ohne Limit, dein ganzes Konzertjahr und eigene App-Icons.")
+                    .font(.footnote).opacity(0.85)
+                    .multilineTextAlignment(.leading)
+                Text(PlusStore.shared.isOfferAvailable ? "Plus 7 Tage kostenlos testen" : "Plus ansehen")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(KlangradarTheme.accent)
+                    .padding(.horizontal, 14).padding(.vertical, 8)
+                    .background(.white, in: .capsule)
+            }
+            .foregroundStyle(.white)
+            .padding(18)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(PlusStyle.gradient, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .padding(.top, 8)
     }
 
     @ViewBuilder
