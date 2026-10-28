@@ -9,21 +9,22 @@ struct UserProfileView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var profile: UserProfile?
     @State private var matches: [SocialEvent] = []
-    @State private var together: [SocialEvent] = []
     @State private var isLoading = true
     @State private var confirmsRemove = false
     @State private var confirmsBlock = false
     @State private var showsReport = false
     @State private var reportSent = false
 
-    private var year: Int { KlangradarDateTime.calendar.component(.year, from: .now) }
-
-    /// Lieblingskomponist:innen, die ihr beide teilt (eigenes Profil zum Vergleich).
-    @State private var myComposers: [String] = []
+    /// Lieblingskomponist:innen, die ihr beide teilt (seit 000129 vom Server).
     private var sharedComposers: [String] {
         guard let profile else { return [] }
-        let mine = Set(myComposers.map { $0.lowercased() })
-        return profile.topComposers.filter { mine.contains($0.lowercased()) }
+        let shared = Set(profile.sharedComposers.map { $0.lowercased() })
+        return profile.topComposers.filter { shared.contains($0.lowercased()) }
+    }
+
+    private var firstName: String {
+        guard let name = profile?.person.name else { return "" }
+        return name.split(separator: " ").first.map(String.init) ?? name
     }
 
     var body: some View {
@@ -44,10 +45,11 @@ struct UserProfileView: View {
                             if profile.isFriend && !matches.isEmpty {
                                 card("Passt zu euch beiden", caption: "Aus euren gemeinsamen Interessen, gefolgten Künstler:innen und Merklisten.", events: matches)
                             }
-                            if profile.isFriend && !together.isEmpty {
-                                card("Gemeinsam erlebt \(String(year))", caption: nil, events: together)
+                            if profile.isFriend && !profile.sharedHistory.isEmpty {
+                                card("Ihr wart beide dort", caption: historyCaption(profile), events: profile.sharedHistory)
                             }
-                            if profile.upcoming.isEmpty && matches.isEmpty && together.isEmpty {
+                            if !profile.ratings.isEmpty { ratingsCard(profile) }
+                            if profile.upcoming.isEmpty && matches.isEmpty && profile.sharedHistory.isEmpty {
                                 Label("\(profile.person.name.split(separator: " ").first.map(String.init) ?? profile.person.name) hat gerade keine Konzerte vorgemerkt.", systemImage: "music.note")
                                     .font(.subheadline).foregroundStyle(.secondary)
                                     .padding(.horizontal, KlangradarTheme.pagePadding)
@@ -70,6 +72,13 @@ struct UserProfileView: View {
                     ToolbarItem(placement: .topBarTrailing) {
                         Menu {
                             if profile.isFriend {
+                                Button(profile.isClose ? "Aus engen Freunden entfernen" : "Zu engen Freunden", systemImage: profile.isClose ? "star.slash" : "star") {
+                                    Task { await setClose(!profile.isClose) }
+                                }
+                                Button(profile.isMuted ? "Stummschaltung aufheben" : "Stummschalten", systemImage: profile.isMuted ? "bell" : "bell.slash") {
+                                    Task { await setMuted(!profile.isMuted) }
+                                }
+                                Divider()
                                 Button("Freundschaft beenden", systemImage: "person.badge.minus", role: .destructive) { confirmsRemove = true }
                             }
                             Button("Blockieren", systemImage: "hand.raised", role: .destructive) { confirmsBlock = true }
@@ -116,8 +125,15 @@ struct UserProfileView: View {
             VStack(spacing: 4) {
                 Text(profile.person.name).font(.system(.title, design: .serif).weight(.semibold))
                 if profile.isFriend {
-                    Label("Befreundet", systemImage: "person.2.fill").font(.caption.weight(.semibold)).foregroundStyle(KlangradarTheme.accent)
+                    HStack(spacing: 10) {
+                        Label(profile.isClose ? "Enge:r Freund:in" : "Befreundet", systemImage: profile.isClose ? "star.fill" : "person.2.fill")
+                        if profile.isMuted { Label("Stumm", systemImage: "bell.slash.fill").foregroundStyle(.secondary) }
+                    }
+                    .font(.caption.weight(.semibold)).foregroundStyle(KlangradarTheme.accent)
                 }
+            }
+            if let match = profile.tasteMatch {
+                tasteMatchBadge(match)
             }
             if let bio = profile.bio, !bio.isEmpty {
                 Text(bio).font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
@@ -146,6 +162,58 @@ struct UserProfileView: View {
             LinearGradient(colors: [KlangradarTheme.accent.opacity(0.28), KlangradarTheme.accent.opacity(0.0)], startPoint: .top, endPoint: .bottom)
                 .frame(height: 220)
                 .ignoresSafeArea(edges: .top)
+        }
+    }
+
+    /// Geschmacks-Match in Prozent (Kosinus über gefolgte Künstler:innen,
+    /// Genres und Komponist:innen besuchter Konzerte, berechnet in user_profile).
+    private func tasteMatchBadge(_ match: Int) -> some View {
+        HStack(spacing: 10) {
+            ZStack {
+                Circle().stroke(KlangradarTheme.accent.opacity(0.15), lineWidth: 5)
+                Circle().trim(from: 0, to: CGFloat(match) / 100)
+                    .stroke(KlangradarTheme.accent, style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+            }
+            .frame(width: 34, height: 34)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("\(match) % Geschmacks-Match").font(.subheadline.weight(.semibold))
+                Text(match >= 60 ? "Ihr hört sehr ähnlich." : match >= 30 ? "Ihr habt einiges gemeinsam." : "Ihr könnt euch Neues zeigen.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 14).padding(.vertical, 8)
+        .background(.thinMaterial, in: .capsule)
+        .accessibilityElement(children: .combine)
+    }
+
+    private func historyCaption(_ profile: UserProfile) -> String {
+        let count = profile.sharedHistory.count
+        return count == 1 ? "Euer gemeinsames Konzert" : "\(count) gemeinsame Konzerte, das neueste zuerst"
+    }
+
+    private func ratingsCard(_ profile: UserProfile) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("So fand \(firstName) es").font(.system(.title3, design: .serif).weight(.semibold))
+                .padding(.horizontal, KlangradarTheme.pagePadding)
+            VStack(spacing: 0) {
+                ForEach(profile.ratings) { rating in
+                    VStack(alignment: .leading, spacing: 6) {
+                        SocialEventRow(event: rating.event)
+                        HStack(alignment: .top, spacing: 8) {
+                            StarRating(stars: .constant(rating.stars), size: 13, editable: false)
+                            if let comment = rating.comment {
+                                Text("„\(comment)“").font(.subheadline).italic().foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(.leading, 68)
+                    }
+                    .padding(.horizontal, 14).padding(.vertical, 10)
+                    if rating.id != profile.ratings.last?.id { Divider().padding(.leading, 82) }
+                }
+            }
+            .background(Color(uiColor: .secondarySystemBackground).opacity(0.8), in: .rect(cornerRadius: 20, style: .continuous))
+            .padding(.horizontal, KlangradarTheme.pagePadding)
         }
     }
 
@@ -201,16 +269,24 @@ struct UserProfileView: View {
     private func load() async {
         guard let repository = SocialStore.shared.repository, let token = SocialStore.shared.token else { isLoading = false; return }
         profile = try? await repository.userProfile(userID, token: token)
-        if let me = SocialStore.shared.auth?.userID, me != userID, myComposers.isEmpty {
-            myComposers = (try? await repository.userProfile(me, token: token))?.topComposers ?? []
-        }
         if profile?.isFriend == true {
-            async let matchRows = try? repository.friendMatchEvents(userID, token: token)
-            async let togetherRows = try? repository.sharedConcerts(with: userID, year: year, token: token)
-            matches = await matchRows ?? []
-            together = await togetherRows ?? []
+            matches = (try? await repository.friendMatchEvents(userID, token: token)) ?? []
         }
         isLoading = false
+    }
+
+    private func setClose(_ close: Bool) async {
+        guard let repository = SocialStore.shared.repository, let token = SocialStore.shared.token else { return }
+        guard (try? await repository.setCloseFriend(userID, close: close, token: token)) != nil else { return }
+        Haptics.confirm()
+        profile?.isClose = close
+    }
+
+    private func setMuted(_ muted: Bool) async {
+        guard let repository = SocialStore.shared.repository, let token = SocialStore.shared.token else { return }
+        guard (try? await repository.setFriendMuted(userID, muted: muted, token: token)) != nil else { return }
+        Haptics.confirm()
+        profile?.isMuted = muted
     }
 
     private func remove() async {

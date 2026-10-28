@@ -7,6 +7,11 @@ struct Friend: Identifiable, Sendable, Hashable {
     let name: String
     let avatarURL: URL?
     let upcomingCount: Int
+    /// Freunde-Ausbau (000129): enge Freunde, Stummschaltung, Sortierung.
+    var isClose = false
+    var isMuted = false
+    var nextConcert: Date? = nil
+    var lastActive: Date? = nil
 }
 
 struct FriendEvent: Identifiable, Sendable, Hashable {
@@ -45,7 +50,9 @@ extension UserRepository {
         let rows: [JSONObject] = try await client.rpc("my_friends", accessToken: token)
         return rows.compactMap { row in
             guard let id = row.string("friend_id").flatMap(UUID.init(uuidString:)) else { return nil }
-            return Friend(id: id, name: row.string("display_name") ?? "Klangradar-Freund:in", avatarURL: row.string("avatar_url").flatMap(URL.init(string:)), upcomingCount: row.integer("upcoming_count") ?? 0)
+            return Friend(id: id, name: row.string("display_name") ?? "Klangradar-Freund:in", avatarURL: row.string("avatar_url").flatMap(URL.init(string:)), upcomingCount: row.integer("upcoming_count") ?? 0,
+                          isClose: row.bool("is_close") ?? false, isMuted: row.bool("is_muted") ?? false,
+                          nextConcert: row.date("next_concert"), lastActive: row.date("last_active"))
         }
     }
 

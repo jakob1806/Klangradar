@@ -72,7 +72,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
             if actionIdentifier == PushRegistration.actionAskFriends, let slug = fields["event_slug"] {
                 DeepLinkRouter.shared.pendingPlanForSlug = slug
             }
-            let opensApp = actionIdentifier != PushRegistration.actionSave && actionIdentifier != PushRegistration.actionGoing
+            let opensApp = !PushRegistration.backgroundActions.contains(actionIdentifier)
             if opensApp { _ = DeepLinkRouter.shared.handle(route: route) }
             await PushRegistration.shared.handle(fields: fields, action: actionIdentifier)
             return

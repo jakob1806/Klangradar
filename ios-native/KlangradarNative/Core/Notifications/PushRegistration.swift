@@ -64,6 +64,10 @@ final class PushRegistration {
     nonisolated static let actionGoing = "GOING"
     nonisolated static let actionAskFriends = "ASK_FRIENDS"
     nonisolated static let actionOpen = "OPEN"
+    /// Freundschaftsanfrage direkt aus der Mitteilung beantworten (notify-social, Kategorie FRIEND_REQUEST).
+    nonisolated static let actionAcceptFriend = "ACCEPT_FRIEND"
+    nonisolated static let actionDeclineFriend = "DECLINE_FRIEND"
+    nonisolated static let backgroundActions: Set<String> = [actionSave, actionGoing, actionAcceptFriend, actionDeclineFriend]
 
     /// Kategorien der Server-Mitteilungen; die Attendance-Kategorie wird
     /// vom AppDelegate ergänzt.
@@ -73,7 +77,10 @@ final class PushRegistration {
         let ask = UNNotificationAction(identifier: actionAskFriends, title: "Freunde fragen", options: [.foreground], icon: UNNotificationActionIcon(systemImageName: "person.2"))
         let route = UNNotificationAction(identifier: actionOpen, title: "Anreise & Zeitplan", options: [.foreground], icon: UNNotificationActionIcon(systemImageName: "map"))
         let rate = UNNotificationAction(identifier: actionOpen, title: "Bewerten", options: [.foreground], icon: UNNotificationActionIcon(systemImageName: "star"))
+        let acceptFriend = UNNotificationAction(identifier: actionAcceptFriend, title: "Annehmen", options: [.authenticationRequired], icon: UNNotificationActionIcon(systemImageName: "person.badge.plus"))
+        let declineFriend = UNNotificationAction(identifier: actionDeclineFriend, title: "Ablehnen", options: [.destructive], icon: UNNotificationActionIcon(systemImageName: "xmark"))
         return [
+            UNNotificationCategory(identifier: "FRIEND_REQUEST", actions: [acceptFriend, declineFriend], intentIdentifiers: [], options: []),
             UNNotificationCategory(identifier: "EVENT", actions: [save, going, ask], intentIdentifiers: [], options: []),
             UNNotificationCategory(identifier: "CONCERT_DAY", actions: [route, ask], intentIdentifiers: [], options: []),
             UNNotificationCategory(identifier: "RATE", actions: [rate], intentIdentifiers: [], options: []),
@@ -89,6 +96,16 @@ final class PushRegistration {
         if let rawLogID = fields["push_log_id"], let logID = Double(rawLogID) {
             let reported = action == UNNotificationDefaultActionIdentifier ? JSONValue.null : JSONValue.string(action)
             let _: JSONValue? = try? await client.rpc("push_opened", parameters: ["p_log_id": .number(logID), "p_action": reported], accessToken: token)
+        }
+        if action == Self.actionAcceptFriend || action == Self.actionDeclineFriend {
+            guard let actor = fields["actor_id"] else { return }
+            let _: JSONValue? = try? await client.rpc(
+                "respond_friend_request",
+                parameters: ["p_user_id": .string(actor), "p_accept": .bool(action == Self.actionAcceptFriend)],
+                accessToken: token
+            )
+            await SocialStore.shared.refresh()
+            return
         }
         guard let eventID = fields["event_id"], !session.user.isAnonymous.orFalse else { return }
         switch action {

@@ -53,6 +53,8 @@ struct PlanCard: View {
 struct PlanComposerView: View {
     let event: ConcertEvent
     var quickAsk = false
+    /// Freunde, die schon ausgewählt sind (z. B. "Gemeinsam planen" nach dem Verbinden).
+    var preselected: Set<UUID> = []
     var onCreated: (() -> Void)? = nil
 
     @Environment(\.dismiss) private var dismiss
@@ -133,6 +135,7 @@ struct PlanComposerView: View {
                 Section { Text(errorMessage).foregroundStyle(.red).font(.footnote) }
             }
         }
+        .onAppear { if selection.isEmpty { selection = preselected } }
         .navigationTitle(quickAsk ? "Wer kommt mit?" : "Konzertabend planen")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

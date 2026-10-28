@@ -34,7 +34,7 @@
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.music</string>
 	<key>NSCameraUsageDescription</key>
-	<string>Klangradar nutzt die Kamera, um ein Profilbild aufzunehmen.</string>
+	<string>Klangradar nutzt die Kamera, um ein Profilbild aufzunehmen und Freundescodes (QR-Codes) zu scannen.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Klangradar nutzt Face ID, um deinen Account zu schützen.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
