@@ -40,6 +40,7 @@ doppelt gebaute Features (Coach vs. Personal Concierge), ein komplett
 | Claude | 2026-10-27 | claude/testflight-auto-watch | TestFlight-Wächter: lokaler launchd-Job lädt nach Merge + grünen/freigegebenen Deploys automatisch hoch (ios-native/Scripts/testflight-watch.sh) |
 | Claude | 2026-10-27 | claude/konzert-abos-ausbau | Konzert-Abos: BRSO über Konzertkalender, mphil-Mehrfach-Abos, Abo-Katalog „Abos entdecken“, Fix „Ich habe dieses Abo“ (Migration 000127), Abo-Seite Navigation/Bilder |
 | Claude | 2026-10-27 | claude/subscriptions-munich | Abo-Erkennung: BRSO-Parser repariert, neu Rundfunkorchester, BR-Chor, MKO, Gärtnerplatztheater (Migration 000125) |
+| Claude | 2026-10-28 | claude/plus-experience | Plus-Erlebnis: neue Paywall mit Testphasen-Ablauf, Willkommen/Übersicht, Plus-Hinweise in Profil/KI/Mitteilungen/Onboarding, alternative App-Icons |
 | Claude | 2026-10-27 | claude/premium-konzertjahr | Klangradar Plus serverseitig (Codes, Migration 000126), Sofort-Alarm für Plus im push-dispatcher, Konzertjahr-Redesign, schlichteres „Neu in Klangradar“ |
 | Claude | 2026-10-27 | claude/fix-home-timeouts | Störung Startseite: Beliebtheits-Cache für onboarding_follow_suggestions (Migration 000124), Retry/Cache-Fallback/deutsche Fehler im Home-Feed |
 | Claude | 2026-09-02 | redesign/veranstalter-portal  | Klangradar-KI: Datenanbindung/Performance-Fixes im klangradar-coach Edge-Function; Supabase-Migrationshygiene |

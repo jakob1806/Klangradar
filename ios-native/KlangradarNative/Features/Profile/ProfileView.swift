@@ -91,7 +91,7 @@ struct ProfileView: View {
                             }
                             Divider().padding(.leading, 56)
                             NavigationLink { ConcertYearView(auth: auth, repository: userRepository) } label: {
-                                ProfileRow(title: "Dein Konzertjahr", symbol: "chart.bar.fill", color: .indigo)
+                                ProfileRow(title: "Dein Konzertjahr", symbol: "chart.bar.fill", color: .indigo, showsPlusBadge: !plus.isPlus)
                             }
                             Divider().padding(.leading, 56)
                         }
@@ -108,7 +108,7 @@ struct ProfileView: View {
                         }
                         Divider().padding(.leading, 56)
                         NavigationLink { PartnerOffersView() } label: {
-                            ProfileRow(title: "Partner-Vorteile", symbol: "gift.fill", color: .red)
+                            ProfileRow(title: "Partner-Vorteile", symbol: "gift.fill", color: .red, showsPlusBadge: !plus.isPlus)
                         }
                         Divider().padding(.leading, 56)
                         Button { Task { await subscribeCalendar() } } label: {
@@ -290,34 +290,42 @@ struct ProfileView: View {
 
     // MARK: - Profil-Übersicht (Redesign)
 
+    // Neu gestaltet (Claude Code, 27.10.2026): ohne Plus mit Testphase und
+    // den wichtigsten Funktionen, mit Plus als Einstieg in die Übersicht.
     private var plusHero: some View {
         Button { showsPlus = true } label: {
-            HStack(alignment: .center, spacing: 16) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Label("Klangradar Plus", systemImage: "music.note.house.fill")
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Klangradar Plus")
                         .font(.caption.weight(.bold))
                         .textCase(.uppercase)
                         .tracking(0.8)
-                        .foregroundStyle(.white.opacity(0.85))
-                    Text(plus.isPlus ? "Danke, dass du dabei bist." : "Mehr aus jedem Konzertabend.")
-                        .font(.title3.bold())
-                        .foregroundStyle(.white)
-                        .multilineTextAlignment(.leading)
-                    Text(plus.isPlus ? "Plus ist aktiv." : "Neue Termine sofort · KI ohne Limit · ganzes Konzertjahr")
-                        .font(.footnote)
-                        .foregroundStyle(.white.opacity(0.85))
-                        .multilineTextAlignment(.leading)
+                        .opacity(0.85)
+                    Spacer()
+                    if plus.isPlus { Image(systemName: "checkmark.seal.fill").font(.title3) }
                 }
-                Spacer(minLength: 0)
-                Image(systemName: plus.isPlus ? "checkmark.seal.fill" : "arrow.right.circle.fill")
-                    .font(.system(size: 34))
-                    .foregroundStyle(.white)
-                    .symbolRenderingMode(.hierarchical)
+                Text(plus.isPlus ? "Deine Plus-Funktionen" : "Mehr aus jedem Konzertabend")
+                    .font(.system(.title2, design: .serif).weight(.bold))
+                    .multilineTextAlignment(.leading)
+                VStack(alignment: .leading, spacing: 7) {
+                    ForEach([PlusFeature.instantAlerts, .coach, .concertYear, .appIcons]) { feature in
+                        Label(shortTitle(feature), systemImage: feature.symbol)
+                            .font(.subheadline.weight(.semibold))
+                            .lineLimit(1)
+                    }
+                }
+                Text(plus.isPlus ? "Ansehen und App-Icon wählen" : (plus.isOfferAvailable ? "7 Tage kostenlos testen" : "Jetzt ansehen"))
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(KlangradarTheme.accent)
+                    .padding(.horizontal, 16).padding(.vertical, 10)
+                    .background(.white, in: .capsule)
             }
+            .foregroundStyle(.white)
             .padding(20)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .background {
                 ZStack {
-                    LinearGradient(colors: [KlangradarTheme.accent, .indigo, .purple.opacity(0.9)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                    PlusStyle.gradient
                     Image(systemName: "waveform")
                         .font(.system(size: 120, weight: .black))
                         .foregroundStyle(.white.opacity(0.08))
@@ -329,6 +337,16 @@ struct ProfileView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Klangradar Plus")
+    }
+
+    private func shortTitle(_ feature: PlusFeature) -> String {
+        switch feature {
+        case .instantAlerts: "Neue Termine sofort"
+        case .coach: "Klangradar KI ohne Limit"
+        case .concertYear: "Dein ganzes Konzertjahr"
+        case .appIcons: "Eigene App-Icons"
+        default: feature.title
+        }
     }
 
     private var friendsCard: some View {
@@ -887,7 +905,7 @@ struct KlangradarCoachView: View {
         .background { Color.clear }
         .navigationTitle("Klangradar KI")
         .sheet(isPresented: $showsPlusPaywall) {
-            PlusPaywallView(reason: "Du hast diese Woche deine \(CoachQuota.weeklyLimit) kostenlosen Fragen an die Klangradar KI genutzt. Mit Plus fragst du ohne Limit.")
+            PlusPaywallView(feature: .coach)
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -1079,6 +1097,18 @@ struct KlangradarCoachView: View {
                             }
                             .padding(.horizontal, 16)
                         }
+                    }
+                    if PlusStore.shared.enforcesLimits {
+                        Button { showsPlusPaywall = true } label: {
+                            HStack(spacing: 6) {
+                                Text(CoachQuota.remaining == 0 ? "Diese Woche keine Fragen mehr frei" : "Noch \(CoachQuota.remaining) von \(CoachQuota.weeklyLimit) Fragen diese Woche")
+                                    .foregroundStyle(.secondary)
+                                Text("· Mit Plus unbegrenzt").foregroundStyle(KlangradarTheme.accent)
+                                PlusBadge()
+                            }
+                            .font(.caption.weight(.medium))
+                        }
+                        .buttonStyle(.plain)
                     }
                     HStack(alignment: .bottom, spacing: 10) {
                         TextField("Nachricht an Klangradar KI", text: $draft, axis: .vertical)
@@ -1936,7 +1966,7 @@ private struct UserEventListsView: View {
         }
         .navigationTitle("Meine Listen")
         .sheet(isPresented: $showsPlusPaywall) {
-            PlusPaywallView(reason: "Ohne Plus kannst du \(PlusLimits.freeLists) Listen anlegen. Mit Plus so viele du willst.")
+            PlusPaywallView(feature: .lists)
         }
         .toolbar {
             if auth.userID != nil {
@@ -2306,11 +2336,13 @@ private struct ProfileRow: View {
     let color: Color
     var value: String? = nil
     var showsChevron = true
+    var showsPlusBadge = false
 
     var body: some View {
         HStack(spacing: 14) {
             ProfileIcon(symbol: symbol, color: color)
             Text(title).foregroundStyle(.primary)
+            if showsPlusBadge { PlusBadge() }
             Spacer()
             if let value { Text(value).foregroundStyle(.secondary) }
             if showsChevron { Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary) }
