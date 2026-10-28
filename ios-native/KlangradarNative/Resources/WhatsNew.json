@@ -2,8 +2,18 @@
   "_hinweis": "Erstellt von Claude Code. Bei jedem Release mit Neuerungen hier pflegen und die id ändern: Die App zeigt den Inhalt einmal pro id als 'Neu in Klangradar', upload-testflight.sh übernimmt ihn als TestFlight-Testhinweis. Ton: kurz, sachlich, ganze Sätze, keine Aufzählungsflut.",
   "id": "2026-10-28-anmeldung-onboarding",
   "title": "Neu in Klangradar",
-  "intro": "Klangradar Plus ist jetzt zu haben, mit sieben Tagen zum Ausprobieren.",
+  "intro": "Konzert-Abos lassen sich jetzt richtig nutzen, und Klangradar Plus ist zu haben, mit sieben Tagen zum Ausprobieren.",
   "sections": [
+    {
+      "title": "Konzert-Abos",
+      "symbol": "rectangle.stack.fill",
+      "items": [
+        "Im Profil unter „Abos“ findest du alle Abos und Konzertreihen der Veranstalter, mit nächstem Termin und Bild.",
+        "Mit „Ich habe dieses Abo“ landet ein Abo in deinem Profil und alle Termine im Saisonplaner. Das hat vorher nicht gespeichert.",
+        "Auf der Abo-Seite öffnet jeder Termin direkt die Konzertseite. Die Bilder sitzen jetzt sauber.",
+        "Beim BR-Symphonieorchester erkennt Klangradar die Abos A bis D, S, Kammerkonzerte und musica viva jetzt bei fast allen Terminen."
+      ]
+    },
     {
       "title": "Plus testen",
       "symbol": "sparkles",

@@ -4,7 +4,7 @@ import { json, mapLimit } from "../_shared/eventParticipantResolution.ts";
 import { requireInternalAuth } from "../_shared/internalAuth.ts";
 import { musikvereinId } from "../_shared/musikvereinDetail.ts";
 import {
-  brChorSubscriptions, brsoSubscriptions, gaertnerplatzSeries, type GaertnerplatzSeries, gaertnerplatzSubscriptions,
+  brChorSubscriptions, BRSO_CALENDAR_URL, brsoCalendarIndex, brsoKey, brsoSubscriptions, gaertnerplatzSeries, type GaertnerplatzSeries, gaertnerplatzSubscriptions,
   linkEventSubscriptions, mkoSubscriptions, mphilSubscriptions, musikvereinSubscriptions, rundfunkorchesterSubscriptions,
   seasonFor, type SubscriptionCandidate, wienerSymphonikerSubscriptions,
 } from "../_shared/subscriptions.ts";
@@ -49,6 +49,14 @@ Deno.serve(async (req) => {
     return gptPages.get(season)!;
   };
 
+  // BRSO: Konzertkalender mit Abo je Termin – ebenfalls nur einmal pro Lauf.
+  let brsoIndex: Promise<Map<string, SubscriptionCandidate[]> | null> | null = null;
+  const brsoCalendar = () => brsoIndex ??= fetch(BRSO_CALENDAR_URL, {
+    method: "POST",
+    headers: { "User-Agent": USER_AGENT, "Content-Type": "application/x-www-form-urlencoded" },
+    body: "pagination=1&director=all&location=0&abo=0&presented_by=",
+  }).then(async (res) => res.ok ? brsoCalendarIndex(await res.json()) : null).catch(() => null);
+
   // deno-lint-ignore no-explicit-any
   const results = await mapLimit(events ?? [], 4, async (event: any) => {
     const urls = [event.external_id, event.website_url].filter((u): u is string => typeof u === "string" && u.startsWith("http"));
@@ -60,6 +68,13 @@ Deno.serve(async (req) => {
         const season = seasonFor(event.start_datetime).replace("/", "-20");
         subs = gaertnerplatzSubscriptions(await gptSeries(event.start_datetime), event.start_datetime,
           `https://www.gaertnerplatztheater.de/de/seiten/abos-${season}.html`);
+      } else if (url.includes("brso.de")) {
+        const index = await brsoCalendar();
+        if (index && index.size > 0) subs = index.get(brsoKey(url, event.start_datetime)) ?? [];
+        else {
+          const res = await fetch(url, { headers: { "User-Agent": USER_AGENT } });
+          if (res.ok) subs = brsoSubscriptions(await res.text(), event.start_datetime);
+        }
       } else if (url.includes("m-k-o.eu")) {
         subs = mkoSubscriptions(url, event.title ?? "");
       } else if (mvId) {
@@ -70,7 +85,6 @@ Deno.serve(async (req) => {
         if (res.ok) {
           const html = await res.text();
           if (url.includes("mphil.de")) subs = mphilSubscriptions(html);
-          else if (url.includes("brso.de")) subs = brsoSubscriptions(html, event.start_datetime);
           else if (url.includes("wienersymphoniker.at")) subs = wienerSymphonikerSubscriptions(html);
           else if (url.includes("rundfunkorchester.de")) subs = rundfunkorchesterSubscriptions(html);
           else if (url.includes("br-chor.de")) subs = brChorSubscriptions(html);

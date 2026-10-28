@@ -3,6 +3,7 @@
 // mphil.de ("Abonnement B"/"Subscription B"), brso.de ("ABO D" je Datum),
 // Musikverein (distributionChannels = Zyklus), wienersymphoniker.at
 // ("Teil des Abonnements „…“" mit Link).
+// BRSO seit 27.10.2026 über den Konzertkalender (brsoCalendarIndex).
 // Ergänzt 27.10.2026: weitere Münchner Quellen – Münchner Rundfunkorchester
 // (Reihe wie "Sonntagskonzerte" je Termin), BR-Chor ("Teil des
 // Chor-Abonnements"), Münchener Kammerorchester ("Abo 3" in Titel/URL) und
@@ -31,7 +32,7 @@ const ORGANIZER_LABEL: Record<SubscriptionCandidate["organizer"], string> = {
 
 const ORGANIZER_ABO_PAGE: Record<SubscriptionCandidate["organizer"], string> = {
   mphil: "https://www.mphil.de/abos",
-  brso: "https://www.brso.de/abonnements/",
+  brso: "https://www.brso.de/konzerte-tickets/abonnements/",
   musikverein: "https://musikverein.at/2026-27/abonnements",
   wienersymphoniker: "https://www.wienersymphoniker.at/abonnements",
   rundfunkorchester: "https://www.rundfunkorchester.de/konzerte-tickets/abonnements/",
@@ -67,11 +68,14 @@ export function seasonFor(start: string | Date): string {
 export function mphilSubscriptions(html: string): SubscriptionCandidate[] {
   const out: SubscriptionCandidate[] = [];
   for (const m of html.matchAll(/concert-detail__topline">([\s\S]{0,200}?)<\/p>/g)) {
-    const text = clean(m[1]);
-    const abo = text.match(/^(?:Abonnement|Subscription|Abo)\s+(.+)$/i);
-    if (!abo) continue;
-    const code = abo[1].trim();
-    out.push({ organizer: "mphil", code, name: `Abo ${code}`, url: ORGANIZER_ABO_PAGE.mphil });
+    // Mehrere Abos in einer Zeile: "Subscription F, Subscription I4" bzw.
+    // "Abonnement A, Abonnement E4" – jedes einzeln anlegen.
+    for (const part of clean(m[1]).split(/\s*[,/]\s*/)) {
+      const abo = part.match(/^(?:Abonnement|Subscription|Abo)\s+([A-Za-z0-9]{1,4})$/i);
+      if (!abo) continue;
+      const code = abo[1].toUpperCase();
+      out.push({ organizer: "mphil", code, name: `Abo ${code}`, url: ORGANIZER_ABO_PAGE.mphil });
+    }
   }
   return dedupe(out);
 }
@@ -100,6 +104,35 @@ export function brsoSubscriptions(html: string, start: string | Date): Subscript
     abos.push(...[...own.matchAll(/\bABO\s+([A-Z0-9][A-Za-z0-9+]{0,8})\b/g)].map((a) => a[1]));
   }
   return dedupe(abos.map((code) => ({ organizer: "brso" as const, code, name: `Abo ${code}`, url: ORGANIZER_ABO_PAGE.brso })));
+}
+
+/** brso.de-Konzertkalender (wp-json/v1/filter/concerts): liefert alle Termine
+ *  mit Abo-Kategorie je Datum ("ABO A", "Kammerkonzert", "Gastkonzert" …).
+ *  Verlässlicher als die Konzertseiten, auf denen das Abo meist fehlt
+ *  (27.10.2026: nur 9 von 69 BRSO-Terminen erkannt). */
+export const BRSO_CALENDAR_URL = "https://www.brso.de/wp-json/v1/filter/concerts";
+
+export function brsoKey(url: string, start: string | Date): string {
+  let path = url;
+  try { path = decodeURIComponent(new URL(url).pathname); } catch { /* roher Wert */ }
+  return `${path.toLowerCase().replace(/\/+$/, "")}|${berlinLocal(start).slice(0, 10)}`;
+}
+
+export function brsoCalendarIndex(data: any): Map<string, SubscriptionCandidate[]> {
+  const index = new Map<string, SubscriptionCandidate[]>();
+  for (const c of data?.data?.concerts ?? []) {
+    const label = String(c?.abo ?? "").trim();
+    if (!c?.url || !c?.start || !label) continue;
+    let sub: SubscriptionCandidate | null = null;
+    const abo = label.match(/^ABO\s+([A-Z0-9]{1,3})$/i);
+    if (abo) sub = { organizer: "brso", code: abo[1].toUpperCase(), name: `Abo ${abo[1].toUpperCase()}`, url: ORGANIZER_ABO_PAGE.brso };
+    else if (/^kammerkonzert/i.test(label)) sub = { organizer: "brso", code: "Kammerkonzerte", name: "Abo Kammerkonzerte", url: ORGANIZER_ABO_PAGE.brso };
+    else if (/^musica viva$/i.test(label)) sub = { organizer: "brso", code: "musica viva", name: "musica viva", url: "https://www.br-musica-viva.de/" };
+    if (!sub) continue;
+    const key = brsoKey(c.url, c.start);
+    index.set(key, dedupe([...(index.get(key) ?? []), sub]));
+  }
+  return index;
 }
 
 /** rundfunkorchester.de: Reihe direkt nach dem Preisblock ("… 10,– (U30) Sonntagskonzerte"). */
@@ -168,7 +201,8 @@ export function musikvereinSubscriptions(data: any): SubscriptionCandidate[] {
     const name = String(ch.description_D ?? "").trim();
     const code = String(ch.code ?? "").trim();
     // Zyklen tragen die Saison im Code (z. B. MEIIII2627); andere Kanäle nicht.
-    if (!name || !/\d{4}$/.test(code)) continue;
+    // Ohne sprechenden Namen (z. B. "-") nicht als Abo anzeigen.
+    if (!/[A-Za-zÄÖÜäöü]{2}/.test(name) || !/\d{4}$/.test(code)) continue;
     out.push({ organizer: "musikverein", code, name, url: ORGANIZER_ABO_PAGE.musikverein });
   }
   return dedupe(out);

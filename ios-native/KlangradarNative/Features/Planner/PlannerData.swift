@@ -22,6 +22,41 @@ struct ConcertSubscription: Identifiable, Hashable, Sendable {
     var title: String { "\(name) · \(organizerName)" }
 }
 
+/// Eintrag der Abo-Übersicht ("Abos entdecken", RPC subscriptions_catalog).
+struct SubscriptionCatalogEntry: Identifiable, Hashable, Sendable {
+    let subscription: ConcertSubscription
+    let organizer: String
+    let upcoming: Int
+    let nextStart: Date?
+    let lastStart: Date?
+    let imageURL: URL?
+    let venueName: String?
+    var isMine: Bool
+    var id: UUID { subscription.id }
+
+    init?(_ row: JSONObject) {
+        var normalized = row
+        normalized["id"] = row["subscription_id"]
+        guard let subscription = ConcertSubscription(normalized) else { return nil }
+        self.subscription = subscription
+        organizer = row.string("organizer") ?? ""
+        upcoming = row.integer("upcoming") ?? 0
+        nextStart = row.string("next_start").flatMap(Self.parse)
+        lastStart = row.string("last_start").flatMap(Self.parse)
+        imageURL = row.string("image_url").flatMap(URL.init(string:))
+        venueName = row.string("venue_name")
+        isMine = row.bool("is_mine") ?? false
+    }
+
+    private static func parse(_ value: String) -> Date? {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = formatter.date(from: value) { return date }
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: value)
+    }
+}
+
 struct SubscriptionSuggestion: Identifiable, Hashable, Sendable {
     let subscription: ConcertSubscription
     let matched: Int
@@ -73,6 +108,14 @@ enum PlannerAPI {
         guard let row else { return nil }
         let ids = row.objects("events").compactMap { $0.string("id").flatMap(UUID.init(uuidString:)) }
         return (ids, row.bool("is_mine") ?? false)
+    }
+
+    /// Alle Abos mit kommenden Terminen, optional für eine Stadt.
+    static func catalog(cityID: UUID?) async -> [SubscriptionCatalogEntry] {
+        guard let client else { return [] }
+        let parameters: [String: JSONValue] = ["p_city_id": cityID.map { .string($0.uuidString) } ?? .null]
+        let rows: [JSONObject]? = try? await client.rpc("subscriptions_catalog", parameters: parameters, accessToken: token)
+        return (rows ?? []).compactMap(SubscriptionCatalogEntry.init)
     }
 
     static func mySubscriptions() async -> [ConcertSubscription] {

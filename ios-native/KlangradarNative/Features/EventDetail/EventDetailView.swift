@@ -62,7 +62,7 @@ struct EventDetailView: View {
                                     genres(detail)
                                 }
                                 CastChangeBanner(eventID: event.id)
-                                EventSubscriptionsRow(event: event, repository: repository)
+                                EventSubscriptionsRow(event: event, repository: repository, contentRepository: contentRepository)
                                 DiaryEntryCard(event: event)
                                 essentialFacts(detail)
                             }
