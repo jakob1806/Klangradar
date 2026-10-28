@@ -184,6 +184,8 @@ app_target.build_configurations.each do |config|
   config.build_settings.merge!(
     "ENABLE_USER_SCRIPT_SANDBOXING" => "NO",
     "ASSETCATALOG_COMPILER_APPICON_NAME" => "AppIcon",
+    # Alternative App-Icons für Klangradar Plus (Claude Code, 27.10.2026)
+    "ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES" => "AppIcon-Nacht AppIcon-Gold AppIcon-Indigo AppIcon-Mono",
     "ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME" => "AccentColor",
     "CODE_SIGN_STYLE" => "Automatic",
     "CURRENT_PROJECT_VERSION" => "1",

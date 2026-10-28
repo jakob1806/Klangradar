@@ -1,33 +1,47 @@
 {
   "_hinweis": "Erstellt von Claude Code. Bei jedem Release mit Neuerungen hier pflegen und die id ändern: Die App zeigt den Inhalt einmal pro id als 'Neu in Klangradar', upload-testflight.sh übernimmt ihn als TestFlight-Testhinweis. Ton: kurz, sachlich, ganze Sätze, keine Aufzählungsflut.",
-  "id": "2026-10-27-freunde",
+  "id": "2026-10-28-freunde-social",
   "title": "Neu in Klangradar",
-  "intro": "Freundesprofile sind neu gestaltet. Dazu ein neues Konzertjahr und der erste Blick auf Klangradar Plus.",
+  "intro": "Mit Freunden ins Konzert ist jetzt einfacher, und Klangradar Plus ist zu haben, mit sieben Tagen zum Ausprobieren.",
   "sections": [
     {
       "title": "Freunde",
       "symbol": "person.2.fill",
       "items": [
         "Ein Tipp auf einen Freund öffnet jetzt direkt sein Profil. Vorher landete man erst nach einem Zurück dort.",
-        "Profile sind neu gestaltet: großer Kopf, Zahlen auf einen Blick und Konzerte als Karten.",
-        "Komponist:innen, die ihr beide gern hört, sind markiert."
+        "Profile sind neu gestaltet. Komponist:innen, die ihr beide gern hört, sind markiert."
       ]
     },
     {
-      "title": "Dein Konzertjahr",
-      "symbol": "chart.bar.fill",
+      "title": "Gemeinsam ins Konzert",
+      "symbol": "figure.2",
       "items": [
-        "Der Rückblick ist neu gestaltet. Oben stehen die großen Zahlen, darunter Kacheln für deine Komponisten, Säle und den besten Abend.",
-        "Mit Plus siehst du außerdem, in welchen Monaten und an welchen Wochentagen du unterwegs warst, und kannst das Jahr als Story teilen."
+        "Bei Konzerten deiner Freunde tippst du auf „Ich komme mit“. Ihr habt dann einen gemeinsamen Plan, und dein Freund bekommt Bescheid.",
+        "Unter „Nimm jemanden mit“ schlägt Klangradar Freunde vor, die zu deinen gemerkten Konzerten passen.",
+        "Im Nachklang kannst du Bewertungen deiner Freunde mit Applaus würdigen und darauf antworten.",
+        "Im Profil eines Freundes siehst du euer gemeinsames Konzertjahr.",
+        "Mit Gruppen behältst du Chor, Abo-Nachbarn oder Opern-Clique im Blick und lädst alle auf einmal ein."
       ]
     },
     {
-      "title": "Klangradar Plus",
+      "title": "Plus testen",
       "symbol": "sparkles",
       "items": [
-        "Wenn jemand, dem du folgst, ein neues Konzert ankündigt, bekommst du mit Plus noch am selben Tag Bescheid, für jedes Konzert einzeln.",
-        "Dazu kommen die Klangradar KI ohne Wochenlimit, beliebig viele Listen und Partner-Vorteile.",
-        "Hast du einen Code, kannst du ihn im Profil unter Klangradar Plus einlösen."
+        "Im Profil findest du Klangradar Plus mit allen Funktionen auf einen Blick. Du wählst zwischen Monat und Jahr und siehst genau, wann die Testphase endet. Zwei Tage vorher erinnern wir dich."
+      ]
+    },
+    {
+      "title": "Eigene App-Icons",
+      "symbol": "app.badge.fill",
+      "items": [
+        "Mit Plus gibt es Klangradar in Nacht, Gold, Indigo oder Mono. Du wählst es unter Klangradar Plus aus."
+      ]
+    },
+    {
+      "title": "Wo was ist",
+      "symbol": "location.fill",
+      "items": [
+        "Plus-Funktionen tragen jetzt ein kleines Plus-Zeichen. Nach dem Kauf zeigt dir Klangradar, wo du jede einzelne findest."
       ]
     }
   ]

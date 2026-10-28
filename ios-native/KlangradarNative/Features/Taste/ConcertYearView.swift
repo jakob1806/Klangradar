@@ -36,7 +36,7 @@ struct ConcertYearView: View {
         .background(Color(uiColor: .systemGroupedBackground))
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showsPaywall) {
-            PlusPaywallView(reason: "Mit Plus siehst du dein ganzes Konzertjahr: Monatsrhythmus, Lieblingswochentag, alle Säle und Mitwirkenden.")
+            PlusPaywallView(feature: .concertYear)
         }
         .task {
             guard let token = auth.accessToken else { isLoading = false; return }
