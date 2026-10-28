@@ -18,7 +18,7 @@ import SwiftUI
 ///
 /// Datenquelle UND Folgen-Mechanismus sind bewusst dieselben, die bereits
 /// an anderer Stelle existieren: `UserRepository.interestOptions(_:)` liefert
-/// dieselbe alphabetische Personen-/Ensemble-/Venue-Liste, die auch
+/// (nur noch als Fallback) dieselbe alphabetische Personen-/Ensemble-/Venue-Liste, die auch
 /// `InterestsView` (Profil → Interessen) verwendet, und "Folgen" ruft
 /// dieselbe `setInterest`-RPC/-Tabelle auf, die auch `FollowStore` (Folgen-
 /// Button auf Detailseiten) und `InterestsView` nutzen -- ein Follow hier,
@@ -150,12 +150,13 @@ struct FollowCategoryStepView: View {
                 } else {
                     // Nutzerwunsch 23.10.2026: Suchtreffer im selben großen
                     // Kachel-Grid wie die Vorschläge statt als kompakte Liste.
-                    LazyVGrid(columns: gridColumns, spacing: 20) {
+                    LazyVGrid(columns: gridColumns, spacing: 18) {
                         ForEach(visibleOptions) { option in
                             FollowGridCell(
                                 option: option,
                                 kind: entityKind,
                                 isFollowing: isFollowing(option),
+                                isCompact: true,
                                 action: { toggle(option) }
                             )
                         }
@@ -241,6 +242,9 @@ private struct FollowGridCell: View {
     let option: InterestOption
     let kind: EntityKind
     let isFollowing: Bool
+    /// Suchtreffer (Nutzerwunsch 28.10.2026): gleiches Grid wie die
+    /// Vorschläge, die Bilder aber etwas kleiner.
+    var isCompact = false
     let action: () -> Void
 
     private var initials: String {
@@ -288,6 +292,7 @@ private struct FollowGridCell: View {
                             .padding(4)
                     }
                 }
+                .padding(.horizontal, isCompact ? (isVenue ? 8 : 10) : 0)
 
                 Text(option.label)
                     .font(.caption.weight(.medium))
