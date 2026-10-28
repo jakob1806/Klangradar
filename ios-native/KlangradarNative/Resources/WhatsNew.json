@@ -1,6 +1,6 @@
 {
   "_hinweis": "Erstellt von Claude Code. Bei jedem Release mit Neuerungen hier pflegen und die id ändern: Die App zeigt den Inhalt einmal pro id als 'Neu in Klangradar', upload-testflight.sh übernimmt ihn als TestFlight-Testhinweis. Ton: kurz, sachlich, ganze Sätze, keine Aufzählungsflut.",
-  "id": "2026-10-28-freunde-ausbau",
+  "id": "2026-10-28-onboarding-vorschlaege",
   "title": "Neu in Klangradar",
   "intro": "Freunde finden, verbinden und gemeinsam ins Konzert gehen ist jetzt einfacher.",
   "sections": [
@@ -87,6 +87,15 @@
       "symbol": "person.crop.circle.badge.checkmark",
       "items": [
         "Wer sich neu mit Apple oder Google anmeldet, richtet Klangradar jetzt wie bei der Registrierung ein: Name, Interessen, Stadt und wem du folgen möchtest. Wer das schon einmal gemacht hat, landet wie bisher direkt in der App."
+      ]
+    },
+    {
+      "title": "Folgen und Interessen",
+      "symbol": "star.fill",
+      "items": [
+        "Beim Folgen stehen jetzt die bekanntesten Künstler:innen, Ensembles und Spielstätten deiner Stadt oben, nicht mehr die mit den meisten Terminen.",
+        "Die Genres im Onboarding sind übersichtliche Kacheln mit kurzer Beschreibung.",
+        "Suchtreffer erscheinen im selben Bildraster wie die Vorschläge, nur etwas kleiner."
       ]
     }
   ]

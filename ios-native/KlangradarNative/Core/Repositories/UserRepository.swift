@@ -797,6 +797,11 @@ struct UserRepository: Sendable {
         case .genre, .work: return try await interestOptions(category)
         }
         var parameters: JSONObject = ["p_kind": .string(kind), "p_limit": .number(Double(limit))]
+        // Gäste (noch kein Profil mit Stadt) bekommen die Vorschläge für die
+        // lokal gewählte Stadt; angemeldet nimmt der Server active_city_id.
+        if let cityID = UserDefaults.standard.string(forKey: "selectedCityID") {
+            parameters["p_city_id"] = .string(cityID)
+        }
         if let query, !query.trimmingCharacters(in: .whitespaces).isEmpty {
             parameters["p_query"] = .string(query)
         }
