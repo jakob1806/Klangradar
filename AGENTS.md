@@ -45,6 +45,7 @@ doppelt gebaute Features (Coach vs. Personal Concierge), ein komplett
 | Claude | 2026-10-28 | claude/onboarding-nach-anmeldung | Onboarding (Folgen usw.) auch nach Apple-/Google-Anmeldung aus dem Profil, wenn fürs Konto noch offen |
 | Claude | 2026-10-27 | claude/premium-konzertjahr | Klangradar Plus serverseitig (Codes, Migration 000126), Sofort-Alarm für Plus im push-dispatcher, Konzertjahr-Redesign, schlichteres „Neu in Klangradar“ |
 | Claude | 2026-10-27 | claude/fix-home-timeouts | Störung Startseite: Beliebtheits-Cache für onboarding_follow_suggestions (Migration 000124), Retry/Cache-Fallback/deutsche Fehler im Home-Feed |
+| Claude | 2026-10-28 | claude/freunde-prozess-ausbau | Freunde-Ausbau (12 Punkte): Migration 000129, notify-social, iOS Features/Friends |
 | Claude | 2026-09-02 | redesign/veranstalter-portal  | Klangradar-KI: Datenanbindung/Performance-Fixes im klangradar-coach Edge-Function; Supabase-Migrationshygiene |
 
 | Codex | 2026-09-24 | kein Branch (nur Analyse) | Wiesn Buddy: Strukturprüfung und externe Design-Mockups abgeschlossen; keine App-Dateien geändert. |

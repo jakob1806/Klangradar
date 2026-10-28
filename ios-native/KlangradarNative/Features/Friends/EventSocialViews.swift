@@ -17,17 +17,24 @@ struct FriendsAttendingRow: View {
     private var isUpcoming: Bool { (event.startDate ?? .distantPast) > .now }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            if !friends.isEmpty {
-                HStack(spacing: 10) {
-                    AvatarStack(people: friends.map { SocialPerson(id: $0.id, name: $0.name, avatarURL: $0.avatarURL) }, size: 30)
-                    Text("\(AvatarStack.names(friends.map { SocialPerson(id: $0.id, name: $0.name, avatarURL: $0.avatarURL) })) \(friends.count == 1 ? "geht" : "gehen") hin")
-                        .font(.subheadline.weight(.semibold))
-                        .lineLimit(2)
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 12) {
+                if !friends.isEmpty {
+                    HStack(spacing: 10) {
+                        AvatarStack(people: friends.map { SocialPerson(id: $0.id, name: $0.name, avatarURL: $0.avatarURL) }, size: 30)
+                        Text("\(AvatarStack.names(friends.map { SocialPerson(id: $0.id, name: $0.name, avatarURL: $0.avatarURL) })) \(friends.count == 1 ? "geht" : "gehen") hin")
+                            .font(.subheadline.weight(.semibold))
+                            .lineLimit(2)
+                    }
                 }
             }
+            .padding(.bottom, friends.isEmpty ? 0 : 20)
+            // Freunde-Ausbau 28.10.2026: Ticket übrig, Privat hingehen.
+            if isUpcoming && follows.isSignedIn {
+                EventFriendsExtras(event: event)
+            }
         }
-        .padding(.bottom, friends.isEmpty ? 0 : 20)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .task {
             friends = await follows.friendsAttending(eventID: event.id)
             // Schnellaktion "Freunde fragen" aus einer Push-Mitteilung.

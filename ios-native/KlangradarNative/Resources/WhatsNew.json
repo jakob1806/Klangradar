@@ -2,15 +2,34 @@
   "_hinweis": "Erstellt von Claude Code. Bei jedem Release mit Neuerungen hier pflegen und die id ändern: Die App zeigt den Inhalt einmal pro id als 'Neu in Klangradar', upload-testflight.sh übernimmt ihn als TestFlight-Testhinweis. Ton: kurz, sachlich, ganze Sätze, keine Aufzählungsflut.",
   "id": "2026-10-28-onboarding-vorschlaege",
   "title": "Neu in Klangradar",
-  "intro": "Mit Freunden ins Konzert ist jetzt einfacher, Konzert-Abos lassen sich richtig nutzen, und Klangradar Plus ist zu haben.",
+  "intro": "Freunde finden, verbinden und gemeinsam ins Konzert gehen ist jetzt einfacher.",
   "sections": [
     {
-      "title": "Folgen und Interessen",
+      "title": "Freunde verbinden",
+      "symbol": "qrcode",
+      "items": [
+        "Dein Freundescode hat jetzt einen QR-Code. Unter „QR-Code scannen“ verbindest du dich direkt mit der Kamera.",
+        "Unter „Wer war noch da?“ siehst du öffentliche Profile, die mit dir im selben Konzert waren.",
+        "Anfragen zeigen, woher sie kommen und welche Komponist:innen ihr beide gern hört. Gesendete Anfragen kannst du zurückziehen.",
+        "Freundschaftsanfragen lassen sich direkt in der Mitteilung annehmen oder ablehnen.",
+        "Nach dem Verbinden siehst du eure gemeinsamen Konzerte und könnt den Abend gleich zusammen planen."
+      ]
+    },
+    {
+      "title": "Dein Freundeskreis",
       "symbol": "star.fill",
       "items": [
-        "Beim Folgen stehen jetzt die bekanntesten Künstler:innen, Ensembles und Spielstätten deiner Stadt oben, nicht mehr die mit den meisten Terminen.",
-        "Die Genres im Onboarding sind übersichtliche Kacheln mit kurzer Beschreibung.",
-        "Suchtreffer erscheinen im selben Bildraster wie die Vorschläge, nur etwas kleiner."
+        "Unter „Alle anzeigen“ findest du deine Freunde mit Suche und Sortierung. Enge Freunde markierst du mit einem Stern, sie stehen dann vorn.",
+        "Profile zeigen euren Geschmacks-Match, die Konzerte, bei denen ihr beide wart, und die Bewertungen deines Freundes.",
+        "Im Profil kannst du einen Freund stummschalten. Du bekommst dann keine Mitteilungen mehr von ihm."
+      ]
+    },
+    {
+      "title": "Konzerte mit Freunden",
+      "symbol": "ticket.fill",
+      "items": [
+        "Hast du ein Ticket übrig, bietest du es auf der Konzertseite deinen Freunden an. Wer zuerst zusagt, bekommt es.",
+        "Mit „Privat hingehen“ sehen deine Freunde nicht, dass du dir ein Konzert gemerkt hast."
       ]
     },
     {
@@ -68,6 +87,15 @@
       "symbol": "person.crop.circle.badge.checkmark",
       "items": [
         "Wer sich neu mit Apple oder Google anmeldet, richtet Klangradar jetzt wie bei der Registrierung ein: Name, Interessen, Stadt und wem du folgen möchtest. Wer das schon einmal gemacht hat, landet wie bisher direkt in der App."
+      ]
+    },
+    {
+      "title": "Folgen und Interessen",
+      "symbol": "star.fill",
+      "items": [
+        "Beim Folgen stehen jetzt die bekanntesten Künstler:innen, Ensembles und Spielstätten deiner Stadt oben, nicht mehr die mit den meisten Terminen.",
+        "Die Genres im Onboarding sind übersichtliche Kacheln mit kurzer Beschreibung.",
+        "Suchtreffer erscheinen im selben Bildraster wie die Vorschläge, nur etwas kleiner."
       ]
     }
   ]
