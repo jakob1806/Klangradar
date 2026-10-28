@@ -5,7 +5,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireInternalAuth } from "../_shared/internalAuth.ts";
 import { sendPushToTokens } from "../_shared/fcm.ts";
-import { socialMessage } from "./messages.ts";
+import { socialMessage, socialPushData } from "./messages.ts";
 
 Deno.serve(async (req) => {
   const unauthorized = await requireInternalAuth(req);
@@ -41,7 +41,13 @@ Deno.serve(async (req) => {
     });
     const tokenList = (tokens ?? []).map((t: { token: string }) => t.token);
     if (!message || tokenList.length === 0) continue;
-    const results = await sendPushToTokens(tokenList, { title: message.title, body: message.body, data: { route: message.route } });
+    const results = await sendPushToTokens(tokenList, {
+      title: message.title,
+      body: message.body,
+      data: socialPushData(row.kind, message.route, row.actor),
+      category: message.category,
+      threadId: "social",
+    });
     const invalid = results.filter((r) => r.invalidToken).map((r) => r.token);
     if (invalid.length) await db.from("push_tokens").delete().in("token", invalid);
     sent++;

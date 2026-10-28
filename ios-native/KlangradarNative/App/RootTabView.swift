@@ -149,7 +149,8 @@ struct RootTabView: View {
             selection: $selection,
             showsCoach: $showsCoach,
             showsFriends: $showsFriends,
-            friendsSheetTab: $friendsSheetTab
+            friendsSheetTab: $friendsSheetTab,
+            isReadyForInvite: isReadyForInvite
         ))
         .task {
             await auth.bootstrap()
@@ -340,6 +341,14 @@ struct RootTabView: View {
         if (try? await BiometricAuth.authenticate(reason: "Klangradar entsperren")) == true {
             withAnimation(.easeOut(duration: 0.2)) { isBiometricUnlocked = true }
         }
+    }
+
+    /// Einladungslinks erst nach Anmeldung bzw. abgeschlossenem Onboarding
+    /// übernehmen (Freunde-Ausbau 28.10.2026).
+    private var isReadyForInvite: Bool {
+        guard auth.userID != nil, !showsOnboarding else { return false }
+        if case .authenticated = auth.state { return true }
+        return didCompleteOnboarding
     }
 
     private var preferredColorScheme: ColorScheme? {
@@ -570,13 +579,18 @@ private struct DeepLinkRoutingModifier: ViewModifier {
     @Binding var showsCoach: Bool
     @Binding var showsFriends: Bool
     @Binding var friendsSheetTab: FriendsHubTab
+    let isReadyForInvite: Bool
 
     func body(content: Content) -> some View {
         content
             // Freundes-Einladung per Link: Freunde-Ansicht öffnen, die den Code
-            // aus DeepLinkRouter.pendingFriendCode übernimmt.
+            // aus DeepLinkRouter.pendingFriendCode übernimmt – bei neuen
+            // Nutzer:innen erst nach Anmeldung/Onboarding.
             .onChange(of: deepLinks.pendingFriendCode) { _, code in
-                if code != nil { friendsSheetTab = .friends; showsFriends = true }
+                if code != nil && isReadyForInvite { friendsSheetTab = .friends; showsFriends = true }
+            }
+            .onChange(of: isReadyForInvite) { _, ready in
+                if ready && deepLinks.pendingFriendCode != nil { friendsSheetTab = .friends; showsFriends = true }
             }
             .onChange(of: deepLinks.pendingFriendsTab) { _, tab in
                 guard let tab else { return }

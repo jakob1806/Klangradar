@@ -9,6 +9,7 @@ struct FindFriendsView: View {
     @State private var query = ""
     @State private var results: [SocialPerson] = []
     @State private var suggestions: [SocialPerson] = []
+    @State private var companions: [ConcertCompanion] = []
     @State private var contactMatches: [SocialPerson]?
     @State private var contactState: ContactState = .idle
     @State private var searchTask: Task<Void, Never>?
@@ -26,6 +27,15 @@ struct FindFriendsView: View {
                 }
             } else {
                 inviteSection
+                if !companions.isEmpty {
+                    Section {
+                        ForEach(companions) { ConcertCompanionRow(companion: $0) }
+                    } header: {
+                        Text("Wer war noch da?")
+                    } footer: {
+                        Text("Öffentliche Profile, die in den letzten Tagen beim selben Konzert waren wie du.")
+                    }
+                }
                 contactsSection
                 if !suggestions.isEmpty {
                     Section {
@@ -145,7 +155,10 @@ struct FindFriendsView: View {
 
     private func loadSuggestions() async {
         guard let repository = SocialStore.shared.repository, let token = SocialStore.shared.token else { return }
-        suggestions = (try? await repository.suggestedFriends(token: token)) ?? []
+        async let suggestionRows = try? repository.suggestedFriends(token: token)
+        async let companionRows = try? repository.concertCompanions(token: token)
+        suggestions = await suggestionRows ?? []
+        companions = await companionRows ?? []
     }
 
     private func scheduleSearch(_ value: String) {

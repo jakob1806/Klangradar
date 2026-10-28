@@ -44,3 +44,27 @@ final class EmailLinkTests: XCTestCase {
         router.pendingEventSlug = nil
     }
 }
+
+/// Freunde-Ausbau 28.10.2026: QR-Code und Anfragen-Kontext.
+final class FriendsProcessTests: XCTestCase {
+    func testFriendCodeParserAcceptsLinkSchemeAndRawCode() {
+        XCTAssertEqual(FriendCodeParser.code(from: "https://klangradar.com/f/abcd2345"), "ABCD2345")
+        XCTAssertEqual(FriendCodeParser.code(from: "de.klangradar.native://friend/ABCD2345"), "ABCD2345")
+        XCTAssertEqual(FriendCodeParser.code(from: "  abcd2345 \n"), "ABCD2345")
+        XCTAssertNil(FriendCodeParser.code(from: "https://example.com/f/ABCD2345"))
+        XCTAssertNil(FriendCodeParser.code(from: "ABC"))
+        XCTAssertNil(FriendCodeParser.code(from: "Hallo Welt!"))
+    }
+
+    func testQRCodeEncodesInviteLink() {
+        XCTAssertNotNil(FriendQRCode.image(for: FriendInvite.link(code: "ABCD2345").absoluteString))
+    }
+
+    func testRequestContextLine() {
+        let person = SocialPerson(id: UUID(), name: "Lena", avatarURL: nil)
+        let concert = FriendRequest(person: person, incoming: true, mutualFriends: 0, source: "concert", sharedComposers: ["Mahler", "Bruckner"], context: "Mahler 2 am 26.10.")
+        XCTAssertEqual(concert.contextLine, "Wart beide bei Mahler 2 am 26.10.")
+        XCTAssertEqual(concert.composersLine, "Ihr hört beide gern Mahler und Bruckner")
+        XCTAssertNil(FriendRequest(person: person, incoming: true, mutualFriends: 0).contextLine)
+    }
+}

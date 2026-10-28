@@ -7,7 +7,12 @@ final class DeepLinkRouter: ObservableObject {
     static let shared = DeepLinkRouter()
     @Published var pendingEventSlug: String?
     /// Freundes-Einladung (de.klangradar.native://friend/<CODE>).
-    @Published var pendingFriendCode: String?
+    /// Seit 28.10.2026 gespeichert, damit der Code Anmeldung und Onboarding
+    /// (auch einen App-Neustart) übersteht; FriendsView übernimmt ihn danach.
+    @Published var pendingFriendCode: String? = UserDefaults.standard.string(forKey: DeepLinkRouter.pendingFriendCodeKey) {
+        didSet { UserDefaults.standard.set(pendingFriendCode, forKey: Self.pendingFriendCodeKey) }
+    }
+    nonisolated static let pendingFriendCodeKey = "pendingFriendInviteCode"
     /// Von Siri/Kurzbefehlen (KlangradarShortcuts): Tab bzw. KI öffnen.
     @Published var pendingTab: String?
     @Published var pendingCoach = false

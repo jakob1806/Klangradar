@@ -22,6 +22,10 @@ struct FriendRequest: Identifiable, Sendable, Hashable {
     let person: SocialPerson
     let incoming: Bool
     let mutualFriends: Int
+    /// Freunde-Ausbau (000129): Quelle, Konzert und gemeinsame Komponist:innen.
+    var source: String? = nil
+    var sharedComposers: [String] = []
+    var context: String? = nil
 }
 
 struct ActivityItem: Identifiable, Sendable, Hashable {
@@ -79,6 +83,13 @@ struct UserProfile: Sendable {
     let mutualFriends: Int
     let topComposers: [String]
     let upcoming: [SocialEvent]
+    /// Freunde-Ausbau (000129).
+    var tasteMatch: Int? = nil
+    var sharedComposers: [String] = []
+    var isClose = false
+    var isMuted = false
+    var sharedHistory: [SocialEvent] = []
+    var ratings: [ProfileRating] = []
 }
 
 struct EventRatings: Sendable {
@@ -139,13 +150,16 @@ extension UserRepository {
     func friendRequests(token: String) async throws -> [FriendRequest] {
         try await rows("my_friend_requests", token: token).compactMap { row in
             guard let person = row.person() else { return nil }
-            return FriendRequest(person: person, incoming: row.bool("incoming") ?? false, mutualFriends: row.integer("mutual_friends") ?? 0)
+            return FriendRequest(person: person, incoming: row.bool("incoming") ?? false, mutualFriends: row.integer("mutual_friends") ?? 0,
+                                 source: row.string("source"), sharedComposers: row.strings("shared_composers"), context: row.string("context"))
         }
     }
 
     @discardableResult
-    func sendFriendRequest(to id: UUID, source: String, token: String) async throws -> RelationStatus {
-        let value: JSONValue = try await client.rpc("send_friend_request", parameters: ["p_user_id": .string(id.uuidString), "p_source": .string(source)], accessToken: token)
+    func sendFriendRequest(to id: UUID, source: String, eventID: UUID? = nil, token: String) async throws -> RelationStatus {
+        var parameters: JSONObject = ["p_user_id": .string(id.uuidString), "p_source": .string(source)]
+        if let eventID { parameters["p_event_id"] = .string(eventID.uuidString) }
+        let value: JSONValue = try await client.rpc("send_friend_request", parameters: parameters, accessToken: token)
         guard case let .string(result) = value else { return .requested }
         return result == "friends" || result == "already_friends" ? .friend : result == "blocked" ? .blocked : .requested
     }
@@ -184,7 +198,14 @@ extension UserRepository {
         return UserProfile(
             person: person, bio: row.string("bio"), visible: row.bool("visible") ?? false, isFriend: row.bool("is_friend") ?? false,
             concerts: row.integer("concerts") ?? 0, friends: row.integer("friends") ?? 0, mutualFriends: row.integer("mutual_friends") ?? 0,
-            topComposers: row.strings("top_composers"), upcoming: row.objects("upcoming").compactMap { $0.socialEvent() }
+            topComposers: row.strings("top_composers"), upcoming: row.objects("upcoming").compactMap { $0.socialEvent() },
+            tasteMatch: row.integer("taste_match"), sharedComposers: row.strings("shared_composers"),
+            isClose: row.bool("is_close") ?? false, isMuted: row.bool("is_muted") ?? false,
+            sharedHistory: row.socialEvents("shared_history"),
+            ratings: row.objects("ratings").compactMap { item in
+                guard let event = item.socialEvent(), let stars = item.integer("stars") else { return nil }
+                return ProfileRating(event: event, stars: stars, comment: item.string("comment"))
+            }
         )
     }
 
@@ -353,6 +374,12 @@ final class SocialStore: ObservableObject {
         self.auth = auth
         self.repository = repository
         self.eventRepository = eventRepository
+    }
+
+    /// Volles Konzert für den Planungsdialog (z. B. "Gemeinsam planen").
+    func concertEvent(_ id: UUID) async -> ConcertEvent? {
+        guard let eventRepository else { return nil }
+        return try? await eventRepository.events(ids: [id]).first
     }
 
     func refresh() async {

@@ -215,7 +215,7 @@ app_target.build_configurations.each do |config|
     # fortlaufende Updates via startUpdatingLocation gebraucht wird und ohne
     # entsprechenden Info.plist-Eintrag sofort abstürzt).
     "INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription" => "Klangradar erkennt automatisch, wenn du bei einem gemerkten Konzert bist, und fragt dich dann per Benachrichtigung, ob du es als besucht markieren möchtest.",
-    "INFOPLIST_KEY_NSCameraUsageDescription" => "Klangradar nutzt die Kamera, um ein Profilbild aufzunehmen.",
+    "INFOPLIST_KEY_NSCameraUsageDescription" => "Klangradar nutzt die Kamera, um ein Profilbild aufzunehmen und Freundescodes (QR-Codes) zu scannen.",
     "INFOPLIST_KEY_NSPhotoLibraryUsageDescription" => "Klangradar nutzt deine Fotomediathek, um ein Profilbild auszuwählen.",
     "INFOPLIST_KEY_NSFaceIDUsageDescription" => "Klangradar nutzt Face ID, um deinen Account zu schützen.",
     # Fehlten hier bislang, obwohl vom Code benötigt (SpeechSearchController,

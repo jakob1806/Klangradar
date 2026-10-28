@@ -131,13 +131,16 @@ struct StarRating: View {
 struct RelationButton: View {
     let person: SocialPerson
     let source: String
+    /// Konzert, bei dem man sich traf ("Wer war noch da?").
+    var eventID: UUID? = nil
     var onChange: ((RelationStatus) -> Void)? = nil
     @State private var status: RelationStatus
     @State private var isWorking = false
 
-    init(person: SocialPerson, source: String, onChange: ((RelationStatus) -> Void)? = nil) {
+    init(person: SocialPerson, source: String, eventID: UUID? = nil, onChange: ((RelationStatus) -> Void)? = nil) {
         self.person = person
         self.source = source
+        self.eventID = eventID
         self.onChange = onChange
         _status = State(initialValue: person.status)
     }
@@ -157,7 +160,7 @@ struct RelationButton: View {
                 EmptyView()
             case .none:
                 Button("Hinzufügen", systemImage: "person.badge.plus") {
-                    Task { await act { try await $0.sendFriendRequest(to: person.id, source: source, token: $1) } }
+                    Task { await act { try await $0.sendFriendRequest(to: person.id, source: source, eventID: eventID, token: $1) } }
                 }
                 .buttonStyle(.borderedProminent).tint(KlangradarTheme.accent)
             }

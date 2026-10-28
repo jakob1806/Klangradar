@@ -42,6 +42,13 @@ struct FriendsView: View {
     @State private var showsSettings = false
     /// Lädt die Social-Abschnitte (Nachklang, Buddys, Gruppen) mit neu.
     @State private var reloadToken = 0
+    /// Freunde-Ausbau 28.10.2026: "Ihr seid jetzt verbunden", QR-Code, Scanner.
+    @State private var connected: FriendConnection?
+    @State private var connectedViaInvite = false
+    @State private var showsScanner = false
+    @State private var showsQRCode = false
+    @State private var withdrawing: UUID?
+    @AppStorage("didCompleteOnboarding") private var didCompleteOnboarding = false
 
     var body: some View {
         Group {
@@ -76,14 +83,30 @@ struct FriendsView: View {
         .sheet(isPresented: $showsSettings) {
             NavigationStack { SocialSettingsView() }
         }
+        .sheet(item: $connected, onDismiss: { Task { await load() } }) { connection in
+            NavigationStack { FriendConnectedSheet(connection: connection, viaInvite: connectedViaInvite) }
+        }
+        .sheet(isPresented: $showsScanner) {
+            NavigationStack {
+                FriendCodeScannerView { scanned in
+                    Task {
+                        // Erst das Scanner-Sheet schließen lassen, dann begrüßen.
+                        try? await Task.sleep(for: .milliseconds(600))
+                        await add(scanned)
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showsQRCode) {
+            if let code { NavigationStack { FriendQRSheet(code: code) } }
+        }
         .task {
             tab = initialTab
             await load()
         }
         .onChange(of: deepLinks.pendingFriendCode) { _, value in
-            guard let value else { return }
-            deepLinks.pendingFriendCode = nil
-            Task { await add(value) }
+            guard value != nil else { return }
+            Task { await acceptPendingInvite() }
         }
     }
 
@@ -98,7 +121,9 @@ struct FriendsView: View {
                 VStack(alignment: .leading, spacing: 34) {
                     circleSection
                     if !incomingRequests.isEmpty { requestsSection }
+                    ConcertCompanionsSection(reloadToken: reloadToken)
                     plansSection.id(FriendsHubTab.plans)
+                    TicketOffersSection(reloadToken: reloadToken)
                     BuddySection(reloadToken: reloadToken)
                     goingSection.id(FriendsHubTab.activity)
                     GroupsSection(reloadToken: reloadToken)
@@ -148,10 +173,19 @@ struct FriendsView: View {
 
     private var circleSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(friends.isEmpty ? "Konzerte sind schöner zu zweit" : "Dein Freundeskreis")
-                    .font(.system(.largeTitle, design: .serif).weight(.semibold))
-                Text(circleCaption).font(.subheadline).foregroundStyle(.secondary)
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(friends.isEmpty ? "Konzerte sind schöner zu zweit" : "Dein Freundeskreis")
+                        .font(.system(.largeTitle, design: .serif).weight(.semibold))
+                    Text(circleCaption).font(.subheadline).foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 8)
+                if !friends.isEmpty {
+                    NavigationLink { FriendListView { Task { await load() } } } label: {
+                        Text("Alle anzeigen").font(.subheadline.weight(.semibold))
+                    }
+                    .foregroundStyle(KlangradarTheme.accent)
+                }
             }
             .padding(.horizontal, KlangradarTheme.pagePadding)
 
@@ -165,9 +199,9 @@ struct FriendsView: View {
                         }
                     }
                     .buttonStyle(.plain)
-                    ForEach(friends) { friend in
+                    ForEach(circleFriends) { friend in
                         NavigationLink { UserProfileView(userID: friend.id) } label: {
-                            FriendCircleTile(title: friend.name.split(separator: " ").first.map(String.init) ?? friend.name, badge: friend.upcomingCount > 0 ? "\(friend.upcomingCount)" : nil) {
+                            FriendCircleTile(title: friend.name.split(separator: " ").first.map(String.init) ?? friend.name, badge: friend.upcomingCount > 0 ? "\(friend.upcomingCount)" : nil, isClose: friend.isClose) {
                                 SocialAvatar(name: friend.name, url: friend.avatarURL, size: 68)
                             }
                         }
@@ -178,6 +212,9 @@ struct FriendsView: View {
             }
         }
     }
+
+    /// Enge Freunde zuerst, sonst Reihenfolge des Servers.
+    private var circleFriends: [Friend] { friends.filter(\.isClose) + friends.filter { !$0.isClose } }
 
     private var circleCaption: String {
         if friends.isEmpty { return "Lade Freunde ein, plant Abende gemeinsam und seht, wohin sie gehen." }
@@ -199,8 +236,14 @@ struct FriendsView: View {
                                 SocialAvatar(name: request.person.name, url: request.person.avatarURL, size: 46)
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(request.person.name).font(.headline).foregroundStyle(.primary)
+                                    if let context = request.contextLine {
+                                        Text(context).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                                    }
                                     if request.mutualFriends > 0 {
                                         Text("\(request.mutualFriends) gemeinsame \(request.mutualFriends == 1 ? "Freund:in" : "Freunde")").font(.caption).foregroundStyle(.secondary)
+                                    }
+                                    if let composers = request.composersLine {
+                                        Label(composers, systemImage: "music.note").font(.caption).foregroundStyle(KlangradarTheme.accent).lineLimit(2)
                                     }
                                 }
                                 Spacer(minLength: 0)
@@ -290,7 +333,7 @@ struct FriendsView: View {
     private var ticketSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             sectionTitle("Per Code verbinden")
-            FriendCodeTicket(code: code)
+            FriendCodeTicket(code: code) { showsQRCode = true }
                 .padding(.horizontal, KlangradarTheme.pagePadding)
             HStack(spacing: 10) {
                 TextField("Code eines Freundes", text: $codeInput)
@@ -304,15 +347,53 @@ struct FriendsView: View {
                     .disabled(codeInput.trimmingCharacters(in: .whitespaces).count < 6)
             }
             .padding(.horizontal, KlangradarTheme.pagePadding)
+            Button { showsScanner = true } label: {
+                Label("QR-Code scannen", systemImage: "qrcode.viewfinder")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity).frame(height: 40)
+            }
+            .buttonStyle(.bordered)
+            .buttonBorderShape(.capsule)
+            .tint(KlangradarTheme.accent)
+            .padding(.horizontal, KlangradarTheme.pagePadding)
             if let message {
                 Text(message).font(.footnote).foregroundStyle(.secondary).padding(.horizontal, KlangradarTheme.pagePadding)
             }
-            let outgoing = requests.filter { !$0.incoming }
-            if !outgoing.isEmpty {
-                Text("Gesendet an \(AvatarStack.names(outgoing.map(\.person)))")
-                    .font(.footnote).foregroundStyle(.secondary)
-                    .padding(.horizontal, KlangradarTheme.pagePadding)
+            if !outgoingRequests.isEmpty { outgoingSection }
+        }
+    }
+
+    // MARK: Gesendete Anfragen
+
+    private var outgoingRequests: [FriendRequest] { requests.filter { !$0.incoming } }
+
+    private var outgoingSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Gesendete Anfragen").font(.headline).padding(.horizontal, KlangradarTheme.pagePadding).padding(.top, 8)
+            VStack(spacing: 0) {
+                ForEach(outgoingRequests) { request in
+                    HStack(spacing: 12) {
+                        NavigationLink { UserProfileView(userID: request.person.id) } label: {
+                            HStack(spacing: 12) {
+                                SocialAvatar(name: request.person.name, url: request.person.avatarURL, size: 38)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(request.person.name).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+                                    Text(request.contextLine ?? "Wartet auf Antwort").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                }
+                                Spacer(minLength: 0)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        Button("Zurückziehen") { Task { await withdraw(request) } }
+                            .buttonStyle(.bordered).tint(.secondary).controlSize(.small)
+                            .disabled(withdrawing == request.id)
+                    }
+                    .padding(.horizontal, 14).padding(.vertical, 10)
+                    if request.id != outgoingRequests.last?.id { Divider().padding(.leading, 64) }
+                }
             }
+            .background(Color(uiColor: .secondarySystemBackground), in: .rect(cornerRadius: 18, style: .continuous))
+            .padding(.horizontal, KlangradarTheme.pagePadding)
         }
     }
 
@@ -333,23 +414,35 @@ struct FriendsView: View {
         isLoading = false
         reloadToken += 1
         await SocialStore.shared.refresh()
-        if let pending = deepLinks.pendingFriendCode {
-            deepLinks.pendingFriendCode = nil
-            await add(pending)
-        }
+        if deepLinks.pendingFriendCode != nil { await acceptPendingInvite() }
     }
 
-    private func add(_ raw: String) async {
+    /// Einladungslink (klangradar.com/f/<code>): erst nach Anmeldung bzw.
+    /// Onboarding übernehmen, dann "Du bist jetzt mit X verbunden".
+    private func acceptPendingInvite() async {
+        guard let pending = deepLinks.pendingFriendCode else { return }
+        var authenticated = false
+        if case .authenticated = auth.state { authenticated = true }
+        guard auth.userID != nil, authenticated || didCompleteOnboarding else { return }
+        deepLinks.pendingFriendCode = nil
+        await add(pending, viaInvite: true)
+    }
+
+    private func add(_ raw: String, viaInvite: Bool = false) async {
         guard let repository, let token = auth.accessToken else { return }
-        let value = raw.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        let value = FriendCodeParser.code(from: raw) ?? raw.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         do {
-            switch try await repository.addFriend(code: value, token: token) {
-            case .added(let name):
+            switch try await repository.acceptFriendInvite(code: value, token: token) {
+            case let .connected(connection, name, isNew):
                 Haptics.confirm()
-                message = "\(name ?? "Neue:r Freund:in") ist jetzt in deiner Liste."
+                message = isNew ? "\(name ?? "Neue:r Freund:in") ist jetzt in deiner Liste." : "Ihr seid schon befreundet."
                 codeInput = ""
                 tab = .friends
                 await load()
+                if isNew, let connection {
+                    connectedViaInvite = viaInvite
+                    connected = connection
+                }
             case .unknownCode: message = "Diesen Code kennen wir nicht."
             case .ownCode: message = "Das ist dein eigener Code."
             }
@@ -360,8 +453,27 @@ struct FriendsView: View {
 
     private func respond(_ request: FriendRequest, accept: Bool) async {
         guard let repository, let token = auth.accessToken else { return }
-        try? await repository.respondFriendRequest(from: request.person.id, accept: accept, token: token)
-        if accept { Haptics.confirm() }
+        do {
+            try await repository.respondFriendRequest(from: request.person.id, accept: accept, token: token)
+        } catch {
+            message = "Das hat nicht geklappt. Bitte später erneut versuchen."
+            return
+        }
+        await load()
+        guard accept else { return }
+        Haptics.confirm()
+        if let connection = try? await repository.friendConnection(request.person.id, token: token) {
+            connectedViaInvite = false
+            connected = connection
+        }
+    }
+
+    private func withdraw(_ request: FriendRequest) async {
+        guard let repository, let token = auth.accessToken else { return }
+        withdrawing = request.id
+        defer { withdrawing = nil }
+        try? await repository.cancelFriendRequest(to: request.person.id, token: token)
+        Haptics.soft()
         await load()
     }
 }
@@ -378,6 +490,7 @@ struct FriendsGoingGroup: Identifiable, Hashable {
 private struct FriendCircleTile<Content: View>: View {
     let title: String
     var badge: String? = nil
+    var isClose = false
     @ViewBuilder let content: Content
 
     var body: some View {
@@ -393,6 +506,17 @@ private struct FriendCircleTile<Content: View>: View {
                             .background(KlangradarTheme.accent, in: .circle)
                             .overlay { Circle().stroke(Color(uiColor: .systemBackground), lineWidth: 2.5) }
                             .accessibilityLabel("\(badge) kommende Konzerte")
+                    }
+                }
+                .overlay(alignment: .topLeading) {
+                    if isClose {
+                        Image(systemName: "star.fill")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 22, height: 22)
+                            .background(Color.orange, in: .circle)
+                            .overlay { Circle().stroke(Color(uiColor: .systemBackground), lineWidth: 2.5) }
+                            .accessibilityLabel("Enge:r Freund:in")
                     }
                 }
             Text(title).font(.caption.weight(.medium)).lineLimit(1).frame(width: 76)
@@ -510,12 +634,25 @@ private struct FriendsGoingPoster: View {
 private struct FriendCodeTicket: View {
     let code: String?
 
+    /// Seit 28.10.2026: QR-Code des Einladungslinks im Abriss, Tippen vergrößert.
+    var onShowQRCode: () -> Void = {}
+
     var body: some View {
         HStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("DEIN FREUNDESCODE").font(.caption2.weight(.bold)).tracking(1.4).foregroundStyle(.white.opacity(0.7))
-                Text(code ?? "······").font(.system(size: 30, weight: .semibold, design: .monospaced)).foregroundStyle(.white)
-                Text("Wer ihn eingibt, ist sofort mit dir befreundet.").font(.caption).foregroundStyle(.white.opacity(0.75))
+                HStack {
+                    Text("DEIN FREUNDESCODE").font(.caption2.weight(.bold)).tracking(1.4).foregroundStyle(.white.opacity(0.7))
+                    Spacer(minLength: 4)
+                    if let code {
+                        ShareLink(item: FriendInvite.message(code: code)) {
+                            Image(systemName: "square.and.arrow.up").font(.subheadline.weight(.semibold)).foregroundStyle(.white)
+                        }
+                        .accessibilityLabel("Einladung teilen")
+                    }
+                }
+                Text(code ?? "······").font(.system(size: 28, weight: .semibold, design: .monospaced)).foregroundStyle(.white)
+                    .minimumScaleFactor(0.7).lineLimit(1)
+                Text("Eingeben oder scannen: Ihr seid sofort befreundet.").font(.caption).foregroundStyle(.white.opacity(0.75))
             }
             .padding(18)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -526,13 +663,17 @@ private struct FriendCodeTicket: View {
                 .padding(.vertical, 14)
             Group {
                 if let code {
-                    ShareLink(item: FriendInvite.message(code: code)) {
-                        Image(systemName: "square.and.arrow.up").font(.title3.weight(.semibold)).foregroundStyle(.white)
+                    Button(action: onShowQRCode) {
+                        FriendQRCodeImage(code: code)
+                            .padding(6)
+                            .background(.white, in: .rect(cornerRadius: 10, style: .continuous))
+                            .frame(width: 84, height: 84)
                     }
-                    .accessibilityLabel("Einladung teilen")
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Zeigt den QR-Code groß zum Scannen")
                 }
             }
-            .frame(width: 70)
+            .frame(width: TicketShape.stubWidth)
         }
         .background(
             LinearGradient(colors: [KlangradarTheme.accent, KlangradarTheme.deepInk], startPoint: .topLeading, endPoint: .bottomTrailing),
@@ -543,8 +684,10 @@ private struct FriendCodeTicket: View {
 
 /// Rechteck mit zwei halbrunden Kerben auf Höhe des Abrisses.
 private struct TicketShape: Shape {
+    static let stubWidth: CGFloat = 108
+
     func path(in rect: CGRect) -> Path {
-        let notchX = rect.maxX - 70
+        let notchX = rect.maxX - Self.stubWidth
         let radius: CGFloat = 10
         var notches = Path()
         notches.addEllipse(in: CGRect(x: notchX - radius, y: rect.minY - radius, width: radius * 2, height: radius * 2))
