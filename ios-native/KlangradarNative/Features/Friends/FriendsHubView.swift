@@ -40,6 +40,8 @@ struct FriendsView: View {
     @State private var codeInput = ""
     @State private var showsFindFriends = false
     @State private var showsSettings = false
+    /// Lädt die Social-Abschnitte (Nachklang, Buddys, Gruppen) mit neu.
+    @State private var reloadToken = 0
 
     var body: some View {
         Group {
@@ -97,8 +99,10 @@ struct FriendsView: View {
                     circleSection
                     if !incomingRequests.isEmpty { requestsSection }
                     plansSection.id(FriendsHubTab.plans)
+                    BuddySection(reloadToken: reloadToken)
                     goingSection.id(FriendsHubTab.activity)
-                    if !ratings.isEmpty { echoSection }
+                    GroupsSection(reloadToken: reloadToken)
+                    EchoSection(reloadToken: reloadToken)
                     ticketSection.id(FriendsHubTab.friends)
                 }
                 .padding(.vertical, 12)
@@ -114,7 +118,6 @@ struct FriendsView: View {
     }
 
     private var incomingRequests: [FriendRequest] { requests.filter(\.incoming) }
-    private var ratings: [ActivityItem] { activity.filter { $0.kind == .rated && $0.stars != nil } }
 
     /// Freunde, die zum selben Konzert gehen, auf einem Plakat zusammengefasst.
     private var goingGroups: [FriendsGoingGroup] {
@@ -282,20 +285,6 @@ struct FriendsView: View {
         }
     }
 
-    // MARK: Nachklang
-
-    private var echoSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            sectionTitle("Nachklang", "Wie es deinen Freunden gefallen hat")
-            ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(alignment: .top, spacing: 14) {
-                    ForEach(ratings) { item in EchoQuoteCard(item: item) }
-                }
-                .padding(.horizontal, KlangradarTheme.pagePadding)
-            }
-        }
-    }
-
     // MARK: Code
 
     private var ticketSection: some View {
@@ -342,6 +331,7 @@ struct FriendsView: View {
         activity = await activityRows ?? []
         plans = await planRows ?? []
         isLoading = false
+        reloadToken += 1
         await SocialStore.shared.refresh()
         if let pending = deepLinks.pendingFriendCode {
             deepLinks.pendingFriendCode = nil
@@ -513,35 +503,6 @@ private struct FriendsGoingPoster: View {
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
-    }
-}
-
-/// Bewertung eines Freundes als Zitat: großes Anführungszeichen, Sterne,
-/// Konzert klein darunter.
-private struct EchoQuoteCard: View {
-    let item: ActivityItem
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("“").font(.system(size: 54, weight: .regular, design: .serif)).foregroundStyle(KlangradarTheme.accent).frame(height: 30, alignment: .top)
-            Text(item.comment ?? "\(item.stars ?? 0) von 5 Sternen")
-                .font(.system(.body, design: .serif)).italic()
-                .lineLimit(5)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            Spacer(minLength: 0)
-            StarRating(stars: .constant(item.stars ?? 0), size: 12, editable: false)
-            HStack(spacing: 8) {
-                SocialAvatar(name: item.person.name, url: item.person.avatarURL, size: 26)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(item.person.name).font(.caption.weight(.semibold))
-                    Text(item.event.title).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
-                }
-            }
-        }
-        .padding(18)
-        .frame(width: 250, height: 230, alignment: .topLeading)
-        .background(Color(uiColor: .secondarySystemBackground), in: .rect(cornerRadius: 22, style: .continuous))
-        .onTapGesture { DeepLinkRouter.shared.handle(route: "/event/\(item.event.slug)") }
     }
 }
 

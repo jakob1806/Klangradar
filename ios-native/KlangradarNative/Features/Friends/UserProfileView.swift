@@ -32,10 +32,14 @@ struct UserProfileView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
                         header(profile)
+                        if profile.isFriend {
+                            SharedYearCard(friendID: profile.person.id, friendName: profile.person.name)
+                        }
                         if profile.visible {
                             if !profile.topComposers.isEmpty { tasteCard(profile) }
                             if !profile.upcoming.isEmpty {
-                                card("Geht demnächst zu", caption: profile.isFriend ? "Tippe ein Konzert an und plane es gemeinsam." : nil, events: profile.upcoming)
+                                card("Geht demnächst zu", caption: profile.isFriend ? "Mit „Ich komme mit“ plant ihr den Abend gemeinsam." : nil,
+                                     events: profile.upcoming, joining: profile.isFriend ? profile.person : nil)
                             }
                             if profile.isFriend && !matches.isEmpty {
                                 card("Passt zu euch beiden", caption: "Aus euren gemeinsamen Interessen, gefolgten Künstler:innen und Merklisten.", events: matches)
@@ -167,7 +171,7 @@ struct UserProfileView: View {
         .padding(.horizontal, KlangradarTheme.pagePadding)
     }
 
-    private func card(_ title: String, caption: String?, events: [SocialEvent]) -> some View {
+    private func card(_ title: String, caption: String?, events: [SocialEvent], joining friend: SocialPerson? = nil) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.system(.title3, design: .serif).weight(.semibold))
@@ -176,7 +180,8 @@ struct UserProfileView: View {
             .padding(.horizontal, KlangradarTheme.pagePadding)
             VStack(spacing: 0) {
                 ForEach(events) { event in
-                    SocialEventRow(event: event).padding(.horizontal, 14).padding(.vertical, 10)
+                    SocialEventRow(event: event, trailing: friend.map { AnyView(JoinFriendButton(event: event, friend: $0)) })
+                        .padding(.horizontal, 14).padding(.vertical, 10)
                     if event.id != events.last?.id { Divider().padding(.leading, 82) }
                 }
             }

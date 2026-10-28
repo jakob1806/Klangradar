@@ -14,3 +14,10 @@ Deno.test("friend_also_attending verlinkt das Konzert", () => {
 Deno.test("unbekannte Art liefert null", () => {
   assertEquals(socialMessage({ kind: "x", actorName: "A" }), null);
 });
+
+Deno.test("Social-Ausbau: neue Mitteilungen", () => {
+  assertEquals(socialMessage({ kind: "joins_you", actorName: "Lena", eventTitle: "Mahler 2" })?.title, "Lena kommt mit");
+  assertEquals(socialMessage({ kind: "rating_applause", actorName: "Lena", eventTitle: "Mahler 2" })?.route, "/friends");
+  assertEquals(socialMessage({ kind: "rating_comment", actorName: "Lena" })?.body, "Zu deiner Bewertung von ein Konzert.");
+  assertEquals(socialMessage({ kind: "group_added", actorName: "Lena" })?.title, "Neue Gruppe");
+});

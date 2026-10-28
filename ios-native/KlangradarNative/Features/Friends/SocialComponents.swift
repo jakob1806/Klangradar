@@ -67,27 +67,31 @@ struct SocialEventRow: View {
     var trailing: AnyView? = nil
 
     var body: some View {
-        Button {
-            DeepLinkRouter.shared.handle(route: "/event/\(event.slug)")
-        } label: {
-            HStack(spacing: 12) {
-                CachedAsyncImage(url: event.imageURL, maxPixel: 240) { phase in
-                    if let image = phase.image { image.resizable().scaledToFill() }
-                    else { Color.secondary.opacity(0.12).overlay { Image(systemName: "music.note").foregroundStyle(.secondary) } }
+        // trailing liegt neben dem Zeilen-Button, damit eigene Knöpfe darin
+        // (z. B. "Ich komme mit") ihren Tipp selbst bekommen.
+        HStack(spacing: 10) {
+            Button {
+                DeepLinkRouter.shared.handle(route: "/event/\(event.slug)")
+            } label: {
+                HStack(spacing: 12) {
+                    CachedAsyncImage(url: event.imageURL, maxPixel: 240) { phase in
+                        if let image = phase.image { image.resizable().scaledToFill() }
+                        else { Color.secondary.opacity(0.12).overlay { Image(systemName: "music.note").foregroundStyle(.secondary) } }
+                    }
+                    .frame(width: 56, height: 56)
+                    .clipShape(.rect(cornerRadius: 12, style: .continuous))
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(event.title).font(.subheadline.weight(.semibold)).foregroundStyle(.primary).lineLimit(2).multilineTextAlignment(.leading)
+                        Text(event.dateLine).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                        if let note = event.note { Text(note).font(.caption).foregroundStyle(KlangradarTheme.accent).lineLimit(1) }
+                    }
+                    Spacer(minLength: 0)
                 }
-                .frame(width: 56, height: 56)
-                .clipShape(.rect(cornerRadius: 12, style: .continuous))
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(event.title).font(.subheadline.weight(.semibold)).foregroundStyle(.primary).lineLimit(2).multilineTextAlignment(.leading)
-                    Text(event.dateLine).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                    if let note = event.note { Text(note).font(.caption).foregroundStyle(KlangradarTheme.accent).lineLimit(1) }
-                }
-                Spacer(minLength: 0)
-                if let trailing { trailing }
+                .contentShape(.rect)
             }
-            .contentShape(.rect)
+            .buttonStyle(.plain)
+            if let trailing { trailing }
         }
-        .buttonStyle(.plain)
     }
 }
 
@@ -180,11 +184,37 @@ struct RelationButton: View {
 struct FriendPicker: View {
     @Binding var selection: Set<UUID>
     var excluded: Set<UUID> = []
+    /// Gruppen als Schnellauswahl oben (Social-Ausbau 28.10.2026).
+    var showsGroups = true
     @State private var friends: [Friend] = []
+    @State private var groups: [SocialGroup] = []
     @State private var isLoading = true
 
     var body: some View {
         Group {
+            if showsGroups && !groups.isEmpty && !available.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(groups) { group in
+                            let ids = Set(group.invitableIDs).subtracting(excluded)
+                            let isAll = !ids.isEmpty && ids.isSubset(of: selection)
+                            Button {
+                                Haptics.light()
+                                if isAll { selection.subtract(ids) } else { selection.formUnion(ids) }
+                            } label: {
+                                Text(group.title)
+                                    .font(.subheadline.weight(.semibold))
+                                    .padding(.horizontal, 12).padding(.vertical, 7)
+                                    .foregroundStyle(isAll ? .white : KlangradarTheme.accent)
+                                    .background(isAll ? AnyShapeStyle(KlangradarTheme.accent) : AnyShapeStyle(KlangradarTheme.accent.opacity(0.12)), in: .capsule)
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(ids.isEmpty)
+                            .accessibilityHint("Wählt alle aus der Gruppe aus")
+                        }
+                    }
+                }
+            }
             if isLoading {
                 ProgressView().frame(maxWidth: .infinity).padding()
             } else if available.isEmpty {
@@ -212,6 +242,7 @@ struct FriendPicker: View {
         .task {
             if let repository = SocialStore.shared.repository, let token = SocialStore.shared.token {
                 friends = (try? await repository.friends(token: token)) ?? []
+                if showsGroups { groups = (try? await repository.socialGroups(token: token)) ?? [] }
             }
             isLoading = false
         }
