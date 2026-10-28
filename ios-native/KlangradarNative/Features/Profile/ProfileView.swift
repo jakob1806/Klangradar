@@ -27,6 +27,7 @@ struct ProfileView: View {
     @EnvironmentObject private var follows: FollowStore
     @State private var showsLogin = false
     @State private var showsSignUp = false
+    @State private var showsOnboardingAfterSignIn = false
     @State private var showsPlus = false
     @ObservedObject private var social = SocialStore.shared
     @ObservedObject private var plus = PlusStore.shared
@@ -190,8 +191,13 @@ struct ProfileView: View {
                     auth: auth,
                     repository: userRepository,
                     onSignedIn: {
-                        didCompleteOnboarding = true
                         showsLogin = false
+                        // Nutzerwunsch 28.10.2026: Auch wer sich mit Apple oder
+                        // Google anmeldet, durchläuft das Onboarding (Folgen
+                        // usw.), solange es für dieses Konto noch offen ist.
+                        // Rückkehrer mit abgeschlossenem Onboarding gehen
+                        // direkt weiter.
+                        Task { await continueOnboardingIfNeeded() }
                     },
                     onRequestSignUp: {
                         showsLogin = false
@@ -200,6 +206,13 @@ struct ProfileView: View {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { showsSignUp = true }
                     }
                 )
+            }
+            .fullScreenCover(isPresented: $showsOnboardingAfterSignIn) {
+                OnboardingView(auth: auth, repository: userRepository, initialAction: .afterSignIn) {
+                    didCompleteOnboarding = true
+                    showsOnboardingAfterSignIn = false
+                }
+                .environmentObject(follows)
             }
             .fullScreenCover(isPresented: $showsSignUp) {
                 OnboardingView(auth: auth, repository: userRepository, initialAction: .signUp) {
@@ -238,6 +251,23 @@ struct ProfileView: View {
     /// Öffnet das Kalender-Abo (webcal): iOS fragt dann "Abonnieren?" und
     /// hält die gemerkten Konzerte im Kalender automatisch aktuell.
     @MainActor
+    /// Nach der Anmeldung aus dem Profil: Ist das Onboarding des Kontos noch
+    /// offen (neuer Apple-/Google-Account, vorher als Gast unterwegs), startet
+    /// es bei "Persönliche Daten"; sonst gilt es lokal als erledigt.
+    private func continueOnboardingIfNeeded() async {
+        guard let userRepository, let userID = auth.userID, let token = auth.accessToken else {
+            didCompleteOnboarding = true
+            return
+        }
+        if await OnboardingView.onboardingCompleted(repository: userRepository, userID: userID, token: token) {
+            didCompleteOnboarding = true
+        } else {
+            // Erst nach dem Schließen des Login-Sheets präsentieren.
+            try? await Task.sleep(for: .milliseconds(450))
+            showsOnboardingAfterSignIn = true
+        }
+    }
+
     private func subscribeCalendar() async {
         guard let userRepository, let token = auth.accessToken,
               let feedToken = try? await userRepository.calendarFeedToken(token: token),

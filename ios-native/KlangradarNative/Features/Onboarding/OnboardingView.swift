@@ -20,6 +20,10 @@ struct OnboardingView: View {
     enum InitialAction: Equatable {
         case login
         case signUp
+        /// Schon angemeldet (z. B. mit Apple/Google aus dem Profil), aber das
+        /// Onboarding des Kontos ist noch offen: direkt bei "Persönliche Daten"
+        /// weiter, ohne Zurück zum Willkommens-Bildschirm.
+        case afterSignIn
     }
 
     @ObservedObject var auth: AuthStore
@@ -63,7 +67,8 @@ struct OnboardingView: View {
         self.repository = repository
         self.onFinished = onFinished
         _showsLogin = State(initialValue: initialAction == .login)
-        _path = State(initialValue: initialAction == .signUp ? [.signUp] : [])
+        _path = State(initialValue: initialAction == .signUp ? [.signUp] : initialAction == .afterSignIn ? [.personalData] : [])
+        _startedAfterSignIn = State(initialValue: initialAction == .afterSignIn)
     }
 
     var body: some View {
@@ -228,7 +233,7 @@ struct OnboardingView: View {
             onFinished()
             return
         }
-        let completed = (try? await repository.isOnboardingCompleted(userID: userID, token: token)) ?? true
+        let completed = await Self.onboardingCompleted(repository: repository, userID: userID, token: token)
         if completed {
             onFinished()
         } else {
@@ -236,6 +241,18 @@ struct OnboardingView: View {
             startedAfterSignIn = true
             path = [.personalData]
         }
+    }
+
+    /// Serverseitiges Onboarding-Flag mit einem zweiten Versuch (frisch
+    /// angelegte Apple-/Google-Konten: Profilzeile entsteht per Trigger erst
+    /// kurz nach der Anmeldung). Schlägt beides fehl, gilt das Onboarding als
+    /// erledigt, damit niemand durch einen Netzfehler erneut hindurch muss.
+    static func onboardingCompleted(repository: UserRepository, userID: UUID, token: String) async -> Bool {
+        for attempt in 0..<2 {
+            if let completed = try? await repository.isOnboardingCompleted(userID: userID, token: token) { return completed }
+            if attempt == 0 { try? await Task.sleep(for: .seconds(1)) }
+        }
+        return true
     }
 
     private func finish() async {
