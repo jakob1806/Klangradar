@@ -1,9 +1,28 @@
 {
   "_hinweis": "Erstellt von Claude Code. Bei jedem Release mit Neuerungen hier pflegen und die id ändern: Die App zeigt den Inhalt einmal pro id als 'Neu in Klangradar', upload-testflight.sh übernimmt ihn als TestFlight-Testhinweis. Ton: kurz, sachlich, ganze Sätze, keine Aufzählungsflut.",
-  "id": "2026-10-28-konzert-abos",
+  "id": "2026-10-28-freunde-social",
   "title": "Neu in Klangradar",
-  "intro": "Konzert-Abos lassen sich jetzt richtig nutzen, und Klangradar Plus ist zu haben, mit sieben Tagen zum Ausprobieren.",
+  "intro": "Mit Freunden ins Konzert ist jetzt einfacher, Konzert-Abos lassen sich richtig nutzen, und Klangradar Plus ist zu haben.",
   "sections": [
+    {
+      "title": "Freunde",
+      "symbol": "person.2.fill",
+      "items": [
+        "Ein Tipp auf einen Freund öffnet jetzt direkt sein Profil. Vorher landete man erst nach einem Zurück dort.",
+        "Profile sind neu gestaltet. Komponist:innen, die ihr beide gern hört, sind markiert."
+      ]
+    },
+    {
+      "title": "Gemeinsam ins Konzert",
+      "symbol": "figure.2",
+      "items": [
+        "Bei Konzerten deiner Freunde tippst du auf „Ich komme mit“. Ihr habt dann einen gemeinsamen Plan, und dein Freund bekommt Bescheid.",
+        "Unter „Nimm jemanden mit“ schlägt Klangradar Freunde vor, die zu deinen gemerkten Konzerten passen.",
+        "Im Nachklang kannst du Bewertungen deiner Freunde mit Applaus würdigen und darauf antworten.",
+        "Im Profil eines Freundes siehst du euer gemeinsames Konzertjahr.",
+        "Mit Gruppen behältst du Chor, Abo-Nachbarn oder Opern-Clique im Blick und lädst alle auf einmal ein."
+      ]
+    },
     {
       "title": "Konzert-Abos",
       "symbol": "rectangle.stack.fill",

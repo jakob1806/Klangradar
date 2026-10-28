@@ -43,7 +43,6 @@ struct FindFriendsView: View {
         .navigationTitle("Freunde finden")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fertig") { dismiss() } } }
-        .navigationDestination(for: ProfileRoute.self) { UserProfileView(userID: $0.id) }
         .task { await loadSuggestions() }
     }
 
@@ -127,7 +126,7 @@ struct FindFriendsView: View {
 
     private func personRow(_ person: SocialPerson, source: String) -> some View {
         HStack(spacing: 12) {
-            NavigationLink(value: ProfileRoute(id: person.id)) {
+            NavigationLink { UserProfileView(userID: person.id) } label: {
                 HStack(spacing: 12) {
                     SocialAvatar(name: person.name, url: person.avatarURL, size: 44)
                     VStack(alignment: .leading, spacing: 2) {

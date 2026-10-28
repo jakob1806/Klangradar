@@ -17,6 +17,11 @@ enum FriendsHubTab: String, CaseIterable, Identifiable {
 }
 
 /// Freunde-Bereich: Aktivität, Konzertpläne, Freunde & Anfragen.
+/// Profile und Pläne werden direkt verlinkt (NavigationLink mit Ziel), nicht
+/// über navigationDestination: FriendsView liegt mal als Unterseite im
+/// Profil-Stapel, mal in einem eigenen Sheet. Als Unterseite registrierte
+/// Ziele schoben Profile doppelt auf (Nutzermeldung 27.10.2026: "Endlosschleife,
+/// erst nach Zurück kommt das Profil").
 struct FriendsView: View {
     @ObservedObject var auth: AuthStore
     let repository: UserRepository?
@@ -35,6 +40,8 @@ struct FriendsView: View {
     @State private var codeInput = ""
     @State private var showsFindFriends = false
     @State private var showsSettings = false
+    /// Lädt die Social-Abschnitte (Nachklang, Buddys, Gruppen) mit neu.
+    @State private var reloadToken = 0
 
     var body: some View {
         Group {
@@ -69,12 +76,6 @@ struct FriendsView: View {
         .sheet(isPresented: $showsSettings) {
             NavigationStack { SocialSettingsView() }
         }
-        .navigationDestination(for: PlanRoute.self) { route in
-            PlanDetailView(planID: route.id) { await load() }
-        }
-        .navigationDestination(for: ProfileRoute.self) { route in
-            UserProfileView(userID: route.id)
-        }
         .task {
             tab = initialTab
             await load()
@@ -98,8 +99,10 @@ struct FriendsView: View {
                     circleSection
                     if !incomingRequests.isEmpty { requestsSection }
                     plansSection.id(FriendsHubTab.plans)
+                    BuddySection(reloadToken: reloadToken)
                     goingSection.id(FriendsHubTab.activity)
-                    if !ratings.isEmpty { echoSection }
+                    GroupsSection(reloadToken: reloadToken)
+                    EchoSection(reloadToken: reloadToken)
                     ticketSection.id(FriendsHubTab.friends)
                 }
                 .padding(.vertical, 12)
@@ -115,7 +118,6 @@ struct FriendsView: View {
     }
 
     private var incomingRequests: [FriendRequest] { requests.filter(\.incoming) }
-    private var ratings: [ActivityItem] { activity.filter { $0.kind == .rated && $0.stars != nil } }
 
     /// Freunde, die zum selben Konzert gehen, auf einem Plakat zusammengefasst.
     private var goingGroups: [FriendsGoingGroup] {
@@ -164,7 +166,7 @@ struct FriendsView: View {
                     }
                     .buttonStyle(.plain)
                     ForEach(friends) { friend in
-                        NavigationLink(value: ProfileRoute(id: friend.id)) {
+                        NavigationLink { UserProfileView(userID: friend.id) } label: {
                             FriendCircleTile(title: friend.name.split(separator: " ").first.map(String.init) ?? friend.name, badge: friend.upcomingCount > 0 ? "\(friend.upcomingCount)" : nil) {
                                 SocialAvatar(name: friend.name, url: friend.avatarURL, size: 68)
                             }
@@ -192,7 +194,7 @@ struct FriendsView: View {
             VStack(spacing: 0) {
                 ForEach(incomingRequests) { request in
                     HStack(spacing: 12) {
-                        NavigationLink(value: ProfileRoute(id: request.person.id)) {
+                        NavigationLink { UserProfileView(userID: request.person.id) } label: {
                             HStack(spacing: 12) {
                                 SocialAvatar(name: request.person.name, url: request.person.avatarURL, size: 46)
                                 VStack(alignment: .leading, spacing: 2) {
@@ -244,7 +246,7 @@ struct FriendsView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(spacing: 14) {
                         ForEach(sortedPlans) { plan in
-                            NavigationLink(value: PlanRoute(id: plan.id)) { PlanPosterCard(plan: plan) }
+                            NavigationLink { PlanDetailView(planID: plan.id) { await load() } } label: { PlanPosterCard(plan: plan) }
                                 .buttonStyle(.plain)
                         }
                     }
@@ -277,20 +279,6 @@ struct FriendsView: View {
             } else {
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)], spacing: 18) {
                     ForEach(groups) { group in FriendsGoingPoster(group: group) }
-                }
-                .padding(.horizontal, KlangradarTheme.pagePadding)
-            }
-        }
-    }
-
-    // MARK: Nachklang
-
-    private var echoSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            sectionTitle("Nachklang", "Wie es deinen Freunden gefallen hat")
-            ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(alignment: .top, spacing: 14) {
-                    ForEach(ratings) { item in EchoQuoteCard(item: item) }
                 }
                 .padding(.horizontal, KlangradarTheme.pagePadding)
             }
@@ -343,6 +331,7 @@ struct FriendsView: View {
         activity = await activityRows ?? []
         plans = await planRows ?? []
         isLoading = false
+        reloadToken += 1
         await SocialStore.shared.refresh()
         if let pending = deepLinks.pendingFriendCode {
             deepLinks.pendingFriendCode = nil
@@ -377,8 +366,6 @@ struct FriendsView: View {
     }
 }
 
-struct PlanRoute: Hashable { let id: UUID }
-struct ProfileRoute: Hashable { let id: UUID }
 
 struct FriendsGoingGroup: Identifiable, Hashable {
     var id: UUID { event.id }
@@ -516,35 +503,6 @@ private struct FriendsGoingPoster: View {
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
-    }
-}
-
-/// Bewertung eines Freundes als Zitat: großes Anführungszeichen, Sterne,
-/// Konzert klein darunter.
-private struct EchoQuoteCard: View {
-    let item: ActivityItem
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("“").font(.system(size: 54, weight: .regular, design: .serif)).foregroundStyle(KlangradarTheme.accent).frame(height: 30, alignment: .top)
-            Text(item.comment ?? "\(item.stars ?? 0) von 5 Sternen")
-                .font(.system(.body, design: .serif)).italic()
-                .lineLimit(5)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            Spacer(minLength: 0)
-            StarRating(stars: .constant(item.stars ?? 0), size: 12, editable: false)
-            HStack(spacing: 8) {
-                SocialAvatar(name: item.person.name, url: item.person.avatarURL, size: 26)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(item.person.name).font(.caption.weight(.semibold))
-                    Text(item.event.title).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
-                }
-            }
-        }
-        .padding(18)
-        .frame(width: 250, height: 230, alignment: .topLeading)
-        .background(Color(uiColor: .secondarySystemBackground), in: .rect(cornerRadius: 22, style: .continuous))
-        .onTapGesture { DeepLinkRouter.shared.handle(route: "/event/\(item.event.slug)") }
     }
 }
 

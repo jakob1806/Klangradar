@@ -35,6 +35,15 @@ export function socialMessage(item: SocialItem): SocialMessage | null {
       return { title: "Geteilte Liste", body: `${who} hat die Liste ${quote(item.listName)} mit dir geteilt.`, route: "/friends" };
     case "friend_also_attending":
       return { title: "Ihr seid zusammen dort", body: `${who} geht auch zu ${quote(item.eventTitle)}.`, route: eventRoute };
+    // Social-Ausbau 28.10.2026
+    case "joins_you":
+      return { title: `${who} kommt mit`, body: `${who} geht mit dir zu ${quote(item.eventTitle)}.`, route: "/plans" };
+    case "rating_applause":
+      return { title: "Applaus", body: `${who} applaudiert deiner Bewertung von ${quote(item.eventTitle)}.`, route: "/friends" };
+    case "rating_comment":
+      return { title: `${who} hat kommentiert`, body: `Zu deiner Bewertung von ${quote(item.eventTitle)}.`, route: "/friends" };
+    case "group_added":
+      return { title: "Neue Gruppe", body: `${who} hat dich zu einer Gruppe hinzugefügt.`, route: "/friends" };
     default:
       return null;
   }
