@@ -53,4 +53,5 @@ doppelt gebaute Features (Coach vs. Personal Concierge), ein komplett
 <!-- Neue Einträge oben anfügen, alte nach Abschluss entfernen. -->
 | Claude | 2026-10-29 | claude/abos-profil-werkeinfuehrung | Abo-Bereich im Profil + Ensembleseite, Abo-Bildausschnitt, Fertig-Button Stadtwechsler, Werkeinführungen über Wikidata, Admin-Seite /werkeinfuehrungen |
 | Claude | 2026-10-29 | claude/dashboard-erweiterungen | Admin: /abos, /datenluecken, /bekanntheit, /moderation, /plus, Einreichungen unter /werkeinfuehrungen; Veranstalter: Abos, Tickets & Preise, Werkeinführungen, Besetzungsänderung, Analytics-Trichter/CSV, Publikum |
+| Claude | 2026-10-29 | claude/admin-startseite | Admin-Startseite klangradar.com/admin, Login-Standardziel /admin, NAV_GROUPS in nav-groups.ts |
 | Claude | 2026-10-28 | claude/onboarding-top-vorschlaege | Onboarding: Folgen-Vorschläge nach Bekanntheits-Score (Wikipedia-Aufrufe), Genre-Kacheln, kleinere Suchtreffer-Kacheln |

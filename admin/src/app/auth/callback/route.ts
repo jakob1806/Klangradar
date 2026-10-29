@@ -9,7 +9,7 @@ import { createClient } from "@/lib/supabase/server";
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  const redirectTo = request.cookies.get("post_login_redirect")?.value ?? "/events";
+  const redirectTo = request.cookies.get("post_login_redirect")?.value ?? "/admin";
 
   if (code) {
     const supabase = await createClient();

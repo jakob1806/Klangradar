@@ -17,7 +17,7 @@ import { createClient } from "@/lib/supabase/client";
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get("redirectTo") ?? "/events";
+  const redirectTo = searchParams.get("redirectTo") ?? "/admin";
   const isOrganizerLogin = redirectTo.startsWith("/veranstalter") || redirectTo.startsWith("/einladung");
 
   const [step, setStep] = useState<"email" | "code">("email");
