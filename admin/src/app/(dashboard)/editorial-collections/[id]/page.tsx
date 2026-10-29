@@ -5,6 +5,7 @@ import { deleteCollection, updateCollection } from "../actions";
 import { CollectionForm, type CollectionFormValues } from "../collection-form";
 import { CoverImagePicker } from "./cover-image-picker";
 import { EventPicker, type CollectionEvent } from "./event-picker";
+import { RulePicker, type CollectionRule } from "./rule-picker";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,7 @@ export default async function EditCollectionPage({
   const { id } = await params;
   const supabase = await createClient();
 
-  const [{ data, error }, { data: eventRows }] = await Promise.all([
+  const [{ data, error }, { data: eventRows }, { data: ruleRows }] = await Promise.all([
     supabase
       .from("editorial_collections")
       .select("title, slug, subtitle, description_de, cover_image_url, is_published, sort_order")
@@ -24,10 +25,14 @@ export default async function EditCollectionPage({
       .maybeSingle<CollectionFormValues & { cover_image_url: string | null }>(),
     supabase
       .from("editorial_collection_events")
-      .select("position, events(id, title, start_datetime, venues(name))")
+      .select("position, source, events(id, title, start_datetime, venues(name))")
       .eq("collection_id", id)
       .order("position", { ascending: true }),
+    supabase.rpc("admin_collection_rules", { p_collection_id: id }),
   ]);
+
+  const rules = (ruleRows ?? []) as CollectionRule[];
+
 
   if (error || !data) notFound();
 
@@ -42,6 +47,7 @@ export default async function EditCollectionPage({
         title: e.title,
         start_datetime: e.start_datetime,
         venueName: e.venues?.name ?? null,
+        automatic: r.source === "rule",
       };
     })
     .filter((e): e is CollectionEvent => e !== null);
@@ -59,7 +65,10 @@ export default async function EditCollectionPage({
         <CoverImagePicker collectionId={id} initialCoverUrl={data.cover_image_url} />
       </div>
       <div className="mt-10 border-t border-neutral-200 pt-8">
-        <EventPicker collectionId={id} initialEvents={events} />
+        <RulePicker collectionId={id} rules={rules} />
+      </div>
+      <div className="mt-10 border-t border-neutral-200 pt-8">
+        <EventPicker key={events.map((e) => e.id).join(",")} collectionId={id} initialEvents={events} />
       </div>
     </div>
   );

@@ -102,3 +102,13 @@ export async function resolvePersonDuplicatesAsDistinct(candidateIds: string[]):
   revalidatePath("/duplicates");
   return { completed: data?.length ?? 0 };
 }
+
+/** Erstellt von Claude Code (29.10.2026): eindeutige Fälle (gleiche
+ * Wikidata-ID, gleicher Name ohne widersprüchliche Lebensdaten) auf einmal
+ * zusammenführen; behalten wird jeweils der vollständigere Datensatz. */
+export async function mergeConfidentPersonDuplicates() {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("admin_auto_merge_person_duplicates");
+  if (error) throw new Error(error.message);
+  revalidatePath("/duplicates");
+}

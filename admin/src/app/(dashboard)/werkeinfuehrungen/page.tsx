@@ -104,7 +104,8 @@ export default async function WorkIntroductionsPage({ searchParams }: { searchPa
             <p className="mt-1 text-2xl font-semibold tabular-nums text-neutral-900">{coverage.pending.toLocaleString("de-DE")}</p>
             <p className="mt-0.5 text-xs text-neutral-500">Werke noch nicht geprüft</p>
             <form action={researchAllWorks} className="mt-3">
-              <SubmitButton pendingLabel="Läuft …">Jetzt 40 recherchieren</SubmitButton>
+              <SubmitButton pendingLabel="Starte …">Jetzt 40 recherchieren</SubmitButton>
+              <p className="mt-1.5 text-xs text-neutral-500">Läuft im Hintergrund, Ergebnisse nach etwa zwei Minuten.</p>
             </form>
           </div>
         </div>

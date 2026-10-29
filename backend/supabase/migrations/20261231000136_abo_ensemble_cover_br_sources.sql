@@ -11,6 +11,10 @@
 -- 3. Abo-Zuordnung täglich statt wöchentlich neu prüfen (Reihen werden auf
 --    den Seiten oft erst später eingetragen).
 
+-- Großzügiger Timeout für die Funktionswechsel; Sperren auf laufende
+-- Abfragen sollen nicht nach dem Standardlimit abbrechen.
+set statement_timeout = '10min';
+
 create or replace function public.subscription_ensemble_photo(p_subscription_id uuid)
 returns text language sql stable security definer set search_path = public as $$
   select en.photo_url
@@ -121,8 +125,9 @@ select cron.schedule('subscription-resync', '50 3 * * *',
        and (website_url ~* '(mphil|brso|rundfunkorchester|br-chor|m-k-o|gaertnerplatztheater|musikverein|wienersymphoniker)'
             or external_id ~* '(mphil|brso|rundfunkorchester|br-chor|m-k-o|gaertnerplatztheater|musikverein|wienersymphoniker)') $$);
 
--- Einmalig sofort: BR-Termine neu zuordnen (neue Reihen-Erkennung).
-update public.events set subscriptions_synced_at = null
- where start_datetime >= now() and (website_url ~* '(brso|rundfunkorchester|br-chor)' or external_id ~* '(brso|rundfunkorchester|br-chor)');
+-- Kein einmaliges Update der Termine hier: Der erste Deploy (29.10.2026)
+-- lief beim Zurücksetzen von events.subscriptions_synced_at in den
+-- Statement-Timeout (Sperre durch laufende Importe). Die Neuzuordnung
+-- übernimmt der tägliche Lauf oben.
 
 notify pgrst, 'reload schema';
