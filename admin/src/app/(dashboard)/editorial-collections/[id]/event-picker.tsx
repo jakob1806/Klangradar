@@ -20,6 +20,7 @@ export interface CollectionEvent {
   title: string;
   start_datetime: string;
   venueName: string | null;
+  automatic: boolean;
 }
 
 function formatDate(iso: string) {
@@ -66,6 +67,7 @@ export function EventPicker({
             title: event.title,
             start_datetime: event.start_datetime,
             venueName: event.venues?.name ?? null,
+            automatic: false,
           },
         ]);
       } catch (err) {
@@ -103,6 +105,7 @@ export function EventPicker({
                 — {formatDate(e.start_datetime)}
                 {e.venueName ? ` · ${e.venueName}` : ""}
               </span>
+              {e.automatic && <span className="ml-2 rounded bg-[#2D2A6E]/10 px-1.5 py-0.5 text-[11px] text-[#2D2A6E]">automatisch</span>}
             </span>
             <button
               type="button"

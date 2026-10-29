@@ -89,6 +89,12 @@ export async function researchWork(id: string) {
 /** Recherche für alle noch nicht geprüften Werke anstoßen. Ein Lauf
  * bearbeitet bis zu 40 Werke; der Rest läuft automatisch alle 5 Minuten. */
 export async function researchAllWorks() {
-  await callWorkIntroduction({ limit: 40 });
+  // Im Hintergrund über pg_net anstoßen (wie der 5-Minuten-Cron). Vorher
+  // wartete die Server Action auf den ganzen Lauf (bis ~2 Minuten) und lief
+  // in den Vercel-Timeout → Fehlerseite (Nutzermeldung 29.10.2026).
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("admin_trigger_work_introductions");
+  if (error) throw new Error(error.message);
   revalidatePath("/works");
+  revalidatePath("/werkeinfuehrungen");
 }

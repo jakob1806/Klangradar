@@ -120,12 +120,25 @@ export async function addEventToCollection(collectionId: string, eventId: string
       { onConflict: "collection_id,event_id", ignoreDuplicates: true },
     );
   if (error) throw new Error(error.message);
+  // Manuell wieder hinzugefügt: ein früherer Ausschluss gilt nicht mehr.
+  await supabase.from("editorial_collection_exclusions").delete().eq("collection_id", collectionId).eq("event_id", eventId);
 
   revalidatePath(`/editorial-collections/${collectionId}`);
 }
 
 export async function removeEventFromCollection(collectionId: string, eventId: string) {
   const supabase = await createClient();
+  // Automatisch hinzugefügte Termine merken, damit die Regel sie nicht
+  // beim nächsten Abgleich wieder einträgt.
+  const { data: row } = await supabase
+    .from("editorial_collection_events")
+    .select("source")
+    .eq("collection_id", collectionId)
+    .eq("event_id", eventId)
+    .maybeSingle();
+  if (row?.source === "rule") {
+    await supabase.from("editorial_collection_exclusions").upsert({ collection_id: collectionId, event_id: eventId }, { onConflict: "collection_id,event_id", ignoreDuplicates: true });
+  }
   const { error } = await supabase
     .from("editorial_collection_events")
     .delete()
@@ -133,5 +146,43 @@ export async function removeEventFromCollection(collectionId: string, eventId: s
     .eq("event_id", eventId);
   if (error) throw new Error(error.message);
 
+  revalidatePath(`/editorial-collections/${collectionId}`);
+}
+
+// Erstellt von Claude Code (Nutzerwunsch 29.10.2026): Sammlungen automatisch
+// befüllen — Regel "alle Konzerte mit Person/Ensemble/Spielstätte X".
+
+export type RuleSearchResult = { entity_type: "person" | "ensemble" | "venue"; entity_id: string; label: string; detail: string | null; upcoming: number };
+
+export async function searchCollectionRuleEntities(query: string): Promise<RuleSearchResult[]> {
+  if (query.trim().length < 2) return [];
+  const supabase = await createClient();
+  const { data } = await supabase.rpc("admin_collection_rule_search", { p_query: query.trim() });
+  return (data ?? []) as RuleSearchResult[];
+}
+
+export async function addCollectionRule(collectionId: string, entityType: string, entityId: string): Promise<{ added: number }> {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("editorial_collection_rules")
+    .upsert({ collection_id: collectionId, entity_type: entityType, entity_id: entityId }, { onConflict: "collection_id,entity_type,entity_id", ignoreDuplicates: true });
+  if (error) throw new Error(error.message);
+  const { data: added, error: syncError } = await supabase.rpc("sync_editorial_collection_rules", { p_collection_id: collectionId });
+  if (syncError) throw new Error(syncError.message);
+  revalidatePath(`/editorial-collections/${collectionId}`);
+  return { added: Number(added ?? 0) };
+}
+
+export async function removeCollectionRule(collectionId: string, entityType: string, entityId: string) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("editorial_collection_rules")
+    .delete()
+    .eq("collection_id", collectionId)
+    .eq("entity_type", entityType)
+    .eq("entity_id", entityId);
+  if (error) throw new Error(error.message);
+  const { error: syncError } = await supabase.rpc("sync_editorial_collection_rules", { p_collection_id: collectionId });
+  if (syncError) throw new Error(syncError.message);
   revalidatePath(`/editorial-collections/${collectionId}`);
 }

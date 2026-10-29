@@ -68,5 +68,9 @@ NOTES_DIR="$HOME/.klangradar-whatsnew"
 rm -rf "$NOTES_DIR"; mkdir -p "$NOTES_DIR/Scripts" "$NOTES_DIR/KlangradarNative/Resources"
 cp Scripts/testflight_whats_new.rb "$NOTES_DIR/Scripts/"
 cp KlangradarNative/Resources/WhatsNew.json "$NOTES_DIR/KlangradarNative/Resources/"
-nohup ruby "$NOTES_DIR/Scripts/testflight_whats_new.rb" "$BUILD_NUMBER" > /tmp/klangradar-whatsnew.log 2>&1 &
+# launchd startet mit dem System-Ruby 2.6 und ohne UTF-8-Locale – das Skript
+# braucht Ruby ≥ 3 (Endless-Methoden) und liest Umlaute aus WhatsNew.json.
+# Deshalb Homebrew-Ruby bevorzugen und die Locale setzen (Claude Code, 29.10.2026).
+RUBY_BIN="$(command -v /opt/homebrew/opt/ruby/bin/ruby /usr/local/opt/ruby/bin/ruby ruby 2>/dev/null | head -1)"
+LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 nohup "$RUBY_BIN" "$NOTES_DIR/Scripts/testflight_whats_new.rb" "$BUILD_NUMBER" > /tmp/klangradar-whatsnew.log 2>&1 &
 echo "📝 TestFlight-Testhinweis wird gesetzt, sobald der Build verarbeitet ist (/tmp/klangradar-whatsnew.log)."

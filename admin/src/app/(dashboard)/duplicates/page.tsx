@@ -4,10 +4,12 @@ import { createClient } from "@/lib/supabase/server";
 import { formatMunichDateTime } from "@/lib/munich-time";
 import { resolveDuplicateAsDistinct, resolveDuplicateAsMerged, resolveDuplicatesAsDistinct } from "./actions";
 import {
+  mergeConfidentPersonDuplicates,
   resolvePersonDuplicateAsDistinct,
   resolvePersonDuplicateAsMerged,
   resolvePersonDuplicatesAsDistinct,
 } from "./persons/actions";
+import { ComparePair, type PairSide, type Signal } from "./compare-pair";
 import {
   resolveEnsembleDuplicateAsDistinct,
   resolveEnsembleDuplicateAsMerged,
@@ -211,21 +213,6 @@ function WorkCard({ label, work, keepAction }: { label: string; work: CandidateW
 // Personen (inkl. Namensvetter-Kandidaten aus entity_candidates)
 // ---------------------------------------------------------------------------
 
-interface CandidatePerson {
-  id: string;
-  full_name: string;
-  birth_date: string | null;
-  death_date: string | null;
-  biography_de: string | null;
-}
-interface PersonCandidateRow {
-  id: string;
-  created_at: string;
-  ai_recommends_merge: boolean | null;
-  ai_reasoning: string | null;
-  person_a: CandidatePerson | null;
-  person_b: CandidatePerson | null;
-}
 interface MergeCandidateRow {
   id: string;
   name: string;
@@ -233,19 +220,63 @@ interface MergeCandidateRow {
   discovery_context: { possible_match?: { id: string; name: string; similarity: number } } | null;
 }
 
+// Erweiterung (Claude Code, 29.10.2026): Prüfansicht aus
+// admin_person_duplicate_review() — sortiert nach Konfidenz, mit Signalen.
+type PersonSideData = {
+  id: string; name: string; photo_url: string | null; birth_date: string | null; death_date: string | null;
+  wikidata_id: string | null; instrument: string | null; roles: string[] | null; biography: string | null;
+  events: number; upcoming: number; works: number; followers: number;
+};
+interface PersonReviewRow {
+  candidate_id: string; reason: string | null; confidence: number; ai_recommends_merge: boolean | null; ai_reasoning: string | null;
+  created_at: string; a: PersonSideData; b: PersonSideData; shared_events: number; shared_ensembles: number;
+}
+
+const PERSON_REASON: Record<string, string> = {
+  same_wikidata: "gleiche Wikidata-ID",
+  exact_name: "gleicher Name",
+  extra_names: "zusätzliche Vornamen",
+  similar_name: "Schreibvariante",
+  surname_only: "nur Nachname",
+};
+
+const year = (date: string | null) => (date ? date.slice(0, 4) : null);
+
+function personSide(person: PersonSideData): PairSide {
+  const life = person.birth_date || person.death_date ? `${year(person.birth_date) ?? "?"}–${year(person.death_date) ?? ""}` : null;
+  return {
+    id: person.id,
+    name: person.name,
+    photo_url: person.photo_url,
+    wikidata_id: person.wikidata_id,
+    facts: [life, person.instrument ?? person.roles?.join(", ") ?? null].filter((value): value is string => Boolean(value)),
+    stats: [
+      { label: "Termine", value: person.events },
+      { label: "kommend", value: person.upcoming },
+      ...(person.works > 0 ? [{ label: "Werke", value: person.works }] : []),
+      { label: "Follower", value: person.followers },
+    ],
+    description: person.biography,
+    href: `/persons/${person.id}`,
+  };
+}
+
+function personSignals(row: PersonReviewRow): Signal[] {
+  const signals: Signal[] = [];
+  if (row.reason && PERSON_REASON[row.reason]) signals.push({ label: PERSON_REASON[row.reason], tone: row.reason === "same_wikidata" || row.reason === "exact_name" ? "good" : "neutral" });
+  if (row.a.wikidata_id && row.b.wikidata_id && row.a.wikidata_id === row.b.wikidata_id && row.reason !== "same_wikidata") signals.push({ label: "gleiche Wikidata-ID", tone: "good" });
+  if (row.a.birth_date && row.b.birth_date) {
+    signals.push(year(row.a.birth_date) === year(row.b.birth_date) ? { label: "Geburtsjahr gleich", tone: "good" } : { label: "Geburtsjahr abweichend", tone: "bad" });
+  }
+  if (row.shared_events > 0) signals.push({ label: `${row.shared_events}× im selben Konzert`, tone: "bad" });
+  if (row.shared_ensembles > 0) signals.push({ label: "gleiche Ensembles", tone: "good" });
+  if (row.ai_recommends_merge) signals.push({ label: "KI: zusammenführen", tone: "good" });
+  return signals;
+}
+
 async function PersonTab({ supabase }: { supabase: Supa }) {
-  const [{ data, error }, { data: mergeCandidates }] = await Promise.all([
-    supabase
-      .from("person_duplicate_candidates")
-      .select(
-        `id, created_at, ai_recommends_merge, ai_reasoning,
-         person_a:persons!person_duplicate_candidates_person_a_id_fkey(id, full_name, birth_date, death_date, biography_de),
-         person_b:persons!person_duplicate_candidates_person_b_id_fkey(id, full_name, birth_date, death_date, biography_de)`,
-      )
-      .eq("status", "pending")
-      .order("ai_recommends_merge", { ascending: false, nullsFirst: false })
-      .order("created_at", { ascending: false })
-      .returns<PersonCandidateRow[]>(),
+  const [{ data: reviewData, error }, { data: mergeCandidates }] = await Promise.all([
+    supabase.rpc("admin_person_duplicate_review"),
     supabase
       .from("entity_candidates")
       .select("id, name, created_at, discovery_context")
@@ -255,6 +286,8 @@ async function PersonTab({ supabase }: { supabase: Supa }) {
       .order("created_at", { ascending: false })
       .returns<MergeCandidateRow[]>(),
   ]);
+  const data = (reviewData ?? []) as PersonReviewRow[];
+  const confident = data.filter((row) => row.confidence >= 90).length;
 
   if (error) return <ErrorNote message={error.message} />;
 
@@ -272,40 +305,38 @@ async function PersonTab({ supabase }: { supabase: Supa }) {
       )}
 
       <section>
-        <h2 className="text-sm font-semibold text-neutral-700">Bestehende Personen-Duplikate</h2>
-        {!data?.length ? (
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold text-neutral-700">Bestehende Personen-Duplikate</h2>
+            <p className="text-xs text-neutral-500">
+              Paare mit unterschiedlicher Wikidata-ID oder abweichenden Lebensdaten werden nicht mehr vorgeschlagen. Sortiert nach Konfidenz.
+            </p>
+          </div>
+          {confident > 0 && (
+            <InstantButton action={mergeConfidentPersonDuplicates} pendingLabel="Führe zusammen…" className="rounded-lg bg-[#2D2A6E] px-3 py-2 text-sm font-medium text-white hover:bg-[#38358a] disabled:opacity-50">
+              Eindeutige zusammenführen ({confident})
+            </InstantButton>
+          )}
+        </div>
+        {!data.length ? (
           <div className="mt-3"><EmptyNote label="Personen-Duplikate" /></div>
         ) : (
           <div className="mt-3">
-            <DuplicateBulkSelection ids={data.map((c) => c.id)} onDismissMany={resolvePersonDuplicatesAsDistinct}>
-              <div className="flex flex-col gap-3">
-                {data.map((candidate) => (
-                  <div key={candidate.id} className="rounded-xl border border-black/[0.06] bg-white p-4 shadow-sm">
-                    <div className="flex items-center justify-between gap-4">
-                      <span className="text-xs text-neutral-400">Gefunden {formatDate(candidate.created_at)}</span>
-                      <DuplicateSelectCheckbox id={candidate.id} label={candidate.person_a?.full_name ?? "Personen-Duplikat"} />
-                    </div>
-                    {candidate.ai_recommends_merge && (
-                      <p className="mt-2 rounded bg-emerald-50 px-2 py-1 text-xs text-emerald-800">
-                        ✓ KI empfiehlt Zusammenführen{candidate.ai_reasoning ? `: ${candidate.ai_reasoning}` : ""}
-                      </p>
-                    )}
-                    {candidate.ai_recommends_merge === false && candidate.ai_reasoning && (
-                      <p className="mt-2 rounded bg-neutral-50 px-2 py-1 text-xs text-neutral-500">KI ist sich nicht sicher: {candidate.ai_reasoning}</p>
-                    )}
-                    <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      <PersonCard person={candidate.person_a} keepAction={candidate.person_a && candidate.person_b ? resolvePersonDuplicateAsMerged.bind(null, candidate.id, candidate.person_a.id) : undefined} />
-                      <PersonCard person={candidate.person_b} keepAction={candidate.person_a && candidate.person_b ? resolvePersonDuplicateAsMerged.bind(null, candidate.id, candidate.person_b.id) : undefined} />
-                    </div>
-                    <p className="mt-2 text-xs text-neutral-400">
-                      „Diese Version behalten“ löscht die jeweils andere Person, Verknüpfungen wandern auf die behaltene Version.
-                    </p>
-                    <div className="mt-3 flex items-center justify-end gap-4">
-                      <InstantButton action={resolvePersonDuplicateAsDistinct.bind(null, candidate.id)} pendingLabel="Speichere…" className="text-sm font-medium text-neutral-600 hover:text-neutral-900 disabled:opacity-50">
-                        Als unterschiedlich markieren
-                      </InstantButton>
-                    </div>
-                  </div>
+            <DuplicateBulkSelection ids={data.map((c) => c.candidate_id)} onDismissMany={resolvePersonDuplicatesAsDistinct}>
+              <div className="flex flex-col gap-2">
+                {data.map((row) => (
+                  <ComparePair
+                    key={row.candidate_id}
+                    id={row.candidate_id}
+                    confidence={row.confidence}
+                    signals={personSignals(row)}
+                    note={row.ai_reasoning}
+                    a={personSide(row.a)}
+                    b={personSide(row.b)}
+                    keepA={resolvePersonDuplicateAsMerged.bind(null, row.candidate_id, row.a.id)}
+                    keepB={resolvePersonDuplicateAsMerged.bind(null, row.candidate_id, row.b.id)}
+                    distinct={resolvePersonDuplicateAsDistinct.bind(null, row.candidate_id)}
+                  />
                 ))}
               </div>
             </DuplicateBulkSelection>
@@ -316,56 +347,49 @@ async function PersonTab({ supabase }: { supabase: Supa }) {
   );
 }
 
-function PersonCard({ person, keepAction }: { person: CandidatePerson | null; keepAction?: () => Promise<void> }) {
-  if (!person) return <div className="border border-neutral-300 bg-neutral-50 p-3 text-sm text-neutral-400">Person nicht mehr vorhanden.</div>;
-  return (
-    <div className="flex flex-col border border-neutral-300 bg-neutral-50 p-3">
-      <p className="text-sm font-medium text-neutral-900">{person.full_name}</p>
-      <p className="mt-0.5 text-xs text-neutral-500">
-        {person.birth_date ? `* ${person.birth_date}` : "Geburtsdatum unbekannt"}
-        {person.death_date ? ` · † ${person.death_date}` : ""}
-      </p>
-      {person.biography_de && <p className="mt-2 text-xs text-neutral-600">{person.biography_de}</p>}
-      {keepAction && (
-        <InstantButton action={keepAction} pendingLabel="Führe zusammen…" className="mt-2 self-start text-xs font-medium text-red-600 hover:text-red-800 disabled:opacity-50">
-          Diese Version behalten
-        </InstantButton>
-      )}
-    </div>
-  );
-}
-
 // ---------------------------------------------------------------------------
 // Ensemble (inkl. Namensvetter-Kandidaten aus entity_candidates)
 // ---------------------------------------------------------------------------
 
-interface CandidateEnsemble {
-  id: string;
-  name: string;
-  type: string;
-  founded_year: number | null;
-  description_de: string | null;
+// Erweiterung (Claude Code, 29.10.2026): Prüfansicht aus
+// admin_ensemble_duplicate_review().
+type EnsembleSideData = {
+  id: string; name: string; type: string | null; photo_url: string | null; founded_year: number | null;
+  wikidata_id: string | null; description: string | null; kind: string; events: number; upcoming: number; followers: number;
+};
+interface EnsembleReviewRow {
+  candidate_id: string; confidence: number; same_kind: boolean; created_at: string; a: EnsembleSideData; b: EnsembleSideData;
 }
-interface EnsembleCandidateRow {
-  id: string;
-  similarity_score: number | null;
-  created_at: string;
-  ensemble_a: CandidateEnsemble | null;
-  ensemble_b: CandidateEnsemble | null;
+
+function ensembleSide(ensemble: EnsembleSideData): PairSide {
+  return {
+    id: ensemble.id,
+    name: ensemble.name,
+    photo_url: ensemble.photo_url,
+    wikidata_id: ensemble.wikidata_id,
+    facts: [ensemble.type, ensemble.founded_year ? `gegr. ${ensemble.founded_year}` : null].filter((value): value is string => Boolean(value)),
+    stats: [
+      { label: "Termine", value: ensemble.events },
+      { label: "kommend", value: ensemble.upcoming },
+      { label: "Follower", value: ensemble.followers },
+    ],
+    description: ensemble.description,
+    href: `/ensembles/${ensemble.id}`,
+  };
+}
+
+function ensembleSignals(row: EnsembleReviewRow): Signal[] {
+  const signals: Signal[] = [];
+  if (row.a.wikidata_id && row.a.wikidata_id === row.b.wikidata_id) signals.push({ label: "gleiche Wikidata-ID", tone: "good" });
+  if (row.a.name.toLocaleLowerCase("de") === row.b.name.toLocaleLowerCase("de")) signals.push({ label: "gleicher Name", tone: "good" });
+  signals.push(row.same_kind ? { label: row.a.kind ? `beide ${row.a.kind.replace(/,/g, " / ")}` : "gleiche Art", tone: "neutral" } : { label: "unterschiedliche Art", tone: "bad" });
+  if (row.a.founded_year && row.b.founded_year && row.a.founded_year === row.b.founded_year) signals.push({ label: "gleiches Gründungsjahr", tone: "good" });
+  return signals;
 }
 
 async function EnsembleTab({ supabase }: { supabase: Supa }) {
-  const [{ data, error }, { data: mergeCandidates }] = await Promise.all([
-    supabase
-      .from("ensemble_duplicate_candidates")
-      .select(
-        `id, similarity_score, created_at,
-         ensemble_a:ensembles!ensemble_duplicate_candidates_ensemble_a_id_fkey(id, name, type, founded_year, description_de),
-         ensemble_b:ensembles!ensemble_duplicate_candidates_ensemble_b_id_fkey(id, name, type, founded_year, description_de)`,
-      )
-      .eq("status", "pending")
-      .order("similarity_score", { ascending: false })
-      .returns<EnsembleCandidateRow[]>(),
+  const [{ data: reviewData, error }, { data: mergeCandidates }] = await Promise.all([
+    supabase.rpc("admin_ensemble_duplicate_review"),
     supabase
       .from("entity_candidates")
       .select("id, name, created_at, discovery_context")
@@ -375,6 +399,7 @@ async function EnsembleTab({ supabase }: { supabase: Supa }) {
       .order("created_at", { ascending: false })
       .returns<MergeCandidateRow[]>(),
   ]);
+  const data = (reviewData ?? []) as EnsembleReviewRow[];
 
   if (error) return <ErrorNote message={error.message} />;
 
@@ -393,59 +418,31 @@ async function EnsembleTab({ supabase }: { supabase: Supa }) {
 
       <section>
         <h2 className="text-sm font-semibold text-neutral-700">Bestehende Ensemble-Duplikate</h2>
-        {!data?.length ? (
+        <p className="text-xs text-neutral-500">Vorgeschlagen werden nur Ensembles derselben Art (Orchester, Chor, Ballett …) mit fast gleichem Namen oder gleicher Wikidata-ID.</p>
+        {!data.length ? (
           <div className="mt-3"><EmptyNote label="Ensemble-Duplikate" /></div>
         ) : (
           <div className="mt-3">
-            <DuplicateBulkSelection ids={data.map((c) => c.id)} onDismissMany={resolveEnsembleDuplicatesAsDistinct}>
-              <div className="flex flex-col gap-3">
-                {data.map((candidate) => (
-                  <div key={candidate.id} className="rounded-lg border border-neutral-200 bg-white p-4">
-                    <div className="flex items-center justify-between gap-4">
-                      <span className="text-xs text-neutral-400">
-                        Gefunden {formatDate(candidate.created_at)}
-                        {candidate.similarity_score != null ? ` · Ähnlichkeit ${(candidate.similarity_score * 100).toFixed(0)}%` : ""}
-                      </span>
-                      <DuplicateSelectCheckbox id={candidate.id} label={candidate.ensemble_a?.name ?? "Ensemble-Duplikat"} />
-                    </div>
-                    <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      <EnsembleCard ensemble={candidate.ensemble_a} keepAction={candidate.ensemble_a && candidate.ensemble_b ? resolveEnsembleDuplicateAsMerged.bind(null, candidate.id, candidate.ensemble_a.id) : undefined} />
-                      <EnsembleCard ensemble={candidate.ensemble_b} keepAction={candidate.ensemble_a && candidate.ensemble_b ? resolveEnsembleDuplicateAsMerged.bind(null, candidate.id, candidate.ensemble_b.id) : undefined} />
-                    </div>
-                    <p className="mt-2 text-xs text-neutral-400">
-                      „Diese Version behalten“ löscht das jeweils andere Ensemble, Verknüpfungen wandern auf die behaltene Version.
-                    </p>
-                    <div className="mt-3 flex items-center justify-end gap-4">
-                      <InstantButton action={resolveEnsembleDuplicateAsDistinct.bind(null, candidate.id)} pendingLabel="Speichere…" className="text-sm font-medium text-neutral-600 hover:text-neutral-900 disabled:opacity-50">
-                        Als unterschiedlich markieren
-                      </InstantButton>
-                    </div>
-                  </div>
+            <DuplicateBulkSelection ids={data.map((c) => c.candidate_id)} onDismissMany={resolveEnsembleDuplicatesAsDistinct}>
+              <div className="flex flex-col gap-2">
+                {data.map((row) => (
+                  <ComparePair
+                    key={row.candidate_id}
+                    id={row.candidate_id}
+                    confidence={row.confidence}
+                    signals={ensembleSignals(row)}
+                    a={ensembleSide(row.a)}
+                    b={ensembleSide(row.b)}
+                    keepA={resolveEnsembleDuplicateAsMerged.bind(null, row.candidate_id, row.a.id)}
+                    keepB={resolveEnsembleDuplicateAsMerged.bind(null, row.candidate_id, row.b.id)}
+                    distinct={resolveEnsembleDuplicateAsDistinct.bind(null, row.candidate_id)}
+                  />
                 ))}
               </div>
             </DuplicateBulkSelection>
           </div>
         )}
       </section>
-    </div>
-  );
-}
-
-function EnsembleCard({ ensemble, keepAction }: { ensemble: CandidateEnsemble | null; keepAction?: () => Promise<void> }) {
-  if (!ensemble) return <div className="rounded-md border border-neutral-100 bg-neutral-50 p-3 text-sm text-neutral-400">Ensemble nicht mehr vorhanden.</div>;
-  return (
-    <div className="flex flex-col rounded-md border border-neutral-100 bg-neutral-50 p-3">
-      <p className="text-sm font-medium text-neutral-900">{ensemble.name}</p>
-      <p className="mt-0.5 text-xs text-neutral-500">
-        {ensemble.type}
-        {ensemble.founded_year ? ` · gegründet ${ensemble.founded_year}` : ""}
-      </p>
-      {ensemble.description_de && <p className="mt-2 text-xs text-neutral-600">{ensemble.description_de}</p>}
-      {keepAction && (
-        <InstantButton action={keepAction} pendingLabel="Führe zusammen…" className="mt-2 self-start text-xs font-medium text-red-600 hover:text-red-800 disabled:opacity-50">
-          Diese Version behalten
-        </InstantButton>
-      )}
     </div>
   );
 }
