@@ -71,7 +71,8 @@ export function candidateTitles(title: string, composer: string | null): { lang:
 
 /** HTML-Entities und Anführungszeichen aus Quelltiteln glätten. */
 export function normalizeWorkTitle(title: string): string {
-  return title.replace(/&quot;/g, "\"").replace(/&amp;/g, "&").replace(/&#39;|&apos;/g, "'").replace(/\s+/g, " ").trim();
+  // &amp; zuletzt, sonst würde "&amp;quot;" doppelt entschlüsselt.
+  return title.replace(/&quot;/g, "\"").replace(/&#39;|&apos;/g, "'").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
 }
 
 /** Werkverzeichnisnummer vergleichbar machen: "KV 620" → "kv620",
