@@ -4,8 +4,14 @@ import { OrganizerEventForm, type OrganizerEventFormValues } from "../../organiz
 import { updateOrganizerEvent } from "../actions";
 import { EventImageUpload } from "../../event-image-upload";
 import { getEventOrganizerOptions } from "../../event-organizer-context";
+import { CastChangeCard } from "./cast-change-card";
 
 export const dynamic = "force-dynamic";
+
+// Besetzungsänderungen lassen sich nur für kommende Termine melden.
+function isUpcoming(iso: string) {
+  return Date.parse(iso) > Date.now();
+}
 
 interface EventDetailRow {
   id: string;
@@ -112,6 +118,11 @@ export default async function EditOrganizerEventPage({ params }: { params: Promi
         organizerLockedName={event.organizers?.name}
       />
       <div className="mt-8 max-w-2xl"><EventImageUpload eventId={event.id} userId={user!.id} /></div>
+      {isUpcoming(event.start_datetime) && (
+        <div className="mt-8 max-w-2xl">
+          <CastChangeCard eventId={event.id} />
+        </div>
+      )}
     </div>
   );
 }

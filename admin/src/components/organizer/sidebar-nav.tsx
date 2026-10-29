@@ -39,6 +39,9 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/veranstalter/events", label: "Meine Events" },
       { href: "/veranstalter/events/discover", label: "Entdecken" },
       { href: "/veranstalter/serien", label: "Serien" },
+      { href: "/veranstalter/abos", label: "Abos" },
+      { href: "/veranstalter/tickets", label: "Tickets & Preise" },
+      { href: "/veranstalter/werkeinfuehrungen", label: "Werkeinführungen" },
       { href: "/veranstalter/import", label: "Automatischer Import" },
     ],
   },
@@ -49,6 +52,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/veranstalter/promote", label: "Push & Promote" },
       { href: "/veranstalter/marketing", label: "Marketing-Tools" },
       { href: "/veranstalter/analytics", label: "Analytics" },
+      { href: "/veranstalter/publikum", label: "Publikum" },
     ],
   },
   {
