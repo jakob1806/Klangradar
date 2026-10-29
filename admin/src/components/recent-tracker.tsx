@@ -26,6 +26,20 @@ const DETAIL = /^\/([a-z-]+)\/([0-9a-f-]{36})\/?$/;
 
 // Feste Pfad-Präfixe je Bereich: der Link setzt sich nie aus gespeichertem
 // Text zusammen, nur aus dieser Tabelle plus der geprüften ID.
+const ID_CHARS = "0123456789abcdef-";
+
+/** Baut die ID Zeichen für Zeichen aus ID_CHARS neu auf — so stammt im Link
+ * kein einziges Zeichen direkt aus dem gespeicherten Text (CodeQL
+ * js/xss-through-dom). */
+function cleanId(raw: string): string {
+  let id = "";
+  for (const char of raw) {
+    const index = ID_CHARS.indexOf(char);
+    if (index >= 0) id += ID_CHARS.charAt(index);
+  }
+  return id;
+}
+
 const DETAIL_PATHS: Record<string, string> = Object.fromEntries(Object.keys(KINDS).map((key) => [key, `/${key}`]));
 
 /** Nur gültige interne Detailpfade (/bereich/uuid) — localStorage ist
@@ -45,7 +59,7 @@ export function readRecent(): RecentEntry[] {
       ? parsed.filter(isValidEntry).map((entry) => {
           const match = DETAIL.exec(entry.href)!;
           // href aus den geprüften Bestandteilen neu zusammensetzen.
-          return { href: `${DETAIL_PATHS[match[1]]}/${match[2]}`, title: entry.title.slice(0, 120), kind: KINDS[match[1]], at: entry.at };
+          return { href: `${DETAIL_PATHS[match[1]]}/${cleanId(match[2])}`, title: entry.title.slice(0, 120), kind: KINDS[match[1]], at: entry.at };
         })
       : [];
   } catch {
