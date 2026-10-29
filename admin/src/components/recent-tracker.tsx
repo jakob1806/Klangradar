@@ -24,10 +24,26 @@ const KINDS: Record<string, string> = {
 
 const DETAIL = /^\/([a-z-]+)\/([0-9a-f-]{36})\/?$/;
 
+/** Nur gültige interne Detailpfade (/bereich/uuid) — localStorage ist
+ * Nutzereingabe und darf nie zu einem fremden oder javascript:-Link werden. */
+function isValidEntry(value: unknown): value is RecentEntry {
+  if (!value || typeof value !== "object") return false;
+  const entry = value as Record<string, unknown>;
+  if (typeof entry.href !== "string" || typeof entry.title !== "string" || typeof entry.kind !== "string" || typeof entry.at !== "number") return false;
+  const match = DETAIL.exec(entry.href);
+  return Boolean(match && KINDS[match[1]]);
+}
+
 export function readRecent(): RecentEntry[] {
   try {
-    const parsed = JSON.parse(window.localStorage.getItem(RECENT_STORAGE_KEY) ?? "[]");
-    return Array.isArray(parsed) ? (parsed as RecentEntry[]) : [];
+    const parsed: unknown = JSON.parse(window.localStorage.getItem(RECENT_STORAGE_KEY) ?? "[]");
+    return Array.isArray(parsed)
+      ? parsed.filter(isValidEntry).map((entry) => {
+          const match = DETAIL.exec(entry.href)!;
+          // href aus den geprüften Bestandteilen neu zusammensetzen.
+          return { href: `/${match[1]}/${match[2]}`, title: entry.title.slice(0, 120), kind: KINDS[match[1]], at: entry.at };
+        })
+      : [];
   } catch {
     return [];
   }
