@@ -9,6 +9,8 @@ struct ConcertSubscription: Identifiable, Hashable, Sendable {
     let organizerName: String
     let season: String
     let url: URL?
+    /// Redaktionell gesetztes Titelbild (Admin → Abos), sonst nil.
+    var imageURL: URL? = nil
 
     init?(_ row: JSONObject) {
         guard let id = row.string("id").flatMap(UUID.init(uuidString:)), let name = row.string("name") else { return nil }
@@ -17,6 +19,7 @@ struct ConcertSubscription: Identifiable, Hashable, Sendable {
         organizerName = row.string("organizer_name") ?? ""
         season = row.string("season") ?? ""
         url = row.string("url").flatMap(URL.init(string:))
+        imageURL = row.string("image_url").flatMap(URL.init(string:))
     }
 
     var title: String { "\(name) · \(organizerName)" }

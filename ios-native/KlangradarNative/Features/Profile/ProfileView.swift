@@ -83,9 +83,8 @@ struct ProfileView: View {
                     }
                     .buttonStyle(.plain)
 
-                    // Eigener Abo-Bereich direkt im Profil (Nutzerwunsch 29.10.2026).
-                    ProfileSubscriptionsSection(repository: eventRepository, contentRepository: contentRepository, cityID: cityStore.selectedCity?.id)
-                        .padding(.top, 6)
+                    // Abo-Karussell entfernt (Nutzerwunsch 29.10.2026: Abos im Profil
+                    // unauffälliger) — erreichbar über die Zeile "Abos & Zyklen" unten.
 
                     plusHero
 
@@ -109,7 +108,7 @@ struct ProfileView: View {
                         NavigationLink {
                             SubscriptionCatalogView(repository: eventRepository, contentRepository: contentRepository, cityID: cityStore.selectedCity?.id)
                         } label: {
-                            ProfileRow(title: "Abos", symbol: "rectangle.stack.fill", color: .teal)
+                            ProfileRow(title: "Abos & Zyklen", symbol: "rectangle.stack.fill", color: .teal)
                         }
                         Divider().padding(.leading, 56)
                         NavigationLink { PartnerOffersView() } label: {

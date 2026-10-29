@@ -56,3 +56,4 @@ doppelt gebaute Features (Coach vs. Personal Concierge), ein komplett
 | Claude | 2026-10-29 | claude/admin-startseite | Admin-Startseite klangradar.com/admin, Login-Standardziel /admin, NAV_GROUPS in nav-groups.ts |
 | Claude | 2026-10-29 | claude/promote-ausbau | Push & Promote: Staffelpreise nach Vorlaufzeit (/promotion-preise), Laufzeit, Tages-/Gesamtbudget, Targeting in active_event_promotions |
 | Claude | 2026-10-28 | claude/onboarding-top-vorschlaege | Onboarding: Folgen-Vorschläge nach Bekanntheits-Score (Wikipedia-Aufrufe), Genre-Kacheln, kleinere Suchtreffer-Kacheln |
+| Claude | 2026-10-29 | claude/abos-profil-geschmack | Abo-Titelbild = Ensemble, Abos im Profil dezenter, Dein Geschmack neu, Interessen wie Onboarding, BR-Quellen Rundfunkorchester/BR-Chor + Reihen, TestFlight-Mail nur an Jakob |
