@@ -1,30 +1,24 @@
 {
   "_hinweis": "Erstellt von Claude Code. Bei jedem Release mit Neuerungen hier pflegen und die id ändern: Die App zeigt den Inhalt einmal pro id als 'Neu in Klangradar', upload-testflight.sh übernimmt ihn als TestFlight-Testhinweis. Ton: kurz, sachlich, ganze Sätze, keine Aufzählungsflut.",
-  "id": "2026-10-29-abos-werkeinfuehrungen",
+  "id": "2026-10-29-profil-geschmack-interessen",
   "title": "Neu in Klangradar",
-  "intro": "Abos findest du jetzt direkt im Profil, und zu viel mehr Werken gibt es eine Einführung.",
+  "intro": "Dein Geschmack und deine Interessen sind im Profil neu gestaltet, und beim BR findest du deutlich mehr Abos und Konzertreihen.",
   "sections": [
+    {
+      "title": "Profil",
+      "symbol": "person.crop.circle.fill",
+      "items": [
+        "„Dein Geschmack“ zeigt deine Lieblingskomponist:innen, Künstler:innen, Orte und Konzerttage jetzt als Karten, so wie „Dein Konzertjahr“.",
+        "„Interessen“ sieht aus wie beim ersten Start: Genres als Kacheln, Personen, Ensembles und Orte als Bildraster zum Antippen.",
+        "Abos stehen im Profil jetzt etwas zurückhaltender unter „Abos & Zyklen“."
+      ]
+    },
     {
       "title": "Abos",
       "symbol": "rectangle.stack.fill",
       "items": [
-        "Im Profil gibt es einen eigenen Bereich für Abos. Deine eigenen Abos stehen vorne, daneben alle Abos und Konzertreihen deiner Stadt.",
-        "Auf der Seite eines Ensembles siehst du, in welchen Abos es spielt.",
-        "Die Bilder auf den Abo-Seiten zeigen Porträts jetzt vollständig statt abgeschnitten."
-      ]
-    },
-    {
-      "title": "Werkeinführungen",
-      "symbol": "book.pages.fill",
-      "items": [
-        "Einführungen werden jetzt auch über Werkverzeichnisnummern wie KV, op. oder BWV gefunden. Dadurch haben deutlich mehr Werke im Programm eine Einführung."
-      ]
-    },
-    {
-      "title": "Kleinere Verbesserungen",
-      "symbol": "wrench.and.screwdriver.fill",
-      "items": [
-        "Beim Wechseln der Stadt ist die Schaltfläche „Fertig“ wieder vollständig lesbar."
+        "Als Titelbild eines Abos erscheint jetzt das Ensemble, das darin spielt, statt des Bildes einer einzelnen Veranstaltung.",
+        "Beim BR-Symphonieorchester, beim Münchner Rundfunkorchester und beim BR-Chor werden deutlich mehr Abos und Reihen erkannt, zum Beispiel Sonntagskonzerte, Familienkonzerte und das Chor-Abonnement."
       ]
     }
   ]

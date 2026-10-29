@@ -53,14 +53,27 @@ struct InterestsView: View {
     /// "nicht so gut aus". Jetzt ein 2-spaltiges Kachel-Grid mit Symbol und
     /// kurzer Beschreibung je Genre; Profil → Interessen bleibt die Liste.
     private var onboardingChipBody: some View {
+        genreGrid
+            .onAppear { if let fixedCategory { category = fixedCategory } }
+            .task(id: category) { searchText = ""; await load() }
+    }
+
+    private var genreSubtitle: String {
+        if fixedCategory == nil {
+            return selected.isEmpty ? "Wähle, was dich interessiert. Danach richten sich deine Empfehlungen." : "\(selected.count) ausgewählt"
+        }
+        return selected.count < 3
+            ? "Wähle mindestens drei Bereiche. Danach richten sich deine Empfehlungen."
+            : "\(selected.count) ausgewählt. Du kannst das jederzeit im Profil ändern."
+    }
+
+    private var genreGrid: some View {
         ScrollView {
             VStack(spacing: 20) {
                 VStack(spacing: 6) {
                     Text("Was hörst du gern?")
                         .font(.title2.bold())
-                    Text(selected.count < 3
-                         ? "Wähle mindestens drei Bereiche. Danach richten sich deine Empfehlungen."
-                         : "\(selected.count) ausgewählt. Du kannst das jederzeit im Profil ändern.")
+                    Text(genreSubtitle)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -79,31 +92,57 @@ struct InterestsView: View {
             .padding(.bottom, 12)
             .animation(.snappy(duration: 0.2), value: selected)
         }
-        .onAppear { if let fixedCategory { category = fixedCategory } }
-        .task(id: category) { searchText = ""; await load() }
     }
 
+    /// Profil → Interessen im Stil des Onboardings (Nutzerwunsch
+    /// 29.10.2026): Genres als Kachel-Grid, Personen/Ensembles/Orte als
+    /// Bild-Grid mit Folgen-Häkchen (derselbe Baustein wie im Onboarding),
+    /// Werke weiter als durchsuchbare Liste.
     private var settingsListBody: some View {
-        List {
-            Section {
-                ScrollView(.horizontal) {
-                    HStack(spacing: 10) {
-                        ForEach(InterestCategory.allCases, id: \.self) { item in
-                            Button { category = item } label: {
-                                Label(item.title, systemImage: item.systemImage)
-                                    .padding(.horizontal, 12).padding(.vertical, 8)
-                                    .background(category == item ? KlangradarTheme.accent : Color.secondary.opacity(0.12), in: .capsule)
-                                    .foregroundStyle(category == item ? .white : .primary)
-                            }.buttonStyle(.plain)
+        VStack(spacing: 0) {
+            ScrollView(.horizontal) {
+                HStack(spacing: 8) {
+                    ForEach(InterestCategory.allCases, id: \.self) { item in
+                        Button {
+                            Haptics.light()
+                            category = item
+                        } label: {
+                            Label(item.title, systemImage: item.systemImage)
+                                .font(.subheadline.weight(.semibold))
+                                .padding(.horizontal, 14).padding(.vertical, 9)
+                                .background(category == item ? AnyShapeStyle(KlangradarTheme.accent) : AnyShapeStyle(Color(.secondarySystemBackground)), in: .capsule)
+                                .foregroundStyle(category == item ? .white : .primary)
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(category == item ? .isSelected : [])
                     }
-                }.scrollIndicators(.hidden)
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 10)
             }
-            Section("\(category.title) · \(selected.count) ausgewählt") {
+            .scrollIndicators(.hidden)
+
+            switch category {
+            case .genre:
+                genreGrid
+                    .task { searchText = ""; await load() }
+            case .person, .ensemble, .venue:
+                FollowCategoryStepView(auth: auth, repository: repository, category: category)
+                    .id(category)
+            case .work:
+                workList
+            }
+        }
+        .navigationTitle("Interessen")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var workList: some View {
+        List {
+            Section("Werke · \(selected.count) ausgewählt") {
                 ForEach(filteredOptions) { option in
                     Button { toggle(option.id) } label: {
                         HStack(spacing: 12) {
-                            if showsThumbnails { InterestOptionThumbnail(option: option, kind: entityKind) }
                             Text(option.label).foregroundStyle(.primary)
                             Spacer()
                             Image(systemName: selected.contains(option.id) ? "checkmark.circle.fill" : "circle")
@@ -115,18 +154,8 @@ struct InterestsView: View {
                 }
             }
         }
-        .navigationTitle("Interessen")
-        .searchable(text: $searchText, prompt: "\(category.title) durchsuchen")
-        .task(id: category) { searchText = ""; await load() }
-        .task(id: searchText) {
-            let query = searchText.trimmingCharacters(in: .whitespaces)
-            guard showsThumbnails, !query.isEmpty else { searchResults = nil; return }
-            try? await Task.sleep(for: .milliseconds(250))
-            guard !Task.isCancelled else { return }
-            let results = try? await repository?.followSuggestions(category, query: query, limit: 60, token: auth.accessToken)
-            guard !Task.isCancelled else { return }
-            searchResults = results
-        }
+        .searchable(text: $searchText, prompt: "Werke durchsuchen")
+        .task { searchText = ""; await load() }
     }
 
     private func load() async {

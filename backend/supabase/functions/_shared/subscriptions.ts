@@ -119,15 +119,53 @@ export function brsoKey(url: string, start: string | Date): string {
 }
 
 export function brsoCalendarIndex(data: any): Map<string, SubscriptionCandidate[]> {
+  return brCalendarIndex(data, "brso");
+}
+
+/** Kalender der BR-Schwesterseiten (gleicher Endpunkt wie brso.de). */
+export const BR_CALENDAR_URLS = {
+  rundfunkorchester: "https://www.rundfunkorchester.de/wp-json/v1/filter/concerts",
+  brchor: "https://www.br-chor.de/wp-json/v1/filter/concerts",
+} as const;
+
+/** Reihen/Abos aus dem Kalender-Label (Nutzerwunsch 29.10.2026: Abos beim BR
+ *  deutlicher finden). Einzelveranstaltungen wie Gast-, Sonder-, Extra- und
+ *  Schulkonzerte oder Tourneen sind bewusst keine Reihe. */
+function brCalendarSubscription(organizer: "brso" | "rundfunkorchester" | "brchor", label: string): SubscriptionCandidate | null {
+  if (organizer === "brso") {
+    const abo = label.match(/^ABO\s+([A-Z0-9]{1,3})$/i);
+    if (abo) return { organizer, code: abo[1].toUpperCase(), name: `Abo ${abo[1].toUpperCase()}`, url: ORGANIZER_ABO_PAGE.brso };
+    if (/^kammerkonzert/i.test(label)) return { organizer, code: "Kammerkonzerte", name: "Abo Kammerkonzerte", url: ORGANIZER_ABO_PAGE.brso };
+    if (/^musica viva$/i.test(label)) return { organizer, code: "musica viva", name: "musica viva", url: "https://www.br-musica-viva.de/" };
+    if (/^watch this space$/i.test(label)) return { organizer, code: "Watch This Space", name: "Watch This Space", url: ORGANIZER_ABO_PAGE.brso };
+    if (/^kinder- und familienkonzert/i.test(label)) return { organizer, code: "Familienkonzerte", name: "Kinder- und Familienkonzerte", url: ORGANIZER_ABO_PAGE.brso };
+    if (/^kammerorchester$/i.test(label)) return { organizer, code: "Kammerorchester", name: "BRSO Kammerorchester", url: ORGANIZER_ABO_PAGE.brso };
+    return null;
+  }
+  if (organizer === "rundfunkorchester") {
+    const series: [RegExp, string, string][] = [
+      [/^sonntagskonzert/i, "Sonntagskonzerte", "Sonntagskonzerte"],
+      [/^mittwochskonzert/i, "Mittwochskonzerte", "Mittwochskonzerte"],
+      [/^paradisi gloria$/i, "Paradisi gloria", "Paradisi gloria"],
+      [/^kammerkonzert/i, "Kammerkonzerte", "Kammerkonzerte"],
+      [/^klassik zum staunen: familienkonzert/i, "Klassik zum Staunen", "Klassik zum Staunen: Familienkonzerte"],
+      [/^klassik zum staunen: zwergerlmusik/i, "Zwergerlmusik", "Klassik zum Staunen: Zwergerlmusik"],
+    ];
+    const hit = series.find(([pattern]) => pattern.test(label));
+    return hit ? { organizer, code: hit[1], name: hit[2], url: ORGANIZER_ABO_PAGE.rundfunkorchester } : null;
+  }
+  if (/^chor-abonnement$/i.test(label)) return { organizer, code: "Chor-Abo", name: "Chor-Abonnement", url: ORGANIZER_ABO_PAGE.brchor };
+  if (/^mitsingkonzert/i.test(label)) return { organizer, code: "Mitsingkonzerte", name: "Mitsingkonzerte", url: ORGANIZER_ABO_PAGE.brchor };
+  return null;
+}
+
+/** Index "Pfad|Datum" → Abos für einen BR-Kalender. */
+export function brCalendarIndex(data: any, organizer: "brso" | "rundfunkorchester" | "brchor"): Map<string, SubscriptionCandidate[]> {
   const index = new Map<string, SubscriptionCandidate[]>();
   for (const c of data?.data?.concerts ?? []) {
     const label = String(c?.abo ?? "").trim();
     if (!c?.url || !c?.start || !label) continue;
-    let sub: SubscriptionCandidate | null = null;
-    const abo = label.match(/^ABO\s+([A-Z0-9]{1,3})$/i);
-    if (abo) sub = { organizer: "brso", code: abo[1].toUpperCase(), name: `Abo ${abo[1].toUpperCase()}`, url: ORGANIZER_ABO_PAGE.brso };
-    else if (/^kammerkonzert/i.test(label)) sub = { organizer: "brso", code: "Kammerkonzerte", name: "Abo Kammerkonzerte", url: ORGANIZER_ABO_PAGE.brso };
-    else if (/^musica viva$/i.test(label)) sub = { organizer: "brso", code: "musica viva", name: "musica viva", url: "https://www.br-musica-viva.de/" };
+    const sub = brCalendarSubscription(organizer, label);
     if (!sub) continue;
     const key = brsoKey(c.url, c.start);
     index.set(key, dedupe([...(index.get(key) ?? []), sub]));

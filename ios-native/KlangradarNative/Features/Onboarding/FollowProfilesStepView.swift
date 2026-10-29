@@ -29,8 +29,11 @@ struct FollowCategoryStepView: View {
     @ObservedObject var auth: AuthStore
     let repository: UserRepository?
     let category: InterestCategory
-    let header: OnboardingProgressHeader
-    let onFinished: () -> Void
+    /// Profil → Interessen (Nutzerwunsch 29.10.2026: "genauso wie im
+    /// Onboarding") bettet denselben Schritt ohne Kopfzeile und ohne
+    /// "Weiter"-Button ein: dann sind `header` und `onFinished` nil.
+    var header: OnboardingProgressHeader? = nil
+    var onFinished: (() -> Void)? = nil
 
     @EnvironmentObject private var follows: FollowStore
 
@@ -110,10 +113,30 @@ struct FollowCategoryStepView: View {
     }
 
     var body: some View {
+        if let onFinished {
+            followContent
+                .safeAreaInset(edge: .top, spacing: 0) { header }
+                .onboardingBackground()
+                .safeAreaInset(edge: .bottom) {
+                    VStack(spacing: 14) {
+                        Button(action: onFinished) { Text("Weiter").frame(maxWidth: .infinity) }
+                            .authPrimaryButtonStyle().controlSize(.large)
+                    }
+                    .authBottomActionLayout()
+                }
+                .navigationTitle("Folgen")
+                .onboardingChrome()
+                .navigationBarTitleDisplayMode(.inline)
+        } else {
+            followContent
+        }
+    }
+
+    private var followContent: some View {
         ScrollView {
             VStack(spacing: 20) {
                 VStack(spacing: 6) {
-                    Text("Wem möchtest du folgen?")
+                    Text(onFinished == nil ? "\(category.title) folgen" : "Wem möchtest du folgen?")
                         .font(.title2.bold())
                     Text(subtitle)
                         .font(.footnote)
@@ -168,18 +191,6 @@ struct FollowCategoryStepView: View {
             .padding(.bottom, 12)
         }
         .scrollDismissesKeyboard(.interactively)
-        .safeAreaInset(edge: .top, spacing: 0) { header }
-        .onboardingBackground()
-        .safeAreaInset(edge: .bottom) {
-            VStack(spacing: 14) {
-                Button(action: onFinished) { Text("Weiter").frame(maxWidth: .infinity) }
-                    .authPrimaryButtonStyle().controlSize(.large)
-            }
-            .authBottomActionLayout()
-        }
-        .navigationTitle("Folgen")
-        .onboardingChrome()
-        .navigationBarTitleDisplayMode(.inline)
         .task(id: category) { searchText = ""; expandedCount = nil; loadedLimit = 60; await load() }
         // Serverseitige Suche, leicht entprellt (Tippen löst nicht pro
         // Buchstabe eine Anfrage aus); .task(id:) bricht die vorige ab.

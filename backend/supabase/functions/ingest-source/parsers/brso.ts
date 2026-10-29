@@ -29,7 +29,10 @@
 import type { ParseResult, RawEvent } from "../types.ts";
 import { USER_AGENT } from "../../_shared/robots.ts";
 
-const FILTER_ENDPOINT = "https://www.brso.de/wp-json/v1/filter/concerts";
+// Seit 29.10.2026 auch für die BR-Schwesterseiten rundfunkorchester.de und
+// br-chor.de (dasselbe WordPress-Theme): der Endpunkt liegt immer auf der
+// Domain der Kalenderseite.
+const FILTER_PATH = "/wp-json/v1/filter/concerts";
 const NONCE_PATTERN = /"nonce"\s*:\s*"([a-f0-9]+)"/;
 
 // deno-lint-ignore no-explicit-any
@@ -70,7 +73,7 @@ export async function fetchBrsoConcertsJson(calendarPageUrl: string): Promise<st
     if (value !== null) body.set(key, value);
   }
 
-  const filterRes = await fetch(FILTER_ENDPOINT, {
+  const filterRes = await fetch(`${new URL(calendarPageUrl).origin}${FILTER_PATH}`, {
     method: "POST",
     headers: {
       "User-Agent": USER_AGENT,

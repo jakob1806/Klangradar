@@ -4,7 +4,7 @@ import { json, mapLimit } from "../_shared/eventParticipantResolution.ts";
 import { requireInternalAuth } from "../_shared/internalAuth.ts";
 import { musikvereinId } from "../_shared/musikvereinDetail.ts";
 import {
-  brChorSubscriptions, BRSO_CALENDAR_URL, brsoCalendarIndex, brsoKey, brsoSubscriptions, gaertnerplatzSeries, type GaertnerplatzSeries, gaertnerplatzSubscriptions,
+  brChorSubscriptions, BR_CALENDAR_URLS, brCalendarIndex, BRSO_CALENDAR_URL, brsoCalendarIndex, brsoKey, brsoSubscriptions, gaertnerplatzSeries, type GaertnerplatzSeries, gaertnerplatzSubscriptions,
   linkEventSubscriptions, mkoSubscriptions, mphilSubscriptions, musikvereinSubscriptions, rundfunkorchesterSubscriptions,
   seasonFor, type SubscriptionCandidate, wienerSymphonikerSubscriptions,
 } from "../_shared/subscriptions.ts";
@@ -57,6 +57,20 @@ Deno.serve(async (req) => {
     body: "pagination=1&director=all&location=0&abo=0&presented_by=",
   }).then(async (res) => res.ok ? brsoCalendarIndex(await res.json()) : null).catch(() => null);
 
+  // Rundfunkorchester und BR-Chor: derselbe Kalender-Endpunkt mit Reihe je
+  // Termin (seit 29.10.2026); die Detailseite bleibt Rückfallebene.
+  const brIndexes = new Map<string, Promise<Map<string, SubscriptionCandidate[]> | null>>();
+  const brCalendar = (organizer: "rundfunkorchester" | "brchor") => {
+    if (!brIndexes.has(organizer)) {
+      brIndexes.set(organizer, fetch(BR_CALENDAR_URLS[organizer], {
+        method: "POST",
+        headers: { "User-Agent": USER_AGENT, "Content-Type": "application/x-www-form-urlencoded" },
+        body: "pagination=1&director=all&location=0&abo=0&presented_by=",
+      }).then(async (res) => res.ok ? brCalendarIndex(await res.json(), organizer) : null).catch(() => null));
+    }
+    return brIndexes.get(organizer)!;
+  };
+
   // deno-lint-ignore no-explicit-any
   const results = await mapLimit(events ?? [], 4, async (event: any) => {
     const urls = [event.external_id, event.website_url].filter((u): u is string => typeof u === "string" && u.startsWith("http"));
@@ -74,6 +88,14 @@ Deno.serve(async (req) => {
         else {
           const res = await fetch(url, { headers: { "User-Agent": USER_AGENT } });
           if (res.ok) subs = brsoSubscriptions(await res.text(), event.start_datetime);
+        }
+      } else if (url.includes("rundfunkorchester.de") || url.includes("br-chor.de")) {
+        const organizer = url.includes("br-chor.de") ? "brchor" : "rundfunkorchester";
+        const index = await brCalendar(organizer);
+        subs = index?.get(brsoKey(url, event.start_datetime)) ?? [];
+        if (!index || index.size === 0) {
+          const res = await fetch(url, { headers: { "User-Agent": USER_AGENT } });
+          if (res.ok) subs = organizer === "brchor" ? brChorSubscriptions(await res.text()) : rundfunkorchesterSubscriptions(await res.text());
         }
       } else if (url.includes("m-k-o.eu")) {
         subs = mkoSubscriptions(url, event.title ?? "");

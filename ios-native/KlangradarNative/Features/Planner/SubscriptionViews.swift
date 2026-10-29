@@ -94,6 +94,18 @@ struct SubscriptionDetailView: View {
     private var past: [ConcertEvent] { events.filter { ($0.startDate ?? .distantFuture) < Calendar.current.startOfDay(for: .now) } }
     private var nextEvent: ConcertEvent? { upcoming.first { $0.id != currentEventID } }
 
+    /// Titelbild (Nutzerwunsch 29.10.2026): das Foto des Ensembles, das in
+    /// den Terminen des Abos am häufigsten spielt — nicht das Bild einer
+    /// einzelnen Veranstaltung. Redaktionell gesetztes Bild geht vor.
+    private var coverURL: URL? {
+        if let imageURL = subscription.imageURL { return imageURL }
+        let photos = (upcoming.isEmpty ? events : upcoming)
+            .flatMap { $0.eventParticipants ?? [] }
+            .compactMap { $0.ensembles?.photoUrl }
+        let top = Dictionary(grouping: photos, by: { $0 }).max { $0.value.count < $1.value.count }?.key
+        return top.flatMap(URL.init(string:))
+    }
+
     /// "meist donnerstags · Isarphilharmonie"
     private var pattern: String? {
         let weekdays = upcoming.compactMap { $0.startDate.map { $0.formatted(.dateTime.locale(.klangradarGerman).weekday(.wide)) } }
@@ -136,7 +148,9 @@ struct SubscriptionDetailView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 14) {
             FramedImage(height: 230, cornerRadius: 24) {
-                if let first = upcoming.first ?? events.first {
+                if let coverURL {
+                    RemoteCover(url: coverURL)
+                } else if let first = upcoming.first ?? events.first {
                     EventArtwork(event: first)
                 } else {
                     RemoteCover(url: nil)
