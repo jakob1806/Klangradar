@@ -44,11 +44,25 @@ jobs:
           # vor dem eigentlichen Migrationstest fehlschlägt.
           version: 2.109.1
 
-      - name: Lokale Supabase-Instanz starten (Docker, im Runner vorinstalliert)
+      - name: Lokale Supabase-Datenbank starten (Docker, im Runner vorinstalliert)
         working-directory: backend
-        # Mailpit/Imgproxy/Studio werden für Migrationstests nicht gebraucht; die
-        # Images sind zeitweise nicht mehr öffentlich abrufbar ("pull access denied").
-        run: supabase start -x imgproxy,inbucket,mailpit,studio,edge-runtime,analytics,vector
+        # Für den Migrationstest reicht die Datenbank allein (`db start` statt
+        # `start`): ein Image statt neun. Am 29.10.2026 scheiterten Läufe an
+        # "toomanyrequests: Data limit exceeded" der Standard-Registry
+        # (public.ecr.aws) — deshalb bei Fehlern auf die Spiegel bei GitHub
+        # und Docker Hub ausweichen, mit kurzer Pause dazwischen.
+        run: |
+          for registry in public.ecr.aws ghcr.io docker.io; do
+            echo "Versuche Registry $registry"
+            if SUPABASE_INTERNAL_IMAGE_REGISTRY="$registry" supabase db start; then
+              echo "SUPABASE_INTERNAL_IMAGE_REGISTRY=$registry" >> "$GITHUB_ENV"
+              exit 0
+            fi
+            supabase stop --no-backup || true
+            sleep 15
+          done
+          echo "Keine Registry lieferte das Datenbank-Image." >&2
+          exit 1
 
       - name: Migrationen + Seed anwenden
         working-directory: backend
