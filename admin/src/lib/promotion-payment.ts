@@ -3,6 +3,7 @@ import { getStripe } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { accountEmail, sendPortalEmail } from "@/lib/portal-email";
 import { promotionActiveEmail } from "@/lib/notification-emails";
+import { promotionWindow } from "@/lib/promotion-quote";
 
 export const PRICE_ID_BY_PLACEMENT: Record<string, string> = {
   standard: "price_1U9otxCkrdnLOI0hTRLkOdoW",
@@ -25,10 +26,16 @@ export async function activatePaidPromotion(session: Stripe.Checkout.Session): P
   const db = createAdminClient();
   const { data: promotion } = await db
     .from("event_promotions")
-    .select("placement, requested_by, events(title, start_datetime)")
+    .select("placement, requested_by, run_start, run_end, events(title, start_datetime)")
     .eq("id", promotionId)
     .maybeSingle();
   const eventRow = promotion?.events as unknown as { title: string; start_datetime: string } | null;
+  // Gewählte Laufzeit (Start frühestens jetzt, Ende spätestens Konzertbeginn).
+  const window = promotionWindow(
+    (promotion?.run_start as string | null) ?? null,
+    (promotion?.run_end as string | null) ?? null,
+    eventRow?.start_datetime ?? null,
+  );
 
   const { data } = await db
     .from("event_promotions")
@@ -38,8 +45,8 @@ export async function activatePaidPromotion(session: Stripe.Checkout.Session): P
       stripe_checkout_session_id: session.id,
       payment_amount_cents: session.amount_total,
       payment_currency: session.currency ?? "eur",
-      starts_at: new Date().toISOString(),
-      ends_at: eventRow?.start_datetime ?? null,
+      starts_at: window.startsAt,
+      ends_at: window.endsAt,
     })
     .eq("id", promotionId)
     .eq("status", "payment_pending")

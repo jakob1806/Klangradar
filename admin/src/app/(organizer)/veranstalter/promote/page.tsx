@@ -98,7 +98,7 @@ export default async function PromotePage({ searchParams }: { searchParams: Prom
             {eventError ? (
               <p className="text-sm text-[#8a5a0c]">Deine Events konnten gerade nicht geladen werden. Bitte lade die Seite erneut; die Events selbst sind nicht verloren. ({eventError})</p>
             ) : (
-              <PromotionRequestForm events={events.map((event) => ({ ...event, startLabel: formatMunichDateTime(event.startDatetime) }))} priceLabels={priceLabels} />
+              <PromotionRequestForm events={events.map((event) => ({ ...event, startLabel: formatMunichDateTime(event.startDatetime), concertDay: new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(new Date(event.startDatetime)) }))} priceLabels={priceLabels} />
             )}
           </CardContent>
         </Card>
