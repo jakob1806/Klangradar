@@ -118,7 +118,7 @@ language sql stable security definer set search_path = public as $$
       coalesce(p.instrument, array_to_string(p.roles, ', ')) as detail
     from persons p, q where q.q is not null and p.full_name ilike '%' || q.q || '%'
     union all
-    select 'ensemble', en.id, en.name, en.type from ensembles en, q
+    select 'ensemble', en.id, en.name, en.type::text from ensembles en, q
     where q.q is not null and en.name ilike '%' || q.q || '%' and not coalesce(en.is_resolution_placeholder, false)
     union all
     select 'venue', v.id, v.name, v.address_city from venues v, q where q.q is not null and v.name ilike '%' || q.q || '%'
