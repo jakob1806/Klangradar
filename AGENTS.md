@@ -51,4 +51,5 @@ doppelt gebaute Features (Coach vs. Personal Concierge), ein komplett
 | Codex | 2026-09-24 | kein Branch (nur Analyse) | Wiesn Buddy: Strukturprüfung und externe Design-Mockups abgeschlossen; keine App-Dateien geändert. |
 
 <!-- Neue Einträge oben anfügen, alte nach Abschluss entfernen. -->
+| Claude | 2026-10-29 | claude/abos-profil-werkeinfuehrung | Abo-Bereich im Profil + Ensembleseite, Abo-Bildausschnitt, Fertig-Button Stadtwechsler, Werkeinführungen über Wikidata, Admin-Seite /werkeinfuehrungen |
 | Claude | 2026-10-28 | claude/onboarding-top-vorschlaege | Onboarding: Folgen-Vorschläge nach Bekanntheits-Score (Wikipedia-Aufrufe), Genre-Kacheln, kleinere Suchtreffer-Kacheln |

@@ -110,6 +110,16 @@ enum PlannerAPI {
         return (ids, row.bool("is_mine") ?? false)
     }
 
+    /// Für Seiten ohne eigenes EventRepository (Ensembleseite).
+    static var eventRepository: (any EventRepository)? { client.map { LiveEventRepository(client: $0) } }
+
+    /// Abos, in denen ein Ensemble regelmäßig spielt (RPC ensemble_subscriptions).
+    static func ensembleSubscriptions(ensembleID: String) async -> [SubscriptionCatalogEntry] {
+        guard let client, UUID(uuidString: ensembleID) != nil else { return [] }
+        let rows: [JSONObject]? = try? await client.rpc("ensemble_subscriptions", parameters: ["p_ensemble_id": .string(ensembleID)], accessToken: token)
+        return (rows ?? []).compactMap(SubscriptionCatalogEntry.init)
+    }
+
     /// Alle Abos mit kommenden Terminen, optional für eine Stadt.
     static func catalog(cityID: UUID?) async -> [SubscriptionCatalogEntry] {
         guard let client else { return [] }

@@ -13,12 +13,19 @@ const H = { "User-Agent": "Klangradar/1.0 (https://klangradar.com; kontakt@klang
 type Lang = "de" | "en";
 
 async function get(url: string): Promise<any> {
-  try {
-    const res = await fetch(url, { headers: H });
-    return res.ok ? await res.json() : null;
-  } catch {
-    return null;
+  // Bei parallelen Läufen drosseln Wikipedia/Wikidata (429/503); ohne
+  // Wiederholung fiel das Werk dann auf die unsichere Volltextsuche zurück.
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      const res = await fetch(url, { headers: { ...H, Accept: "application/json" } });
+      if (res.ok) return await res.json();
+      if (res.status !== 429 && res.status < 500) return null;
+    } catch {
+      // Netzwerkfehler: erneut versuchen
+    }
+    await new Promise((r) => setTimeout(r, 800 * 2 ** attempt));
   }
+  return null;
 }
 
 export interface WorkWikiFacts {
@@ -39,9 +46,9 @@ const INSTRUMENT_EN: Record<string, string> = {
 };
 
 /** Übliche Lemma-Formen für Gattungswerke mit Nummer. */
-export function candidateTitles(title: string, composer: string | null): { lang: Lang; title: string }[] {
+export function candidateTitles(title: string, composer: string | null): { lang: Lang; title: string; trusted?: boolean }[] {
   const surname = (composer ?? "").trim().split(/\s+/).pop() ?? "";
-  const out: { lang: Lang; title: string }[] = [];
+  const out: { lang: Lang; title: string; trusted?: boolean }[] = [];
   const number = title.match(/\bNr\.\s*(\d+)/i)?.[1] ?? title.match(/\bNo\.\s*(\d+)/i)?.[1];
   if (surname) {
     if (/\b(Sinfonie|Symphonie|Symphony)\b/i.test(title) && number) {
@@ -54,9 +61,138 @@ export function candidateTitles(title: string, composer: string | null): { lang:
       if (INSTRUMENT_EN[instrument]) out.push({ lang: "en", title: number ? `${INSTRUMENT_EN[instrument]} No. ${number} (${surname})` : `${INSTRUMENT_EN[instrument]} (${surname})` });
     }
   }
-  const quoted = title.match(/»([^«]+)«/)?.[1];
+  const quoted = title.match(/»([^«]+)«/)?.[1] ?? title.match(/„([^“”]+)[“”]/)?.[1];
   if (quoted) out.push({ lang: "de", title: quoted });
+  // "Ouvertüre aus Die Zauberflöte", "Arien aus der Oper Figaro" → Oper.
+  const from = title.match(/\baus (?:der Oper |dem Ballett |dem Oratorium |der Operette )?(?:»|„)?([^»«„“”,(]+?)(?:«|“|”)?(?:[,(]|\s+(?:KV|op\.|BWV|HWV)\b|$)/i)?.[1]?.trim();
+  if (from && from.length > 3 && from !== quoted) out.push({ lang: "de", title: from });
   return out;
+}
+
+/** HTML-Entities und Anführungszeichen aus Quelltiteln glätten. */
+export function normalizeWorkTitle(title: string): string {
+  return title.replace(/&quot;/g, "\"").replace(/&amp;/g, "&").replace(/&#39;|&apos;/g, "'").replace(/\s+/g, " ").trim();
+}
+
+/** Werkverzeichnisnummer vergleichbar machen: "KV 620" → "kv620",
+ * "op. 55" → "op55", "Hob. I:49" / "Hob. 1/49" → "hobi49", "D. 944" → "d944". */
+export function catalogKeys(text: string): string[] {
+  const out = new Set<string>();
+  const re = /\b(KV|K\.|BWV|HWV|WoO|op\.?|Op\.?|D\.?|Hob\.?\s*[IVXL1-9]+[:/.]?|WAB|RV|TrV|Sz\.?|BB)\s*(\d+[a-z]?)(?:\s*(?:Nr\.|No\.|\/)\s*(\d+))?/g;
+  for (const m of text.matchAll(re)) {
+    let prefix = m[1].toLowerCase().replace(/[.\s]/g, "");
+    if (prefix === "k") prefix = "kv";
+    if (prefix.startsWith("hob")) prefix = "hob" + prefix.slice(3).replace(/[:/]/g, "").replace(/^1$/, "i");
+    out.add(prefix + m[2].toLowerCase() + (m[3] ? "/" + m[3] : ""));
+  }
+  return [...out];
+}
+
+const wikidataCache = new Map<string, Promise<WikidataWork[]>>();
+interface WikidataWork { label: string; catalogs: string[]; de: string | null; en: string | null }
+
+/** Alle Werke einer Komponist:in mit Artikeln (de/en) und Katalognummern. */
+function wikidataWorks(qid: string): Promise<WikidataWork[]> {
+  if (!/^Q\d+$/.test(qid)) return Promise.resolve([]);
+  const cached = wikidataCache.get(qid);
+  if (cached) return cached;
+  const sparql = `SELECT ?w ?label ?cat ?opus ?de ?en WHERE {
+    ?w wdt:P86 wd:${qid}.
+    OPTIONAL { ?w wdt:P528 ?cat. }
+    OPTIONAL { ?w wdt:P10855 ?opus. }
+    OPTIONAL { ?de schema:about ?w; schema:isPartOf <https://de.wikipedia.org/>. }
+    OPTIONAL { ?en schema:about ?w; schema:isPartOf <https://en.wikipedia.org/>. }
+    FILTER(BOUND(?de) || BOUND(?en))
+    OPTIONAL { ?w rdfs:label ?label. FILTER(LANG(?label) = "de") }
+  } LIMIT 3000`;
+  const promise = get(`https://query.wikidata.org/sparql?format=json&query=${encodeURIComponent(sparql)}`).then((data) => {
+    const byWork = new Map<string, WikidataWork>();
+    for (const b of data?.results?.bindings ?? []) {
+      const id = b.w.value;
+      const entry = byWork.get(id) ?? { label: "", catalogs: [], de: null, en: null };
+      const title = (url?: string) => url ? decodeURIComponent(url.split("/wiki/")[1] ?? "").replace(/_/g, " ") : null;
+      entry.de ??= title(b.de?.value);
+      entry.en ??= title(b.en?.value);
+      if (b.label?.value) entry.label = b.label.value;
+      if (b.cat?.value) entry.catalogs.push(...catalogKeys(b.cat.value), b.cat.value.toLowerCase().replace(/[\s.]/g, ""));
+      // Opuszahlen stehen in Wikidata separat (P10855: "55", "18 Nr. 1").
+      if (b.opus?.value) entry.catalogs.push(...catalogKeys(`op. ${b.opus.value}`));
+      byWork.set(id, entry);
+    }
+    return [...byWork.values()];
+  });
+  wikidataCache.set(qid, promise);
+  return promise;
+}
+
+const SYNONYMS: Record<string, string> = {
+  symphonie: "sinfonie", symphony: "sinfonie", concerto: "konzert", quartet: "quartett", sonata: "sonate",
+  overture: "ouverture", ouvertuere: "ouverture", requiem: "requiem", mass: "messe",
+};
+
+function words(value: string): string[] {
+  return normalizeName(value).replace(/[^a-z0-9 ]/g, " ").split(/\s+/).map((w) => SYNONYMS[w] ?? w)
+    .filter((w) => w.length > 2 && !/^(fur|und|der|die|das|aus|the|and|for|von|mit|nr|op|in|dur|moll|major|minor|orchester|orchestra)$/.test(w));
+}
+
+/** Komponist:in ohne hinterlegte Wikidata-ID: Namenssuche, nur Treffer
+ * mit Komponisten-Beschreibung. */
+async function composerQidByName(name: string): Promise<string | null> {
+  const parts = name.trim().split(/\s+/);
+  const surname = parts[parts.length - 1] ?? "";
+  // Voller Name, sonst nur Nachname ("Peter I. Tschaikowsky" findet
+  // Wikidata nicht, "Tschaikowsky" schon) – dann muss der Vorname zum
+  // Label passen, damit nicht der falsche Strauss/Bach gewählt wird.
+  for (const query of [name, surname]) {
+    for (const lang of ["de", "en"]) {
+      const data = await get(`https://www.wikidata.org/w/api.php?action=wbsearchentities&format=json&type=item&limit=7&language=${lang}&search=${encodeURIComponent(query)}`);
+      const hit = (data?.search ?? []).find((r: any) =>
+        /komponist|compos/i.test(r.description ?? "") &&
+        (query === name || (normalizeName(r.label ?? "")[0] === normalizeName(parts[0] ?? "")[0] && parts.length > 1)));
+      if (hit?.id) return hit.id;
+    }
+  }
+  return null;
+}
+
+/** Wikidata-Kandidaten: Katalognummer schlägt Titelähnlichkeit. */
+export async function wikidataCandidates(qid: string, title: string, catalog: string | null): Promise<{ lang: Lang; title: string; trusted: boolean }[]> {
+  const works = await wikidataWorks(qid).catch(() => []);
+  if (!works.length) return [];
+  const keys = catalogKeys(`${catalog ?? ""} ${title}`);
+  const toCandidates = (w: WikidataWork) => [
+    ...(w.de ? [{ lang: "de" as Lang, title: w.de, trusted: true }] : []),
+    ...(w.en ? [{ lang: "en" as Lang, title: w.en, trusted: true }] : []),
+  ];
+  if (keys.length) {
+    const hits = works.filter((w) => w.catalogs.some((c) => keys.includes(c)));
+    // Eindeutige Nummer (op. 55 kann bei Sammelopus mehrere Werke meinen).
+    if (hits.length === 1) return toCandidates(hits[0]);
+    if (hits.length > 1) {
+      const exact = hits.filter((w) => w.catalogs.some((c) => keys.some((k) => k.includes("/") && c === k)));
+      if (exact.length === 1) return toCandidates(exact[0]);
+    }
+  }
+  // Titelähnlichkeit: alle bedeutungstragenden Wörter des Wikidata-Labels
+  // bzw. Artikeltitels kommen im Werktitel vor (oder umgekehrt bei kurzen Titeln).
+  const titleWords = new Set(words(title));
+  const number = title.match(/\b(?:Nr\.|No\.)\s*(\d+)/i)?.[1];
+  let bestScore = 0;
+  let bestWork: WikidataWork | null = null;
+  for (const w of works) {
+    for (const name of [w.label, w.de ?? "", w.en ?? ""]) {
+      const ws = words(name.replace(/\s*\([^)]*\)\s*$/, ""));
+      if (!ws.length) continue;
+      const hit = ws.filter((x) => titleWords.has(x)).length;
+      const nameNumber = name.match(/^(\d+)\.|\bNo\.\s*(\d+)|\bNr\.\s*(\d+)/);
+      const n = nameNumber?.[1] ?? nameNumber?.[2] ?? nameNumber?.[3];
+      if (number && n && n !== number) continue;
+      if (!number && n && /sinfonie|symphon|konzert|concerto|quartett|quartet|sonate|sonata|trio/i.test(name)) continue;
+      const score = hit / ws.length + (number && n === number ? 0.5 : 0);
+      if (hit >= 1 && hit === ws.length && score > bestScore) { bestScore = score; bestWork = w; }
+    }
+  }
+  return bestWork ? toCandidates(bestWork) : [];
 }
 
 async function page(lang: Lang, title: string) {
@@ -94,6 +230,26 @@ function isWorkPage(p: { title: string; extract: string }, composer: string | nu
   // Personenartikel: Titel = Name der Person bzw. Lebensdaten in der Einleitung.
   if (surname && p.title.includes(surname) && !/[(\d]/.test(p.title)) return false;
   if (/\(\s*\*|\* \d{1,2}\.|\bwar ein\b.*\bKomponist|\bwas an? .*composer\b/i.test(p.extract.slice(0, 300))) return false;
+  return true;
+}
+
+/** Nennt die Einleitung eine andere Nummer desselben Verzeichnisses
+ * (KV 550 statt KV 183, D 729 statt D 759), ist es ein anderes Werk. */
+export function catalogConflict(extract: string, workTitle: string, catalog: string | null): boolean {
+  const ours = catalogKeys(`${catalog ?? ""} ${workTitle}`);
+  if (!ours.length) return false;
+  const theirs = catalogKeys(extract.slice(0, 500));
+  const prefix = (k: string) => k.match(/^[a-z]+/)?.[0] ?? "";
+  const base = (k: string) => k.split("/")[0];
+  return theirs.some((t) => ours.some((o) => prefix(o) === prefix(t))) &&
+    !theirs.some((t) => ours.some((o) => base(o) === base(t)));
+}
+
+/** Wikidata-verknüpfte Artikel: Listen/Personen und falsche Tonart raus. */
+function isTrustedWorkPage(p: { title: string; extract: string }, workTitle: string): boolean {
+  if (/^Liste\b|^List of\b/i.test(p.title)) return false;
+  const keys = keyForms(workTitle);
+  if (keys && !keys.some((k) => p.extract.toLowerCase().includes(k))) return false;
   return true;
 }
 
@@ -245,23 +401,35 @@ function best(...lists: string[][]): string[] {
   return lists.filter((l) => l.length >= 2 && l.length <= 16).sort((a, b) => b.length - a.length)[0] ?? [];
 }
 
-export async function fetchWorkWikiFacts(title: string, composer: string | null, catalog: string | null): Promise<WorkWikiFacts | null> {
+export async function fetchWorkWikiFacts(title: string, composer: string | null, catalog: string | null, composerQid: string | null = null): Promise<WorkWikiFacts | null> {
+  title = normalizeWorkTitle(title);
   const tried = new Set<string>();
-  const candidates = candidateTitles(title, composer);
+  // Wikidata zuerst (Ergänzung 29.10.2026): Werke der Komponist:in mit
+  // Werkverzeichnisnummer bzw. Titel → verlinkter Artikel. Trifft Fälle,
+  // an denen die Lemma-Raterei scheiterte ("Symphonie Nr. 3 Eroica",
+  // "Akademische Festouvertüre", "Pique Dame", Namensvarianten wie
+  // Prokofieff/Prokofjew).
+  const qid = composerQid ?? (composer ? await composerQidByName(composer) : null);
+  const candidates = [...(qid ? await wikidataCandidates(qid, title, catalog) : []), ...candidateTitles(title, composer)];
   let found: Awaited<ReturnType<typeof page>> = null;
   for (const c of candidates) {
     const key = `${c.lang}:${c.title}`;
     if (tried.has(key)) continue;
     tried.add(key);
     const p = await page(c.lang, c.title);
-    if (p && isWorkPage(p, composer, title)) { found = p; break; }
+    // Wikidata-Treffer sind über die Komponist:in verknüpft: nur noch
+    // Listen-/Personenartikel und falsche Tonart ausschließen.
+    if (p && !catalogConflict(p.extract, title, catalog) && (c.trusted ? isTrustedWorkPage(p, title) : isWorkPage(p, composer, title))) { found = p; break; }
   }
   if (!found) {
     const query = [composer, title.replace(/[»«]/g, ""), catalog].filter(Boolean).join(" ");
     for (const lang of ["de", "en"] as const) {
       for (const t of await search(lang, query)) {
         const p = await page(lang, t);
-        if (p && isWorkPage(p, composer, title)) { found = p; break; }
+        // Ohne Komponist:in nur bei gleichem Artikeltitel (sonst landete
+        // "Minutemade" beim Theater, "Schön ist die Welt" bei einem Film).
+        if (!composer && p && !normalizeName(p.title).startsWith(normalizeName(title).slice(0, 14))) continue;
+        if (p && !catalogConflict(p.extract, title, catalog) && isWorkPage(p, composer, title)) { found = p; break; }
       }
       if (found) break;
     }

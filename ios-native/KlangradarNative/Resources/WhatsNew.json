@@ -1,101 +1,30 @@
 {
   "_hinweis": "Erstellt von Claude Code. Bei jedem Release mit Neuerungen hier pflegen und die id ändern: Die App zeigt den Inhalt einmal pro id als 'Neu in Klangradar', upload-testflight.sh übernimmt ihn als TestFlight-Testhinweis. Ton: kurz, sachlich, ganze Sätze, keine Aufzählungsflut.",
-  "id": "2026-10-28-onboarding-vorschlaege",
+  "id": "2026-10-29-abos-werkeinfuehrungen",
   "title": "Neu in Klangradar",
-  "intro": "Freunde finden, verbinden und gemeinsam ins Konzert gehen ist jetzt einfacher.",
+  "intro": "Abos findest du jetzt direkt im Profil, und zu viel mehr Werken gibt es eine Einführung.",
   "sections": [
     {
-      "title": "Freunde verbinden",
-      "symbol": "qrcode",
-      "items": [
-        "Dein Freundescode hat jetzt einen QR-Code. Unter „QR-Code scannen“ verbindest du dich direkt mit der Kamera.",
-        "Unter „Wer war noch da?“ siehst du öffentliche Profile, die mit dir im selben Konzert waren.",
-        "Anfragen zeigen, woher sie kommen und welche Komponist:innen ihr beide gern hört. Gesendete Anfragen kannst du zurückziehen.",
-        "Freundschaftsanfragen lassen sich direkt in der Mitteilung annehmen oder ablehnen.",
-        "Nach dem Verbinden siehst du eure gemeinsamen Konzerte und könnt den Abend gleich zusammen planen."
-      ]
-    },
-    {
-      "title": "Dein Freundeskreis",
-      "symbol": "star.fill",
-      "items": [
-        "Unter „Alle anzeigen“ findest du deine Freunde mit Suche und Sortierung. Enge Freunde markierst du mit einem Stern, sie stehen dann vorn.",
-        "Profile zeigen euren Geschmacks-Match, die Konzerte, bei denen ihr beide wart, und die Bewertungen deines Freundes.",
-        "Im Profil kannst du einen Freund stummschalten. Du bekommst dann keine Mitteilungen mehr von ihm."
-      ]
-    },
-    {
-      "title": "Konzerte mit Freunden",
-      "symbol": "ticket.fill",
-      "items": [
-        "Hast du ein Ticket übrig, bietest du es auf der Konzertseite deinen Freunden an. Wer zuerst zusagt, bekommt es.",
-        "Mit „Privat hingehen“ sehen deine Freunde nicht, dass du dir ein Konzert gemerkt hast."
-      ]
-    },
-    {
-      "title": "Freunde",
-      "symbol": "person.2.fill",
-      "items": [
-        "Ein Tipp auf einen Freund öffnet jetzt direkt sein Profil. Vorher landete man erst nach einem Zurück dort.",
-        "Profile sind neu gestaltet. Komponist:innen, die ihr beide gern hört, sind markiert."
-      ]
-    },
-    {
-      "title": "Gemeinsam ins Konzert",
-      "symbol": "figure.2",
-      "items": [
-        "Bei Konzerten deiner Freunde tippst du auf „Ich komme mit“. Ihr habt dann einen gemeinsamen Plan, und dein Freund bekommt Bescheid.",
-        "Unter „Nimm jemanden mit“ schlägt Klangradar Freunde vor, die zu deinen gemerkten Konzerten passen.",
-        "Im Nachklang kannst du Bewertungen deiner Freunde mit Applaus würdigen und darauf antworten.",
-        "Im Profil eines Freundes siehst du euer gemeinsames Konzertjahr.",
-        "Mit Gruppen behältst du Chor, Abo-Nachbarn oder Opern-Clique im Blick und lädst alle auf einmal ein."
-      ]
-    },
-    {
-      "title": "Konzert-Abos",
+      "title": "Abos",
       "symbol": "rectangle.stack.fill",
       "items": [
-        "Im Profil unter „Abos“ findest du alle Abos und Konzertreihen der Veranstalter, mit nächstem Termin und Bild.",
-        "Mit „Ich habe dieses Abo“ landet ein Abo in deinem Profil und alle Termine im Saisonplaner. Das hat vorher nicht gespeichert.",
-        "Auf der Abo-Seite öffnet jeder Termin direkt die Konzertseite. Die Bilder sitzen jetzt sauber.",
-        "Beim BR-Symphonieorchester erkennt Klangradar die Abos A bis D, S, Kammerkonzerte und musica viva jetzt bei fast allen Terminen."
+        "Im Profil gibt es einen eigenen Bereich für Abos. Deine eigenen Abos stehen vorne, daneben alle Abos und Konzertreihen deiner Stadt.",
+        "Auf der Seite eines Ensembles siehst du, in welchen Abos es spielt.",
+        "Die Bilder auf den Abo-Seiten zeigen Porträts jetzt vollständig statt abgeschnitten."
       ]
     },
     {
-      "title": "Plus testen",
-      "symbol": "sparkles",
+      "title": "Werkeinführungen",
+      "symbol": "book.pages.fill",
       "items": [
-        "Im Profil findest du Klangradar Plus mit allen Funktionen auf einen Blick. Du wählst zwischen Monat und Jahr und siehst genau, wann die Testphase endet. Zwei Tage vorher erinnern wir dich."
+        "Einführungen werden jetzt auch über Werkverzeichnisnummern wie KV, op. oder BWV gefunden. Dadurch haben deutlich mehr Werke im Programm eine Einführung."
       ]
     },
     {
-      "title": "Eigene App-Icons",
-      "symbol": "app.badge.fill",
+      "title": "Kleinere Verbesserungen",
+      "symbol": "wrench.and.screwdriver.fill",
       "items": [
-        "Mit Plus gibt es Klangradar in Nacht, Gold, Indigo oder Mono. Du wählst es unter Klangradar Plus aus."
-      ]
-    },
-    {
-      "title": "Wo was ist",
-      "symbol": "location.fill",
-      "items": [
-        "Plus-Funktionen tragen jetzt ein kleines Plus-Zeichen. Nach dem Kauf zeigt dir Klangradar, wo du jede einzelne findest."
-      ]
-    },
-    {
-      "title": "Anmelden mit Apple oder Google",
-      "symbol": "person.crop.circle.badge.checkmark",
-      "items": [
-        "Wer sich neu mit Apple oder Google anmeldet, richtet Klangradar jetzt wie bei der Registrierung ein: Name, Interessen, Stadt und wem du folgen möchtest. Wer das schon einmal gemacht hat, landet wie bisher direkt in der App."
-      ]
-    },
-    {
-      "title": "Folgen und Interessen",
-      "symbol": "star.fill",
-      "items": [
-        "Beim Folgen stehen jetzt die bekanntesten Künstler:innen, Ensembles und Spielstätten deiner Stadt oben, nicht mehr die mit den meisten Terminen.",
-        "Die Genres im Onboarding sind übersichtliche Kacheln mit kurzer Beschreibung.",
-        "Suchtreffer erscheinen im selben Bildraster wie die Vorschläge, nur etwas kleiner."
+        "Beim Wechseln der Stadt ist die Schaltfläche „Fertig“ wieder vollständig lesbar."
       ]
     }
   ]

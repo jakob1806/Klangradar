@@ -23,7 +23,7 @@ async function processWork(supabase: any, work: any) {
   // (_shared/workWikiFacts.ts). Die KI-Anbieter lieferten wiederholt keine
   // Antwort ("ai_unavailable"); Wikipedia ist zuverlässig, schnell und
   // nennt die Quelle.
-  const facts = await fetchWorkWikiFacts(work.title, work.composer?.full_name ?? null, work.catalog_number ?? null).catch(() => null);
+  const facts = await fetchWorkWikiFacts(work.title, work.composer?.full_name ?? null, work.catalog_number ?? null, work.composer?.wikidata_id ?? null).catch(() => null);
   const update: Record<string, unknown> = { introduction_checked_at: new Date().toISOString() };
   // Von der Redaktion geschriebene Einführungen/Satzfolgen nie überschreiben.
   if (facts?.introduction && work.introduction_source !== "redaktion") {
@@ -48,7 +48,7 @@ async function processWork(supabase: any, work: any) {
   };
 }
 
-const SELECT = "id,title,catalog_number,movements,movements_source,introduction_de,introduction_source,introduction_checked_at,composer:persons(full_name)";
+const SELECT = "id,title,catalog_number,movements,movements_source,introduction_de,introduction_source,introduction_checked_at,composer:persons(full_name,wikidata_id)";
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "method not allowed" }, 405);

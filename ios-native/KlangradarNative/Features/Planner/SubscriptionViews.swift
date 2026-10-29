@@ -4,6 +4,8 @@
 // mit Titelbild und Bildern je Termin, Termine öffnen direkt die Konzertseite
 // (unabhängig davon, in welchem Navigationsstapel die Abo-Seite liegt), sichtbare
 // Fehlermeldung beim Hinzufügen.
+// 29.10.2026: Bilder oben verankert (Porträts verloren sonst den Kopf),
+// Abo-Bereich direkt im Profil und Abos auf der Ensembleseite.
 import SwiftUI
 
 /// Kapseln unter den Eckdaten: "Teil von Abo B" → Abo-Seite.
@@ -45,7 +47,9 @@ struct EventSubscriptionsRow: View {
 }
 
 /// Bild in festem Rahmen: scaledToFill darf den Rahmen nicht aufweiten
-/// (sonst ragten Titelbilder über den Bildschirmrand hinaus).
+/// (sonst ragten Titelbilder über den Bildschirmrand hinaus). Oben verankert:
+/// Die meisten Abo-Bilder sind Hochformat-Porträts, mittig beschnitten
+/// blieben im Querformat nur Kinn und Hals übrig (Nutzerfeedback 29.10.2026).
 private struct FramedImage<Content: View>: View {
     let height: CGFloat
     var cornerRadius: CGFloat = 20
@@ -55,7 +59,7 @@ private struct FramedImage<Content: View>: View {
         Color.clear
             .frame(maxWidth: .infinity)
             .frame(height: height)
-            .overlay { content() }
+            .overlay(alignment: .top) { content() }
             .clipShape(.rect(cornerRadius: cornerRadius, style: .continuous))
     }
 }
@@ -131,7 +135,7 @@ struct SubscriptionDetailView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 14) {
-            FramedImage(height: 190, cornerRadius: 24) {
+            FramedImage(height: 230, cornerRadius: 24) {
                 if let first = upcoming.first ?? events.first {
                     EventArtwork(event: first)
                 } else {
@@ -210,7 +214,7 @@ struct SubscriptionDetailView: View {
             Text(currentEventID == nil ? "Nächstes Konzert" : "Nächstes Konzert im Abo").font(.title3.bold())
             NavigationLink { detail(event) } label: {
                 VStack(alignment: .leading, spacing: 10) {
-                    FramedImage(height: 170) { EventArtwork(event: event) }
+                    FramedImage(height: 200) { EventArtwork(event: event) }
                     Text(event.title).font(.headline).lineLimit(2).multilineTextAlignment(.leading)
                     Text(event.dateLine).font(.subheadline).foregroundStyle(.secondary)
                 }
@@ -240,9 +244,8 @@ struct SubscriptionDetailView: View {
 
     private func row(_ item: ConcertEvent) -> some View {
         HStack(spacing: 12) {
-            EventArtwork(event: item)
-                .frame(width: 64, height: 64)
-                .clipShape(.rect(cornerRadius: 12, style: .continuous))
+            FramedImage(height: 64, cornerRadius: 12) { EventArtwork(event: item) }
+                .frame(width: 64)
                 .overlay(alignment: .bottom) {
                     Text(item.startDate.map { $0.formatted(.dateTime.locale(.klangradarGerman).day().month(.abbreviated)) } ?? "–")
                         .font(.caption2.weight(.bold)).foregroundStyle(.white)
@@ -348,7 +351,7 @@ struct SubscriptionCatalogView: View {
                                 ForEach(group.entries) { entry in
                                     NavigationLink {
                                         SubscriptionDetailView(subscription: entry.subscription, repository: repository, contentRepository: contentRepository)
-                                    } label: { card(entry) }
+                                    } label: { SubscriptionCard(entry: entry) }
                                     .buttonStyle(.plain)
                                 }
                             }
@@ -367,29 +370,6 @@ struct SubscriptionCatalogView: View {
         .task { await load() }
         .refreshable { await load() }
         .onReceive(NotificationCenter.default.publisher(for: .subscriptionsChanged)) { _ in Task { await load() } }
-    }
-
-    private func card(_ entry: SubscriptionCatalogEntry) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            FramedImage(height: 120, cornerRadius: 18) { RemoteCover(url: entry.imageURL) }
-                .overlay(alignment: .topTrailing) {
-                    if entry.isMine {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.title3).foregroundStyle(.white, KlangradarTheme.accent)
-                            .padding(8)
-                            .accessibilityLabel("In deinem Profil")
-                    }
-                }
-            Text(entry.subscription.name).font(.headline).lineLimit(2).multilineTextAlignment(.leading)
-                .frame(height: 44, alignment: .topLeading)
-            Text("\(entry.upcoming) \(entry.upcoming == 1 ? "Konzert" : "Konzerte")\(entry.nextStart.map { " · ab \($0.formatted(.dateTime.locale(.klangradarGerman).day().month(.abbreviated)))" } ?? "")")
-                .font(.caption).foregroundStyle(.secondary).lineLimit(1)
-            if let venue = entry.venueName {
-                Text(venue).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-            }
-        }
-        .frame(width: 210)
-        .contentShape(.rect)
     }
 
     private func load() async {
@@ -454,5 +434,136 @@ struct MySubscriptionsSection: View {
         }
         .padding(12)
         .background(Color(uiColor: .secondarySystemBackground), in: .rect(cornerRadius: 16, style: .continuous))
+    }
+}
+
+/// Abo-Kachel (Katalog, Profil, Ensembleseite).
+struct SubscriptionCard: View {
+    let entry: SubscriptionCatalogEntry
+    var width: CGFloat = 210
+    var imageHeight: CGFloat = 120
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            FramedImage(height: imageHeight, cornerRadius: 18) { RemoteCover(url: entry.imageURL) }
+                .overlay(alignment: .topTrailing) {
+                    if entry.isMine {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.title3).foregroundStyle(.white, KlangradarTheme.accent)
+                            .padding(8)
+                            .accessibilityLabel("In deinem Profil")
+                    }
+                }
+            Text(entry.subscription.name).font(.headline).lineLimit(2).multilineTextAlignment(.leading)
+                .frame(height: 44, alignment: .topLeading)
+            Text("\(entry.upcoming) \(entry.upcoming == 1 ? "Konzert" : "Konzerte")\(entry.nextStart.map { " · ab \($0.formatted(.dateTime.locale(.klangradarGerman).day().month(.abbreviated)))" } ?? "")")
+                .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            Text(entry.venueName ?? entry.subscription.organizerName).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+        }
+        .frame(width: width)
+        .contentShape(.rect)
+    }
+}
+
+/// Profil: eigener Abo-Bereich mit eigenen und verfügbaren Abos der Stadt
+/// (Nutzerwunsch 29.10.2026). Bewusst HStack statt LazyHStack: Links in
+/// Lazy-Containern lösten teils erst nach "Zurück" aus.
+struct ProfileSubscriptionsSection: View {
+    let repository: any EventRepository
+    let contentRepository: any ContentRepository
+    var cityID: UUID?
+    @State private var entries: [SubscriptionCatalogEntry] = []
+    @State private var isLoading = true
+
+    /// Eigene Abos zuerst, dann die nächsten Abos der Stadt.
+    private var shown: [SubscriptionCatalogEntry] {
+        let mine = entries.filter(\.isMine)
+        let others = entries.filter { !$0.isMine }.sorted { ($0.nextStart ?? .distantFuture) < ($1.nextStart ?? .distantFuture) }
+        return Array((mine + others).prefix(12))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Abos").font(.title3.bold())
+                    Text(subtitle).font(.subheadline).foregroundStyle(.secondary)
+                }
+                Spacer()
+                NavigationLink {
+                    SubscriptionCatalogView(repository: repository, contentRepository: contentRepository, cityID: cityID)
+                } label: {
+                    Text("Alle").font(.subheadline.weight(.semibold)).foregroundStyle(KlangradarTheme.accent)
+                }
+                .buttonStyle(.plain)
+            }
+            if isLoading && entries.isEmpty {
+                ProgressView().frame(maxWidth: .infinity).padding(.vertical, 30)
+            } else if shown.isEmpty {
+                Text("Für diese Stadt sind noch keine Abos mit kommenden Terminen bekannt.")
+                    .font(.subheadline).foregroundStyle(.secondary)
+            } else {
+                ScrollView(.horizontal) {
+                    HStack(alignment: .top, spacing: 12) {
+                        ForEach(shown) { entry in
+                            NavigationLink {
+                                SubscriptionDetailView(subscription: entry.subscription, repository: repository, contentRepository: contentRepository)
+                            } label: { SubscriptionCard(entry: entry, width: 180, imageHeight: 110) }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .scrollTargetLayout()
+                }
+                .scrollIndicators(.hidden)
+                .scrollTargetBehavior(.viewAligned)
+                .scrollClipDisabled()
+            }
+        }
+        .task(id: cityID) { await load() }
+        .onReceive(NotificationCenter.default.publisher(for: .subscriptionsChanged)) { _ in Task { await load() } }
+    }
+
+    private var subtitle: String {
+        let mine = entries.filter(\.isMine).count
+        if mine > 0 { return "\(mine) \(mine == 1 ? "eigenes Abo" : "eigene Abos") · \(entries.count) verfügbar" }
+        return entries.isEmpty ? "Feste Plätze für die ganze Saison" : "\(entries.count) Abos und Konzertreihen verfügbar"
+    }
+
+    private func load() async {
+        defer { isLoading = false }
+        entries = await PlannerAPI.catalog(cityID: cityID)
+    }
+}
+
+/// Ensembleseite: Abos, in denen das Ensemble spielt (kompakt).
+struct EnsembleSubscriptionsSection: View {
+    let ensembleID: String
+    let ensembleName: String
+    let contentRepository: any ContentRepository
+    @State private var entries: [SubscriptionCatalogEntry] = []
+
+    var body: some View {
+        if !entries.isEmpty, let repository = PlannerAPI.eventRepository {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Abos").font(.title2.bold())
+                Text("Mit einem Abo hörst du \(ensembleName) die ganze Saison über.")
+                    .font(.subheadline).foregroundStyle(.secondary)
+                ScrollView(.horizontal) {
+                    HStack(alignment: .top, spacing: 12) {
+                        ForEach(entries) { entry in
+                            NavigationLink {
+                                SubscriptionDetailView(subscription: entry.subscription, repository: repository, contentRepository: contentRepository)
+                            } label: { SubscriptionCard(entry: entry, width: 160, imageHeight: 96) }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                .scrollIndicators(.hidden)
+                .scrollClipDisabled()
+            }
+        } else {
+            Color.clear.frame(height: 0)
+                .task(id: ensembleID) { entries = await PlannerAPI.ensembleSubscriptions(ensembleID: ensembleID) }
+        }
     }
 }

@@ -55,15 +55,7 @@ struct CitySwitcherView: View {
         .background(KlangradarBackground().ignoresSafeArea())
         .toolbar {
             if embedsNavigationStack {
-                ToolbarItem(placement: .confirmationAction) {
-                    // Glas explizit (24.10.2026: im Sheet fehlte die
-                    // automatische Kapsel weiterhin).
-                    if #available(iOS 26.0, *) {
-                        Button("Fertig") { dismiss() }.fontWeight(.semibold).buttonStyle(.glass)
-                    } else {
-                        Button("Fertig") { dismiss() }.fontWeight(.semibold)
-                    }
-                }
+                doneToolbarItem
             }
         }
         // Nutzerfeedback: "Fertig" hatte kein Liquid Glass um sich herum --
@@ -75,6 +67,33 @@ struct CitySwitcherView: View {
         .navigationTitle(embedsNavigationStack ? "" : "Stadt wechseln")
         .navigationBarTitleDisplayMode(.inline)
         .task { if cityStore.activeCities.isEmpty { await cityStore.load() } }
+    }
+
+    // 29.10.2026: .buttonStyle(.glass) in der Toolbar legte ein zweites Glas
+    // in die Kapsel der Toolbar; die Breite reichte nur für "Fe…". Jetzt
+    // eigenes Glas mit fester Breite, das System-Glas ist ausgeblendet.
+    @ToolbarContentBuilder
+    private var doneToolbarItem: some ToolbarContent {
+        if #available(iOS 26.0, *) {
+            ToolbarItem(placement: .confirmationAction) { doneButton }
+                .sharedBackgroundVisibility(.hidden)
+        } else {
+            ToolbarItem(placement: .confirmationAction) { doneButton }
+        }
+    }
+
+    private var doneButton: some View {
+        Button { dismiss() } label: {
+            Text("Fertig")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(KlangradarTheme.accent)
+                .fixedSize()
+                .padding(.horizontal, 16)
+                .frame(height: 38)
+                .background { LiquidGlassSurface(cornerRadius: 19, isInteractive: true) { Color.clear } }
+                .contentShape(.capsule)
+        }
+        .buttonStyle(.plain)
     }
 
     private var cityHeader: some View {
