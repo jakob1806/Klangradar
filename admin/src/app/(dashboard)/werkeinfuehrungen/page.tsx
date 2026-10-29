@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { SubmitButton } from "@/components/submit-button";
 import { researchAllWorks, researchWork } from "../works/actions";
+import { reviewIntroSubmission } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,18 @@ interface Coverage {
   upcoming_with_intro: number;
   next30: number;
   next30_with_intro: number;
+}
+
+interface Submission {
+  submission_id: string;
+  work_id: string;
+  work_title: string;
+  composer_name: string | null;
+  organizer_name: string | null;
+  text: string;
+  source_url: string | null;
+  current_intro: string | null;
+  created_at: string;
 }
 
 interface MissingWork {
@@ -60,10 +73,12 @@ const dateFormat = new Intl.DateTimeFormat("de-DE", { day: "numeric", month: "sh
 export default async function WorkIntroductionsPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const { q } = await searchParams;
   const supabase = await createClient();
-  const [{ data: coverageData, error: coverageError }, { data: missingData, error: missingError }] = await Promise.all([
+  const [{ data: coverageData, error: coverageError }, { data: missingData, error: missingError }, { data: submissionData }] = await Promise.all([
     supabase.rpc("admin_work_introduction_coverage"),
     supabase.rpc("admin_works_missing_introduction", { p_limit: 150, p_query: q ?? null }),
+    supabase.rpc("admin_work_intro_submissions"),
   ]);
+  const submissions = (submissionData ?? []) as Submission[];
   const coverage = coverageData as Coverage | null;
   const missing = (missingData ?? []) as MissingWork[];
   const error = coverageError ?? missingError;
@@ -93,6 +108,53 @@ export default async function WorkIntroductionsPage({ searchParams }: { searchPa
             </form>
           </div>
         </div>
+      )}
+
+      {submissions.length > 0 && (
+        <section className="mt-8">
+          <h2 className="text-base font-semibold text-neutral-900">Von Veranstaltern eingereicht</h2>
+          <p className="text-xs text-neutral-500">Übernommene Texte gelten als Redaktionstext und werden nicht mehr automatisch überschrieben.</p>
+          <div className="mt-3 flex flex-col gap-3">
+            {submissions.map((submission) => (
+              <article key={submission.submission_id} className="rounded-xl border border-black/[0.06] bg-white p-4 shadow-sm">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <Link href={`/works/${submission.work_id}`} className="font-medium text-neutral-900 hover:underline">
+                      {submission.work_title}
+                    </Link>
+                    <p className="text-xs text-neutral-500">
+                      {[submission.composer_name, submission.organizer_name && `eingereicht von ${submission.organizer_name}`, dateFormat.format(new Date(submission.created_at))]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <form action={reviewIntroSubmission.bind(null, submission.submission_id, true)}>
+                      <SubmitButton pendingLabel="Übernehme …">Übernehmen</SubmitButton>
+                    </form>
+                    <form action={reviewIntroSubmission.bind(null, submission.submission_id, false)}>
+                      <button type="submit" className="rounded-lg border border-black/10 px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50">
+                        Ablehnen
+                      </button>
+                    </form>
+                  </div>
+                </div>
+                <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-neutral-800">{submission.text}</p>
+                {submission.source_url && (
+                  <a href={submission.source_url} target="_blank" rel="noreferrer" className="mt-2 inline-block text-xs text-[#2D2A6E] hover:underline">
+                    Quelle ansehen
+                  </a>
+                )}
+                {submission.current_intro && (
+                  <details className="mt-3 text-xs text-neutral-500">
+                    <summary className="cursor-pointer">Bisherige Einführung anzeigen</summary>
+                    <p className="mt-2 whitespace-pre-line text-neutral-600">{submission.current_intro}</p>
+                  </details>
+                )}
+              </article>
+            ))}
+          </div>
+        </section>
       )}
 
       <div className="mt-8 flex flex-wrap items-end justify-between gap-3">

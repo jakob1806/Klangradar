@@ -31,6 +31,7 @@ export const NAV_GROUPS = [
       { href: "/event-groups", label: "Event-Gruppen" },
       { href: "/festivals", label: "Festivals" },
       { href: "/event-promotions", label: "Event-Promotions" },
+      { href: "/abos", label: "Abos" },
       { href: "/editorial-collections", label: "Redaktionelle Sammlungen" },
       { href: "/media", label: "Bilderfreigabe" },
     ],
@@ -51,12 +52,14 @@ export const NAV_GROUPS = [
     label: "Datenqualität",
     items: [
       { href: "/qualitaetspruefung", label: "Qualitätsprüfung" },
+      { href: "/datenluecken", label: "Datenlücken" },
       { href: "/data-quality", label: "Recherche & Anreicherung" },
       { href: "/duplicates", label: "Duplikate" },
       { href: "/entity-candidates", label: "Entity-Kandidaten" },
       { href: "/aliases", label: "Schreibweisen & Aliasse" },
       { href: "/werkeinfuehrungen", label: "Werkeinführungen" },
       { href: "/work-image-reuse", label: "Werk-Bild-Verknüpfungen" },
+      { href: "/bekanntheit", label: "Bekanntheit" },
     ],
   },
   {
@@ -65,6 +68,7 @@ export const NAV_GROUPS = [
       { href: "/entity-claims", label: "Veranstalter-Claims" },
       { href: "/entity-edit-suggestions", label: "Profiländerungsvorschläge" },
       { href: "/entity-trust", label: "Verifizierung" },
+      { href: "/moderation", label: "Community-Moderation" },
     ],
   },
   {
@@ -78,6 +82,7 @@ export const NAV_GROUPS = [
       { href: "/invoice-settings", label: "Rechnungsstammdaten" },
       { href: "/partner", label: "Partner & Affiliate" },
       { href: "/users", label: "Benutzer" },
+      { href: "/plus", label: "Klangradar Plus" },
     ],
   },
 ];
