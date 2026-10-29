@@ -10,6 +10,7 @@ import {
   resolvePersonDuplicatesAsDistinct,
 } from "./persons/actions";
 import { ComparePair, type PairSide, type Signal } from "./compare-pair";
+import { DuplicateKeyboard } from "./duplicate-keyboard";
 import {
   resolveEnsembleDuplicateAsDistinct,
   resolveEnsembleDuplicateAsMerged,
@@ -125,87 +126,72 @@ type Supa = Awaited<ReturnType<typeof createClient>>;
 // Werk
 // ---------------------------------------------------------------------------
 
-interface CandidateWork {
-  id: string;
-  title: string;
-  catalog_number: string | null;
-  key_signature: string | null;
-  composer: { full_name: string } | null;
+// Erweiterung (Claude Code, 29.10.2026): Prüfansicht aus
+// admin_work_duplicate_review() — Paare mit Gegenbeweis (andere Opuszahl,
+// Nummer, Tonart, Satz, Besetzung, Komponist) werden gar nicht erst
+// vorgeschlagen.
+type WorkSideData = {
+  id: string; title: string; catalog_number: string | null; key_signature: string | null; composer: string | null;
+  introduction: string | null; events: number; upcoming: number;
+};
+interface WorkReviewRow {
+  candidate_id: string; confidence: number; similarity: number | null; created_at: string;
+  a: WorkSideData; b: WorkSideData; same_catalog: boolean; same_composer: boolean;
 }
-interface WorkCandidateRow {
-  id: string;
-  similarity_score: number;
-  created_at: string;
-  work_a: CandidateWork | null;
-  work_b: CandidateWork | null;
+
+function workSide(work: WorkSideData): PairSide {
+  return {
+    id: work.id,
+    name: work.title,
+    wikidata_id: null,
+    showWikidata: false,
+    facts: [work.composer ?? "Komponist:in unbekannt", work.catalog_number, work.key_signature].filter((value): value is string => Boolean(value)),
+    stats: [
+      { label: "Termine", value: work.events },
+      { label: "kommend", value: work.upcoming },
+    ],
+    description: work.introduction,
+    href: `/works/${work.id}`,
+  };
+}
+
+function workSignals(row: WorkReviewRow): Signal[] {
+  const signals: Signal[] = [];
+  if (row.same_catalog) signals.push({ label: "gleiche Werkverzeichnisnummer", tone: "good" });
+  if (row.same_composer) signals.push({ label: "gleiche:r Komponist:in", tone: "good" });
+  else if (row.a.composer && row.b.composer) signals.push({ label: "andere:r Komponist:in", tone: "bad" });
+  if (row.similarity != null) signals.push({ label: `Titel ${Math.round(row.similarity * 100)} % ähnlich`, tone: "neutral" });
+  return signals;
 }
 
 async function WorkTab({ supabase }: { supabase: Supa }) {
-  const { data, error } = await supabase
-    .from("work_duplicate_candidates")
-    .select(
-      `id, similarity_score, created_at,
-       work_a:works!work_duplicate_candidates_work_a_id_fkey(id, title, catalog_number, key_signature, composer:persons(full_name)),
-       work_b:works!work_duplicate_candidates_work_b_id_fkey(id, title, catalog_number, key_signature, composer:persons(full_name))`,
-    )
-    .eq("status", "pending")
-    .order("created_at", { ascending: false })
-    .returns<WorkCandidateRow[]>();
+  const { data: reviewData, error } = await supabase.rpc("admin_work_duplicate_review");
+  const data = (reviewData ?? []) as WorkReviewRow[];
 
   if (error) return <ErrorNote message={error.message} />;
-  if (!data?.length) return <EmptyNote label="Werk-Duplikate" />;
+  if (!data.length) return <EmptyNote label="Werk-Duplikate" />;
 
   return (
-    <DuplicateBulkSelection ids={data.map((c) => c.id)} onDismissMany={resolveWorkDuplicatesAsDistinct}>
-      <div className="flex flex-col gap-3">
-        {data.map((candidate) => (
-          <div key={candidate.id} className="rounded-xl border border-black/[0.06] bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-xs text-neutral-400">
-                Gefunden {formatDate(candidate.created_at)} · Ähnlichkeit {(candidate.similarity_score * 100).toFixed(0)}%
-              </span>
-              <DuplicateSelectCheckbox id={candidate.id} label={candidate.work_a?.title ?? "Werk-Duplikat"} />
-            </div>
-            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <WorkCard label="Bereits vorhanden" work={candidate.work_a} keepAction={candidate.work_a && candidate.work_b ? resolveWorkDuplicateAsMerged.bind(null, candidate.id, candidate.work_a.id) : undefined} />
-              <WorkCard label="Neu angelegt" work={candidate.work_b} keepAction={candidate.work_a && candidate.work_b ? resolveWorkDuplicateAsMerged.bind(null, candidate.id, candidate.work_b.id) : undefined} />
-            </div>
-            <p className="mt-2 text-xs text-neutral-400">
-              „Diese Version behalten“ löscht das jeweils andere Werk, alle Verlinkungen wandern auf die behaltene Version.
-            </p>
-            <div className="mt-3 flex items-center justify-end gap-4">
-              <InstantButton
-                action={resolveWorkDuplicateAsDistinct.bind(null, candidate.id)}
-                pendingLabel="Speichere…"
-                className="text-sm font-medium text-neutral-600 hover:text-neutral-900 disabled:opacity-50"
-              >
-                Als unterschiedlich markieren
-              </InstantButton>
-            </div>
-          </div>
-        ))}
-      </div>
-    </DuplicateBulkSelection>
-  );
-}
-
-function WorkCard({ label, work, keepAction }: { label: string; work: CandidateWork | null; keepAction?: () => Promise<void> }) {
-  if (!work) return <div className="border border-neutral-300 bg-neutral-50 p-3 text-sm text-neutral-400">{label}: Werk nicht mehr vorhanden.</div>;
-  return (
-    <div className="flex flex-col border border-neutral-300 bg-neutral-50 p-3">
-      <p className="text-xs font-medium uppercase tracking-wide text-neutral-400">{label}</p>
-      <p className="mt-1 text-sm font-medium text-neutral-900">{work.title}</p>
-      <p className="mt-0.5 text-xs text-neutral-500">
-        {work.composer?.full_name ?? "Komponist unbekannt"}
-        {work.catalog_number ? ` · ${work.catalog_number}` : ""}
-        {work.key_signature ? ` · ${work.key_signature}` : ""}
-      </p>
-      {keepAction && (
-        <InstantButton action={keepAction} pendingLabel="Führe zusammen…" className="mt-2 self-start text-xs font-medium text-red-600 hover:text-red-800 disabled:opacity-50">
-          Diese Version behalten
-        </InstantButton>
-      )}
-    </div>
+    <>
+      <div className="mb-3"><DuplicateKeyboard /></div>
+      <DuplicateBulkSelection ids={data.map((c) => c.candidate_id)} onDismissMany={resolveWorkDuplicatesAsDistinct}>
+        <div className="flex flex-col gap-2">
+          {data.map((row) => (
+            <ComparePair
+              key={row.candidate_id}
+              id={row.candidate_id}
+              confidence={row.confidence}
+              signals={workSignals(row)}
+              a={workSide(row.a)}
+              b={workSide(row.b)}
+              keepA={resolveWorkDuplicateAsMerged.bind(null, row.candidate_id, row.a.id)}
+              keepB={resolveWorkDuplicateAsMerged.bind(null, row.candidate_id, row.b.id)}
+              distinct={resolveWorkDuplicateAsDistinct.bind(null, row.candidate_id)}
+            />
+          ))}
+        </div>
+      </DuplicateBulkSelection>
+    </>
   );
 }
 
@@ -322,6 +308,7 @@ async function PersonTab({ supabase }: { supabase: Supa }) {
           <div className="mt-3"><EmptyNote label="Personen-Duplikate" /></div>
         ) : (
           <div className="mt-3">
+            <div className="mb-3"><DuplicateKeyboard /></div>
             <DuplicateBulkSelection ids={data.map((c) => c.candidate_id)} onDismissMany={resolvePersonDuplicatesAsDistinct}>
               <div className="flex flex-col gap-2">
                 {data.map((row) => (
@@ -423,6 +410,7 @@ async function EnsembleTab({ supabase }: { supabase: Supa }) {
           <div className="mt-3"><EmptyNote label="Ensemble-Duplikate" /></div>
         ) : (
           <div className="mt-3">
+            <div className="mb-3"><DuplicateKeyboard /></div>
             <DuplicateBulkSelection ids={data.map((c) => c.candidate_id)} onDismissMany={resolveEnsembleDuplicatesAsDistinct}>
               <div className="flex flex-col gap-2">
                 {data.map((row) => (
