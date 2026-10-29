@@ -3,7 +3,22 @@ import { PromotionList, type UiPromotion } from "./promotion-list";
 
 export const dynamic = "force-dynamic";
 
-interface PromotionRow { id: string; placement: string; requester_note: string | null; requested_at: string; requested_by: string; events: { title: string; start_datetime: string } | null; }
+interface PromotionRow { id: string; placement: string; run_start: string | null; run_end: string | null; daily_cap_cents: number | null; total_budget_cents: number | null; target_audiences: string[] | null; quoted_amount_cents: number | null; requester_note: string | null; requested_at: string; requested_by: string; events: { title: string; start_datetime: string } | null; }
+
+// Erweiterung (Claude Code, 29.10.2026): Laufzeit, Budgets und Zielgruppe
+// der Anfrage für die Prüfung sichtbar machen.
+const AUDIENCE_LABEL: Record<string, string> = { followers: "Fans", genre: "Genre-Interessierte", composers: "Komponist:innen-Hörer:innen" };
+function promotionDetails(row: PromotionRow): string | null {
+  const euro = (cents: number) => new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(cents / 100);
+  const parts = [
+    row.run_start && row.run_end && (row.run_start === row.run_end ? `am ${row.run_start}` : `${row.run_start} bis ${row.run_end}`),
+    row.daily_cap_cents && `max. ${euro(row.daily_cap_cents)}/Tag`,
+    row.total_budget_cents && `Budget ${euro(row.total_budget_cents)}`,
+    row.quoted_amount_cents != null && `Angebot ${euro(row.quoted_amount_cents)}`,
+    row.target_audiences?.length ? `Zielgruppe: ${row.target_audiences.map((value) => AUDIENCE_LABEL[value] ?? value).join(", ")}` : null,
+  ].filter(Boolean);
+  return parts.length ? parts.join(" · ") : null;
+}
 
 interface DecidedRow { id: string; placement: string; status: string; payment_status: string | null; payment_amount_cents: number | null; payment_currency: string | null; reviewed_at: string | null; payment_reminder_sent_at: string | null; ends_at: string | null; events: { title: string; start_datetime: string } | null; }
 
@@ -49,12 +64,12 @@ function DecidedTable({ rows }: { rows: DecidedRow[] }) {
 
 export default async function EventPromotionsPage() {
   const supabase = await createClient();
-  const { data, error } = await supabase.from("event_promotions").select("id, placement, requester_note, requested_at, requested_by, events(title, start_datetime)").eq("status", "pending").order("requested_at", { ascending: true }).returns<PromotionRow[]>();
+  const { data, error } = await supabase.from("event_promotions").select("id, placement, run_start, run_end, daily_cap_cents, total_budget_cents, target_audiences, quoted_amount_cents, requester_note, requested_at, requested_by, events(title, start_datetime)").eq("status", "pending").order("requested_at", { ascending: true }).returns<PromotionRow[]>();
   const promotions = data ?? [];
   const userIds = [...new Set(promotions.map((promotion) => promotion.requested_by))];
   const { data: profiles } = userIds.length ? await supabase.from("profiles").select("id, display_name").in("id", userIds) : { data: [] };
   const profileNames = new Map((profiles ?? []).map((profile) => [profile.id as string, (profile.display_name as string | null) ?? profile.id as string]));
-  const items: UiPromotion[] = promotions.map((promotion) => ({ id: promotion.id, eventTitle: promotion.events?.title ?? "Gelöschtes Event", eventStart: promotion.events?.start_datetime ?? promotion.requested_at, placement: promotion.placement, requester: profileNames.get(promotion.requested_by) ?? promotion.requested_by, requesterNote: promotion.requester_note, requestedAt: promotion.requested_at }));
+  const items: UiPromotion[] = promotions.map((promotion) => ({ id: promotion.id, eventTitle: promotion.events?.title ?? "Gelöschtes Event", eventStart: promotion.events?.start_datetime ?? promotion.requested_at, placement: promotion.placement, requester: profileNames.get(promotion.requested_by) ?? promotion.requested_by, requesterNote: promotion.requester_note, requestedAt: promotion.requested_at, details: promotionDetails(promotion) }));
 
   // Freigegebene/aktive Promotionen mit Zahlungsstatus: vorher war nicht zu
   // sehen, wer freigegeben, aber (noch) nicht bezahlt hat.

@@ -27,6 +27,7 @@ export const NAV_GROUPS = [
       { href: "/event-groups", label: "Event-Gruppen" },
       { href: "/festivals", label: "Festivals" },
       { href: "/event-promotions", label: "Event-Promotions" },
+      { href: "/promotion-preise", label: "Promotion-Preise" },
       { href: "/abos", label: "Abos" },
       { href: "/editorial-collections", label: "Redaktionelle Sammlungen" },
       { href: "/media", label: "Bilderfreigabe" },

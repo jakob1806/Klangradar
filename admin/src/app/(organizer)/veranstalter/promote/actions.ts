@@ -11,6 +11,24 @@ import { getStripe } from "@/lib/stripe";
 import { getPromotableEvents } from "./promotable-events";
 import { getProStatus } from "@/lib/portal-pro";
 import { promotionActiveEmail } from "@/lib/notification-emails";
+import { euroToCents, fetchPromotionQuote, promotionWindow, TARGET_AUDIENCES, type PromotionQuote } from "@/lib/promotion-quote";
+
+const AUDIENCES = new Set<string>(TARGET_AUDIENCES.map((audience) => audience.value));
+
+/** Live-Angebot für das Antragsformular (gleiche Rechnung wie beim Antrag). */
+export async function quotePromotion(input: {
+  eventId: string; placement: string; start: string; end: string; dailyCap: string; totalBudget: string;
+}): Promise<{ quote?: PromotionQuote; error?: string }> {
+  if (!input.eventId || !PLACEMENTS.has(input.placement)) return {};
+  const dailyCap = euroToCents(input.dailyCap);
+  const totalBudget = euroToCents(input.totalBudget);
+  if (dailyCap === "invalid" || totalBudget === "invalid") return { error: "Bitte Budgets als Betrag in Euro angeben." };
+  const supabase = await createClient();
+  return fetchPromotionQuote(supabase, {
+    eventId: input.eventId, placement: input.placement, start: input.start || null, end: input.end || null,
+    dailyCapCents: dailyCap, totalBudgetCents: totalBudget,
+  });
+}
 
 export async function cancelPromotion(promotionId: string): Promise<{ error?: string }> {
   const supabase = await createClient();
@@ -44,6 +62,10 @@ export async function requestPromotion(formData: FormData): Promise<{ error?: st
 
     if (!eventId || !PLACEMENTS.has(placement)) return { error: "Bitte wähle ein Event und eine Platzierung." };
     if (note.length > 1000) return { error: "Die Nachricht darf höchstens 1.000 Zeichen lang sein." };
+    const audiences = formData.getAll("target_audiences").map(String).filter((value) => AUDIENCES.has(value));
+    const dailyCap = euroToCents(formData.get("daily_cap"));
+    const totalBudget = euroToCents(formData.get("total_budget"));
+    if (dailyCap === "invalid" || totalBudget === "invalid") return { error: "Bitte Budgets als Betrag in Euro angeben." };
 
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -57,11 +79,28 @@ export async function requestPromotion(formData: FormData): Promise<{ error?: st
       return { error: "Dieses Event ist nicht mehr kommend, nicht veröffentlicht oder gehört nicht zu einem von dir beanspruchten Profil." };
     }
 
+    const { quote, error: quoteError } = await fetchPromotionQuote(supabase, {
+      eventId,
+      placement,
+      start: String(formData.get("run_start") ?? "") || null,
+      end: String(formData.get("run_end") ?? "") || null,
+      dailyCapCents: dailyCap,
+      totalBudgetCents: totalBudget,
+    });
+    if (!quote) return { error: quoteError ?? "Für diese Laufzeit ist kein Angebot möglich." };
+    if (quote.days_included === 0) return { error: "Mit diesem Budget bleibt kein Tag übrig. Bitte Budget erhöhen oder Laufzeit ändern." };
+
     const { data: inserted, error } = await supabase.from("event_promotions").insert({
       event_id: eventId,
       requested_by: user.id,
       placement,
       requester_note: note || null,
+      run_start: quote.first_day,
+      run_end: quote.last_day,
+      daily_cap_cents: dailyCap,
+      total_budget_cents: totalBudget,
+      target_audiences: audiences,
+      quoted_amount_cents: quote.dynamic ? quote.amount_cents : null,
     }).select("id").single();
     if (error) return { error: `Die Anfrage konnte nicht gespeichert werden: ${error.message}` };
 
@@ -80,8 +119,8 @@ export async function requestPromotion(formData: FormData): Promise<{ error?: st
             status: "approved",
             payment_status: "included",
             reviewed_at: new Date().toISOString(),
-            starts_at: new Date().toISOString(),
-            ends_at: event.startDatetime,
+            starts_at: promotionWindow(quote.first_day, quote.last_day, event.startDatetime).startsAt,
+            ends_at: promotionWindow(quote.first_day, quote.last_day, event.startDatetime).endsAt,
           })
           .eq("id", inserted.id)
           .eq("status", "pending")
@@ -139,11 +178,12 @@ export async function createPromotionCheckout(promotionId: string): Promise<{ ur
   // RLS: sichtbar für Antragsteller:in und Team-Mitglieder mit Marketing-/Finanzrolle.
   const { data: promotion } = await supabase
     .from("event_promotions")
-    .select("id, placement, status, stripe_checkout_session_id, events(title, start_datetime)")
+    .select("id, event_id, placement, status, stripe_checkout_session_id, run_start, run_end, daily_cap_cents, total_budget_cents, events(title, start_datetime)")
     .eq("id", promotionId)
     .maybeSingle();
   const row = promotion as unknown as {
-    id: string; placement: string; status: string; stripe_checkout_session_id: string | null;
+    id: string; event_id: string; placement: string; status: string; stripe_checkout_session_id: string | null;
+    run_start: string | null; run_end: string | null; daily_cap_cents: number | null; total_budget_cents: number | null;
     events: { title: string; start_datetime: string } | null;
   } | null;
   if (!row) return { error: "Diese Promotion wurde nicht gefunden oder du hast keinen Zugriff darauf." };
@@ -153,6 +193,31 @@ export async function createPromotionCheckout(promotionId: string): Promise<{ ur
   }
   const price = PRICE_ID_BY_PLACEMENT[row.placement];
   if (!price) return { error: "Für diese Platzierung ist kein Preis hinterlegt. Bitte kontaktiere die Redaktion." };
+
+  // Gestaffelte Preise: Betrag zum Zahlungszeitpunkt neu rechnen (schon
+  // vergangene Tage der Laufzeit fallen weg und werden nicht berechnet).
+  const { quote } = await fetchPromotionQuote(supabase, {
+    eventId: row.event_id, placement: row.placement, start: row.run_start, end: row.run_end,
+    dailyCapCents: row.daily_cap_cents, totalBudgetCents: row.total_budget_cents,
+  });
+  if (quote?.dynamic && quote.days_included === 0) {
+    return { error: "Die gewählte Laufzeit ist bereits vorbei. Bitte storniere die Anfrage und buche neu." };
+  }
+  const lineItem = quote?.dynamic && quote.amount_cents > 0
+    ? {
+        price_data: {
+          currency: "eur",
+          unit_amount: quote.amount_cents,
+          product_data: {
+            name: `Klangradar Promotion · ${row.events.title}`,
+            description: quote.unit === "push"
+              ? `Push am ${quote.first_day}`
+              : `${quote.days_included} ${quote.days_included === 1 ? "Tag" : "Tage"}, ${quote.first_day} bis ${quote.last_day}`,
+          },
+        },
+        quantity: 1,
+      }
+    : { price, quantity: 1 };
 
   try {
     const stripe = getStripe();
@@ -173,7 +238,7 @@ export async function createPromotionCheckout(promotionId: string): Promise<{ ur
 
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
-      line_items: [{ price, quantity: 1 }],
+      line_items: [lineItem],
       metadata: { promotion_id: row.id },
       client_reference_id: row.id,
       customer_email: user.email ?? undefined,
