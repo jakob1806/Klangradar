@@ -55,6 +55,7 @@ export const NAV_GROUPS = [
       { href: "/duplicates", label: "Duplikate" },
       { href: "/entity-candidates", label: "Entity-Kandidaten" },
       { href: "/aliases", label: "Schreibweisen & Aliasse" },
+      { href: "/werkeinfuehrungen", label: "Werkeinführungen" },
       { href: "/work-image-reuse", label: "Werk-Bild-Verknüpfungen" },
     ],
   },

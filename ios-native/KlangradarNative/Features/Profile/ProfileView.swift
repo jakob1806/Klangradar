@@ -83,6 +83,10 @@ struct ProfileView: View {
                     }
                     .buttonStyle(.plain)
 
+                    // Eigener Abo-Bereich direkt im Profil (Nutzerwunsch 29.10.2026).
+                    ProfileSubscriptionsSection(repository: eventRepository, contentRepository: contentRepository, cityID: cityStore.selectedCity?.id)
+                        .padding(.top, 6)
+
                     plusHero
 
                     VStack(spacing: 0) {

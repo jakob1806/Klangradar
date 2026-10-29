@@ -44,6 +44,9 @@ struct EntityDetailView: View {
                             }
                             if detail.kind != .work, !detail.gallery.isEmpty { gallery(detail.gallery) }
                             if !detail.events.isEmpty { linkedEvents(detail.events, kind: detail.kind) }
+                            if detail.kind == .ensemble {
+                                EnsembleSubscriptionsSection(ensembleID: detail.id, ensembleName: detail.title, contentRepository: repository)
+                            }
                         }
                         if !detail.similar.isEmpty {
                             similar(detail.similar, kind: detail.kind)
