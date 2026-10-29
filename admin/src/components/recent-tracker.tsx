@@ -24,6 +24,10 @@ const KINDS: Record<string, string> = {
 
 const DETAIL = /^\/([a-z-]+)\/([0-9a-f-]{36})\/?$/;
 
+// Feste Pfad-Präfixe je Bereich: der Link setzt sich nie aus gespeichertem
+// Text zusammen, nur aus dieser Tabelle plus der geprüften ID.
+const DETAIL_PATHS: Record<string, string> = Object.fromEntries(Object.keys(KINDS).map((key) => [key, `/${key}`]));
+
 /** Nur gültige interne Detailpfade (/bereich/uuid) — localStorage ist
  * Nutzereingabe und darf nie zu einem fremden oder javascript:-Link werden. */
 function isValidEntry(value: unknown): value is RecentEntry {
@@ -41,7 +45,7 @@ export function readRecent(): RecentEntry[] {
       ? parsed.filter(isValidEntry).map((entry) => {
           const match = DETAIL.exec(entry.href)!;
           // href aus den geprüften Bestandteilen neu zusammensetzen.
-          return { href: `/${match[1]}/${match[2]}`, title: entry.title.slice(0, 120), kind: KINDS[match[1]], at: entry.at };
+          return { href: `${DETAIL_PATHS[match[1]]}/${match[2]}`, title: entry.title.slice(0, 120), kind: KINDS[match[1]], at: entry.at };
         })
       : [];
   } catch {
