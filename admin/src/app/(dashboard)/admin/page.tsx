@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { NAV_GROUPS } from "@/components/nav-groups";
+import { RecentlyOpened } from "@/components/recently-opened";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,37 @@ const GROUP_HINTS: Record<string, string> = {
   Vertrauen: "Claims, Profiländerungen, Verifizierung",
   "Import & System": "Quellen, Regionen, Benutzer",
 };
+
+// "Zuletzt erledigt": eigene Aktionen aus system_logs (Zusammenführungen,
+// Sammlungen, Freigaben …) — Erweiterung Claude Code, 29.10.2026.
+interface LogRow { id: string; entity_type: string; entity_id: string | null; action: string; created_at: string }
+
+const LOG_TARGET: Record<string, { label: string; href: (id: string) => string }> = {
+  person: { label: "Person", href: (id) => `/persons/${id}` },
+  persons: { label: "Person", href: (id) => `/persons/${id}` },
+  ensemble: { label: "Ensemble", href: (id) => `/ensembles/${id}` },
+  ensembles: { label: "Ensemble", href: (id) => `/ensembles/${id}` },
+  venue: { label: "Venue", href: (id) => `/venues/${id}` },
+  event: { label: "Termin", href: (id) => `/events/${id}` },
+  work: { label: "Werk", href: (id) => `/works/${id}` },
+  editorial_collection: { label: "Sammlung", href: (id) => `/editorial-collections/${id}` },
+  person_duplicate_candidate: { label: "Personen-Duplikat", href: () => "/duplicates?type=person" },
+  ensemble_duplicate_candidate: { label: "Ensemble-Duplikat", href: () => "/duplicates?type=ensemble" },
+  venue_duplicate_candidate: { label: "Venue-Duplikat", href: () => "/duplicates?type=venue" },
+  work_duplicate_candidate: { label: "Werk-Duplikat", href: () => "/duplicates?type=work" },
+};
+
+const ACTION_LABEL: Record<string, string> = {
+  created: "angelegt",
+  updated: "bearbeitet",
+  deleted: "gelöscht",
+  merged: "zusammengeführt",
+  dismissed: "als verschieden markiert",
+  approved: "freigegeben",
+  rejected: "abgelehnt",
+};
+
+const logTime = new Intl.DateTimeFormat("de-DE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" });
 
 function greeting(hour: number) {
   if (hour < 11) return "Guten Morgen";
@@ -64,6 +96,16 @@ export default async function AdminHomePage() {
     { href: "/duplicates", label: "Duplikate", count: duplicates ?? 0 },
   ];
   const open = tasks.reduce((sum, task) => sum + task.count, 0);
+  const actor = user?.email ?? user?.id ?? null;
+  const { data: logData } = actor
+    ? await supabase
+        .from("system_logs")
+        .select("id, entity_type, entity_id, action, created_at")
+        .eq("actor", actor)
+        .order("created_at", { ascending: false })
+        .limit(8)
+    : { data: [] };
+  const logs = (logData ?? []) as LogRow[];
   const name = user?.email?.split("@")[0];
 
   return (
@@ -110,6 +152,45 @@ export default async function AdminHomePage() {
             </span>
           </Link>
         ))}
+      </div>
+
+      <div className="mt-10 grid gap-6 lg:grid-cols-2">
+        <section>
+          <h2 className="text-base font-semibold text-neutral-900">Zuletzt geöffnet</h2>
+          <p className="mb-3 text-xs text-neutral-500">Nur in diesem Browser gespeichert.</p>
+          <RecentlyOpened />
+        </section>
+        <section>
+          <h2 className="text-base font-semibold text-neutral-900">Zuletzt erledigt</h2>
+          <p className="mb-3 text-xs text-neutral-500">Deine letzten protokollierten Aktionen.</p>
+          {logs.length === 0 ? (
+            <p className="text-sm text-neutral-500">Noch keine protokollierten Aktionen.</p>
+          ) : (
+            <ul className="flex flex-col divide-y divide-black/[0.05] rounded-xl border border-black/[0.06] bg-white shadow-sm">
+              {logs.map((log) => {
+                const target = LOG_TARGET[log.entity_type];
+                const label = `${target?.label ?? log.entity_type} ${ACTION_LABEL[log.action] ?? log.action}`;
+                const content = (
+                  <span className="flex items-center justify-between gap-3 px-4 py-2.5">
+                    <span className="text-sm text-neutral-800">{label}</span>
+                    <span className="shrink-0 text-xs text-neutral-400">{logTime.format(new Date(log.created_at))}</span>
+                  </span>
+                );
+                return (
+                  <li key={log.id}>
+                    {target && log.entity_id ? (
+                      <Link href={target.href(log.entity_id)} className="block hover:bg-neutral-50">
+                        {content}
+                      </Link>
+                    ) : (
+                      content
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
       </div>
 
       <h2 className="mt-10 text-base font-semibold text-neutral-900">Bereiche</h2>

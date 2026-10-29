@@ -10,7 +10,7 @@ import {
 } from "@/components/bio-select";
 import { ImageStatusBadge } from "@/components/image-status-badge";
 import { ListThumbnail } from "@/components/list-thumbnail";
-import { TableSearchFilter } from "@/components/table-search-filter";
+import { ListPagination, ListToolbar, VerifiedBadge, ilikePattern, listRange, listRowClass, listTheadClass, listThClass, readListParams } from "@/components/entity-list";
 import { bulkDeletePersons, bulkSetPersonsVerified } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +24,7 @@ interface PersonRow {
   photo_url: string | null;
   ai_biography_status: "pending" | "processing" | "generated" | "not_known" | "error";
   last_image_search_note: string | null;
+  event_participants: { count: number }[];
 }
 
 // Nur Anzeige-Beschriftung, keine Einschränkung — persons.roles ist text[]
@@ -40,33 +41,47 @@ const ROLE_LABEL: Record<string, string> = {
   choreograf: "Choreograf:in",
 };
 
-// Nutzerfeedback: "es geht nur bis K" -- PostgREST begrenzt Antworten
-// projektweit auf 1.000 Zeilen, bei 1.761 Personen (alphabetisch sortiert)
-// brach die einzelne, ungepagte Abfrage deshalb mittendrin ab. Gleiches
-// Muster wie bereits in bio-research/page.tsx: seitenweise laden, bis der
-// gesamte Bestand vorliegt.
-async function loadAllPersons(): Promise<{ data: PersonRow[]; error: string | null }> {
+const FILTERS = [
+  { key: "all", label: "Alle" },
+  { key: "no_photo", label: "Ohne Foto" },
+  { key: "no_bio", label: "Ohne Biografie" },
+  { key: "unverified", label: "Ungeprüft" },
+  { key: "komponist", label: "Komponist:innen" },
+  { key: "dirigent", label: "Dirigent:innen" },
+];
+const SORTS = [
+  { key: "name", label: "Name A–Z" },
+  { key: "updated", label: "Zuletzt geändert" },
+  { key: "created", label: "Neueste zuerst" },
+];
+
+// Erweiterung (Claude Code, 29.10.2026): Suche, Filter, Sortierung und
+// Seiten serverseitig (components/entity-list.tsx). Vorher wurden alle
+// Personen seitenweise komplett geladen und nur im Browser gefiltert.
+export default async function PersonsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const params = readListParams(await searchParams, FILTERS, SORTS);
   const supabase = await createClient();
-  const rows: PersonRow[] = [];
-  const pageSize = 1_000;
-  for (let from = 0; ; from += pageSize) {
-    const { data, error } = await supabase
-      .from("persons")
-      .select("id, full_name, roles, is_verified, biography_de, photo_url, ai_biography_status, last_image_search_note")
-      .order("full_name")
-      .range(from, from + pageSize - 1)
-      .returns<PersonRow[]>();
-    if (error) return { data: rows, error: error.message };
-    rows.push(...(data ?? []));
-    if (!data || data.length < pageSize) break;
-  }
-  return { data: rows, error: null };
-}
+  let query = supabase
+    .from("persons")
+    .select("id, full_name, roles, is_verified, biography_de, photo_url, ai_biography_status, last_image_search_note, event_participants(count)", { count: "exact" });
+  if (params.q) query = query.ilike("full_name", ilikePattern(params.q));
+  if (params.filter === "no_photo") query = query.is("photo_url", null);
+  if (params.filter === "no_bio") query = query.is("biography_de", null);
+  if (params.filter === "unverified") query = query.eq("is_verified", false);
+  if (params.filter === "komponist" || params.filter === "dirigent") query = query.contains("roles", [params.filter]);
+  query =
+    params.sort === "updated"
+      ? query.order("updated_at", { ascending: false, nullsFirst: false })
+      : params.sort === "created"
+        ? query.order("created_at", { ascending: false })
+        : query.order("full_name");
+  const [from, to] = listRange(params);
+  const { data: rows, error: queryError, count } = await query.range(from, to).returns<PersonRow[]>();
+  const data = rows ?? [];
+  const error = queryError?.message ?? null;
+  const total = count ?? 0;
 
-export default async function PersonsPage() {
-  const { data, error } = await loadAllPersons();
-
-  const missingBioIds = (data ?? []).filter((p) => !p.biography_de).map((p) => p.id);
+  const missingBioIds = data.filter((p) => !p.biography_de).map((p) => p.id);
 
   return (
     <div className="p-8">
@@ -103,37 +118,36 @@ export default async function PersonsPage() {
       {!error && (
         <BioSelectionProvider>
           <div className="mt-6">
-            <div className="flex items-center justify-between">
-              <TableSearchFilter containerId="persons-table" placeholder="Name durchsuchen…" />
+            <ListToolbar basePath="/persons" params={params} filters={FILTERS} sorts={SORTS} total={total} searchPlaceholder="Name suchen …">
               <BioSelectMissingButton ids={missingBioIds} />
-            </div>
+            </ListToolbar>
             <BioResearchBar
               entityType="person"
               bulkDeleteAction={bulkDeletePersons}
               bulkSetVerifiedAction={bulkSetPersonsVerified}
             />
-            <div id="persons-table" className="overflow-hidden rounded-xl border border-black/[0.06] bg-white shadow-sm">
+            <div id="persons-table" className="mt-3 overflow-x-auto rounded-xl border border-black/[0.06] bg-white shadow-sm">
               <table className="w-full text-sm">
-                <thead className="border-b border-black/[0.06] text-left">
+                <thead className={listTheadClass}>
                   <tr>
                     <th className="w-10 px-4 py-3">
-                      <BioSelectAllCheckbox ids={(data ?? []).map((p) => p.id)} />
+                      <BioSelectAllCheckbox ids={data.map((p) => p.id)} />
                     </th>
-                    <th className="type-label px-4 py-3">Name</th>
-                    <th className="type-label px-4 py-3">Rollen</th>
-                    <th className="type-label px-4 py-3">Status</th>
-                    <th className="type-label px-4 py-3">Bio</th>
-                    <th className="type-label px-4 py-3">Bild</th>
+                    <th className={listThClass}>Name</th>
+                    <th className={listThClass}>Rollen</th>
+                    <th className={listThClass}>Termine</th>
+                    <th className={listThClass}>Status</th>
+                    <th className={listThClass}>Bio</th>
+                    <th className={listThClass}>Bild</th>
                     <th className="px-4 py-3" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-200">
-                  {data?.length ? (
+                  {data.length ? (
                     data.map((person) => (
                       <tr
                         key={person.id}
-                        data-search={person.full_name.toLowerCase()}
-                        className="hover:bg-neutral-50"
+                        className={listRowClass}
                       >
                         <td className="px-4 py-3">
                           <BioRowCheckbox id={person.id} />
@@ -141,22 +155,17 @@ export default async function PersonsPage() {
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
                             <ListThumbnail src={person.photo_url} alt={person.full_name} rounded />
-                            <span className="font-medium text-neutral-900">{person.full_name}</span>
+                            <Link href={`/persons/${person.id}`} className="font-medium text-neutral-900 hover:text-[#2D2A6E] hover:underline">
+                              {person.full_name}
+                            </Link>
                           </div>
                         </td>
                         <td className="px-4 py-3 text-neutral-600">
                           {person.roles.map((r) => ROLE_LABEL[r] ?? r).join(", ") || "—"}
                         </td>
+                        <td className="px-4 py-3 tabular-nums text-neutral-600">{person.event_participants?.[0]?.count ?? 0}</td>
                         <td className="px-4 py-3">
-                          <span
-                            className={`type-label border px-2 py-1 ${
-                              person.is_verified
-                                ? "border-emerald-700 !text-emerald-700"
-                                : "border-neutral-300 !text-neutral-500"
-                            }`}
-                          >
-                            {person.is_verified ? "Geprüft" : "Ungeprüft"}
-                          </span>
+                          <VerifiedBadge verified={person.is_verified} />
                         </td>
                         <td className="px-4 py-3">
                           <BioStatusBadge hasBio={!!person.biography_de} aiStatus={person.ai_biography_status} />
@@ -176,14 +185,15 @@ export default async function PersonsPage() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={7} className="px-4 py-10 text-center text-neutral-400">
-                        Noch keine Personen angelegt.
+                      <td colSpan={8} className="px-4 py-10 text-center text-neutral-400">
+                        {params.q || params.filter !== "all" ? "Keine Personen für diese Auswahl." : "Noch keine Personen angelegt."}
                       </td>
                     </tr>
                   )}
                 </tbody>
               </table>
             </div>
+            <ListPagination basePath="/persons" params={params} total={total} />
           </div>
         </BioSelectionProvider>
       )}
