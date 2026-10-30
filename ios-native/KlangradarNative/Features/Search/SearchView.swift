@@ -33,6 +33,10 @@ struct SearchView: View {
     /// beim Wischen durch "Konzerte entdecken" hängen (Nutzermeldung 24.10.2026).
     @State private var discoveryCache: [ConcertEvent] = []
     @State private var hits: [SearchHit] = []
+    /// Suchbegriff, für den `hits` vollständig (Server) geladen ist. Solange
+    /// er nicht zur Eingabe passt, zeigen wir lokale Treffer bzw. einen
+    /// Ladezustand statt "Keine Ergebnisse" (Nutzerfeedback 30.10.2026).
+    @State private var completedQuery = ""
     @State private var directories: [EntityKind: [DirectoryItem]] = [:]
     @State private var errorMessage: String?
     @State private var activeGenre: GenreFilterRouter.Genre?
@@ -196,7 +200,11 @@ struct SearchView: View {
             discoveryContent
         } else {
             scopePicker
-            if visibleHits.isEmpty {
+            if visibleHits.isEmpty && completedQuery != query.trimmingCharacters(in: .whitespacesAndNewlines) {
+                ProgressView("Suche läuft …")
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 48)
+            } else if visibleHits.isEmpty {
                 ContentUnavailableView.search(text: query)
                     .frame(maxWidth: .infinity)
                     .padding(.top, 48)
@@ -549,13 +557,30 @@ struct SearchView: View {
 
     private func search() async {
         let value = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !value.isEmpty else { hits = []; resultScope = .all; return }
+        guard !value.isEmpty else { hits = []; completedQuery = ""; resultScope = .all; return }
+        // Sofort lokale Treffer aus den bereits geladenen Verzeichnissen
+        // zeigen, die Serversuche ergänzt/ersetzt sie danach.
+        let local = localHits(value)
+        if !local.isEmpty || completedQuery.isEmpty || !value.hasPrefix(completedQuery) { hits = local }
         try? await Task.sleep(for: .milliseconds(250))
         guard !Task.isCancelled else { return }
-        do { hits = try await contentRepository.search(query: value, limit: 40) }
-        catch {
-            hits = directories.values.flatMap { $0 }.filter { $0.title.localizedStandardContains(value) }.map { SearchHit(id: $0.id, kind: $0.kind, slug: $0.slug, title: $0.title, subtitle: $0.subtitle) }
+        do {
+            let remote = try await contentRepository.search(query: value, limit: 40)
+            guard !Task.isCancelled else { return }
+            hits = remote.isEmpty ? local : remote
+        } catch {
+            guard !Task.isCancelled else { return }
+            hits = local
         }
+        completedQuery = value
+    }
+
+    private func localHits(_ value: String) -> [SearchHit] {
+        guard value.count >= 2 else { return [] }
+        let matches = directories.values.flatMap { $0 }.filter { $0.title.localizedStandardContains(value) }
+        let prefix = matches.filter { $0.title.lowercased().hasPrefix(value.lowercased()) }
+        let rest = matches.filter { !$0.title.lowercased().hasPrefix(value.lowercased()) }
+        return (prefix + rest).prefix(30).map { SearchHit(id: $0.id, kind: $0.kind, slug: $0.slug, title: $0.title, subtitle: $0.subtitle) }
     }
 }
 

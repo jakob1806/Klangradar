@@ -50,3 +50,15 @@ _LigNEous_ V für Marimba und Streicher
     { title: "LigNEous V für Marimba und Streicher", composerName: "Andy Akiho", position: 2 },
   ]);
 });
+
+Deno.test("keeps Staatsoper part names as role labels", () => {
+  const detail = parseStaatsoperDetail(`
+## Besetzung
+*   **Musikalische Leitung**[Antonino Fogliani](https://www.staatsoper.de/biographien/fogliani-antonino)
+*   **Don Ramiro**[Liam Bonthrone](https://www.staatsoper.de/biographien/bonthorne-liam)
+## Kommende Vorstellungen`);
+  assertEquals(detail.participants.map((p) => [p.name, p.roleLabel]), [
+    ["Antonino Fogliani", "Musikalische Leitung"],
+    ["Liam Bonthrone", "Don Ramiro"],
+  ]);
+});
