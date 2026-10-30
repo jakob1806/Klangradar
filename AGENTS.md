@@ -59,3 +59,4 @@ doppelt gebaute Features (Coach vs. Personal Concierge), ein komplett
 | Claude | 2026-10-29 | claude/abos-profil-geschmack | Abo-Titelbild = Ensemble, Abos im Profil dezenter, Dein Geschmack neu, Interessen wie Onboarding, BR-Quellen Rundfunkorchester/BR-Chor + Reihen, TestFlight-Mail nur an Jakob |
 | Claude | 2026-10-29 | claude/sammlungen-duplikate | Sammlungen per Regel (Person/Ensemble/Spielstätte), Duplikatprüfung Personen/Ensembles präziser + neue Prüfansicht, Werke-Lauf im Hintergrund, TestFlight-Hinweis mit Homebrew-Ruby |
 | Claude | 2026-10-29 | claude/admin-ux-duplikate | Werk-Duplikate mit Gegenbeweis-Filter, Duplikate beim Anlegen erkennen, Tastatursteuerung Duplikate, Listen-Baukasten Personen/Ensembles/Venues, Zuletzt geöffnet/erledigt auf /admin |
+| Claude | 2026-10-30 | claude/supabase-entlastung | Supabase-Last: Cron-Takte gesenkt/versetzt, cron.job_run_details begrenzt, ingestion_runs-Index |
