@@ -16,6 +16,7 @@ struct EventDetailView: View {
     @State private var isAttended = false
     @State private var planComposer: PlanComposerMode?
     @State private var calendarTrigger = false
+    @State private var showsTicketPrivacy = false
 
     enum PlanComposerMode: Int, Identifiable {
         case plan, ask
@@ -205,6 +206,7 @@ struct EventDetailView: View {
                                 Section("Mit Freunden") {
                                     Button("Konzertabend planen", systemImage: "person.2") { planComposer = .plan }
                                     Button("Wer kommt mit?", systemImage: "questionmark.bubble") { planComposer = .ask }
+                                    Button("Ticket anbieten · Privat hingehen", systemImage: "ticket") { showsTicketPrivacy = true }
                                 }
                             }
                             if calendarEventInput() != nil {
@@ -254,6 +256,7 @@ struct EventDetailView: View {
             .sheet(item: $planComposer) { mode in
                 NavigationStack { PlanComposerView(event: event, quickAsk: mode == .ask) }
             }
+            .sheet(isPresented: $showsTicketPrivacy) { EventTicketPrivacySheet(event: event) }
             .modifier(AddToCalendarPresenter(input: calendarEventInput(), trigger: $calendarTrigger))
     }
 
@@ -519,6 +522,13 @@ struct EventDetailView: View {
                     LiquidGlassSurface(cornerRadius: 24) {
                         VStack(spacing: 0) {
                             ForEach(Array(works.enumerated()), id: \.offset) { index, link in
+                                // Nutzerwunsch 30.10.2026: Pause als eigener Programmpunkt.
+                                if link.bool("after_intermission") == true,
+                                   index == 0 || works[index - 1].bool("after_intermission") != true {
+                                    if index > 0 { Divider().padding(.leading, 18) }
+                                    intermissionRow
+                                    Divider().padding(.leading, 18)
+                                }
                                 programRow(link)
                                 if index < works.count - 1 { Divider().padding(.leading, 18) }
                             }
@@ -560,15 +570,23 @@ struct EventDetailView: View {
         }
     }
 
+    private var intermissionRow: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "cup.and.saucer.fill")
+            Text("Pause").font(.headline)
+            Spacer()
+        }
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.secondary.opacity(0.06))
+        .accessibilityElement(children: .combine)
+    }
+
     @ViewBuilder private func programRow(_ link: JSONObject) -> some View {
         if let work = link.object("works") {
             VStack(alignment: .leading, spacing: 7) {
-                if link.bool("after_intermission") == true {
-                    Label("Nach der Pause", systemImage: "pause.fill")
-                        .font(.caption.bold())
-                        .textCase(.uppercase)
-                        .foregroundStyle(KlangradarTheme.accent)
-                }
                 if let composer = work.object("composer"), let name = composer.string("full_name") {
                     if let route = entityRoute(from: composer, kind: .person) {
                         NavigationLink(value: route) {

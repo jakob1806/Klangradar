@@ -157,7 +157,9 @@ export type RuleSearchResult = { entity_type: "person" | "ensemble" | "venue"; e
 export async function searchCollectionRuleEntities(query: string): Promise<RuleSearchResult[]> {
   if (query.trim().length < 2) return [];
   const supabase = await createClient();
-  const { data } = await supabase.rpc("admin_collection_rule_search", { p_query: query.trim() });
+  const { data, error } = await supabase.rpc("admin_collection_rule_search", { p_query: query.trim() });
+  // Fehler nicht mehr still verschlucken (sah aus wie "keine Treffer").
+  if (error) throw new Error(`Suche fehlgeschlagen: ${error.message}`);
   return (data ?? []) as RuleSearchResult[];
 }
 

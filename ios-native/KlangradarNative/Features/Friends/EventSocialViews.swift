@@ -29,9 +29,9 @@ struct FriendsAttendingRow: View {
                 }
             }
             .padding(.bottom, friends.isEmpty ? 0 : 20)
-            // Freunde-Ausbau 28.10.2026: Ticket übrig, Privat hingehen.
+            // Tickets von Freunden; eigenes Angebot/Privat liegt im "…"-Menü.
             if isUpcoming && follows.isSignedIn {
-                EventFriendsExtras(event: event)
+                EventFriendsExtras(event: event, showsOwnControls: false)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
