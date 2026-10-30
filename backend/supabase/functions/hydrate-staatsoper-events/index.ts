@@ -19,8 +19,11 @@ Deno.serve(async (req) => {
     .ilike("website_url", "%staatsoper.de/%")
     .gte("start_datetime", new Date().toISOString())
     .in("status", ["scheduled", "sold_out"])
-    .is("staatsoper_detail_synced_at", null)
-    .order("start_datetime").order("id")
+    // Besetzungen ändern sich bis kurz vor der Vorstellung: nicht nur
+    // einmalig, sondern Termine der nächsten 21 Tage alle 2 Tage neu lesen
+    // (vorher blieb die erste, oft noch unvollständige Besetzung stehen).
+    .or(`staatsoper_detail_synced_at.is.null,and(staatsoper_detail_synced_at.lt.${new Date(Date.now() - 2 * 86_400_000).toISOString()},start_datetime.lt.${new Date(Date.now() + 21 * 86_400_000).toISOString()})`)
+    .order("staatsoper_detail_synced_at", { ascending: true, nullsFirst: true }).order("start_datetime").order("id")
     .limit(limit);
   if (error) return json({ error: error.message }, 500);
 

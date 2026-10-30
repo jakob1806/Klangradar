@@ -3,6 +3,8 @@ export interface StaatsoperParticipant {
   profileUrl: string | null;
   role: "komponist" | "dirigent" | "chorleiter" | "solist" | null;
   type: "person" | "ensemble";
+  /** Rollen-/Instrumentenbezeichnung der Seite, z. B. "Don Ramiro". */
+  roleLabel?: string | null;
 }
 
 export interface StaatsoperDetail {
@@ -72,7 +74,11 @@ export function parseStaatsoperDetail(markdown: string): StaatsoperDetail {
         if (/(?:orchester|chor|ensemble|ballett)/i.test(name) && isPlausibleEnsembleName(name)) {
           add({ name, profileUrl: link[2], role: null, type: "ensemble" });
         } else {
-          add({ name, profileUrl: link[2], role, type: "person" });
+          // Nutzerfeedback 30.10.2026: Besetzung der Staatsoper zeigte nur
+          // Namen ohne Partie — die Partie ("Tosca", "Violine") geht jetzt
+          // als role_label mit.
+          const roleLabel = role === "dirigent" ? "Musikalische Leitung" : role === "chorleiter" ? "Chor" : label;
+          add({ name, profileUrl: link[2], role, type: "person", roleLabel });
         }
       }
       continue;

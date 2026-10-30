@@ -401,30 +401,68 @@ struct MySubscriptionsSection: View {
     @State private var mine: [ConcertSubscription] = []
     @State private var suggestions: [SubscriptionSuggestion] = []
 
+    // Nutzerfeedback 30.10.2026: Liste wirkte unruhig (jede Zeile eigene
+    // Kachel mit Icon). Jetzt eine gruppierte Liste mit Titelbild wie in
+    // den Systemeinstellungen; Vorschläge und "Entdecken" darunter dezent.
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Meine Abos").font(.title3.bold())
-            ForEach(mine) { subscription in
-                NavigationLink { SubscriptionDetailView(subscription: subscription, repository: repository, contentRepository: contentRepository) } label: {
-                    row(icon: "rectangle.stack.fill", title: subscription.name, subtitle: "\(subscription.organizerName) · Saison \(subscription.season)")
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Meine Abos").font(.headline)
+                Spacer()
+                NavigationLink { catalog } label: {
+                    Text(mine.isEmpty ? "Hinzufügen" : "Entdecken")
+                        .font(.subheadline.weight(.semibold)).foregroundStyle(KlangradarTheme.accent)
                 }
                 .buttonStyle(.plain)
             }
-            ForEach(suggestions) { suggestion in
-                NavigationLink { SubscriptionDetailView(subscription: suggestion.subscription, repository: repository, contentRepository: contentRepository) } label: {
-                    row(icon: "sparkles", title: "Gibt es als Abo: \(suggestion.subscription.name)",
-                        subtitle: "\(suggestion.matched) von \(suggestion.total) Konzerten hast du dir gemerkt · \(suggestion.subscription.organizerName)")
+            .padding(.top, 4)
+
+            VStack(spacing: 0) {
+                if mine.isEmpty {
+                    NavigationLink { catalog } label: {
+                        row(imageURL: nil, title: "Du hast ein Abo?",
+                            subtitle: "Füge es hinzu – die Termine landen im Saisonplaner.")
+                    }
+                    .buttonStyle(.plain)
+                }
+                ForEach(Array(mine.enumerated()), id: \.element.id) { index, subscription in
+                    if index > 0 { Divider().padding(.leading, 70) }
+                    NavigationLink { detail(subscription) } label: {
+                        row(imageURL: subscription.imageURL, title: subscription.name,
+                            subtitle: [subscription.organizerName, subscription.season.isEmpty ? nil : "Saison \(subscription.season)"]
+                                .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .background(Color(uiColor: .secondarySystemBackground), in: .rect(cornerRadius: 18, style: .continuous))
+
+            ForEach(suggestions.prefix(2)) { suggestion in
+                NavigationLink { detail(suggestion.subscription) } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "sparkles").foregroundStyle(KlangradarTheme.accent)
+                        Text("\(suggestion.matched) von \(suggestion.total) Konzerten aus „\(suggestion.subscription.name)“ gemerkt – gibt es als Abo")
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.leading)
+                        Spacer(minLength: 0)
+                        Image(systemName: "chevron.right").font(.caption2.weight(.semibold)).foregroundStyle(.tertiary)
+                    }
+                    .font(.caption)
+                    .padding(.horizontal, 4)
                 }
                 .buttonStyle(.plain)
             }
-            NavigationLink { SubscriptionCatalogView(repository: repository, contentRepository: contentRepository, cityID: cityID) } label: {
-                row(icon: "magnifyingglass", title: mine.isEmpty ? "Abo hinzufügen" : "Alle Abos entdecken",
-                    subtitle: mine.isEmpty ? "Du hast ein Abo? Füge es hinzu – die Termine landen im Saisonplaner." : "Abos und Konzertreihen aller Veranstalter")
-            }
-            .buttonStyle(.plain)
         }
         .task { await load() }
         .onReceive(NotificationCenter.default.publisher(for: .subscriptionsChanged)) { _ in Task { await load() } }
+    }
+
+    private var catalog: some View {
+        SubscriptionCatalogView(repository: repository, contentRepository: contentRepository, cityID: cityID)
+    }
+
+    private func detail(_ subscription: ConcertSubscription) -> some View {
+        SubscriptionDetailView(subscription: subscription, repository: repository, contentRepository: contentRepository)
     }
 
     private func load() async {
@@ -434,20 +472,32 @@ struct MySubscriptionsSection: View {
         suggestions = await suggestionsTask
     }
 
-    private func row(icon: String, title: String, subtitle: String) -> some View {
+    private func row(imageURL: URL?, title: String, subtitle: String) -> some View {
         HStack(spacing: 12) {
-            Image(systemName: icon).font(.headline).foregroundStyle(KlangradarTheme.accent)
-                .frame(width: 40, height: 40)
-                .background(KlangradarTheme.accent.opacity(0.1), in: .rect(cornerRadius: 12, style: .continuous))
+            Group {
+                if let imageURL {
+                    RemoteCover(url: imageURL)
+                } else {
+                    Image(systemName: "rectangle.stack.fill")
+                        .font(.subheadline).foregroundStyle(KlangradarTheme.accent)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(KlangradarTheme.accent.opacity(0.1))
+                }
+            }
+            .frame(width: 46, height: 46)
+            .clipShape(.rect(cornerRadius: 10, style: .continuous))
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.subheadline.weight(.semibold)).lineLimit(2).multilineTextAlignment(.leading)
-                Text(subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(2).multilineTextAlignment(.leading)
+                Text(title).font(.subheadline.weight(.semibold)).lineLimit(1)
+                if !subtitle.isEmpty {
+                    Text(subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                }
             }
             Spacer(minLength: 0)
             Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
         }
-        .padding(12)
-        .background(Color(uiColor: .secondarySystemBackground), in: .rect(cornerRadius: 16, style: .continuous))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .contentShape(.rect)
     }
 }
 

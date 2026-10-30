@@ -86,7 +86,9 @@ struct ProfileView: View {
                     // Abo-Karussell entfernt (Nutzerwunsch 29.10.2026: Abos im Profil
                     // unauffälliger) — erreichbar über die Zeile "Abos & Zyklen" unten.
 
-                    plusHero
+                    // Nutzerwunsch 30.10.2026: Mit Plus verschwindet die Kachel,
+                    // stattdessen Diamant am Profilbild (ProfileOverview).
+                    if !plus.isPlus { plusHero }
 
                     VStack(spacing: 0) {
                         if auth.userID != nil, let userRepository {
@@ -1571,15 +1573,44 @@ private struct ProfileOverview: View {
     let onSelect: (ProfileDestination) -> Void
     @State private var profile: KlangradarUserProfile?
     @State private var socialSummary: ProfileSocialSummary = .empty
+    @ObservedObject private var plus = PlusStore.shared
+    @State private var showsPlus = false
 
     var body: some View {
         VStack(spacing: 12) {
             ProfileAvatarEditor(auth: auth, repository: repository, size: 78)
+                .overlay(alignment: .bottomTrailing) {
+                    if plus.isPlus {
+                        Button { showsPlus = true } label: {
+                            Image(systemName: "diamond.fill")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundStyle(.white)
+                                .frame(width: 26, height: 26)
+                                .background(KlangradarTheme.accent, in: .circle)
+                                .overlay(Circle().stroke(Color(uiColor: .systemBackground), lineWidth: 2.5))
+                        }
+                        .buttonStyle(.plain)
+                        .offset(x: 2, y: 2)
+                        .accessibilityLabel("Klangradar Plus aktiv")
+                    }
+                }
                 .padding(.top, 4)
 
             VStack(spacing: 3) {
-                Text(displayName)
-                    .font(.headline)
+                HStack(spacing: 6) {
+                    Text(displayName)
+                        .font(.headline)
+                    if plus.isPlus {
+                        Button { showsPlus = true } label: {
+                            Text("PLUS")
+                                .font(.caption2.weight(.heavy)).tracking(0.8)
+                                .foregroundStyle(KlangradarTheme.accent)
+                                .padding(.horizontal, 7).padding(.vertical, 2)
+                                .background(KlangradarTheme.accent.opacity(0.12), in: .capsule)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
                 Text(accountLine)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -1617,6 +1648,7 @@ private struct ProfileOverview: View {
         .padding(.vertical, 6)
         .task(id: auth.userID) { await load() }
         .onAppear { Task { await load() } }
+        .sheet(isPresented: $showsPlus) { PlusPaywallView() }
     }
 
     private func profileMetric(value: Int, label: String) -> some View {

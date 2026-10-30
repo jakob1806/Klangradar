@@ -44,7 +44,20 @@ export function SuggestionCard({ suggestion }: { suggestion: SuggestedGroup }) {
   return (
     <div className="rounded-xl border border-black/[0.06] bg-white p-4 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="font-medium text-neutral-900">{suggestion.title}</p>
+        <div className="min-w-0">
+          <p className="font-medium text-neutral-900">
+            {suggestion.title}
+            <span
+              title="Wahrscheinlichkeit, dass diese Termine eine Serie sind"
+              className={`ml-2 rounded-full px-2 py-0.5 align-middle text-xs font-semibold tabular-nums ${
+                suggestion.score >= 0.85 ? "bg-emerald-50 text-emerald-700" : suggestion.score >= 0.72 ? "bg-amber-50 text-amber-700" : "bg-neutral-100 text-neutral-600"
+              }`}
+            >
+              {Math.round(suggestion.score * 100)} %
+            </span>
+          </p>
+          {suggestion.reasons.length > 0 && <p className="mt-0.5 text-xs text-neutral-500">{suggestion.reasons.join(" · ")}</p>}
+        </div>
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -74,6 +87,7 @@ export function SuggestionCard({ suggestion }: { suggestion: SuggestedGroup }) {
               className="mt-1 accent-[#2D2A6E]"
             />
             <span>
+              {e.title !== suggestion.title && <span className="text-neutral-800">{e.title} · </span>}
               {formatMunichDateTime(e.start_datetime)}
               {e.venueName && <span className="text-neutral-400"> · {e.venueName}</span>}
               {e.works.length > 0 && (

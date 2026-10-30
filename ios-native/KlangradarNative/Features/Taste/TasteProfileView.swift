@@ -21,8 +21,8 @@ struct TasteProfileView: View {
                 } else {
                     TasteHero(profile: profile)
                     if let profile, !profile.isEmpty {
-                        if !profile.composers.isEmpty { TasteComposerTile(entries: Array(profile.composers.prefix(6))) }
-                        if !profile.artists.isEmpty { TasteArtistsTile(entries: Array(profile.artists.prefix(10))) }
+                        if !profile.composers.isEmpty { TasteComposerTile(entries: Array(profile.composers.prefix(5))) }
+                        if !profile.artists.isEmpty { TasteArtistsTile(entries: Array(profile.artists.prefix(12))) }
                         HStack(alignment: .top, spacing: 12) {
                             if !profile.venues.isEmpty { TasteVenuesTile(entries: Array(profile.venues.prefix(4))) }
                             if !profile.weekdays.isEmpty { TasteWeekdayTile(profile: profile) }
@@ -136,31 +136,68 @@ private struct TasteHero: View {
     }
 }
 
-/// Komponist:innen: Nummer eins groß, danach Balken im Verhältnis.
+/// Neu gestaltet 30.10.2026 (Nutzerwunsch): jede Zeile führt jetzt zur
+/// Person/zum Ensemble/zur Spielstätte, Anteile statt nackter Balken.
+private func tasteRoute(_ entry: TasteProfile.Entry, fallback: EntityKind) -> EntityRoute {
+    let kind = entry.kind.flatMap(EntityKind.init(rawValue:)) ?? fallback
+    return EntityRoute(kind: kind, identifier: entry.id.uuidString.lowercased())
+}
+
+private struct TasteInitials: View {
+    let name: String
+    var highlighted = false
+    var size: CGFloat = 44
+
+    private var initials: String {
+        let parts = name.split(separator: " ").filter { $0.first?.isUppercase == true }
+        return String((parts.first?.prefix(1) ?? "") + (parts.count > 1 ? parts.last!.prefix(1) : ""))
+    }
+
+    var body: some View {
+        Text(initials)
+            .font(.system(size: size * 0.36, weight: .semibold, design: .serif))
+            .foregroundStyle(highlighted ? .white : KlangradarTheme.accent)
+            .frame(width: size, height: size)
+            .background(highlighted ? AnyShapeStyle(KlangradarTheme.accent) : AnyShapeStyle(KlangradarTheme.accent.opacity(0.12)), in: .circle)
+    }
+}
+
+/// Komponist:innen als Rangliste mit Anteil am Geschmack.
 private struct TasteComposerTile: View {
     let entries: [TasteProfile.Entry]
 
     var body: some View {
-        let top = entries[0]
+        let total = max(entries.map(\.weight).reduce(0, +), 0.0001)
         let maxWeight = max(entries.map(\.weight).max() ?? 1, 0.0001)
-        VStack(alignment: .leading, spacing: 14) {
-            TasteLabel(text: "Am meisten gehört")
-            Text(top.name)
-                .font(.system(.title, design: .serif).weight(.semibold))
-                .lineLimit(2)
-                .minimumScaleFactor(0.8)
-            if entries.count > 1 {
-                VStack(spacing: 9) {
-                    ForEach(entries.dropFirst()) { entry in
-                        HStack(spacing: 10) {
-                            Text(entry.name).font(.subheadline).lineLimit(1).minimumScaleFactor(0.85).frame(width: 165, alignment: .leading)
-                            GeometryReader { proxy in
-                                Capsule().fill(KlangradarTheme.accent.opacity(0.3))
-                                    .frame(width: max(8, proxy.size.width * entry.weight / maxWeight))
+        VStack(alignment: .leading, spacing: 12) {
+            TasteLabel(text: "Komponist:innen")
+            VStack(spacing: 0) {
+                ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
+                    if index > 0 { Divider().padding(.leading, 56) }
+                    NavigationLink(value: tasteRoute(entry, fallback: .person)) {
+                        HStack(spacing: 12) {
+                            TasteInitials(name: entry.name, highlighted: index == 0)
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(entry.name)
+                                    .font(index == 0 ? .system(.headline, design: .serif) : .subheadline)
+                                    .foregroundStyle(.primary)
+                                    .lineLimit(1)
+                                GeometryReader { proxy in
+                                    Capsule().fill(KlangradarTheme.accent.opacity(index == 0 ? 0.8 : 0.3))
+                                        .frame(width: max(6, proxy.size.width * entry.weight / maxWeight))
+                                }
+                                .frame(height: 5)
                             }
-                            .frame(height: 8)
+                            Text("\(Int((entry.weight / total * 100).rounded())) %")
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                                .frame(width: 40, alignment: .trailing)
+                            Image(systemName: "chevron.right").font(.caption2.weight(.semibold)).foregroundStyle(.tertiary)
                         }
+                        .padding(.vertical, 8)
+                        .contentShape(.rect)
                     }
+                    .buttonStyle(.plain)
                 }
             }
         }
@@ -168,26 +205,39 @@ private struct TasteComposerTile: View {
     }
 }
 
-/// Künstler:innen und Ensembles als Kapseln mit kleinem Symbol.
+/// Künstler:innen und Ensembles als Porträtreihe zum Wischen.
 private struct TasteArtistsTile: View {
     let entries: [TasteProfile.Entry]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             TasteLabel(text: "Künstler:innen & Ensembles")
-            FlowLayout(spacing: 8) {
-                ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
-                    HStack(spacing: 6) {
-                        Image(systemName: entry.kind == "ensemble" ? "person.3.fill" : "person.fill")
-                            .font(.caption2)
-                            .foregroundStyle(index == 0 ? .white : KlangradarTheme.accent)
-                        Text(entry.name).font(.subheadline.weight(index == 0 ? .semibold : .regular))
+            ScrollView(.horizontal) {
+                HStack(alignment: .top, spacing: 14) {
+                    ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
+                        NavigationLink(value: tasteRoute(entry, fallback: .person)) {
+                            VStack(spacing: 6) {
+                                TasteInitials(name: entry.name, highlighted: index == 0, size: 60)
+                                    .overlay(alignment: .bottomTrailing) {
+                                        Image(systemName: entry.kind == "ensemble" ? "person.3.fill" : "person.fill")
+                                            .font(.system(size: 9, weight: .bold))
+                                            .foregroundStyle(KlangradarTheme.accent)
+                                            .padding(5)
+                                            .background(Color(uiColor: .secondarySystemGroupedBackground), in: .circle)
+                                    }
+                                Text(entry.name)
+                                    .font(.caption.weight(index == 0 ? .semibold : .regular))
+                                    .foregroundStyle(.primary)
+                                    .multilineTextAlignment(.center)
+                                    .lineLimit(2)
+                                    .frame(width: 76)
+                            }
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .padding(.horizontal, 12).padding(.vertical, 7)
-                    .foregroundStyle(index == 0 ? .white : .primary)
-                    .background(index == 0 ? AnyShapeStyle(KlangradarTheme.accent) : AnyShapeStyle(KlangradarTheme.accent.opacity(0.1)), in: .capsule)
                 }
             }
+            .scrollIndicators(.hidden)
         }
         .tasteTile()
     }
@@ -201,16 +251,21 @@ private struct TasteVenuesTile: View {
         VStack(alignment: .leading, spacing: 12) {
             TasteLabel(text: "Lieblingsorte")
             ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text("\(index + 1)")
-                        .font(.system(.subheadline, design: .serif).weight(.bold))
-                        .foregroundStyle(index == 0 ? KlangradarTheme.accent : .secondary)
-                        .frame(width: 14, alignment: .leading)
-                    Text(entry.name)
-                        .font(.subheadline.weight(index == 0 ? .semibold : .regular))
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
+                NavigationLink(value: tasteRoute(entry, fallback: .venue)) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text("\(index + 1)")
+                            .font(.system(.subheadline, design: .serif).weight(.bold))
+                            .foregroundStyle(index == 0 ? KlangradarTheme.accent : .secondary)
+                            .frame(width: 14, alignment: .leading)
+                        Text(entry.name)
+                            .font(.subheadline.weight(index == 0 ? .semibold : .regular))
+                            .foregroundStyle(.primary)
+                            .multilineTextAlignment(.leading)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
+                .buttonStyle(.plain)
             }
         }
         .tasteTile()

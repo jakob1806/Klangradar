@@ -16,6 +16,8 @@ export interface EventParticipantCandidate {
   profileUrl: string | null;
   role: string | null;
   type: "person" | "ensemble";
+  /** Terminbezogene Rolle wie "Tosca" oder "Violine" (event_participants.role_label). */
+  roleLabel?: string | null;
 }
 
 export async function resolveComposer(supabase: SupabaseClient, name: string): Promise<string | null> {
@@ -202,7 +204,7 @@ export async function replaceEventParticipants(
       const { data: existing } = await supabase.from("event_participants").select("id")
         .eq("event_id", eventId).eq(column, entityId).maybeSingle();
       if (existing) {
-        await supabase.from("event_participants").update({ role: participant.role, display_order: index + resolvedIndex }).eq("id", existing.id);
+        await supabase.from("event_participants").update({ role: participant.role, display_order: index + resolvedIndex, ...(participant.roleLabel ? { role_label: participant.roleLabel } : {}) }).eq("id", existing.id);
         continue;
       }
       const { error: insertError } = await supabase.from("event_participants").insert({
@@ -211,6 +213,7 @@ export async function replaceEventParticipants(
         ensemble_id: participant.type === "ensemble" ? entityId : null,
         role: participant.role,
         display_order: index + resolvedIndex,
+        ...(participant.roleLabel ? { role_label: participant.roleLabel } : {}),
       });
       if (!insertError) added++;
     }

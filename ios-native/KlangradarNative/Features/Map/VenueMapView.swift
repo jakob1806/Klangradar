@@ -388,7 +388,32 @@ private struct VenuePreviewSheet: View {
                         Text("\(venue.upcomingEventCount) kommende Veranstaltungen").font(.subheadline).foregroundStyle(.secondary)
                     }
 
-                    if !events.isEmpty { Text("Nächste Konzerte").font(.headline) }
+                    // Nutzerwunsch 30.10.2026: Aktionen wie in Apple Maps direkt
+                    // unter dem Titel, zwei gleich breite Knöpfe statt zweier
+                    // Kapseln an den Rändern unten.
+                    HStack(spacing: 10) {
+                        Button { openRoute() } label: {
+                            Label("Route", systemImage: "arrow.triangle.turn.up.right.diamond.fill")
+                                .font(.subheadline.weight(.semibold))
+                                .frame(maxWidth: .infinity, minHeight: 46)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .buttonBorderShape(.roundedRectangle(radius: 14))
+                        if let slug = venue.slug {
+                            NavigationLink {
+                                EntityDetailView(route: EntityRoute(kind: .venue, identifier: slug), repository: repository)
+                            } label: {
+                                Label("Spielstätte", systemImage: "info.circle")
+                                    .font(.subheadline.weight(.semibold))
+                                    .frame(maxWidth: .infinity, minHeight: 46)
+                            }
+                            .buttonStyle(.bordered)
+                            .buttonBorderShape(.roundedRectangle(radius: 14))
+                            .tint(KlangradarTheme.accent)
+                        }
+                    }
+
+                    if !events.isEmpty { Text("Nächste Konzerte").font(.headline).padding(.top, 4) }
                     ForEach(events.prefix(3)) { event in
                         Button {
                             navigationPath.append(event)
@@ -405,25 +430,6 @@ private struct VenuePreviewSheet: View {
                         .buttonStyle(.plain)
                     }
 
-                    HStack {
-                        // Nutzerfeedback: Buttons etwas größer, dazu dasselbe
-                        // gefüllte Symbol, das Apple Maps selbst für seinen
-                        // "Route"/Directions-Button verwendet (.diamond.fill
-                        // statt der Outline-Variante).
-                        Button("Route", systemImage: "arrow.triangle.turn.up.right.diamond.fill") { openRoute() }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.large)
-                        Spacer()
-                        if let slug = venue.slug {
-                            NavigationLink {
-                                EntityDetailView(route: EntityRoute(kind: .venue, identifier: slug), repository: repository)
-                            } label: {
-                                Text("Details ansehen").lineLimit(1)
-                            }
-                                .buttonStyle(.borderedProminent)
-                                .controlSize(.large)
-                        }
-                    }
                 }
                 .padding(20)
             }

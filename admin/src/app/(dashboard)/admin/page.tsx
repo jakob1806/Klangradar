@@ -15,9 +15,8 @@ const GROUP_HINTS: Record<string, string> = {
   Heute: "Was jetzt ansteht",
   Programm: "Termine, Festivals, Sammlungen",
   Wissen: "Personen, Ensembles, Werke, Orte",
-  Datenqualität: "Prüfen, anreichern, Lücken schließen",
-  Vertrauen: "Claims, Profiländerungen, Verifizierung",
-  "Import & System": "Quellen, Regionen, Benutzer",
+  Datenqualität: "Prüfen, Duplikate, Vertrauen",
+  System: "Quellen, Benutzer, Einstellungen",
 };
 
 // "Zuletzt erledigt": eigene Aktionen aus system_logs (Zusammenführungen,

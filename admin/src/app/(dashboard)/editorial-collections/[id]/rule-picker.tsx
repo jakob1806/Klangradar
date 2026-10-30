@@ -5,7 +5,7 @@
 // Konzerte damit landen in der Sammlung, neue kommen stündlich dazu.
 // Manuelles Hinzufügen bleibt daneben möglich.
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { addCollectionRule, removeCollectionRule, searchCollectionRuleEntities, type RuleSearchResult } from "../actions";
 
@@ -21,18 +21,33 @@ export function RulePicker({ collectionId, rules }: { collectionId: string; rule
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const searchToken = useRef(0);
+  const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const active = new Set(rules.map((rule) => `${rule.entity_type}:${rule.entity_id}`));
 
-  async function runSearch(value: string) {
+  // Entprellt und nur die letzte Anfrage zählt — vorher überschrieben
+  // langsamere ältere Antworten die Treffer der aktuellen Eingabe.
+  function runSearch(value: string) {
     setQuery(value);
+    setError(null);
+    if (debounce.current) clearTimeout(debounce.current);
+    const token = ++searchToken.current;
     if (value.trim().length < 2) {
       setResults([]);
+      setSearching(false);
       return;
     }
     setSearching(true);
-    const found = await searchCollectionRuleEntities(value);
-    setSearching(false);
-    setResults(found);
+    debounce.current = setTimeout(async () => {
+      try {
+        const found = await searchCollectionRuleEntities(value);
+        if (token === searchToken.current) setResults(found);
+      } catch (err) {
+        if (token === searchToken.current) setError(err instanceof Error ? err.message : "Suche fehlgeschlagen.");
+      } finally {
+        if (token === searchToken.current) setSearching(false);
+      }
+    }, 250);
   }
 
   function add(result: RuleSearchResult) {
@@ -102,6 +117,9 @@ export function RulePicker({ collectionId, rules }: { collectionId: string; rule
         className="mt-3 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-neutral-500"
       />
       {searching && <p className="mt-2 text-xs text-neutral-400">Suche…</p>}
+      {!searching && query.trim().length >= 2 && results.length === 0 && !error && (
+        <p className="mt-2 text-xs text-neutral-400">Keine Person, kein Ensemble und keine Spielstätte gefunden.</p>
+      )}
       {results.length > 0 && (
         <div className="mt-2 flex flex-col rounded-md border border-neutral-200 bg-white">
           {results.map((result) => {

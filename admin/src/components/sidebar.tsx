@@ -5,7 +5,8 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useMemo, useState, useSyncExternalStore } from "react";
 
-import { NAV_GROUPS } from "@/components/nav-groups";
+import { NAV_GROUPS, findNavArea } from "@/components/nav-groups";
+import { CommandPaletteButton } from "@/components/command-palette";
 
 export { NAV_GROUPS };
 
@@ -72,18 +73,15 @@ export function Sidebar({ userEmail }: { userEmail?: string }) {
     }
   };
 
-  const activeHref = pathname
-    ? bestMatchingHref(
-        pathname,
-        NAV_GROUPS.flatMap((group) => group.items.map((item) => item.href)),
-      )
-    : null;
+  // Aktiv ist der Bereich, auch wenn man auf einem seiner Reiter steht.
+  const activeHref = findNavArea(pathname)?.area.href ?? null;
 
   const normalizedQuery = query.trim().toLowerCase();
   const groups = NAV_GROUPS.map((group) => ({
     ...group,
     items: normalizedQuery
-      ? group.items.filter((item) => item.label.toLowerCase().includes(normalizedQuery))
+      ? group.items.filter((item) =>
+          [item, ...(item.tabs ?? [])].some((link) => link.label.toLowerCase().includes(normalizedQuery)))
       : group.items,
   })).filter((group) => group.items.length > 0);
 
@@ -98,6 +96,7 @@ export function Sidebar({ userEmail }: { userEmail?: string }) {
           <span className="block truncate text-[12px] text-[#6B6B6B]">Redaktion</span>
         </span>
       </Link>
+      <CommandPaletteButton />
       <label className="block px-0.5">
         <span className="sr-only">Navigation durchsuchen</span>
         <input

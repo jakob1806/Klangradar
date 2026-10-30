@@ -652,6 +652,10 @@ struct TicketOfferComposer: View {
 
 struct EventFriendsExtras: View {
     let event: ConcertEvent
+    /// Nutzerwunsch 30.10.2026: Ticket anbieten/Privat hingehen nicht mehr
+    /// direkt auf der Konzertseite, sondern im "…"-Menü (eigenes Sheet).
+    var showsFriendOffers = true
+    var showsOwnControls = true
     @EnvironmentObject private var favorites: FavoriteStore
     @State private var state: EventSocialState?
     @State private var showsOfferComposer = false
@@ -659,12 +663,16 @@ struct EventFriendsExtras: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             if let state {
-                ForEach(state.friendOffers) { offer in
+                ForEach(showsFriendOffers ? state.friendOffers : []) { offer in
                     TicketOfferRow(offer: offer, showsEvent: false) { await load() }
                         .padding(14)
                         .background(KlangradarTheme.accent.opacity(0.08), in: .rect(cornerRadius: 18, style: .continuous))
                 }
-                if state.myStatus != nil {
+                if showsOwnControls && state.myStatus == nil {
+                    Text("Merke dir das Konzert zuerst, dann kannst du ein übriges Ticket anbieten oder privat hingehen.")
+                        .font(.subheadline).foregroundStyle(.secondary)
+                }
+                if showsOwnControls && state.myStatus != nil {
                     VStack(alignment: .leading, spacing: 12) {
                         if let mine = state.myOffer {
                             TicketOfferRow(offer: mine, showsEvent: false) { await load() }
@@ -700,7 +708,7 @@ struct EventFriendsExtras: View {
 
     private var hasContent: Bool {
         guard let state else { return false }
-        return !state.friendOffers.isEmpty || state.myStatus != nil
+        return (showsFriendOffers && !state.friendOffers.isEmpty) || (showsOwnControls && state.myStatus != nil)
     }
 
     private var privateBinding: Binding<Bool> {
@@ -722,5 +730,24 @@ struct EventFriendsExtras: View {
         guard (event.startDate ?? .distantPast) > .now,
               let repository = SocialStore.shared.repository, let token = SocialStore.shared.token else { return }
         state = try? await repository.eventSocialState(eventID: event.id, token: token)
+    }
+}
+
+/// Sheet aus dem "…"-Menü der Konzertseite: eigenes Ticket anbieten, privat hingehen.
+struct EventTicketPrivacySheet: View {
+    let event: ConcertEvent
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                EventFriendsExtras(event: event, showsFriendOffers: false, showsOwnControls: true)
+                    .padding()
+            }
+            .navigationTitle("Ticket & Sichtbarkeit")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fertig") { dismiss() } } }
+        }
+        .presentationDetents([.medium, .large])
     }
 }

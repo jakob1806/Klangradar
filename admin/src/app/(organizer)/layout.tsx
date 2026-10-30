@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { SidebarNavigation } from "@/components/organizer/sidebar-nav";
+import { CommandPalette } from "@/components/command-palette";
 import { MobileSidebarTrigger } from "@/components/organizer/mobile-sidebar";
 import { NotificationBell } from "@/components/organizer/notification-bell";
 import { UserMenu } from "@/components/organizer/user-menu";
@@ -47,6 +48,7 @@ export default async function OrganizerLayout({ children }: { children: React.Re
         </header>
 
         <main className="organizer-content flex-1">{children}</main>
+        <CommandPalette scope="organizer" />
       </div>
     </div>
   );

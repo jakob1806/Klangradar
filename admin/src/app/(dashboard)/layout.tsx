@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { Sidebar } from "@/components/sidebar";
 import { DashboardBreadcrumb } from "@/components/dashboard-breadcrumb";
+import { SectionTabs } from "@/components/section-tabs";
+import { CommandPalette } from "@/components/command-palette";
 import type { Metadata } from "next";
 import { MobileNavigation } from "@/components/mobile-navigation";
 import { MobileTableAdapter } from "@/components/mobile-table-adapter";
@@ -51,7 +53,9 @@ export default async function DashboardLayout({
             <SignOutButton />
           </div>
         </div>
+        <SectionTabs />
         <div className="dashboard-content">{children}</div>
+        <CommandPalette scope="admin" />
       </main>
     </div>
   );
