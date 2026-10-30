@@ -200,7 +200,8 @@ export default async function AdminHomePage() {
             {GROUP_HINTS[group.label] && <p className="text-xs text-neutral-500">{GROUP_HINTS[group.label]}</p>}
             <ul className="mt-3 flex flex-wrap gap-1.5">
               {group.items
-                .filter((item) => item.href !== "/admin")
+                .flatMap((item) => [item, ...(item.tabs ?? []).filter((tab) => tab.href !== item.href)])
+                .filter((item, index, all) => item.href !== "/admin" && all.findIndex((other) => other.href === item.href) === index)
                 .map((item) => (
                   <li key={item.href}>
                     <Link href={item.href} className="inline-block rounded-lg bg-neutral-100 px-2.5 py-1 text-[13px] text-neutral-700 hover:bg-[#2D2A6E]/10 hover:text-[#2D2A6E]">

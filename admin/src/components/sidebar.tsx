@@ -74,7 +74,9 @@ export function Sidebar({ userEmail }: { userEmail?: string }) {
   };
 
   // Aktiv ist der Bereich, auch wenn man auf einem seiner Reiter steht.
-  const activeHref = findNavArea(pathname)?.area.href ?? null;
+  const navMatch = findNavArea(pathname);
+  const activeHref = navMatch?.area.href ?? null;
+  const currentHref = navMatch?.href ?? null;
 
   const normalizedQuery = query.trim().toLowerCase();
   const groups = NAV_GROUPS.map((group) => ({
@@ -131,16 +133,37 @@ export function Sidebar({ userEmail }: { userEmail?: string }) {
                 <div className="flex flex-col gap-px">
                   {group.items.map((item) => {
                     const active = item.href === activeHref;
+                    // Unterseiten des aktiven Bereichs (oder Suchtreffer)
+                    // auch in der Leiste zeigen, nicht nur als Reiter.
+                    const subLinks = (item.tabs ?? []).filter(
+                      (tab) => tab.href !== item.href && (active || (normalizedQuery && tab.label.toLowerCase().includes(normalizedQuery))),
+                    );
                     return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        tabIndex={open ? undefined : -1}
-                        aria-current={active ? "page" : undefined}
-                        className={`dashboard-nav-item ${active ? "dashboard-nav-item-active" : ""}`}
-                      >
-                        {item.label}
-                      </Link>
+                      <div key={item.href} className="flex flex-col gap-px">
+                        <Link
+                          href={item.href}
+                          tabIndex={open ? undefined : -1}
+                          aria-current={active && currentHref === item.href ? "page" : undefined}
+                          className={`dashboard-nav-item ${active ? "dashboard-nav-item-active" : ""}`}
+                        >
+                          {item.label}
+                        </Link>
+                        {subLinks.length > 0 && (
+                          <div className="ml-3 flex flex-col gap-px border-l border-[#EAEAEA] pl-2">
+                            {subLinks.map((tab) => (
+                              <Link
+                                key={tab.href}
+                                href={tab.href}
+                                tabIndex={open ? undefined : -1}
+                                aria-current={currentHref === tab.href ? "page" : undefined}
+                                className={`dashboard-nav-item text-[13px] ${currentHref === tab.href ? "font-medium text-[#111111]" : ""}`}
+                              >
+                                {tab.label}
+                              </Link>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
