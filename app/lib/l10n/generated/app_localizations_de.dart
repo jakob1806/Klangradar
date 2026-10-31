@@ -359,7 +359,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get eventProgramTitle => 'Programm';
 
   @override
-  String get eventIntermission => '— PAUSE —';
+  String get eventIntermission => 'Pause';
 
   @override
   String get eventParticipantsTitle => 'Mitwirkende';

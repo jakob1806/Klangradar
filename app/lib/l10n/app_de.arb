@@ -134,7 +134,7 @@
   "eventOtherDateTime": "{time} Uhr",
   "@eventOtherDateTime": {"placeholders": {"time": {"type": "String"}}},
   "eventProgramTitle": "Programm",
-  "eventIntermission": "— PAUSE —",
+  "eventIntermission": "Pause",
   "eventParticipantsTitle": "Mitwirkende",
   "eventAccessibilityTitle": "Barrierefreiheit",
   "eventAccessibilityWheelchair": "Rollstuhlgerecht",

@@ -733,21 +733,56 @@ struct EventFriendsExtras: View {
     }
 }
 
-/// Sheet aus dem "…"-Menü der Konzertseite: eigenes Ticket anbieten, privat hingehen.
-struct EventTicketPrivacySheet: View {
-    let event: ConcertEvent
-    @Environment(\.dismiss) private var dismiss
+/// Nutzerwunsch 31.10.2026: Ticket anbieten und privat hingehen nicht mehr
+/// auf der Konzertseite (auch nicht im "…"-Menü), sondern gesammelt unter
+/// Freunde → "Ticket übrig & privat hingehen" für alle gemerkten,
+/// kommenden Konzerte.
+struct MyConcertsTicketPrivacyView: View {
+    @EnvironmentObject private var favorites: FavoriteStore
+    @State private var events: [ConcertEvent] = []
+    @State private var isLoading = true
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                EventFriendsExtras(event: event, showsFriendOffers: false, showsOwnControls: true)
-                    .padding()
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                Text("Für jedes gemerkte Konzert kannst du ein übriges Ticket an Freunde weitergeben oder privat hingehen, dann sehen Freunde nicht, dass du es dir gemerkt hast.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                if isLoading {
+                    ProgressView().frame(maxWidth: .infinity).padding(.top, 30)
+                } else if events.isEmpty {
+                    ContentUnavailableView("Keine gemerkten Konzerte", systemImage: "heart",
+                                           description: Text("Merke dir ein kommendes Konzert, dann erscheint es hier."))
+                } else {
+                    ForEach(events) { event in
+                        VStack(alignment: .leading, spacing: 10) {
+                            NavigationLink(value: event) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(event.title).font(.headline).foregroundStyle(.primary).multilineTextAlignment(.leading)
+                                    Text(event.dateLine).font(.subheadline).foregroundStyle(.secondary)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            EventFriendsExtras(event: event, showsFriendOffers: false, showsOwnControls: true)
+                        }
+                    }
+                }
             }
-            .navigationTitle("Ticket & Sichtbarkeit")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fertig") { dismiss() } } }
+            .padding(KlangradarTheme.pagePadding)
+            .frame(maxWidth: KlangradarTheme.contentMaxWidth, alignment: .leading)
+            .frame(maxWidth: .infinity)
         }
-        .presentationDetents([.medium, .large])
+        .navigationTitle("Ticket & Sichtbarkeit")
+        .navigationBarTitleDisplayMode(.inline)
+        .task(id: favorites.ids) { await load() }
+    }
+
+    private func load() async {
+        defer { isLoading = false }
+        guard let repository = PlannerAPI.eventRepository, !favorites.ids.isEmpty else { events = []; return }
+        let loaded = (try? await repository.events(ids: Array(favorites.ids))) ?? []
+        events = loaded
+            .filter { ($0.startDate ?? .distantPast) > .now }
+            .sorted { ($0.startDate ?? .distantFuture) < ($1.startDate ?? .distantFuture) }
     }
 }
