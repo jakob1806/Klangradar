@@ -62,6 +62,27 @@ extension UserRepository {
         return uuids(value)
     }
 
+    /// Miniaturbilder (photo_url) für Geschmack-Einträge, je Tabelle ein Abruf.
+    func entityThumbnails(personIDs: [UUID], ensembleIDs: [UUID], venueIDs: [UUID], token: String) async -> [UUID: URL] {
+        func load(_ table: String, _ ids: [UUID]) async -> [JSONObject] {
+            guard !ids.isEmpty else { return [] }
+            return (try? await client.get(table: table, queryItems: [
+                URLQueryItem(name: "select", value: "id,photo_url"),
+                URLQueryItem(name: "id", value: "in.(\(ids.map(\.uuidString).joined(separator: ",")))")
+            ], accessToken: token)) ?? []
+        }
+        async let persons = load("persons", personIDs)
+        async let ensembles = load("ensembles", ensembleIDs)
+        async let venues = load("venues", venueIDs)
+        var result: [UUID: URL] = [:]
+        for row in await persons + ensembles + venues {
+            if let id = row.string("id").flatMap(UUID.init(uuidString:)), let url = row.string("photo_url").flatMap(URL.init(string:)) {
+                result[id] = url
+            }
+        }
+        return result
+    }
+
     func tasteProfile(token: String) async throws -> TasteProfile {
         let row: JSONObject = try await client.rpc("my_taste_profile", accessToken: token)
         func entries(_ key: String) -> [TasteProfile.Entry] {
