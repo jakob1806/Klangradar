@@ -61,6 +61,12 @@ export async function runIngestion(
   supabase: any,
   sourceId: string,
 ): Promise<{ httpStatus: number; body: Record<string, unknown> }> {
+  // Zeitbudget (31.10.2026): Edge Functions werden nach ~150 s hart beendet.
+  // Liefen die Schreibvorgänge (inkl. Bild-Pipeline) länger, blieb der Lauf
+  // auf "running" stehen und wurde nach 30 Minuten als fehlgeschlagen
+  // markiert (~60 % aller Läufe). Jetzt endet der Lauf rechtzeitig selbst,
+  // der Rest folgt im nächsten Lauf.
+  const runStartedAt = Date.now();
   function result(body: Record<string, unknown>, httpStatus = 200) {
     return { httpStatus, body };
   }
@@ -255,20 +261,10 @@ export async function runIngestion(
   }
 
   await adjustCrawlFrequency(supabase, source.id, source.crawl_frequency_minutes, true);
-
-  await supabase
-    .from("sources")
-    .update({
-      config: {
-        ...config,
-        httpCache: {
-          etag: responseEtag ?? undefined,
-          lastModified: responseLastModified ?? undefined,
-          lastBodyHash: bodyHash,
-        },
-      },
-    })
-    .eq("id", source.id);
+  // Hash/ETag werden erst NACH erfolgreichem Schreiben gespeichert (siehe
+  // Ende von runIngestion). Vorher landeten sie schon hier — brach der Lauf
+  // danach ab (Zeitlimit), galt die Quelle beim nächsten Mal als
+  // "unverändert" und fror dauerhaft ein.
 
   let parsed: ParseResult;
   try {
@@ -444,7 +440,7 @@ export async function runIngestion(
     : Math.min(Math.max(Math.floor(configuredBatchSize), 1), 150);
   const writeOffset = writeBatchSize ? Math.min(pendingWriteOffset, fullEventCount) : 0;
   if (writeBatchSize) parsed.events = parsed.events.slice(writeOffset, writeOffset + writeBatchSize);
-  const nextWriteOffset = writeBatchSize && writeOffset + parsed.events.length < fullEventCount
+  let nextWriteOffset = writeBatchSize && writeOffset + parsed.events.length < fullEventCount
     ? writeOffset + parsed.events.length
     : 0;
 
@@ -500,17 +496,30 @@ export async function runIngestion(
   }
   const lanes = Array.from(groups.values());
   let nextLane = 0;
+  const processed = new Set<ParseResult["events"][number]>();
+  const deadline = runStartedAt + WRITE_BUDGET_MS;
   const worker = async () => {
-    while (nextLane < lanes.length) {
+    while (nextLane < lanes.length && Date.now() < deadline) {
       const lane = lanes[nextLane++];
-      for (const raw of lane) await writeOne(raw);
+      for (const raw of lane) {
+        await writeOne(raw);
+        processed.add(raw);
+      }
     }
   };
   await Promise.all(Array.from({ length: Math.min(20, lanes.length) }, worker));
+  // Bis zum ersten nicht geschriebenen Termin weiterzählen; der Rest (und
+  // ggf. schon Geschriebenes dahinter, idempotent) folgt im nächsten Lauf.
+  const firstUnprocessed = parsed.events.findIndex((raw) => !processed.has(raw));
+  const timeBudgetHit = firstUnprocessed !== -1;
+  if (timeBudgetHit && writeBatchSize) nextWriteOffset = writeOffset + firstUnprocessed;
+  if (timeBudgetHit) {
+    rawWriteErrors.push(`Diagnostic (info): Zeitbudget erreicht, ${parsed.events.length - processed.size} Termine folgen im nächsten Lauf.`);
+  }
 
   const writeErrors = summarizeErrors(rawWriteErrors);
 
-  const attempted = parsed.events.length;
+  const attempted = processed.size;
   const succeeded = created + updated + unchanged + flagged;
   // "Diagnostic: ..."-Einträge (siehe parsers/bayerncloud.ts) sind bewusst
   // rein informativ, keine echten Fehler — z.B. "diese Bayern-weite Quelle
@@ -524,8 +533,10 @@ export async function runIngestion(
   // unten nutzt weiterhin parsed.errors unverändert), zählen nur nicht
   // gegen den Erfolgsstatus/consecutive_failures.
   const realErrorCount = parsed.errors.filter((e) => !e.startsWith("Diagnostic (info):")).length;
-  const status = attempted === 0
-    ? (realErrorCount > 0 ? "failed" : "success")
+  const status = timeBudgetHit && succeeded > 0
+    ? "partial"
+    : attempted === 0
+    ? (realErrorCount > 0 || timeBudgetHit ? "failed" : "success")
     : succeeded === 0
     ? "failed"
     : succeeded < attempted
@@ -546,6 +557,7 @@ export async function runIngestion(
   // existierendes Event fälschlich als "verschwunden" erscheinen lassen.
   if (
     FULL_LISTING_TYPES.has(source.type) &&
+    !timeBudgetHit &&
     parsed.errors.length === 0 &&
     succeeded === attempted
   ) {
@@ -563,6 +575,19 @@ export async function runIngestion(
         ...(source.type === "staatsoper" && nextWriteOffset === 0 ? { cleanupVersion: 1 } : {}),
         writeBatchSize,
         writeOffset: nextWriteOffset,
+        httpCache: timeBudgetHit || status === "failed"
+          ? { ...((config.httpCache ?? {}) as Record<string, unknown>), lastBodyHash: undefined }
+          : {
+            etag: responseEtag ?? undefined,
+            lastModified: responseLastModified ?? undefined,
+            lastBodyHash: bodyHash,
+          },
+      },
+    }).eq("id", source.id);
+  } else if (source.type !== "staatsoper" && !timeBudgetHit && status !== "failed") {
+    await supabase.from("sources").update({
+      config: {
+        ...config,
         httpCache: {
           etag: responseEtag ?? undefined,
           lastModified: responseLastModified ?? undefined,
@@ -824,6 +849,8 @@ async function touchSource(supabase: any, sourceId: string, succeeded: boolean) 
 // 1440 (Default) für jede Quelle neu zu starten.
 const MIN_CRAWL_FREQUENCY_MINUTES = 60; // 1 Stunde
 const MAX_CRAWL_FREQUENCY_MINUTES = 10080; // 7 Tage
+/** Schreibbudget je Lauf (Edge-Limit ~150 s, Puffer für Abschluss). */
+const WRITE_BUDGET_MS = 100_000;
 
 async function adjustCrawlFrequency(
   // deno-lint-ignore no-explicit-any
