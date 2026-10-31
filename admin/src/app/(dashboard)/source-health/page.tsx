@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { ImportHealthSection } from "./import-health";
 
 export const dynamic = "force-dynamic";
 
@@ -141,6 +142,7 @@ export default async function SourceHealthPage() {
           </div>
         ))}
       </div>
+      <ImportHealthSection />
     </div>
   );
 }

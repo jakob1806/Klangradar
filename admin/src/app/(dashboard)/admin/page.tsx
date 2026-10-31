@@ -74,6 +74,7 @@ export default async function AdminHomePage() {
     { count: claims },
     { count: entityRequests },
     { count: duplicates },
+    { data: importHealth },
   ] = await Promise.all([
     supabase.auth.getUser(),
     supabase.from("events").select("id", count).gte("start_datetime", nowIso).in("status", ["scheduled", "sold_out"]),
@@ -84,7 +85,10 @@ export default async function AdminHomePage() {
     supabase.from("entity_claims").select("id", count).eq("status", "pending"),
     supabase.from("entity_requests").select("id", count).eq("status", "pending"),
     supabase.from("duplicate_candidates").select("id", count).eq("status", "pending"),
+    supabase.rpc("admin_import_health"),
   ]);
+  // Importquellen mit Ausfall (seit über 3 Tagen kein erfolgreicher Lauf).
+  const brokenSources = ((importHealth ?? []) as { health: string }[]).filter((source) => source.health === "error").length;
 
   const tasks = [
     { href: "/review-queue", label: "Review-Queue", count: reviewQueue ?? 0 },
@@ -93,6 +97,7 @@ export default async function AdminHomePage() {
     { href: "/entity-claims", label: "Veranstalter-Claims", count: claims ?? 0 },
     { href: "/entity-requests", label: "Nutzeranfragen", count: entityRequests ?? 0 },
     { href: "/duplicates", label: "Duplikate", count: duplicates ?? 0 },
+    { href: "/source-health", label: "Importquellen mit Ausfall", count: brokenSources },
   ];
   const open = tasks.reduce((sum, task) => sum + task.count, 0);
   const actor = user?.email ?? user?.id ?? null;

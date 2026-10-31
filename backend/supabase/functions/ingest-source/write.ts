@@ -23,7 +23,7 @@ interface SourceRow {
   city_id?: string | null;
   consecutive_failures?: number | null;
   confidence_thresholds?: { auto?: number; quick?: number } | null;
-  config?: { autoPublish?: boolean } | null;
+  config?: { autoPublish?: boolean; deferImageEnrichment?: boolean } | null;
 }
 
 /** Ordnet den Score einer Triage-Stufe zu, mit den PRO QUELLE kalibrierten
@@ -504,13 +504,19 @@ async function attachCoverImage(
   trustImage: boolean,
 ): Promise<void> {
   if (raw.imageUrl) raw = { ...raw, imageUrl: upgradeImageUrl(raw.imageUrl) };
+  // config.deferImageEnrichment (Claude Code, 31.10.2026): Bild-Download und
+  // -Verarbeitung nicht im Import-Lauf (kostete pro Termin Sekunden und
+  // trieb Läufe über das Zeitlimit), sondern später im Job
+  // enrich-entity-images, der Event-Cover über die Konzertseite ergänzt.
+  // Das Ersatzbild (Ensemble/Künstler/Ort) wird weiterhin sofort gesetzt.
+  const deferImages = source.config?.deferImageEnrichment === true;
   try {
-    const authoritative = raw.imageUrl != null;
+    const authoritative = raw.imageUrl != null && !deferImages;
     let detected: { url: string; credits: string | null } | null = authoritative
       ? { url: raw.imageUrl as string, credits: null }
       : null;
 
-    if (!detected && raw.url) {
+    if (!detected && raw.url && !deferImages) {
       const found = await detectEventCoverImage(raw.url);
       if (found) detected = { url: found.url, credits: found.credits };
     }
