@@ -737,7 +737,7 @@ abstract class AppLocalizations {
   /// No description provided for @eventIntermission.
   ///
   /// In de, this message translates to:
-  /// **'— PAUSE —'**
+  /// **'Pause'**
   String get eventIntermission;
 
   /// No description provided for @eventParticipantsTitle.

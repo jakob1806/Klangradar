@@ -115,7 +115,7 @@
   "eventOtherDateSemanticsLabel": "{weekday}, {date}, {time}",
   "eventOtherDateTime": "{time}",
   "eventProgramTitle": "Program",
-  "eventIntermission": "— INTERMISSION —",
+  "eventIntermission": "Intermission",
   "eventParticipantsTitle": "Performers",
   "eventAccessibilityTitle": "Accessibility",
   "eventAccessibilityWheelchair": "Wheelchair accessible",

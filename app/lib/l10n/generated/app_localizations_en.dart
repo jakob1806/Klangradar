@@ -358,7 +358,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get eventProgramTitle => 'Program';
 
   @override
-  String get eventIntermission => '— INTERMISSION —';
+  String get eventIntermission => 'Intermission';
 
   @override
   String get eventParticipantsTitle => 'Performers';

@@ -603,17 +603,26 @@ class EventDetailScreen extends ConsumerWidget {
                         const SizedBox(height: AppSpacing.sm),
                         DetailCard(
                           children: [
-                            for (final w in works)
+                            for (var i = 0; i < works.length; i++) ...[
+                              // Nutzerwunsch 31.10.2026: Pause als eigener
+                              // Programmpunkt, einmal vor dem ersten Werk
+                              // nach der Pause statt als Zusatz am Werk.
+                              if (works[i]['after_intermission'] == true &&
+                                  (i == 0 ||
+                                      works[i - 1]['after_intermission'] !=
+                                          true))
+                                _IntermissionRow(colors: colors),
                               Padding(
                                 padding: const EdgeInsets.all(AppSpacing.md),
                                 child: _ProgramRow(
-                                  work: w,
+                                  work: works[i],
                                   colors: colors,
                                   sources:
-                                      workSources[w['works']?['id']] ??
+                                      workSources[works[i]['works']?['id']] ??
                                       const {},
                                 ),
                               ),
+                            ],
                           ],
                         ),
                       ],
@@ -1108,6 +1117,43 @@ class _AttributionNotice extends StatelessWidget {
   }
 }
 
+/// Eigene Programmzeile "Pause" zwischen den Werken.
+class _IntermissionRow extends StatelessWidget {
+  const _IntermissionRow({required this.colors});
+  final AppColorsExtension colors;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return Container(
+      width: double.infinity,
+      color: colors.textSecondary.withValues(alpha: 0.06),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.local_cafe_outlined,
+            size: 18,
+            color: colors.textSecondary,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            l10n.eventIntermission,
+            style: TextStyle(
+              color: colors.textSecondary,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ProgramRow extends StatelessWidget {
   const _ProgramRow({
     required this.work,
@@ -1122,26 +1168,11 @@ class _ProgramRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final w = work['works'] as Map<String, dynamic>?;
     if (w == null) return const SizedBox.shrink();
-    final l10n = AppLocalizations.of(context)!;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (work['after_intermission'] == true)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6),
-              child: Text(
-                l10n.eventIntermission,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: colors.accentSecondary,
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1,
-                ),
-              ),
-            ),
           // Untereinander statt nebeneinander (Nutzerfeedback: die
           // Zwei-Spalten-Anordnung wirkte bei längeren Komponisten-/
           // Werktiteln chaotisch/verrutscht) — folgt der aus gedruckten

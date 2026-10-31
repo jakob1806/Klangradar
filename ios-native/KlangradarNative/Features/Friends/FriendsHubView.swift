@@ -124,6 +124,25 @@ struct FriendsView: View {
                     ConcertCompanionsSection(reloadToken: reloadToken)
                     plansSection.id(FriendsHubTab.plans)
                     TicketOffersSection(reloadToken: reloadToken)
+                    NavigationLink { MyConcertsTicketPrivacyView() } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "ticket")
+                                .font(.body.weight(.semibold))
+                                .foregroundStyle(KlangradarTheme.accent)
+                                .frame(width: 36, height: 36)
+                                .background(KlangradarTheme.accent.opacity(0.12), in: .circle)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Ticket übrig & privat hingehen").font(.headline).foregroundStyle(.primary)
+                                Text("Für deine gemerkten Konzerte").font(.subheadline).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+                        }
+                        .padding(14)
+                        .background(Color(uiColor: .secondarySystemBackground), in: .rect(cornerRadius: 18, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, KlangradarTheme.pagePadding)
                     BuddySection(reloadToken: reloadToken)
                     goingSection.id(FriendsHubTab.activity)
                     GroupsSection(reloadToken: reloadToken)

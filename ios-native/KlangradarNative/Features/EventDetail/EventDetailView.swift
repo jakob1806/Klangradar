@@ -16,7 +16,6 @@ struct EventDetailView: View {
     @State private var isAttended = false
     @State private var planComposer: PlanComposerMode?
     @State private var calendarTrigger = false
-    @State private var showsTicketPrivacy = false
 
     enum PlanComposerMode: Int, Identifiable {
         case plan, ask
@@ -206,7 +205,6 @@ struct EventDetailView: View {
                                 Section("Mit Freunden") {
                                     Button("Konzertabend planen", systemImage: "person.2") { planComposer = .plan }
                                     Button("Wer kommt mit?", systemImage: "questionmark.bubble") { planComposer = .ask }
-                                    Button("Ticket anbieten · Privat hingehen", systemImage: "ticket") { showsTicketPrivacy = true }
                                 }
                             }
                             if calendarEventInput() != nil {
@@ -256,7 +254,6 @@ struct EventDetailView: View {
             .sheet(item: $planComposer) { mode in
                 NavigationStack { PlanComposerView(event: event, quickAsk: mode == .ask) }
             }
-            .sheet(isPresented: $showsTicketPrivacy) { EventTicketPrivacySheet(event: event) }
             .modifier(AddToCalendarPresenter(input: calendarEventInput(), trigger: $calendarTrigger))
     }
 
@@ -525,7 +522,7 @@ struct EventDetailView: View {
                                 // Nutzerwunsch 30.10.2026: Pause als eigener Programmpunkt.
                                 if link.bool("after_intermission") == true,
                                    index == 0 || works[index - 1].bool("after_intermission") != true {
-                                    if index > 0 { Divider().padding(.leading, 18) }
+                                    // Trenner davor kommt schon von der vorigen Zeile.
                                     intermissionRow
                                     Divider().padding(.leading, 18)
                                 }
