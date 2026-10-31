@@ -208,7 +208,7 @@ export async function runIngestion(
         // würde sonst fälschlich alles als "verschwunden" markieren.
         await finishRun(supabase, run.id, "skipped_unchanged", { events_found: 0 }, []);
         await touchSource(supabase, source.id, true);
-        await adjustCrawlFrequency(supabase, source.id, source.crawl_frequency_minutes, false);
+        await adjustCrawlFrequency(supabase, source.id, source.crawl_frequency_minutes, false, minCrawlMinutes(config));
         return result({ status: "skipped_unchanged", events_found: 0 });
       }
 
@@ -256,11 +256,11 @@ export async function runIngestion(
     }
     await finishRun(supabase, run.id, "skipped_unchanged", { events_found: 0 }, []);
     await touchSource(supabase, source.id, true);
-    await adjustCrawlFrequency(supabase, source.id, source.crawl_frequency_minutes, false);
+    await adjustCrawlFrequency(supabase, source.id, source.crawl_frequency_minutes, false, minCrawlMinutes(config));
     return result({ status: "skipped_unchanged", events_found: 0 });
   }
 
-  await adjustCrawlFrequency(supabase, source.id, source.crawl_frequency_minutes, true);
+  await adjustCrawlFrequency(supabase, source.id, source.crawl_frequency_minutes, true, minCrawlMinutes(config));
   // Hash/ETag werden erst NACH erfolgreichem Schreiben gespeichert (siehe
   // Ende von runIngestion). Vorher landeten sie schon hier — brach der Lauf
   // danach ab (Zeitlimit), galt die Quelle beim nächsten Mal als
@@ -852,16 +852,25 @@ const MAX_CRAWL_FREQUENCY_MINUTES = 10080; // 7 Tage
 /** Schreibbudget je Lauf (Edge-Limit ~150 s, Puffer für Abschluss). */
 const WRITE_BUDGET_MS = 100_000;
 
+/** Untergrenze des Abruftakts: Quellen mit Browserless-Rendering (renderJs)
+ * höchstens einmal täglich, damit das Gratis-Kontingent reicht
+ * (Claude Code, 31.10.2026); per config.minCrawlFrequencyMinutes änderbar. */
+function minCrawlMinutes(config: Record<string, unknown>): number {
+  if (typeof config.minCrawlFrequencyMinutes === "number") return Math.max(MIN_CRAWL_FREQUENCY_MINUTES, config.minCrawlFrequencyMinutes);
+  return config.renderJs === true ? 1440 : MIN_CRAWL_FREQUENCY_MINUTES;
+}
+
 async function adjustCrawlFrequency(
   // deno-lint-ignore no-explicit-any
   supabase: any,
   sourceId: string,
   currentMinutes: number | null | undefined,
   changed: boolean,
+  minMinutes = MIN_CRAWL_FREQUENCY_MINUTES,
 ) {
   const current = currentMinutes ?? 1440;
   const next = changed
-    ? Math.max(MIN_CRAWL_FREQUENCY_MINUTES, Math.round(current / 2))
+    ? Math.max(minMinutes, Math.round(current / 2))
     : Math.min(MAX_CRAWL_FREQUENCY_MINUTES, Math.round(current * 2));
   if (next === current) return;
   await supabase.from("sources").update({ crawl_frequency_minutes: next }).eq("id", sourceId);
