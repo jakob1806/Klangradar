@@ -12,7 +12,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 // core.ts, NOT index.ts — index.ts has its own top-level Deno.serve() call,
 // and importing it here would silently register it as this isolate's
 // request handler too (see core.ts's file comment for the bug that caused).
-import { runIngestion, SUPPORTED_TYPES } from "../ingest-source/core.ts";
+import { SUPPORTED_TYPES } from "../ingest-source/core.ts";
 import { requireInternalAuth } from "../_shared/internalAuth.ts";
 
 // Bewusst niedrig gehalten: viele Quellen könnten dieselbe Ziel-Domain
@@ -21,10 +21,10 @@ import { requireInternalAuth } from "../_shared/internalAuth.ts";
 // unterlaufen, auch wenn jede Quelle für sich genommen ihren eigenen Delay
 // einhält (siehe crawlDelayMs in ingest-source/index.ts) — das gilt nur
 // zwischen Paginierungs-Schritten DERSELBEN Quelle, nicht quellenübergreifend.
-const CONCURRENCY = 5;
-// Nach dieser Zeit keine neuen Quellen mehr starten (laufende dürfen noch
-// fertig werden); Rest übernimmt der nächste Cron-Tick (alle 5 Minuten).
-const START_BUDGET_MS = 90_000;
+// Seit 31.10.2026: Quellen laufen nicht mehr in dieser Instanz, sondern je
+// in einem eigenen ingest-source-Aufruf (dispatch_ingest_source, pg_net).
+// Pro 5-Minuten-Tick höchstens so viele Quellen anstoßen.
+const MAX_DISPATCH_PER_TICK = 8;
 // Ein abgebrochener Lauf wird frühestens nach dieser Zeit wiederholt.
 const RETRY_AFTER_KILL_MS = 60 * 60_000;
 // Gleicher Schwellwert wie cleanup_stale_ingestion_runs().
@@ -107,55 +107,23 @@ Deno.serve(async (req) => {
   );
   const ids = ordered.map((s: { id: string }) => s.id);
   const results: RunSummary[] = [];
-  let deferred = 0;
+  const batch = ids.slice(0, MAX_DISPATCH_PER_TICK);
+  const deferred = ids.length - batch.length;
 
-  let nextIndex = 0;
-  async function worker() {
-    while (nextIndex < ids.length) {
-      // Zeitbudget: Wird die Edge-Function wegen ihres Wall-Clock-Limits
-      // abgebrochen, bleiben laufende Quellen ewig auf "running" (siehe
-      // cleanup_stale_ingestion_runs). Lieber neue Quellen erst im nächsten
-      // Tick starten.
-      if (Date.now() - now > START_BUDGET_MS) {
-        deferred = ids.length - nextIndex;
-        return;
-      }
-      const sourceId = ids[nextIndex++];
-      // Vor dem Lauf beanspruchen: last_run_at so setzen, dass die Quelle
-      // nach RETRY_AFTER_KILL_MS wieder fällig wird. Ein regulär beendeter
-      // Lauf überschreibt das in runIngestion() mit dem echten Zeitstempel;
-      // ein abgebrochener Lauf wird dadurch nicht mehr alle 5 Minuten neu
-      // gestartet (Endlosschleife seit 2026-09-30, inkl. HTTP 429 von der
-      // Staatsoper).
-      const frequencyMs = (frequencyById.get(sourceId) ?? 1440) * 60_000;
-      const claimAt = Date.now() - Math.max(0, frequencyMs - RETRY_AFTER_KILL_MS);
-      await supabase
-        .from("sources")
-        .update({ last_run_at: new Date(claimAt).toISOString() })
-        .eq("id", sourceId);
-      try {
-        const { body } = await runIngestion(supabase, sourceId);
-        const status = typeof body.status === "string" ? body.status : "unknown";
-        results.push({
-          sourceId,
-          status,
-          error: typeof body.error === "string" ? body.error : undefined,
-        });
-      } catch (err) {
-        results.push({
-          sourceId,
-          status: "failed",
-          error: err instanceof Error ? err.message : String(err),
-        });
-      }
-    }
+  for (const sourceId of batch) {
+    // Vor dem Lauf beanspruchen: last_run_at so setzen, dass die Quelle
+    // nach RETRY_AFTER_KILL_MS wieder fällig wird. Ein regulär beendeter
+    // Lauf überschreibt das in runIngestion() mit dem echten Zeitstempel;
+    // ein abgebrochener Lauf wird dadurch nicht alle 5 Minuten neu gestartet.
+    const frequencyMs = (frequencyById.get(sourceId) ?? 1440) * 60_000;
+    const claimAt = Date.now() - Math.max(0, frequencyMs - RETRY_AFTER_KILL_MS);
+    await supabase.from("sources").update({ last_run_at: new Date(claimAt).toISOString() }).eq("id", sourceId);
+    // Eigener Edge-Function-Aufruf je Quelle (volles Zeitlimit pro Quelle).
+    const { error: dispatchError } = await supabase.rpc("dispatch_ingest_source", { p_source_id: sourceId });
+    results.push({ sourceId, status: dispatchError ? "failed" : "dispatched", error: dispatchError?.message });
   }
 
-  const workerCount = Math.min(CONCURRENCY, ids.length);
-  await Promise.all(Array.from({ length: workerCount }, () => worker()));
-
-  const succeeded = results.filter((r) => r.status === "success" || r.status === "partial").length;
-  const skipped = results.filter((r) => r.status === "skipped_unchanged").length;
+  const dispatched = results.filter((r) => r.status === "dispatched").length;
   const failed = results.filter((r) => r.status === "failed").length;
 
   return jsonResponse({
@@ -164,8 +132,7 @@ Deno.serve(async (req) => {
     skipped_not_due: skippedNotDue,
     skipped_already_running: alreadyRunning.size,
     deferred_to_next_tick: deferred,
-    succeeded,
-    skipped,
+    dispatched,
     failed,
     errors: results
       .filter((r) => r.status === "failed")
