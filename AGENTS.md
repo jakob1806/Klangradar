@@ -64,3 +64,4 @@ doppelt gebaute Features (Coach vs. Personal Concierge), ein komplett
 | Claude | 2026-10-31 | claude/event-detail-pause | Ticket übrig/Privat hingehen aus Konzertseite in Freunde verlegt, Pause als eigene Programmzeile (iOS + Flutter) |
 | Claude | 2026-10-31 | claude/programm-erkennung | Programm ersetzen statt anhängen (replace_event_program), Programm-Sperre bei Redaktion, Dubletten bereinigt, Absagen/Umbesetzungen aus Konzertseiten |
 | Claude | 2026-10-31 | claude/ingest-gesundheit | Import: Zeitbudget statt 30-Min-Abbruch, Hash erst nach Erfolg, Venue-Aliasse im Matching, eingefrorene Quellen freigeben |
+| Claude | 2026-10-31 | claude/browserless-taeglich | Browserless-Quellen (renderJs) höchstens täglich, Untergrenze in adjustCrawlFrequency |
