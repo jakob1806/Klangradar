@@ -1,3 +1,4 @@
+import { type ProgramLink, replaceProgram } from "../_shared/programReplace.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { saveProgramBooklet } from "../_shared/programBooklet.ts";
 import { parseMphilEventDetail } from "../_shared/mphilDetail.ts";
@@ -48,18 +49,16 @@ Deno.serve(async (req) => {
       // wenn die Seite tatsächlich eine Werkliste hatte.
       let worksAdded = 0;
       if (detail.works.length > 0) {
-        await supabase.from("event_works").delete().eq("event_id", event.id);
+        const links: ProgramLink[] = [];
         for (const work of detail.works) {
           const composerId = work.composerName ? await resolveComposer(supabase, work.composerName) : null;
           // Englische Seitentitel in deutsche Standardform (sonst Mischtitel wie
           // "Konzert for Violin" und keine Treffer auf vorhandene Werke).
           const workId = await resolveWork(supabase, germanizeWorkTitle(work.title), composerId);
           if (!workId) continue;
-          const { error: workError } = await supabase.from("event_works").insert({
-            event_id: event.id, work_id: workId, position: work.position, after_intermission: work.afterIntermission,
-          });
-          if (!workError) worksAdded++;
+          links.push({ work_id: workId, position: work.position, after_intermission: work.afterIntermission === true });
         }
+        worksAdded = await replaceProgram(supabase, event.id, links);
       }
 
       const duplicatesHidden = await hideSameSlotDuplicates(supabase, event);

@@ -130,7 +130,8 @@ const ENRICH_FUNCTION: AiFunctionDeclaration = {
             afterIntermission: {
               type: "boolean",
               description:
-                "true, wenn dieses Werk im Text NACH einer ausdrücklich genannten Pause steht; sonst false.",
+                "true, wenn dieses Werk im Text NACH einer ausdrücklich genannten Pause steht (eigene Zeile " +
+                "'Pause', '– Pause –', 'Intermission', 'nach der Pause'); sonst false. Die Pause selbst ist nie ein Werk.",
             },
           },
           required: ["title"],
@@ -238,6 +239,29 @@ const ENRICH_FUNCTION: AiFunctionDeclaration = {
           "Aufführungssprache/Übertitel-Hinweis NUR, wenn im Text explizit genannt (z. B. 'in italienischer " +
           "Sprache mit deutschen Übertiteln'), sonst weglassen.",
       },
+      // Erweiterung (Claude Code, 31.10.2026): Absagen und Umbesetzungen
+      // direkt von der Konzertseite.
+      cancelled: {
+        type: "boolean",
+        description:
+          "true NUR, wenn der Text ausdrücklich sagt, dass genau diese Veranstaltung abgesagt ist bzw. entfällt " +
+          "('abgesagt', 'entfällt', 'cancelled'). Eine Verschiebung oder Absage eines ANDEREN Termins zählt nicht. " +
+          "Sonst weglassen.",
+      },
+      castChanges: {
+        type: "array",
+        description:
+          "Ausdrücklich angekündigte Umbesetzungen ('Umbesetzung', 'statt', 'anstelle von', 'übernimmt für', " +
+          "'musste absagen'). Nur, was wörtlich im Text steht; sonst leere Liste.",
+        items: {
+          type: "object",
+          properties: {
+            replaced: { type: "string", description: "Wer nicht mehr mitwirkt (Name)." },
+            replacement: { type: "string", description: "Wer stattdessen mitwirkt (Name), falls genannt." },
+          },
+          required: ["replaced"],
+        },
+      },
     },
     required: ["works", "participants", "genres"],
   },
@@ -282,6 +306,7 @@ interface EventRow {
   performance_language: string | null;
   program_id: string | null;
   program_extraction_status: string;
+  status: string;
   program_check_attempts: number;
   program_retry_after: string | null;
 }
@@ -311,6 +336,8 @@ interface ExtractedReferences {
   longDescription: string | null;
   targetAudience: string | null;
   language: string | null;
+  cancelled: boolean;
+  castChanges: Array<{ replaced: string; replacement: string | null }>;
 }
 
 /** Erkennt Platzhalter-"Namen" aus Besetzungslisten, die keine echte Person/
@@ -460,6 +487,18 @@ async function extractReferences(
     language: typeof args.language === "string" && args.language.trim()
       ? args.language.trim()
       : null,
+    cancelled: args.cancelled === true,
+    castChanges: Array.isArray(args.castChanges)
+      ? args.castChanges
+        // deno-lint-ignore no-explicit-any
+        .filter((c: any) => c && typeof c.replaced === "string" && c.replaced.trim())
+        .slice(0, 5)
+        // deno-lint-ignore no-explicit-any
+        .map((c: any) => ({
+          replaced: String(c.replaced).trim().slice(0, 120),
+          replacement: typeof c.replacement === "string" && c.replacement.trim() ? c.replacement.trim().slice(0, 120) : null,
+        }))
+      : [],
   };
 }
 
@@ -1125,6 +1164,10 @@ Deno.serve(async (req) => {
       return false;
     }
 
+    // Programm wird am Ende als Ganzes ersetzt (replace_event_program), statt
+    // Werk für Werk anzuhängen: so verschwinden veraltete und doppelte Zeilen
+    // aus früheren Läufen (Nutzerfeedback 31.10.2026).
+    const programLinks: Array<{ work_id: string; position: number; after_intermission: boolean }> = [];
     try {
       for (const [i, w] of extracted.works.entries()) {
         if (!w.title?.trim()) continue;
@@ -1312,33 +1355,18 @@ Deno.serve(async (req) => {
           });
         }
 
-        // PK ist (event_id, work_id, position) — kein simpler (event_id,
-        // work_id)-Unique-Constraint, also erst prüfen statt upsert.
-        const { data: existingLink } = await supabase
-          .from("event_works")
-          .select("event_id")
-          .eq("event_id", event.id)
-          .eq("work_id", workId)
-          .maybeSingle();
-        if (!existingLink) {
-          const { error: linkError } = await supabase
-            .from("event_works")
-            .insert({
-              event_id: event.id,
-              work_id: workId,
-              position: i,
-              after_intermission: w.afterIntermission,
-            });
-          if (linkError) {
-            throw new Error(`event_works link: ${linkError.message}`);
-          }
-          linksCreated++;
-        } else if (w.afterIntermission) {
-          await supabase.from("event_works")
-            .update({ after_intermission: true })
-            .eq("event_id", event.id)
-            .eq("work_id", workId);
-        }
+        programLinks.push({ work_id: workId, position: i, after_intermission: w.afterIntermission === true });
+      }
+
+      if (programLinks.length > 0) {
+        // Redaktionell bearbeitete Programme (program_locked_at) lässt die
+        // Funktion unverändert und liefert dann false.
+        const { data: replaced, error: replaceError } = await supabase.rpc("replace_event_program", {
+          p_event_id: event.id,
+          p_links: programLinks,
+        });
+        if (replaceError) throw new Error(`replace_event_program: ${replaceError.message}`);
+        if (replaced === true) linksCreated += programLinks.length;
       }
 
       // Ein Programm kann mehreren Terminen zugeordnet sein. Nach einer
@@ -1403,13 +1431,16 @@ Deno.serve(async (req) => {
         // hier passiert und zeigte sich als doppelte "Mitwirkende"-Chips
         // in der App.
         for (const [resolvedIndex, entityId] of entityIDs.entries()) {
+          // limit(1) statt maybeSingle(): bei schon vorhandenen Dubletten
+          // lieferte maybeSingle() einen Fehler (null) und es kam bei jedem
+          // Lauf noch ein Eintrag hinzu.
           const { data: existingParticipant } = await supabase
             .from("event_participants")
             .select("id")
             .eq("event_id", event.id)
             .eq(isEnsemble ? "ensemble_id" : "person_id", entityId)
-            .maybeSingle();
-          if (existingParticipant) continue;
+            .limit(1);
+          if (existingParticipant && existingParticipant.length > 0) continue;
 
           const { error: linkError } = await supabase
             .from("event_participants")
@@ -1526,6 +1557,34 @@ Deno.serve(async (req) => {
       if (extracted.hasIntermission !== null) {
         eventPatch.has_intermission = extracted.hasIntermission;
         provenanceSources.push({ fieldName: "has_intermission", sourceUrl });
+      }
+      // Absage laut Konzertseite → redaktionelle Absage-Prüfung (kein
+      // automatisches Absagen, siehe cancellation_candidates).
+      if (extracted.cancelled && event.status !== "cancelled") {
+        const { data: openCandidate } = await supabase.from("cancellation_candidates")
+          .select("id").eq("event_id", event.id).eq("status", "pending").limit(1);
+        if (!openCandidate?.length) {
+          await supabase.from("cancellation_candidates").insert({
+            event_id: event.id,
+            reason: "Die Konzertseite meldet eine Absage (erkannt bei der Programmprüfung).",
+            status: "pending",
+          });
+        }
+      }
+      // Umbesetzung laut Konzertseite → event_changes (cast); notify-changes
+      // benachrichtigt alle, die den Termin gemerkt haben. Gleiche Meldung
+      // nur einmal.
+      for (const change of extracted.castChanges) {
+        const { data: known } = await supabase.from("event_changes")
+          .select("id").eq("event_id", event.id).eq("field_name", "cast")
+          .eq("old_value", change.replaced).limit(1);
+        if (known?.length) continue;
+        await supabase.from("event_changes").insert({
+          event_id: event.id,
+          field_name: "cast",
+          old_value: change.replaced,
+          new_value: change.replacement,
+        });
       }
       if (
         (!event.description_de || event.description_de.trim().length < 40) &&

@@ -1,3 +1,4 @@
+import { type ProgramLink, replaceProgram } from "../_shared/programReplace.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { parseStaatsoperDetail } from "../_shared/staatsoperDetail.ts";
 import { USER_AGENT } from "../_shared/robots.ts";
@@ -53,16 +54,14 @@ Deno.serve(async (req) => {
       const participantsAdded = await replaceEventParticipants(supabase, event.id, detail.participants);
       let worksAdded = 0;
       if (detail.works.length > 0) {
-        await supabase.from("event_works").delete().eq("event_id", event.id);
+        const links: ProgramLink[] = [];
         for (const work of detail.works) {
           const composerId = work.composerName ? await resolveComposer(supabase, work.composerName) : null;
           const workId = await resolveWork(supabase, work.title, composerId);
           if (!workId) continue;
-          const { error: workError } = await supabase.from("event_works").insert({
-            event_id: event.id, work_id: workId, position: work.position, after_intermission: false,
-          });
-          if (!workError) worksAdded++;
+          links.push({ work_id: workId, position: work.position, after_intermission: false });
         }
+        worksAdded = await replaceProgram(supabase, event.id, links);
       }
       await supabase.from("events").update({
         staatsoper_detail_synced_at: new Date().toISOString(),

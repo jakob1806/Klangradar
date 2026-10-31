@@ -71,9 +71,11 @@ export function mphilSubscriptions(html: string): SubscriptionCandidate[] {
     // Mehrere Abos in einer Zeile: "Subscription F, Subscription I4" bzw.
     // "Abonnement A, Abonnement E4" – jedes einzeln anlegen.
     for (const part of clean(m[1]).split(/\s*[,/]\s*/)) {
-      const abo = part.match(/^(?:Abonnement|Subscription|Abo)\s+([A-Za-z0-9]{1,4})$/i);
+      // Kurze Kürzel ("B", "I4") und benannte Reihen ("Kammerkonzert").
+      const abo = part.match(/^(?:Abonnement|Subscription|Abo)\s+([A-Za-z0-9]{1,4}|Kammerkonzerte?|Familienkonzerte?)$/i);
       if (!abo) continue;
-      const code = abo[1].toUpperCase();
+      const named = abo[1].length > 4;
+      const code = named ? abo[1].charAt(0).toUpperCase() + abo[1].slice(1).toLowerCase() : abo[1].toUpperCase();
       out.push({ organizer: "mphil", code, name: `Abo ${code}`, url: ORGANIZER_ABO_PAGE.mphil });
     }
   }
