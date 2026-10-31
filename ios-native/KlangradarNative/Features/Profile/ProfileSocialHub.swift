@@ -465,10 +465,15 @@ struct FollowedPeopleView: View {
     var filterKind: FollowedProfileKind?
     @State private var followed: [FollowedProfile] = []
     @State private var isLoading = true
+    /// Nutzerwunsch 30.10.2026: "Gefolgt" nach Personen/Ensembles/Orte
+    /// umschaltbar statt einer langen gemischten Liste.
+    @State private var selectedKind: FollowedProfileKind?
 
     private var visibleKinds: [FollowedProfileKind] {
-        filterKind.map { [$0] } ?? FollowedProfileKind.allVisible
+        (filterKind ?? selectedKind).map { [$0] } ?? FollowedProfileKind.allVisible
     }
+
+    private func count(_ kind: FollowedProfileKind) -> Int { followed.filter { $0.kind == kind }.count }
 
     var body: some View {
         Group {
@@ -477,9 +482,26 @@ struct FollowedPeopleView: View {
                 ContentUnavailableView("Du folgst noch niemandem", systemImage: "person.badge.plus", description: Text("Folge Personen und Ensembles auf deren Profilseite."))
             }
             else { List {
+                if filterKind == nil {
+                    Picker("Kategorie", selection: $selectedKind) {
+                        Text("Alle (\(followed.count))").tag(FollowedProfileKind?.none)
+                        ForEach(FollowedProfileKind.allVisible, id: \.rawValue) { kind in
+                            Text("\(kind.title) (\(count(kind)))").tag(Optional(kind))
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+                }
                 ForEach(visibleKinds, id: \.rawValue) { kind in
                     let entries = followed.filter { $0.kind == kind }
-                    if !entries.isEmpty { Section(filterKind == nil ? kind.title : "") { ForEach(entries) { profile in followedRow(profile) } } }
+                    if !entries.isEmpty {
+                        Section {
+                            ForEach(entries) { profile in followedRow(profile) }
+                        } header: {
+                            if filterKind == nil { Label("\(kind.title) · \(entries.count)", systemImage: kind.entityKind.systemImage) }
+                        }
+                    }
                 }
             } }
         }
@@ -497,7 +519,9 @@ struct FollowedPeopleView: View {
         } label: {
             HStack(spacing: 12) {
                 AsyncImage(url: profile.imageURL) { image in image.resizable().scaledToFill() } placeholder: { Image(systemName: profile.kind.entityKind.systemImage).foregroundStyle(KlangradarTheme.accent) }
-                    .frame(width: 46, height: 46).clipShape(Circle())
+                    .frame(width: 46, height: 46)
+                    .background(KlangradarTheme.accent.opacity(0.1))
+                    .clipShape(profile.kind == .venue ? AnyShape(RoundedRectangle(cornerRadius: 10)) : AnyShape(Circle()))
                 Text(profile.name).font(.headline)
             }.padding(.vertical, 3)
         }

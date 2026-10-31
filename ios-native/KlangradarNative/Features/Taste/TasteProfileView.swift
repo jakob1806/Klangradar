@@ -9,8 +9,10 @@ import SwiftUI
 struct TasteProfileView: View {
     @ObservedObject var auth: AuthStore
     let repository: UserRepository
+    let contentRepository: any ContentRepository
 
     @State private var profile: TasteProfile?
+    @State private var thumbnails: [UUID: URL] = [:]
     @State private var isLoading = true
 
     var body: some View {
@@ -21,10 +23,10 @@ struct TasteProfileView: View {
                 } else {
                     TasteHero(profile: profile)
                     if let profile, !profile.isEmpty {
-                        if !profile.composers.isEmpty { TasteComposerTile(entries: Array(profile.composers.prefix(5))) }
-                        if !profile.artists.isEmpty { TasteArtistsTile(entries: Array(profile.artists.prefix(12))) }
+                        if !profile.composers.isEmpty { TasteComposerTile(entries: Array(profile.composers.prefix(5)), thumbnails: thumbnails, contentRepository: contentRepository) }
+                        if !profile.artists.isEmpty { TasteArtistsTile(entries: Array(profile.artists.prefix(12)), thumbnails: thumbnails, contentRepository: contentRepository) }
                         HStack(alignment: .top, spacing: 12) {
-                            if !profile.venues.isEmpty { TasteVenuesTile(entries: Array(profile.venues.prefix(4))) }
+                            if !profile.venues.isEmpty { TasteVenuesTile(entries: Array(profile.venues.prefix(4)), thumbnails: thumbnails, contentRepository: contentRepository) }
                             if !profile.weekdays.isEmpty { TasteWeekdayTile(profile: profile) }
                         }
                         .fixedSize(horizontal: false, vertical: true)
@@ -46,6 +48,15 @@ struct TasteProfileView: View {
         .task {
             if let token = auth.accessToken { profile = try? await repository.tasteProfile(token: token) }
             isLoading = false
+            if let profile, let token = auth.accessToken {
+                let people = profile.composers + profile.artists.filter { $0.kind != "ensemble" }
+                thumbnails = await repository.entityThumbnails(
+                    personIDs: people.map(\.id),
+                    ensembleIDs: profile.artists.filter { $0.kind == "ensemble" }.map(\.id),
+                    venueIDs: profile.venues.map(\.id),
+                    token: token
+                )
+            }
         }
     }
 }
@@ -143,10 +154,28 @@ private func tasteRoute(_ entry: TasteProfile.Entry, fallback: EntityKind) -> En
     return EntityRoute(kind: kind, identifier: entry.id.uuidString.lowercased())
 }
 
+/// Ziel-Links statt NavigationLink(value:): Die Geschmack-Seite wird per
+/// Ziel-Link geöffnet; wertbasierte Links darin lösten erst nach "Zurück"
+/// aus (bekanntes SwiftUI-Problem beim Mischen beider Arten).
+private struct TasteLink<Label: View>: View {
+    let entry: TasteProfile.Entry
+    let fallback: EntityKind
+    let contentRepository: any ContentRepository
+    @ViewBuilder let label: () -> Label
+
+    var body: some View {
+        NavigationLink {
+            EntityDetailView(route: tasteRoute(entry, fallback: fallback), repository: contentRepository)
+        } label: { label() }
+        .buttonStyle(.plain)
+    }
+}
+
 private struct TasteInitials: View {
     let name: String
     var highlighted = false
     var size: CGFloat = 44
+    var imageURL: URL? = nil
 
     private var initials: String {
         let parts = name.split(separator: " ").filter { $0.first?.isUppercase == true }
@@ -154,17 +183,33 @@ private struct TasteInitials: View {
     }
 
     var body: some View {
-        Text(initials)
+        let placeholder = Text(initials)
             .font(.system(size: size * 0.36, weight: .semibold, design: .serif))
             .foregroundStyle(highlighted ? .white : KlangradarTheme.accent)
             .frame(width: size, height: size)
             .background(highlighted ? AnyShapeStyle(KlangradarTheme.accent) : AnyShapeStyle(KlangradarTheme.accent.opacity(0.12)), in: .circle)
+        if let imageURL {
+            CachedAsyncImage(url: imageURL, maxPixel: 240) { phase in
+                if case let .success(image) = phase {
+                    image.resizable().scaledToFill()
+                } else {
+                    placeholder
+                }
+            }
+            .frame(width: size, height: size)
+            .clipShape(.circle)
+            .overlay(Circle().stroke(highlighted ? KlangradarTheme.accent : .clear, lineWidth: 2))
+        } else {
+            placeholder
+        }
     }
 }
 
 /// Komponist:innen als Rangliste mit Anteil am Geschmack.
 private struct TasteComposerTile: View {
     let entries: [TasteProfile.Entry]
+    let thumbnails: [UUID: URL]
+    let contentRepository: any ContentRepository
 
     var body: some View {
         let total = max(entries.map(\.weight).reduce(0, +), 0.0001)
@@ -174,9 +219,9 @@ private struct TasteComposerTile: View {
             VStack(spacing: 0) {
                 ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
                     if index > 0 { Divider().padding(.leading, 56) }
-                    NavigationLink(value: tasteRoute(entry, fallback: .person)) {
+                    TasteLink(entry: entry, fallback: .person, contentRepository: contentRepository) {
                         HStack(spacing: 12) {
-                            TasteInitials(name: entry.name, highlighted: index == 0)
+                            TasteInitials(name: entry.name, highlighted: index == 0, imageURL: thumbnails[entry.id])
                             VStack(alignment: .leading, spacing: 6) {
                                 Text(entry.name)
                                     .font(index == 0 ? .system(.headline, design: .serif) : .subheadline)
@@ -208,6 +253,8 @@ private struct TasteComposerTile: View {
 /// Künstler:innen und Ensembles als Porträtreihe zum Wischen.
 private struct TasteArtistsTile: View {
     let entries: [TasteProfile.Entry]
+    let thumbnails: [UUID: URL]
+    let contentRepository: any ContentRepository
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -215,9 +262,9 @@ private struct TasteArtistsTile: View {
             ScrollView(.horizontal) {
                 HStack(alignment: .top, spacing: 14) {
                     ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
-                        NavigationLink(value: tasteRoute(entry, fallback: .person)) {
+                        TasteLink(entry: entry, fallback: .person, contentRepository: contentRepository) {
                             VStack(spacing: 6) {
-                                TasteInitials(name: entry.name, highlighted: index == 0, size: 60)
+                                TasteInitials(name: entry.name, highlighted: index == 0, size: 60, imageURL: thumbnails[entry.id])
                                     .overlay(alignment: .bottomTrailing) {
                                         Image(systemName: entry.kind == "ensemble" ? "person.3.fill" : "person.fill")
                                             .font(.system(size: 9, weight: .bold))
@@ -246,17 +293,16 @@ private struct TasteArtistsTile: View {
 /// Lieblingsorte als kurze Rangliste.
 private struct TasteVenuesTile: View {
     let entries: [TasteProfile.Entry]
+    let thumbnails: [UUID: URL]
+    let contentRepository: any ContentRepository
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             TasteLabel(text: "Lieblingsorte")
             ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
-                NavigationLink(value: tasteRoute(entry, fallback: .venue)) {
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text("\(index + 1)")
-                            .font(.system(.subheadline, design: .serif).weight(.bold))
-                            .foregroundStyle(index == 0 ? KlangradarTheme.accent : .secondary)
-                            .frame(width: 14, alignment: .leading)
+                TasteLink(entry: entry, fallback: .venue, contentRepository: contentRepository) {
+                    HStack(spacing: 10) {
+                        TasteInitials(name: entry.name, highlighted: index == 0, size: 34, imageURL: thumbnails[entry.id])
                         Text(entry.name)
                             .font(.subheadline.weight(index == 0 ? .semibold : .regular))
                             .foregroundStyle(.primary)

@@ -26,6 +26,7 @@ export type NavItem = OrganizerNavItem;
 export type NavGroup = OrganizerNavGroup & { icon: LucideIcon };
 
 // Vier Hauptpunkte (Umbau 30.10.2026); Struktur in nav-links.ts.
+// Unterseiten bleiben immer sichtbar (Nutzerfeedback: wirkten sonst verschwunden).
 const ICONS: Record<string, LucideIcon> = {
   programm: CalendarDays,
   sichtbarkeit: Megaphone,
@@ -96,7 +97,7 @@ export function SidebarNavigation({ onNavigate }: { onNavigate?: () => void }) {
                 {group.label}
               </span>
             </Link>
-            {containsActive && (
+            {(
               <div className="ml-4 flex flex-col gap-px border-l border-[#EAEAEA] pl-2">
                 {group.items.map((item) => {
                   const active = item.href === activeHref;
