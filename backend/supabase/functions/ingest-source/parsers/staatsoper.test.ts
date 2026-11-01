@@ -23,3 +23,13 @@ Deno.test("parseStaatsoper excludes tours and workshops but keeps ballet", () =>
   const result = parseStaatsoper(markdown);
   assertEquals(result.events.map((event) => event.title), ["C A R P A T H I A"]);
 });
+
+Deno.test("Staatsoper: zusammengesetzte Kategorien (Akademiekonzert, Kinderoper) werden übernommen", () => {
+  const markdown = [
+    `[05. Oktober 2026 20.00 Uhr | Nationaltheater 1. AKADEMIEKONZERT Weitere Informationen zu 1. AKADEMIEKONZERT anzeigen - 05.10.2026, 20.00 Uhr Akademiekonzert](https://www.staatsoper.de/stuecke/1-akademiekonzert/2026-10-05-2000-7)`,
+    `[06. Oktober 2026 11.00 Uhr | Cuvilliés-Theater DIE ZAUBERFLÖTE FÜR KINDER Weitere Informationen zu DIE ZAUBERFLÖTE FÜR KINDER anzeigen - 06.10.2026, 11.00 Uhr Kinderoper](https://www.staatsoper.de/stuecke/zauberfloete-kinder/2026-10-06-1100-8)`,
+    `[07. Oktober 2026 20.00 Uhr | Allerheiligen Hofkirche KAMMERKONZERT Weitere Informationen zu KAMMERKONZERT anzeigen - 07.10.2026, 20.00 Uhr Kammerkonzert](https://www.staatsoper.de/konzerte/kammerkonzert/2026-10-07-2000-9)`,
+  ].join("\n");
+  const { events } = parseStaatsoper(markdown);
+  assertEquals(events.map((e) => e.title), ["1. AKADEMIEKONZERT", "DIE ZAUBERFLÖTE FÜR KINDER", "KAMMERKONZERT"]);
+});

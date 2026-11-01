@@ -46,7 +46,7 @@ export function parseStaatsoper(markdown: string): ParseResult {
   const events: RawEvent[] = [];
   const errors: string[] = [];
   const seen = new Set<string>();
-  const linkPattern = /\[([^\]]*?Weitere Informationen zu ([\s\S]*?) anzeigen - (\d{2})\.(\d{2})\.(\d{4}), (\d{2})[.:](\d{2}) Uhr[^\]]*)\]\((https:\/\/www\.staatsoper\.de\/(?:stuecke|produktionen)\/[^)]+)\)/g;
+  const linkPattern = /\[([^\]]*?Weitere Informationen zu ([\s\S]*?) anzeigen - (\d{2})\.(\d{2})\.(\d{4}), (\d{2})[.:](\d{2}) Uhr[^\]]*)\]\((https:\/\/www\.staatsoper\.de\/[a-z0-9\/_-]+\/\d{4}-\d{2}-\d{2}-\d{4}[^)]*|https:\/\/www\.staatsoper\.de\/(?:stuecke|produktionen)\/[^)]+)\)/g;
 
   for (const match of markdown.matchAll(linkPattern)) {
     const [, label, rawTitle, day, month, year, hour, minute, url] = match;
@@ -57,7 +57,10 @@ export function parseStaatsoper(markdown: string): ParseResult {
     // Vermittlungskalender des Hauses. Die offizielle Linkzeile endet mit
     // der Kategorie; nur musikalische Bühnen- und Konzertformate zulassen.
     const categoryTail = clean(label.slice(label.lastIndexOf("Uhr") + 3));
-    if (!/\b(Oper|Ballett|Konzert|Liederabend)\b/i.test(categoryTail)) continue;
+    // 01.11.2026 (Nutzer: „bei der Staatsoper fehlen ganz viele Termine“):
+    // Wortgrenzen ließen zusammengesetzte Kategorien wie „Akademiekonzert“,
+    // „Kammerkonzert“, „Kinderoper“ oder „Opernfestspiele“ durchfallen.
+    if (!/(oper|ballett|konzert|liederabend|lied|matinee|festspiel|kammermusik|recital|gala|soiree|tanz)/i.test(categoryTail)) continue;
     // Manche Vermittlungsformate werden auf der Website trotzdem pauschal
     // als „Ballett“ kategorisiert. Sie sind keine Aufführungen und werden
     // deshalb zusätzlich über ihren eindeutigen Titel ausgeschlossen.

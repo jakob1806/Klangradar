@@ -175,6 +175,12 @@ const ENRICH_FUNCTION: AiFunctionDeclaration = {
               type: "string",
               description: "Falls im Text erkennbar, sonst weglassen.",
             },
+            roleLabel: {
+              type: "string",
+              description:
+                "Konkrete Partie bzw. Rolle in Oper/Operette/Oratorium (z. B. 'Tosca', 'Scarpia', 'Evangelist') " +
+                "oder Funktion wie 'Musikalische Leitung'. Nur aus dem Text übernehmen, nie erfinden; sonst weglassen.",
+            },
           },
           required: ["name", "type"],
         },
@@ -326,6 +332,7 @@ interface ExtractedReferences {
       role: string | null;
       ensembleType: string | null;
       instrument: string | null;
+      roleLabel?: string | null;
     }
   >;
   tags: string[];
@@ -1443,7 +1450,15 @@ Deno.serve(async (req) => {
             .eq("event_id", event.id)
             .eq(isEnsemble ? "ensemble_id" : "person_id", entityId)
             .limit(1);
-          if (existingParticipant && existingParticipant.length > 0) continue;
+          // Partie/Instrument statt nur „Solist:in“ (01.11.2026).
+          const roleLabel = (p.roleLabel ?? p.instrument ?? "").trim().slice(0, 160) || null;
+          if (existingParticipant && existingParticipant.length > 0) {
+            if (roleLabel) {
+              await supabase.from("event_participants").update({ role_label: roleLabel })
+                .eq("id", existingParticipant[0].id).is("role_label", null);
+            }
+            continue;
+          }
 
           const { error: linkError } = await supabase
             .from("event_participants")
@@ -1452,6 +1467,7 @@ Deno.serve(async (req) => {
               person_id: isEnsemble ? null : entityId,
               ensemble_id: isEnsemble ? entityId : null,
               role: p.role ?? null,
+              role_label: roleLabel,
               display_order: i + resolvedIndex,
             });
           if (linkError) {

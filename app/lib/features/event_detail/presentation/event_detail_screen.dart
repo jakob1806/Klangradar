@@ -85,7 +85,7 @@ final _eventProvider = FutureProvider.family<Map<String, dynamic>?, String>((
         organizers(name),
         event_genres(genres(id, slug, label_de)),
         event_works(position, after_intermission, works(id, title, catalog_number, key_signature, instrumentation, movements, composer:persons(id, slug, full_name))),
-        event_participants(role, persons(id, slug, full_name, member_of:ensembles!member_of_ensemble_id(slug, name)), ensembles(id, slug, name, parent_ensemble_id))
+        event_participants(role, role_label, display_order, persons(id, slug, full_name, member_of:ensembles!member_of_ensemble_id(slug, name)), ensembles(id, slug, name, parent_ensemble_id))
       ''')
       .eq('slug', slug)
       .neq('status', 'draft')
@@ -1282,7 +1282,12 @@ class _ParticipantRow extends StatelessWidget {
     // Fallback stand bei Ensemble-Mitwirkenden gar keine Rollenbezeichnung
     // daneben, nur der bloße Name (Nutzermeldung: "'Ensemble' bei Münchner
     // Philharmoniker fehlt als Angabe").
-    final role = ensemble != null
+    // Partie/Instrument („Tosca“, „Violine“) vor der allgemeinen Rolle –
+    // sonst stand bei Opern nur „Solist:in“ (Nutzerfeedback 01.11.2026).
+    final roleLabel = (participant['role_label'] as String?)?.trim();
+    final role = roleLabel != null && roleLabel.isNotEmpty
+        ? roleLabel
+        : ensemble != null
         ? l10n.roleEnsemble
         : _roleLabels(l10n)[participant['role']];
     final slug = person?['slug'] ?? ensemble?['slug'];
