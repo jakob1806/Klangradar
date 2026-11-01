@@ -129,7 +129,11 @@ class NotificationPreferencesService {
   }
 
   /// Auswahl-Einstellungen (Wochenbudget, Häufigkeiten).
-  static Future<void> setValue(WidgetRef ref, String column, Object value) async {
+  static Future<void> setValue(
+    WidgetRef ref,
+    String column,
+    Object value,
+  ) async {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) return;
     await Supabase.instance.client.from('notification_preferences').upsert({
