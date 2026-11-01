@@ -1901,13 +1901,21 @@ async function enrichEventCovers(
   // beobachtet: 195/367 upcoming events ohne Bild). start_datetime bleibt
   // die Tie-Break-Sortierung innerhalb jeder der beiden Gruppen — je
   // näher das Event, desto eher lohnt sich ein (erneuter) Versuch.
+  // 01.11.2026 (Claude Code): Bisher wurden ALLE kommenden Events geladen
+  // (PostgREST liefert höchstens 1000 Zeilen) und erst danach nach fehlendem
+  // Bild gefiltert – bei > 2.500 kommenden Terminen kamen spätere nie an die
+  // Reihe (Oper Frankfurt: 184/184 nie versucht). Jetzt filtert die Abfrage
+  // selbst und liefert auch das beim Import gemerkte Quellbild mit.
   const { data: events, error } = await supabase
     .from("events")
-    .select("id, title, image_urls, website_url, ticket_url, venues(name, city_id)")
+    .select("id, title, image_urls, website_url, ticket_url, source_image_url, venues(name, city_id), sources(name, priority, venue_id, ensemble_id, person_id, organizer_id)")
     .in("status", ["scheduled", "sold_out", "postponed"])
+    .is("duplicate_of", null)
+    .or("image_urls.is.null,image_urls.eq.{}")
     .gte("start_datetime", new Date().toISOString())
     .order("last_image_search_note", { ascending: true, nullsFirst: true })
-    .order("start_datetime", { ascending: true });
+    .order("start_datetime", { ascending: true })
+    .limit(limit);
 
   if (error) {
     return {
@@ -1917,11 +1925,8 @@ async function enrichEventCovers(
     };
   }
 
-  const missingImages = (events ?? []).filter(
-    (e: { image_urls: string[] | null }) =>
-      !e.image_urls || e.image_urls.length === 0,
-  );
-  const batch = missingImages.slice(0, limit);
+  const missingImages = events ?? [];
+  const batch = missingImages;
 
   let updated = 0;
   const errors: string[] = [];
@@ -1935,7 +1940,17 @@ async function enrichEventCovers(
         let coverSourcePage: string | null = null;
         let coverCredits: string | null = null;
         const notes: string[] = [];
-        for (const pageUrl of [event.website_url, event.ticket_url]) {
+        // Zuerst das Bild, das die Importquelle direkt am Termin geliefert hat.
+        if (event.source_image_url) {
+          const { reachable } = await checkImageUrl(event.source_image_url);
+          if (reachable && !(await isUrlUsedElsewhere(supabase, event.source_image_url, "events", event.id))) {
+            coverImage = event.source_image_url;
+            coverSourcePage = event.website_url ?? event.source_image_url;
+          } else {
+            notes.push("Bild aus der Importquelle nicht erreichbar oder schon anderem Termin zugeordnet");
+          }
+        }
+        for (const pageUrl of coverImage ? [] : [event.website_url, event.ticket_url]) {
           if (!pageUrl) continue;
           if (!(await isAllowedByRobots(pageUrl))) {
             notes.push(`${pageUrl} durch robots.txt gesperrt`);
@@ -1993,6 +2008,17 @@ async function enrichEventCovers(
           continue;
         }
 
+        // Nutzerwunsch 01.11.2026: Bilder von der offiziellen
+        // Veranstaltungsseite der Importquelle (Haus, Ensemble, Veranstalter)
+        // direkt verwenden – mit Quelle und Credit. Aggregatoren (Concerti,
+        // in-muenchen …) sind nicht Rechteinhaber, ihre Bilder bleiben in der
+        // Prüfung.
+        const src = event.sources ?? null;
+        const official = !!src && (src.venue_id || src.ensemble_id || src.person_id || src.organizer_id || (src.priority ?? 0) >= 70) &&
+          !!event.website_url && new URL(coverSourcePage!).hostname === new URL(event.website_url).hostname;
+        if (official && !coverCredits) {
+          coverCredits = `Foto: ${String(src.name).split(/\s+[–(-]\s*/)[0]}`;
+        }
         // Zentral über `images` speichern, nicht nur als nackte URL im
         // Event. So bleiben Quellseite, Anbieter, Original-URL, Credits,
         // Lizenzstatus und Abrufzeit bei JEDEM automatischen Eventbild
@@ -2002,11 +2028,13 @@ async function enrichEventCovers(
           sourcePageUrl: coverSourcePage!,
           sourceName: new URL(coverSourcePage!).hostname,
           photographer: coverCredits,
-          licenseStatus: coverCredits ? "official_press_image" : "permission_required",
+          licenseStatus: official || coverCredits ? "official_press_image" : "permission_required",
           confidenceScore: 0.94,
-          matchReason: "Titel-/Hero-Bild der konkreten Veranstaltungsseite.",
-          warnings: coverCredits ? [] : ["Bildcredit und Nutzungserlaubnis vor Veröffentlichung prüfen."],
-          needsReview: !coverCredits,
+          matchReason: official
+            ? "Bild der offiziellen Veranstaltungsseite der Importquelle."
+            : "Titel-/Hero-Bild der konkreten Veranstaltungsseite.",
+          warnings: official || coverCredits ? [] : ["Bildcredit und Nutzungserlaubnis vor Veröffentlichung prüfen."],
+          needsReview: !(official || coverCredits),
         });
         if (!stored) {
           errors.push(`event ${event.id}: Bild oder Quellenmetadaten konnten nicht zentral gespeichert werden`);

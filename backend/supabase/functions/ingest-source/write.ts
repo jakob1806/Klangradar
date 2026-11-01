@@ -559,6 +559,11 @@ async function attachCoverImage(
   // Das Ersatzbild (Ensemble/Künstler/Ort) wird weiterhin sofort gesetzt.
   const deferImages = source.config?.deferImageEnrichment === true;
   try {
+    // Das von der Quelle gelieferte Bild für den späteren Job merken
+    // (01.11.2026: ging bisher beim Aufschieben verloren).
+    if (deferImages && raw.imageUrl && currentImageUrls.length === 0) {
+      await supabase.from("events").update({ source_image_url: raw.imageUrl }).eq("id", eventId);
+    }
     const authoritative = raw.imageUrl != null && !deferImages;
     let detected: { url: string; credits: string | null } | null = authoritative
       ? { url: raw.imageUrl as string, credits: null }
@@ -690,12 +695,32 @@ async function resolveFallbackImage(
     const id = await ensureEntityCoverImage(supabase, "person", personId);
     if (id) return id;
   }
+  // Komponist:in des ersten Werks vor dem Saalfoto (Konzept Bildabdeckung,
+  // 01.11.2026): gemeinfreie Porträts passen inhaltlich besser als der Saal.
+  const { data: workRows } = await supabase
+    .from("event_works")
+    .select("position, works(composer_id)")
+    .eq("event_id", eventId)
+    .order("position");
+  const composerIds = [...new Set((workRows ?? []).map((r: any) => r.works?.composer_id).filter(Boolean))] as string[];
+  let composerId: string | undefined;
+  if (composerIds.length) {
+    const { data: withPhoto } = await supabase.from("persons").select("id").in("id", composerIds).not("photo_url", "is", null);
+    const ok = new Set((withPhoto ?? []).map((p: { id: string }) => p.id));
+    composerId = composerIds.find((id) => ok.has(id));
+  }
+  if (composerId) {
+    const id = await ensureEntityCoverImage(supabase, "person", composerId);
+    if (id) return id;
+  }
   if (venueId) {
     const id = await ensureEntityCoverImage(supabase, "venue", venueId);
     if (id) return id;
   }
   return null;
 }
+
+
 
 /** Nutzervorgabe: Standardbild für Personen/Ensembles, das für ALLE deren
  * Veranstaltungen ohne eigenes Bild verwendet wird, getrennt vom

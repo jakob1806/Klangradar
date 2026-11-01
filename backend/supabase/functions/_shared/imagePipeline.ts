@@ -96,6 +96,7 @@ export function ensureMagickReady(): Promise<void> {
 // enrich-entity-images) zu ändern — ensureCoverImage() bleibt für die
 // unverändert string|null.
 export type CoverImageFailureReason =
+  | "rejected_before"
   | "unreachable"
   | "download_failed"
   | "decode_failed"
@@ -209,6 +210,21 @@ async function ensureCoverImageInner(
     .neq("review_status", "rejected")
     .maybeSingle();
   if (existingByUrl?.storage_path) return { id: existingByUrl.id };
+
+  // 01.11.2026: Für diese Entität abgelehnte Adresse (Redaktion oder
+  // "Falsches Bild" aus der App) bei automatischer Suche nicht erneut
+  // übernehmen. Manuelle Uploads (sourceBytes) bleiben möglich.
+  if (!input.sourceBytes) {
+    const { data: rejectedBefore } = await supabase
+      .from("images")
+      .select("id")
+      .eq("origin_type", originType)
+      .eq("origin_id", originId)
+      .eq("source_url", sourceUrl)
+      .eq("review_status", "rejected")
+      .limit(1);
+    if (rejectedBefore?.length) return { id: null, reason: "rejected_before" };
+  }
 
   let bytes: Uint8Array | null;
   let mimeTypeHint: string | null = null;

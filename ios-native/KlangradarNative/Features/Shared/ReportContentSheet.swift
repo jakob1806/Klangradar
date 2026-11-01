@@ -46,6 +46,10 @@ enum ReportReason: String, CaseIterable, Identifiable {
 struct ReportContentLink: View {
     let entityType: String
     let entityID: String
+    /// Direkt unter Bildern (01.11.2026): "Falsches Bild melden" mit
+    /// vorausgewähltem Grund, damit Fehlzuordnungen schnell gemeldet werden.
+    var preselected: ReportReason? = nil
+    var title = "Fehler melden"
     @EnvironmentObject private var reportStore: ReportStore
 
     @State private var showsSheet = false
@@ -54,7 +58,7 @@ struct ReportContentLink: View {
         Button {
             showsSheet = true
         } label: {
-            Text("Fehler melden")
+            Text(title)
                 .font(.system(size: 11))
                 .underline()
                 .foregroundStyle(.tertiary)
@@ -68,7 +72,8 @@ struct ReportContentLink: View {
                 entityType: entityType,
                 entityID: entityID,
                 auth: reportStore.auth,
-                userRepository: reportStore.repository
+                userRepository: reportStore.repository,
+                selected: preselected
             )
             .presentationDetents([.medium])
         }
@@ -81,7 +86,7 @@ private struct ReportContentSheetView: View {
     let auth: AuthStore
     let userRepository: UserRepository?
 
-    @State private var selected: ReportReason?
+    @State var selected: ReportReason?
     @State private var message = ""
     @State private var isSubmitting = false
     @State private var isSubmitted = false

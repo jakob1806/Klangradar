@@ -196,7 +196,12 @@ export default async function MediaPage() {
             oder Kartenfläche fügt einen Vorschlag zur Auswahl hinzu.
           </p>
         </div>
-        <EnrichImagesButton />
+        <div className="flex items-center gap-3">
+          <Link href="/media/pruefen" className="rounded-lg bg-[#2D2A6E] px-3 py-2 text-sm font-medium text-white hover:opacity-90">
+            Schnellprüfung
+          </Link>
+          <EnrichImagesButton />
+        </div>
       </div>
       </div>
 

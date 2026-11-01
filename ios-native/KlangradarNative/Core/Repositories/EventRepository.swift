@@ -200,7 +200,7 @@ struct LiveEventRepository: EventRepository {
                     try await client.get(table: "images", queryItems: [
                         URLQueryItem(name: "select", value: "origin_id,storage_path,source_url,sort_order,updated_at"),
                         URLQueryItem(name: "origin_id", value: "in.(\(chunk.map(\.uuidString).joined(separator: ",")))"),
-                        URLQueryItem(name: "license_status", value: "in.(confirmed_free,confirmed_licensed)"),
+                        URLQueryItem(name: "license_status", value: "in.(confirmed_free,confirmed_licensed,official_press_image)"),
                         URLQueryItem(name: "quality_status", value: "eq.valid"),
                         URLQueryItem(name: "order", value: "sort_order.asc")
                     ])
@@ -215,7 +215,7 @@ struct LiveEventRepository: EventRepository {
                 let chunk = Array(eventIDs[start..<min(start + 75, eventIDs.count)])
                 group.addTask {
                     try await client.get(table: "events", queryItems: [
-                        URLQueryItem(name: "select", value: "id,image_urls,updated_at"),
+                        URLQueryItem(name: "select", value: "id,image_urls,updated_at,primary:images!events_primary_image_id_fkey(storage_path,source_url,license_status,origin_type)"),
                         URLQueryItem(name: "id", value: "in.(\(chunk.map(\.uuidString).joined(separator: ",")))")
                     ])
                 }
@@ -247,14 +247,25 @@ struct LiveEventRepository: EventRepository {
             }
         }
         return events.map { event in
-            let candidateIDs = [event.venues?.id].compactMap { $0 } + (event.eventParticipants ?? []).flatMap { [$0.persons?.id, $0.ensembles?.id].compactMap { $0 } }
+            // Reihenfolge (Konzept Bildabdeckung, 01.11.2026): Mitwirkende, dann
+            // das serverseitige Ersatzbild (u. a. Komponist:in des Hauptwerks),
+            // erst zuletzt das Saalfoto.
+            let participantIDs = (event.eventParticipants ?? []).flatMap { [$0.persons?.id, $0.ensembles?.id].compactMap { $0 } }
             // PostgREST liefert origin_id klein geschrieben, UUID.uuidString liefert
             // GROSSBUCHSTABEN — ohne .lowercased() traf dieser Dictionary-Lookup nie,
             // eigene Event-/Venue-/Mitwirkenden-Galeriebilder (inkl. Event-Gruppen-
             // Bild) wurden dadurch still ignoriert und auf das Mitwirkenden-eigene
             // photo_url zurückgefallen (Nutzerfeedback: falsches Bild angezeigt).
-            let fallback = candidateIDs.flatMap { galleryURLs[$0.uuidString.lowercased()] ?? [] }
             let current = currentByID[event.id.uuidString.lowercased()]
+            let serverFallback: [String] = current?.object("primary").flatMap { image -> String? in
+                // Saalfoto nicht vor die Mitwirkenden-Fotos ziehen.
+                guard image.string("license_status") != "rejected", image.string("origin_type") != "venue" else { return nil }
+                if let path = image.string("storage_path") { return client.publicStorageURL(bucket: "ingested-images", path: path).absoluteString }
+                return image.string("source_url")
+            }.map { [$0] } ?? []
+            // Das Saalfoto kommt über venues.photoURL ganz am Ende von
+            // ConcertEvent.primaryImageURL, nach den Mitwirkenden-Fotos.
+            let fallback = participantIDs.flatMap { galleryURLs[$0.uuidString.lowercased()] ?? [] } + serverFallback
             return ConcertEvent(
                 id: event.id,
                 slug: event.slug,
