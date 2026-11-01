@@ -24,6 +24,25 @@ interface SourceRow {
   consecutive_failures?: number | null;
   confidence_thresholds?: { auto?: number; quick?: number } | null;
   config?: { autoPublish?: boolean; deferImageEnrichment?: boolean } | null;
+  /** Rang bei Widersprüchen zwischen Quellen (Migration 145). */
+  priority?: number | null;
+}
+
+/** Gleiche Regel wie public.source_priority(): fester Rang aus sources.priority,
+ * sonst 80 für Quellen mit fester Spielstätte/Ensemble/Person/Veranstalter
+ * (Primärquellen), 40 für Aggregatoren. */
+export function sourcePriority(source: SourceRow): number {
+  if (source.priority != null) return source.priority;
+  return source.venue_id || source.ensemble_id || source.person_id || source.organizer_id ? 80 : 40;
+}
+
+/** Rang der Quelle, der ein bestehender Termin gehört; redaktionell angelegte
+ * Termine (ohne Quelle) zählen 90. */
+// deno-lint-ignore no-explicit-any
+async function ownerPriority(supabase: any, ownerSourceId: string | null): Promise<number> {
+  if (!ownerSourceId) return 90;
+  const { data, error } = await supabase.rpc("source_priority", { p_source_id: ownerSourceId });
+  return error || typeof data !== "number" ? 80 : data;
 }
 
 /** Ordnet den Score einer Triage-Stufe zu, mit den PRO QUELLE kalibrierten
@@ -285,16 +304,23 @@ export async function upsertRawEvent(
       // gap when the event has no photo yet; never overwrite/append one
       // that's already there from a possibly-different, already-verified
       // match.
-      const outcome = await applyUpdate(supabase, existing, raw, contentHash, nowIso, source, venueId, false);
+      // Gesamtquellen (Migration 145): Meldet eine rangniedrigere Quelle
+      // (Aggregator) einen Termin, den eine ranghöhere schon führt, füllt sie
+      // nur Lücken – Titel, Zeit und Status bestimmt die ranghöhere. Eine
+      // ranghöhere Quelle übernimmt dagegen den Termin.
+      const incoming = sourcePriority(source);
+      const owner = existing.source_id === source.id ? incoming : await ownerPriority(supabase, existing.source_id);
+      const mode = incoming < owner ? "fillOnly" : "full";
+      const outcome = await applyUpdate(supabase, existing, raw, contentHash, nowIso, source, venueId, false, mode);
       if (outcome.outcome !== "error") {
         // Backfill so future runs of THIS source hit the fast exact-match
-        // path above. Guarded on source_id being null so we never steal
-        // ownership from a different source that's already tracking it.
-        await supabase
+        // path above: bei freiem Termin immer, sonst nur mit höherem Rang.
+        const claim = supabase
           .from("events")
           .update({ source_id: source.id, external_id: raw.externalId })
-          .eq("id", existing.id)
-          .is("source_id", null);
+          .eq("id", existing.id);
+        if (incoming > owner && raw.externalId) await claim;
+        else await claim.is("source_id", null);
         await linkSourceEntity(supabase, source, existing.id);
       }
       return outcome;
@@ -387,8 +413,30 @@ async function applyUpdate(
   source: SourceRow,
   venueId: string | null,
   trustImage: boolean,
+  mode: "full" | "fillOnly" = "full",
 ): Promise<WriteOutcome> {
-  const updates = buildUpdatePayload(raw);
+  const fullUpdates = buildUpdatePayload(raw);
+  // fillOnly: nur Felder, die beim bestehenden Termin noch leer sind.
+  const updates = mode === "full"
+    ? fullUpdates
+    : Object.fromEntries(Object.entries(fullUpdates).filter(([key]) =>
+      key !== "title" && key !== "start_datetime" && (existing[key] === null || existing[key] === undefined)
+    ));
+  const detectedStatus = detectEventStatus(raw.title, raw.description);
+  if (mode === "fillOnly" && detectedStatus && existing.status !== detectedStatus) {
+    // Absage/Verschiebung nur aus einer Nebenquelle: nicht still übernehmen,
+    // sondern der Redaktion zur Prüfung vorlegen.
+    const { data: open } = await supabase.from("cancellation_candidates").select("id")
+      .eq("event_id", existing.id).eq("source_id", source.id).eq("status", "pending").limit(1);
+    if (!open?.length) {
+      await supabase.from("cancellation_candidates").insert({
+        event_id: existing.id,
+        source_id: source.id,
+        reason: `Nebenquelle meldet „${detectedStatus === "cancelled" ? "abgesagt" : "verschoben"}“: ${raw.title}`.slice(0, 500),
+        status: "pending",
+      });
+    }
+  }
   // image_urls wird NICHT hier aus raw.imageUrl befüllt — das würde jede
   // (ggf. viel zu kleine) Quell-URL ungeprüft übernehmen. attachCoverImage()
   // unten setzt image_urls erst, nachdem die Pipeline die Mindestauflösung
@@ -405,12 +453,12 @@ async function applyUpdate(
       // Absage/Verschiebung aus Titel oder Beschreibung übernehmen; ein noch
       // als Entwurf liegendes Import-Konzert wird beim erneuten Einlesen
       // veröffentlicht.
-      ...(detectEventStatus(raw.title, raw.description)
-        ? { status: detectEventStatus(raw.title, raw.description) }
+      ...(detectedStatus && mode === "full"
+        ? { status: detectedStatus }
         // Abgelehnte Entwürfe (Redaktion oder hide_cross_source_duplicates,
         // Migration 000104) bleiben ausgeblendet – sonst tauchten Dubletten
         // beim nächsten Import wieder auf (Nutzermeldung 24.10.2026).
-        : existing.status === "draft" && existing.source_id === source.id && existing.review_status !== "rejected"
+        : mode === "full" && existing.status === "draft" && existing.source_id === source.id && existing.review_status !== "rejected"
           ? { status: "scheduled" } : {}),
       content_hash: contentHash,
       last_verified_at: nowIso,

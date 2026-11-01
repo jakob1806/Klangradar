@@ -14,3 +14,12 @@ export async function addVenueAlias(alias: string, formData: FormData) {
   if (error) throw new Error(error.message);
   revalidatePath("/source-health");
 }
+
+// Automatische Dubletten-Zusammenführung rückgängig machen (Migration 145):
+// der ausgeblendete Termin erscheint wieder und gilt künftig als eigener.
+export async function undoEventDuplicate(droppedId: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("admin_undo_event_duplicate", { p_dropped_id: droppedId });
+  if (error) throw new Error(error.message);
+  revalidatePath("/source-health");
+}
