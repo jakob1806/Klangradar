@@ -20,7 +20,7 @@ function fmt(iso: string | undefined, opts: Intl.DateTimeFormatOptions): string 
 /** Titel aus Quellen bereinigen (01.11.2026: "dirigiert<br/>Debussy",
  * "TANNHÄUSER", "C A R P A T H I A" standen so in Mitteilungen). */
 export function cleanTitle(raw: unknown): string {
-  let t = String(raw ?? "").replace(/<br\s*\/?>/gi, " ").replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
+  let t = String(raw ?? "").replace(/<br\s*\/?>/gi, " ").replace(/<[^>]*>/g, "").replace(/[<>]/g, "").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
   // Sperrschrift: einzelne Großbuchstaben mit Leerzeichen dazwischen.
   t = t.replace(/\b(?:[A-ZÄÖÜ] ){3,}[A-ZÄÖÜ]\b/g, (m) => m.replace(/ /g, ""));
   // Ganz in Versalien: Wörter mit großem Anfangsbuchstaben, kurze Füllwörter klein.
