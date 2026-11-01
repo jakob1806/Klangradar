@@ -1424,6 +1424,12 @@ abstract class AppLocalizations {
   /// **'Fehler melden'**
   String get reportLinkText;
 
+  /// No description provided for @reportWrongImageLink.
+  ///
+  /// In de, this message translates to:
+  /// **'Falsches Bild?'**
+  String get reportWrongImageLink;
+
   /// No description provided for @reportThankYou.
   ///
   /// In de, this message translates to:

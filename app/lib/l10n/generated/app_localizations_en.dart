@@ -1,5 +1,6 @@
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
+
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -743,6 +744,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get reportLinkText => 'Report an issue';
+
+  @override
+  String get reportWrongImageLink => 'Wrong image?';
 
   @override
   String get reportThankYou => 'Thanks for the heads up!';

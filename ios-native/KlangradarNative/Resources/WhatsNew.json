@@ -1,6 +1,6 @@
 {
   "_hinweis": "Erstellt von Claude Code. Bei jedem Release mit Neuerungen hier pflegen und die id ändern: Die App zeigt den Inhalt einmal pro id als 'Neu in Klangradar', upload-testflight.sh übernimmt ihn als TestFlight-Testhinweis. Ton: kurz, sachlich, ganze Sätze, keine Aufzählungsflut.",
-  "id": "2026-11-02-mitteilungen",
+  "id": "2026-11-02-mitteilungen-bilder",
   "title": "Neu in Klangradar",
   "intro": "Weniger, aber wichtigere Mitteilungen – und du bestimmst, wie viele.",
   "sections": [
@@ -12,6 +12,15 @@
         "Neue Konzerte von Künstler:innen, Ensembles und Orten, denen du folgst, kommen gesammelt in einer Mitteilung statt einzeln.",
         "In den Einstellungen wählst du, wie viele Mitteilungen pro Woche höchstens kommen und welche Themen dich interessieren.",
         "Mit der Glocke neben „Gefolgt“ folgst du jemandem, ohne über jedes neue Konzert benachrichtigt zu werden."
+      ]
+    },
+    {
+      "title": "Bilder",
+      "symbol": "photo.on.rectangle.angled",
+      "items": [
+        "Viel mehr Konzerte zeigen jetzt ihr eigenes Bild von der Veranstaltungsseite, sonst ein Porträt der Mitwirkenden oder der Komponistin bzw. des Komponisten statt des Saalfotos.",
+        "Zahlreiche Künstler:innen haben neue Porträts mit Fotografen-Angabe bekommen.",
+        "Zeigt ein Foto die falsche Person? Tippe auf „Falsches Bild?“ direkt am Bild und wir kümmern uns darum."
       ]
     }
   ]

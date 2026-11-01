@@ -189,26 +189,40 @@ class PersonDetailScreen extends ConsumerWidget {
                   ),
                 ],
                 flexibleSpace: FlexibleSpaceBar(
-                  background: gallery.maybeWhen(
-                    data: (images) {
-                      final displayImages = profilePhotoFirst(
-                        person['photo_url'] as String?,
-                        images,
-                      );
-                      return displayImages.isNotEmpty
-                          ? EntityPhotoGallery(
-                              images: displayImages,
-                              fallbackGenre: EventGenre.kammermusik,
-                            )
-                          : DetailHeroBackground(
-                              photoUrl: person['photo_url'] as String?,
-                              fallbackGenre: EventGenre.kammermusik,
-                            );
-                    },
-                    orElse: () => DetailHeroBackground(
-                      photoUrl: person['photo_url'] as String?,
-                      fallbackGenre: EventGenre.kammermusik,
-                    ),
+                  background: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      gallery.maybeWhen(
+                        data: (images) {
+                          final displayImages = profilePhotoFirst(
+                            person['photo_url'] as String?,
+                            images,
+                          );
+                          return displayImages.isNotEmpty
+                              ? EntityPhotoGallery(
+                                  images: displayImages,
+                                  fallbackGenre: EventGenre.kammermusik,
+                                )
+                              : DetailHeroBackground(
+                                  photoUrl: person['photo_url'] as String?,
+                                  fallbackGenre: EventGenre.kammermusik,
+                                );
+                        },
+                        orElse: () => DetailHeroBackground(
+                          photoUrl: person['photo_url'] as String?,
+                          fallbackGenre: EventGenre.kammermusik,
+                        ),
+                      ),
+                      if (person['photo_url'] != null)
+                        Positioned(
+                          right: AppSpacing.sm,
+                          bottom: AppSpacing.sm,
+                          child: WrongImageChip(
+                            entityType: 'person',
+                            entityId: person['id'] as String,
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               ),

@@ -276,6 +276,7 @@
   "reportReasonMissingProgram": "Programminformation fehlt",
   "reportReasonOther": "Sonstiges",
   "reportLinkText": "Fehler melden",
+  "reportWrongImageLink": "Falsches Bild?",
   "reportThankYou": "Danke für den Hinweis!",
   "reportReviewNotice": "Die Redaktion prüft das — Daten ändern sich dadurch nicht sofort.",
   "reportWhatIsWrong": "Was stimmt nicht?",

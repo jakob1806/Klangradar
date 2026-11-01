@@ -84,7 +84,7 @@ final _eventProvider = FutureProvider.family<Map<String, dynamic>?, String>((
         venues(id, slug, name, address_street, address_zip, address_city, photo_url, description_de),
         organizers(name),
         event_genres(genres(id, slug, label_de)),
-        event_works(position, after_intermission, works(id, title, catalog_number, key_signature, instrumentation, movements, composer:persons(slug, full_name))),
+        event_works(position, after_intermission, works(id, title, catalog_number, key_signature, instrumentation, movements, composer:persons(id, slug, full_name))),
         event_participants(role, persons(id, slug, full_name, member_of:ensembles!member_of_ensemble_id(slug, name)), ensembles(id, slug, name, parent_ensemble_id))
       ''')
       .eq('slug', slug)
@@ -331,12 +331,23 @@ class EventDetailScreen extends ConsumerWidget {
               .map((w) => w['works']?['id'] as String?)
               .whereType<String>()
               .toSet();
+          // Konzept Bildabdeckung (01.11.2026): Komponist:in vor dem Saal —
+          // wie iOS und das serverseitige Ersatzbild.
+          final composerIds = works
+              .map((w) => w['works']?['composer']?['id'] as String?)
+              .whereType<String>()
+              .toSet();
           ({String originType, String originId})? fallbackGalleryKey;
           if (performerIds.length == 1) {
             final parts = performerIds.first.split(':');
             fallbackGalleryKey = (originType: parts[0], originId: parts[1]);
           } else if (workIds.length == 1) {
             fallbackGalleryKey = (originType: 'work', originId: workIds.first);
+          } else if (composerIds.length == 1) {
+            fallbackGalleryKey = (
+              originType: 'person',
+              originId: composerIds.first,
+            );
           } else if (venue?['id'] != null) {
             // Letzte Stufe: hochauflösende Venue-Galerie. Der Provider
             // schließt low_resolution explizit aus; photo_url bleibt unten
