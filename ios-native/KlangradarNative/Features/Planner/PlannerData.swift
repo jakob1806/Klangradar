@@ -93,6 +93,36 @@ enum PlannerAPI {
     private static var token: String? { SocialStore.shared.token }
     static var userID: UUID? { SocialStore.shared.auth?.userID }
 
+    // MARK: Glocke je Gefolgtem (Mitteilungs-Konzept 01.11.2026)
+
+    private static func followTable(_ kind: String) -> (table: String, column: String)? {
+        switch kind {
+        case "person": ("user_favorite_persons", "person_id")
+        case "ensemble": ("user_favorite_ensembles", "ensemble_id")
+        case "venue": ("user_favorite_venues", "venue_id")
+        default: nil
+        }
+    }
+
+    /// Ob neue Konzerte dieser gefolgten Person/dieses Ensembles/Orts gemeldet werden.
+    static func followNotifies(kind: String, id: UUID) async -> Bool {
+        guard let client, let token, let userID, let t = followTable(kind) else { return true }
+        let rows: [JSONObject]? = try? await client.get(table: t.table, queryItems: [
+            URLQueryItem(name: "select", value: "notify_new_events"),
+            URLQueryItem(name: "user_id", value: "eq.\(userID.uuidString)"),
+            URLQueryItem(name: t.column, value: "eq.\(id.uuidString)")
+        ], accessToken: token)
+        return rows?.first?.bool("notify_new_events") ?? true
+    }
+
+    static func setFollowNotifies(kind: String, id: UUID, _ enabled: Bool) async {
+        guard let client, let token, let userID, let t = followTable(kind) else { return }
+        try? await client.update(table: t.table, values: ["notify_new_events": .bool(enabled)], filters: [
+            URLQueryItem(name: "user_id", value: "eq.\(userID.uuidString)"),
+            URLQueryItem(name: t.column, value: "eq.\(id.uuidString)")
+        ], accessToken: token)
+    }
+
     // MARK: Abos
 
     static func subscriptions(eventID: UUID) async -> [ConcertSubscription] {
@@ -182,6 +212,28 @@ enum PlannerAPI {
         try await client.update(table: "user_concert_subscriptions", values: [
             "seat": trimmed.isEmpty ? .null : .string(trimmed)
         ], filters: [
+            URLQueryItem(name: "user_id", value: "eq.\(userID.uuidString)"),
+            URLQueryItem(name: "subscription_id", value: "eq.\(subscriptionID.uuidString)")
+        ], accessToken: token)
+    }
+
+    /// Erinnerung am Konzerttag je eigenem Abo (Server, Standard an).
+    static func myReminders() async -> [UUID: Bool] {
+        guard let client, let token, let userID else { return [:] }
+        let rows: [JSONObject]? = try? await client.get(table: "user_concert_subscriptions", queryItems: [
+            URLQueryItem(name: "select", value: "subscription_id,remind"),
+            URLQueryItem(name: "user_id", value: "eq.\(userID.uuidString)")
+        ], accessToken: token)
+        var result: [UUID: Bool] = [:]
+        for row in rows ?? [] {
+            if let id = row.string("subscription_id").flatMap(UUID.init(uuidString:)) { result[id] = row.bool("remind") ?? true }
+        }
+        return result
+    }
+
+    static func setReminder(_ subscriptionID: UUID, _ enabled: Bool) async throws {
+        guard let client, let token, let userID else { return }
+        try await client.update(table: "user_concert_subscriptions", values: ["remind": .bool(enabled)], filters: [
             URLQueryItem(name: "user_id", value: "eq.\(userID.uuidString)"),
             URLQueryItem(name: "subscription_id", value: "eq.\(subscriptionID.uuidString)")
         ], accessToken: token)

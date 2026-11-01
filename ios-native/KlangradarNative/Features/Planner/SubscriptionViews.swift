@@ -237,7 +237,6 @@ struct SubscriptionDetailView: View {
                         Task {
                             try? await PlannerAPI.setMine(subscription.id, true, weekday: newValue)
                             NotificationCenter.default.post(name: .subscriptionsChanged, object: nil)
-                            await SubscriptionReminders.schedule(subscription: subscription, events: upcoming)
                             await loadOverlaps()
                         }
                     }
@@ -345,14 +344,14 @@ struct SubscriptionDetailView: View {
             }
             Toggle(isOn: Binding(get: { remindersOn }, set: { newValue in
                 Task {
-                    let ok = await SubscriptionReminders.setEnabled(newValue, subscription: subscription, events: upcoming)
+                    let ok = await SubscriptionReminders.setEnabled(newValue, subscription: subscription)
                     remindersOn = newValue && ok
                     remindersDenied = newValue && !ok
                 }
             })) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Am Vorabend erinnern").font(.subheadline.weight(.semibold))
-                    Text(remindersDenied ? "Mitteilungen sind in den iOS-Einstellungen ausgeschaltet." : "Um 18 Uhr am Tag vor jedem Konzert")
+                    Text("Am Konzerttag erinnern").font(.subheadline.weight(.semibold))
+                    Text(remindersDenied ? "Mitteilungen sind in den iOS-Einstellungen ausgeschaltet." : "Vormittags, eine Mitteilung pro Konzert")
                         .font(.caption).foregroundStyle(remindersDenied ? .orange : .secondary)
                 }
             }
@@ -466,15 +465,14 @@ struct SubscriptionDetailView: View {
             weekday = await PlannerAPI.myVariants()[subscription.id]
             savedSeat = await PlannerAPI.mySeats()[subscription.id] ?? ""
             seat = savedSeat
-            remindersOn = SubscriptionReminders.isEnabled(subscription.id)
+            remindersOn = await SubscriptionReminders.isEnabled(subscription.id)
         }
         let loaded = (try? await repository.events(ids: overview.eventIDs)) ?? []
         let enriched = (try? await repository.enrichingImages(in: loaded)) ?? loaded
         events = enriched.sorted { ($0.startDate ?? .distantFuture) < ($1.startDate ?? .distantFuture) }
         if isMine {
             await loadOverlaps()
-            // Neue Termine seit dem letzten Öffnen ebenfalls erinnern.
-            await SubscriptionReminders.schedule(subscription: subscription, events: upcoming)
+            await SubscriptionReminders.removeLegacyLocal(subscription.id)
         }
     }
 
@@ -486,7 +484,7 @@ struct SubscriptionDetailView: View {
             try await PlannerAPI.setMine(subscription.id, !isMine, weekday: weekday)
             isMine.toggle()
             if !isMine {
-                await SubscriptionReminders.setEnabled(false, subscription: subscription, events: [])
+                await SubscriptionReminders.removeLegacyLocal(subscription.id)
                 remindersOn = false
             }
             await loadOverlaps()

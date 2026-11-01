@@ -36,3 +36,12 @@ Deno.test("Freunde-Ausbau: Einladung und Ticket übrig", () => {
   assertEquals(offered?.route, "/event/mahler-2");
   assertEquals(socialMessage({ kind: "ticket_claimed", actorName: "Tom", eventTitle: "Mahler 2" })?.body, "Tom nimmt dein Ticket für „Mahler 2“.");
 });
+
+import { socialPushMode } from "./messages.ts";
+Deno.test("Freunde: direkte Anfragen sofort, Aktivität nur gesammelt und nur auf Wunsch", () => {
+  assertEquals(socialPushMode("friend_request", null), "send");
+  assertEquals(socialPushMode("friend_request", { push_friends: "daily" }), "defer");
+  assertEquals(socialPushMode("rating_applause", null), "skip");
+  assertEquals(socialPushMode("rating_applause", { push_friend_activity: true }), "defer");
+  assertEquals(socialPushMode("plan_invite", { push_friends: "off", push_friend_activity: true }), "skip");
+});
