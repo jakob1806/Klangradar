@@ -1,16 +1,18 @@
 // Erstellt von Claude Code. Auswahl der Push-Mitteilungen pro Nutzer.
-// Regeln (Plan vom 23.10.2026):
-//  - Budget: höchstens 1 Empfehlung pro Tag, 3 pro Woche. "Transaktionale"
-//    Mitteilungen (Konzerttag) zählen nicht dazu.
-//  - Ruhezeit 21–8 Uhr (Europe/Berlin), außer transaktional im Zeitfenster.
-//  - Zeitpunkt: Empfehlungen zur bevorzugten Stunde des Nutzers (aus der
-//    App-Nutzung, sonst 18 Uhr) ±1 Stunde; Konzerttag 9–12 Uhr,
-//    "Wie war's?" 9–11 Uhr.
-//  - Lernen: Arten, die ein Nutzer nach ≥ 8 Sendungen zu < 5 % öffnet,
-//    entfallen (außer sehr dringend, Priorität ≥ 80).
+// Regeln seit 01.11.2026 (Nutzerentscheidung, docs/14-mitteilungen-konzept.md):
+//  - Planung (Konzerttag, transaktional) kommt immer, genau eine pro Konzert
+//    (dedupe "concert:<id>"), 9–12 Uhr. Wichtiges (Absagen, direkte
+//    Freundes-Anfragen) verschicken notify-changes/notify-social sofort.
+//  - Alles andere teilt sich ein Wochenbudget, das jede:r selbst wählt
+//    (Standard 10, 3–40). Pro Tag höchstens ein Viertel davon (mind. 2) und
+//    mindestens 2 Stunden Abstand zwischen zwei solchen Mitteilungen.
+//    Vorher: Plus-"Sofort" außerhalb jedes Budgets -> am 01.11. 52 Pushes
+//    an einen Nutzer.
+//  - Ruhezeit 21–8 Uhr. Zeitpunkt: bevorzugte Stunde ±1 (sonst 18 Uhr);
+//    zweite Plus-Sammlung des Tages ("…a") mittags 11–13 Uhr.
+//  - Lernen: Arten, die jemand nach ≥ 8 Sendungen zu < 5 % öffnet, entfallen
+//    (außer Priorität ≥ 80).
 //  - Pro Lauf höchstens eine Mitteilung je Nutzer (die wichtigste).
-//  - Klangradar Plus (facts.instant): neue Konzerte von Gefolgten kommen
-//    sofort, 8–21 Uhr, außerhalb des Budgets (Nachtrag 27.10.2026).
 
 export interface Candidate {
   user_id: string;
@@ -27,13 +29,21 @@ export interface UserContext {
   /** Nicht-transaktionale Sendungen der letzten 24 h / 7 Tage. */
   sentLastDay: number;
   sentLastWeek: number;
+  /** Zeitpunkt der letzten nicht-transaktionalen Sendung (ms). */
+  lastSentAt?: number;
   preferredHour: number;
+  /** Selbst gewähltes Wochenbudget (Standard 10). */
+  weeklyLimit?: number;
   /** kind → { sent, opened } der letzten 60 Tage. */
   engagement: Record<string, { sent: number; opened: number }>;
 }
 
-export const DAILY_BUDGET = 1;
-export const WEEKLY_BUDGET = 3;
+export const DEFAULT_WEEKLY_LIMIT = 10;
+export const MIN_GAP_MS = 2 * 3600 * 1000;
+
+export function dailyLimit(weekly: number): number {
+  return Math.max(2, Math.ceil(weekly / 4));
+}
 
 export function berlinHour(now: Date): number {
   const part = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", hourCycle: "h23", timeZone: "Europe/Berlin" })
@@ -41,18 +51,14 @@ export function berlinHour(now: Date): number {
   return Number(part);
 }
 
-function isInstant(c: Candidate): boolean {
-  return c.facts?.instant === true;
-}
-
-function inWindow(kind: string, hour: number, preferred: number, instant = false): boolean {
-  if (instant) return hour >= 8 && hour < 21;
-  switch (kind) {
+function inWindow(c: Candidate, hour: number, preferred: number): boolean {
+  switch (c.kind) {
     case "concert_day": return hour >= 9 && hour < 12;
     case "how_was_it": return hour >= 9 && hour < 11;
     default: {
       if (hour < 8 || hour >= 21) return false;
-      // Bevorzugte Stunde, in die Ruhezeit verschoben auf 8 bzw. 20 Uhr.
+      // Erste von zwei Plus-Sammlungen am Tag: mittags.
+      if (c.kind === "new_followed" && c.dedupe_key.endsWith("a")) return hour >= 11 && hour < 13;
       const target = Math.min(20, Math.max(8, preferred));
       return Math.abs(hour - target) <= 1;
     }
@@ -65,6 +71,12 @@ function learnedAway(kind: string, priority: number, ctx: UserContext): boolean 
   return stats.opened / stats.sent < 0.05;
 }
 
+function withinBudget(ctx: UserContext, now: Date): boolean {
+  const weekly = ctx.weeklyLimit ?? DEFAULT_WEEKLY_LIMIT;
+  if (ctx.sentLastWeek >= weekly || ctx.sentLastDay >= dailyLimit(weekly)) return false;
+  return ctx.lastSentAt == null || now.getTime() - ctx.lastSentAt >= MIN_GAP_MS;
+}
+
 /** Wählt pro Nutzer höchstens eine Mitteilung. */
 export function selectPushes(candidates: Candidate[], contexts: Map<string, UserContext>, now: Date): Candidate[] {
   const hour = berlinHour(now);
@@ -74,9 +86,10 @@ export function selectPushes(candidates: Candidate[], contexts: Map<string, User
   const chosen: Candidate[] = [];
   for (const [userId, list] of byUser) {
     const ctx = contexts.get(userId) ?? { sentLastDay: 0, sentLastWeek: 0, preferredHour: 18, engagement: {} };
+    const budgetOk = withinBudget(ctx, now);
     const eligible = list
-      .filter((c) => inWindow(c.kind, hour, ctx.preferredHour, isInstant(c)))
-      .filter((c) => c.transactional || isInstant(c) || (ctx.sentLastDay < DAILY_BUDGET && ctx.sentLastWeek < WEEKLY_BUDGET))
+      .filter((c) => inWindow(c, hour, ctx.preferredHour))
+      .filter((c) => c.transactional || budgetOk)
       .filter((c) => !learnedAway(c.kind, c.priority, ctx))
       .sort((a, b) => b.priority - a.priority);
     if (eligible[0]) chosen.push(eligible[0]);

@@ -11,6 +11,14 @@ struct NotificationPreferences: Sendable {
     var emailFollowedNewEvent = false
     var emailEventChanges = false
     var emailReminderDayBefore = false
+    // Mitteilungs-Konzept 01.11.2026 (Migration 20261231000147).
+    var weeklyLimit = 10
+    var newFollowed = "daily"
+    var friends = "direct"
+    var friendActivity = false
+    var changes = true
+    var howWasIt = true
+    var weeklyPick = true
 }
 
 enum InterestCategory: String, CaseIterable, Sendable {
@@ -693,7 +701,14 @@ struct UserRepository: Sendable {
             emailWeeklyDigest: row.bool("email_weekly_digest") ?? false,
             emailFollowedNewEvent: row.bool("email_followed_new_event") ?? false,
             emailEventChanges: row.bool("email_event_changes") ?? false,
-            emailReminderDayBefore: row.bool("email_reminder_day_before") ?? false
+            emailReminderDayBefore: row.bool("email_reminder_day_before") ?? false,
+            weeklyLimit: row.integer("push_weekly_limit") ?? 10,
+            newFollowed: row.string("push_new_followed") ?? "daily",
+            friends: row.string("push_friends") ?? "direct",
+            friendActivity: row.bool("push_friend_activity") ?? false,
+            changes: row.bool("push_changes") ?? true,
+            howWasIt: row.bool("push_how_was_it") ?? true,
+            weeklyPick: row.bool("push_weekly_pick") ?? true
         )
     }
 
@@ -719,8 +734,12 @@ struct UserRepository: Sendable {
     }
 
     func setPreference(userID: UUID, token: String, column: String, value: Bool) async throws {
+        try await setPreferenceValue(userID: userID, token: token, column: column, value: .bool(value))
+    }
+
+    func setPreferenceValue(userID: UUID, token: String, column: String, value: JSONValue) async throws {
         try await client.upsert(table: "notification_preferences", values: [
-            "user_id": .string(userID.uuidString), column: .bool(value)
+            "user_id": .string(userID.uuidString), column: value
         ], accessToken: token, conflictColumns: "user_id")
     }
 

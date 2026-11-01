@@ -5,7 +5,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireInternalAuth } from "../_shared/internalAuth.ts";
 import { sendPushToTokens } from "../_shared/fcm.ts";
-import { socialMessage, socialPushData } from "./messages.ts";
+import { socialMessage, socialPushData, socialPushMode } from "./messages.ts";
 
 Deno.serve(async (req) => {
   const unauthorized = await requireInternalAuth(req);
@@ -25,6 +25,12 @@ Deno.serve(async (req) => {
     // Sofort als verarbeitet markieren, damit parallele Aufrufe nicht doppelt senden.
     const { data: claimed } = await db.from("social_notifications").update({ sent_at: new Date().toISOString() }).eq("id", row.id).is("sent_at", null).select("id");
     if (!claimed?.length) continue;
+
+    // Einstellungen: sofort, in die Tages-Sammlung (push-dispatcher) oder nur in der App.
+    const { data: prefs } = await db.from("notification_preferences").select("push_friends, push_friend_activity").eq("user_id", row.recipient).maybeSingle();
+    const mode = socialPushMode(row.kind, prefs);
+    if (mode === "defer") await db.from("social_notifications").update({ push_deferred: true }).eq("id", row.id);
+    if (mode !== "send") continue;
 
     const [{ data: actor }, { data: event }, { data: list }, { data: tokens }] = await Promise.all([
       row.actor ? db.from("profiles").select("display_name").eq("id", row.actor).maybeSingle() : Promise.resolve({ data: null }),

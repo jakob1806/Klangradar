@@ -62,3 +62,21 @@ export function socialMessage(item: SocialItem): SocialMessage | null {
 export function socialPushData(kind: string, route: string, actorId?: string | null): Record<string, string> {
   return { route, kind, ...(actorId ? { actor_id: actorId } : {}) };
 }
+
+// Ergänzt von Claude Code (01.11.2026, Mitteilungs-Konzept): Direkte Aktionen
+// an mich kommen je Einstellung sofort oder gesammelt; reine Aktivität
+// (Applaus, Kommentar, "geht auch hin" …) nur, wenn ausdrücklich gewünscht,
+// und dann immer in der Tages-Sammlung. Alles bleibt in der App sichtbar.
+const DIRECT_KINDS = new Set([
+  "friend_request", "friend_accepted", "plan_invite", "plan_going", "plan_declined",
+  "joins_you", "ticket_offered", "ticket_claimed", "invite_accepted",
+]);
+
+export type SocialPushMode = "send" | "defer" | "skip";
+
+export function socialPushMode(kind: string, prefs: { push_friends?: string | null; push_friend_activity?: boolean | null } | null): SocialPushMode {
+  const friends = prefs?.push_friends ?? "direct";
+  if (friends === "off") return "skip";
+  if (DIRECT_KINDS.has(kind)) return friends === "direct" ? "send" : "defer";
+  return prefs?.push_friend_activity ? "defer" : "skip";
+}

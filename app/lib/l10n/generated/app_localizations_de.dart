@@ -1371,4 +1371,95 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get notificationEmailFooter =>
       'Jede E-Mail enthält einen Link zum Abmelden.';
+
+  @override
+  String get notificationSectionImportant => 'Wichtig';
+
+  @override
+  String get notificationAlwaysImmediate =>
+      'Absagen und Verschiebungen kommen immer sofort – für Konzerte, die du gemerkt, geplant oder im Abo hast.';
+
+  @override
+  String get notificationChangesTitle => 'Zeit- und Terminänderungen';
+
+  @override
+  String get notificationChangesSubtitle =>
+      'Wenn sich Beginn oder Datum deutlich ändert';
+
+  @override
+  String get notificationSectionMyConcerts => 'Deine Konzerte';
+
+  @override
+  String get notificationConcertDayTitle => 'Erinnerung am Konzerttag';
+
+  @override
+  String get notificationConcertDaySubtitle =>
+      'Genau eine pro Konzert, auch für Abo-Konzerte';
+
+  @override
+  String get notificationHowWasItTitle => '„Wie war\'s?“ am Tag danach';
+
+  @override
+  String get notificationHowWasItSubtitle =>
+      'Kurze Frage nach deiner Bewertung';
+
+  @override
+  String get notificationSectionDiscover => 'Entdecken';
+
+  @override
+  String get notificationNewFollowedTitle => 'Neue Konzerte von Gefolgten';
+
+  @override
+  String get notificationFrequencyOff => 'Aus';
+
+  @override
+  String get notificationFrequencyWeekly => 'Einmal pro Woche';
+
+  @override
+  String get notificationFrequencyDaily => 'Täglich gesammelt';
+
+  @override
+  String get notificationFrequencyTwiceDaily => 'Zweimal täglich (Plus)';
+
+  @override
+  String get notificationWeeklyPickTitle => 'Tipp der Woche';
+
+  @override
+  String get notificationWeeklyPickSubtitle =>
+      'Donnerstags ein Konzert, das zu dir passt';
+
+  @override
+  String get notificationSectionFriends => 'Freunde';
+
+  @override
+  String get notificationFriendsTitle => 'Anfragen & Einladungen';
+
+  @override
+  String get notificationFriendsDirect => 'Sofort';
+
+  @override
+  String get notificationFriendsDaily => 'Einmal täglich';
+
+  @override
+  String get notificationFriendActivityTitle =>
+      'Applaus, Kommentare, wer mitgeht';
+
+  @override
+  String get notificationFriendActivitySubtitle =>
+      'Gesammelt einmal am Tag – in der App siehst du alles';
+
+  @override
+  String get notificationSectionLimit => 'Wie viel?';
+
+  @override
+  String get notificationWeeklyLimitTitle => 'Höchstens pro Woche';
+
+  @override
+  String notificationWeeklyLimitValue(int count) {
+    return '$count Mitteilungen';
+  }
+
+  @override
+  String get notificationWeeklyLimitFooter =>
+      'Gilt für Entdecken und Freunde. Wichtiges und Erinnerungen an deine Konzerte zählen nicht mit. Zwischen 21 und 8 Uhr ist Ruhe.';
 }

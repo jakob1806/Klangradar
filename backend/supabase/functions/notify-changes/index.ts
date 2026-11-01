@@ -1,3 +1,9 @@
+// Umgebaut von Claude Code am 01.11.2026 (Mitteilungs-Konzept, Klasse
+// "Wichtig"): nur noch Absage, Verschiebung und stabile Zeitänderungen
+// (≥ 30 Min., seit ≥ 60 Min. unverändert) – sofort, für gemerkte, geplante
+// und Abo-Konzerte. Zeitänderungen lassen sich abschalten (push_changes),
+// Absagen nicht. Preisänderungen sind kein Push mehr, "fast ausverkauft"
+// kommt gebündelt über push-dispatcher.
 // Zweite Push-Benachrichtigungsart (Task #15, Fortsetzung von
 // notify-reminders/index.ts): Preisänderung, fast ausverkauft, Absage/
 // Verschiebung — für Nutzer mit einem Favoriten-Eintrag auf dem betroffenen
@@ -40,22 +46,19 @@ const STATUS_LABEL: Record<string, string> = {
 function notificationFor(
   change: EventChangeRow,
   eventTitle: string,
-): { type: string; prefsColumn: "price_changes" | "almost_sold_out" | null; title: string; body: string } | null {
+  currentStart?: string | null,
+): { type: string; prefsColumn: "push_changes" | null; title: string; body: string } | null {
   switch (change.field_name) {
-    case "price":
-      return {
-        type: "price_changed",
-        prefsColumn: "price_changes",
-        title: eventTitle,
-        body: "Der Preis hat sich geändert.",
-      };
-    case "remaining_tickets_status":
-      return {
-        type: "almost_sold_out",
-        prefsColumn: "almost_sold_out",
-        title: eventTitle,
-        body: change.new_value === "sold_out" ? "Jetzt ausverkauft." : "Nur noch wenige Tickets verfügbar.",
-      };
+    case "start_datetime": {
+      // Quellen schwanken teils hin und her (26.750 Zeitänderungen in 30
+      // Tagen) – nur deutliche, inzwischen stabile Änderungen melden.
+      if (!change.old_value || !change.new_value || !currentStart) return null;
+      const oldMs = Date.parse(change.old_value), newMs = Date.parse(change.new_value);
+      if (!Number.isFinite(oldMs) || !Number.isFinite(newMs) || Math.abs(newMs - oldMs) < 30 * 60000) return null;
+      if (Date.parse(currentStart) !== newMs || Date.now() - Date.parse(change.changed_at) < 60 * 60000) return null;
+      const when = new Intl.DateTimeFormat("de-DE", { weekday: "short", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" }).format(new Date(newMs));
+      return { type: "time_changed", prefsColumn: "push_changes", title: eventTitle, body: `Neuer Termin: ${when} Uhr.` };
+    }
     case "status": {
       const label = change.new_value ? STATUS_LABEL[change.new_value] : undefined;
       if (!label) return null; // andere Statuswechsel (z.B. interne Korrekturen) sind kein Push wert
@@ -100,14 +103,18 @@ Deno.serve(async (req) => {
   );
 
   const since = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
-  const { data: changes, error: fetchError } = await supabase
+  // Absagen getrennt laden, damit die vielen Zeitänderungen sie nicht verdrängen.
+  const fetchChanges = (fields: string[], limit: number) => supabase
     .from("event_changes")
     .select("id, event_id, field_name, old_value, new_value, changed_at")
-    .in("field_name", ["price", "remaining_tickets_status", "status"])
+    .in("field_name", fields)
     .gte("changed_at", since)
     .order("changed_at", { ascending: false })
-    .limit(200)
+    .limit(limit)
     .returns<EventChangeRow[]>();
+  const [statusResult, timeResult] = await Promise.all([fetchChanges(["status"], 200), fetchChanges(["start_datetime"], 300)]);
+  const fetchError = statusResult.error ?? timeResult.error;
+  const changes = [...(statusResult.data ?? []), ...(timeResult.data ?? [])];
 
   if (fetchError) {
     return new Response(JSON.stringify({ error: fetchError.message }), { status: 500 });
@@ -126,19 +133,28 @@ Deno.serve(async (req) => {
     try {
       const { data: event } = await supabase
         .from("events")
-        .select("title, slug")
+        .select("title, slug, start_datetime")
         .eq("id", change.event_id)
+        .gte("start_datetime", new Date().toISOString())
         .maybeSingle();
       if (!event) continue;
 
-      const notification = notificationFor(change, event.title as string);
+      const notification = notificationFor(change, event.title as string, event.start_datetime as string);
       if (!notification) continue;
 
-      const { data: favoriteRows } = await supabase
-        .from("favorites")
-        .select("user_id")
-        .eq("event_id", change.event_id);
-      if (!favoriteRows || favoriteRows.length === 0) continue;
+      // Gemerkt, geplant oder im Abo.
+      const [{ data: favs }, { data: planned }, { data: aboLinks }] = await Promise.all([
+        supabase.from("favorites").select("user_id").eq("event_id", change.event_id),
+        supabase.from("event_attendance").select("user_id").eq("event_id", change.event_id).eq("status", "planned"),
+        supabase.from("event_concert_subscriptions").select("subscription_id").eq("event_id", change.event_id),
+      ]);
+      const aboIds = (aboLinks ?? []).map((r: { subscription_id: string }) => r.subscription_id);
+      const { data: aboUsers } = aboIds.length
+        ? await supabase.from("user_concert_subscriptions").select("user_id").in("subscription_id", aboIds)
+        : { data: [] };
+      const favoriteRows = [...new Set([...(favs ?? []), ...(planned ?? []), ...(aboUsers ?? [])].map((r: { user_id: string }) => r.user_id))]
+        .map((user_id) => ({ user_id }));
+      if (favoriteRows.length === 0) continue;
 
       for (const fav of favoriteRows) {
         const { data: alreadySent } = await supabase

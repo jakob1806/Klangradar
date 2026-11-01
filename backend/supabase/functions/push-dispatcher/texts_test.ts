@@ -1,4 +1,4 @@
-import { assert, assertFalse } from "jsr:@std/assert@1";
+import { assert, assertEquals, assertFalse } from "jsr:@std/assert@1";
 import { templateText, validateText } from "./texts.ts";
 import type { Candidate } from "./select.ts";
 
@@ -24,4 +24,13 @@ Deno.test("alle Arten haben Vorlagen ohne undefined", () => {
     const t = templateText({ ...day, kind, facts: { ...day.facts, first_name: "Anna", count: 2, followed: ["BRSO"], events: [{ title: "A", start: "2026-11-05T19:30:00Z", venue: "X" }], reason: "Mit dem BRSO" } });
     assertFalse((t.title + t.body).includes("undefined"), `${kind}: ${t.title} / ${t.body}`);
   }
+});
+
+import { cleanTitle } from "./texts.ts";
+Deno.test("Titel bereinigen", () => {
+  assertEquals(cleanTitle("Sir Simon Rattle dirigiert<br/>Debussy"), "Sir Simon Rattle dirigiert Debussy");
+  assertEquals(cleanTitle("TANNHÄUSER"), "Tannhäuser");
+  assertEquals(cleanTitle("C A R P A T H I A"), "Carpathia");
+  assertEquals(cleanTitle("IL BARBIERE DI SIVIGLIA"), "Il Barbiere di Siviglia");
+  assertEquals(cleanTitle("BRSO: Rattle"), "BRSO: Rattle");
 });

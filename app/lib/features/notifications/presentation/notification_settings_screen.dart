@@ -8,36 +8,6 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../l10n/generated/app_localizations.dart';
 
-List<({NotificationPreferenceKey key, String title, String subtitle})> _rows(
-  AppLocalizations l10n,
-) => [
-  (
-    key: NotificationPreferenceKey.newMatchingEvents,
-    title: l10n.notificationNewMatchingTitle,
-    subtitle: l10n.notificationNewMatchingSubtitle,
-  ),
-  (
-    key: NotificationPreferenceKey.priceChanges,
-    title: l10n.notificationPriceChangesTitle,
-    subtitle: l10n.notificationPriceChangesSubtitle,
-  ),
-  (
-    key: NotificationPreferenceKey.almostSoldOut,
-    title: l10n.notificationAlmostSoldOutTitle,
-    subtitle: l10n.notificationAlmostSoldOutSubtitle,
-  ),
-  (
-    key: NotificationPreferenceKey.reminderDayBefore,
-    title: l10n.notificationReminderTitle,
-    subtitle: l10n.notificationReminderSubtitle,
-  ),
-  (
-    key: NotificationPreferenceKey.followedEnsembleNewEvent,
-    title: l10n.notificationFollowedEnsembleTitle,
-    subtitle: l10n.notificationFollowedEnsembleSubtitle,
-  ),
-];
-
 List<({NotificationPreferenceKey key, String title, String subtitle})>
 _emailRows(AppLocalizations l10n) => [
   (
@@ -149,12 +119,123 @@ class NotificationSettingsScreen extends ConsumerWidget {
               ),
             ),
           );
+          Widget choice<T>({
+            required String title,
+            required T value,
+            required Map<T, String> options,
+            required String column,
+          }) => ListTile(
+            title: Text(
+              title,
+              style: TextStyle(
+                color: colors.textPrimary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            trailing: DropdownButton<T>(
+              value: options.containsKey(value) ? value : options.keys.first,
+              underline: const SizedBox.shrink(),
+              items: [
+                for (final entry in options.entries)
+                  DropdownMenuItem(value: entry.key, child: Text(entry.value)),
+              ],
+              onChanged: (selected) {
+                if (selected == null) return;
+                Haptics.light();
+                NotificationPreferencesService.setValue(
+                  ref,
+                  column,
+                  selected as Object,
+                );
+              },
+            ),
+          );
+          Widget note(String text) => Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              0,
+              AppSpacing.lg,
+              AppSpacing.sm,
+            ),
+            child: Text(
+              text,
+              style: TextStyle(color: colors.textTertiary, fontSize: 12),
+            ),
+          );
           final newsletter =
               ref.watch(newsletterOptInProvider).valueOrNull ?? false;
+          // Gliederung nach dem Mitteilungs-Konzept (Claude Code, 01.11.2026):
+          // Wichtiges sofort, Planung genau eine pro Konzert, Rest im
+          // selbst gewählten Wochenbudget.
           return ListView(
             children: [
-              header(l10n.notificationSectionPush),
-              for (final row in _rows(l10n)) tile(row),
+              header(l10n.notificationSectionImportant),
+              note(l10n.notificationAlwaysImmediate),
+              tile((
+                key: NotificationPreferenceKey.pushChanges,
+                title: l10n.notificationChangesTitle,
+                subtitle: l10n.notificationChangesSubtitle,
+              )),
+              header(l10n.notificationSectionMyConcerts),
+              tile((
+                key: NotificationPreferenceKey.reminderDayBefore,
+                title: l10n.notificationConcertDayTitle,
+                subtitle: l10n.notificationConcertDaySubtitle,
+              )),
+              tile((
+                key: NotificationPreferenceKey.almostSoldOut,
+                title: l10n.notificationAlmostSoldOutTitle,
+                subtitle: l10n.notificationAlmostSoldOutSubtitle,
+              )),
+              tile((
+                key: NotificationPreferenceKey.pushHowWasIt,
+                title: l10n.notificationHowWasItTitle,
+                subtitle: l10n.notificationHowWasItSubtitle,
+              )),
+              header(l10n.notificationSectionDiscover),
+              choice<String>(
+                title: l10n.notificationNewFollowedTitle,
+                value: prefs.newFollowed,
+                column: 'push_new_followed',
+                options: {
+                  'off': l10n.notificationFrequencyOff,
+                  'weekly': l10n.notificationFrequencyWeekly,
+                  'daily': l10n.notificationFrequencyDaily,
+                  'twice_daily': l10n.notificationFrequencyTwiceDaily,
+                },
+              ),
+              tile((
+                key: NotificationPreferenceKey.pushWeeklyPick,
+                title: l10n.notificationWeeklyPickTitle,
+                subtitle: l10n.notificationWeeklyPickSubtitle,
+              )),
+              header(l10n.notificationSectionFriends),
+              choice<String>(
+                title: l10n.notificationFriendsTitle,
+                value: prefs.friends,
+                column: 'push_friends',
+                options: {
+                  'direct': l10n.notificationFriendsDirect,
+                  'daily': l10n.notificationFriendsDaily,
+                  'off': l10n.notificationFrequencyOff,
+                },
+              ),
+              tile((
+                key: NotificationPreferenceKey.pushFriendActivity,
+                title: l10n.notificationFriendActivityTitle,
+                subtitle: l10n.notificationFriendActivitySubtitle,
+              )),
+              header(l10n.notificationSectionLimit),
+              choice<int>(
+                title: l10n.notificationWeeklyLimitTitle,
+                value: prefs.weeklyLimit,
+                column: 'push_weekly_limit',
+                options: {
+                  for (final n in const [5, 10, 15, 20, 30])
+                    n: l10n.notificationWeeklyLimitValue(n),
+                },
+              ),
+              note(l10n.notificationWeeklyLimitFooter),
               header(l10n.notificationSectionEmail),
               for (final row in _emailRows(l10n)) tile(row),
               SwitchListTile(

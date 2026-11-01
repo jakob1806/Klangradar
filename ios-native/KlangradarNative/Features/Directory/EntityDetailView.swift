@@ -191,18 +191,21 @@ struct EntityDetailView: View {
     @ViewBuilder private func followButton(_ detail: EntityDetail) -> some View {
         if detail.kind != .work, follows.isSignedIn, let id = UUID(uuidString: detail.id) {
             let following = follows.isFollowing(kind: detail.kind, id: id)
-            Button {
-                Task { await follows.toggle(kind: detail.kind, id: id) }
-            } label: {
-                Label(following ? "Gefolgt" : "Folgen", systemImage: following ? "checkmark" : "plus")
-                    .font(.subheadline.weight(.semibold))
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 9)
+            HStack(spacing: 8) {
+                Button {
+                    Task { await follows.toggle(kind: detail.kind, id: id) }
+                } label: {
+                    Label(following ? "Gefolgt" : "Folgen", systemImage: following ? "checkmark" : "plus")
+                        .font(.subheadline.weight(.semibold))
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 9)
+                }
+                .buttonStyle(.plain)
+                .background(following ? AnyShapeStyle(.thinMaterial) : AnyShapeStyle(KlangradarTheme.accent), in: .capsule)
+                .foregroundStyle(following ? Color.primary : Color.white)
+                .accessibilityLabel(following ? "\(detail.title) wird gefolgt, zum Entfolgen antippen" : "\(detail.title) folgen")
+                if following { FollowBellButton(kind: detail.kind.rawValue, id: id, title: detail.title) }
             }
-            .buttonStyle(.plain)
-            .background(following ? AnyShapeStyle(.thinMaterial) : AnyShapeStyle(KlangradarTheme.accent), in: .capsule)
-            .foregroundStyle(following ? Color.primary : Color.white)
-            .accessibilityLabel(following ? "\(detail.title) wird gefolgt, zum Entfolgen antippen" : "\(detail.title) folgen")
         }
     }
 
@@ -834,5 +837,33 @@ private struct MonthGroupedEventList: View {
                 }
             }
         }
+    }
+}
+
+/// Glocke neben "Gefolgt" (Mitteilungs-Konzept, Claude Code 01.11.2026):
+/// folgen, ohne über jedes neue Konzert benachrichtigt zu werden – etwa bei
+/// großen Häusern mit vielen Terminen.
+private struct FollowBellButton: View {
+    let kind: String
+    let id: UUID
+    let title: String
+    @State private var notifies = true
+
+    var body: some View {
+        Button {
+            notifies.toggle()
+            Haptics.light()
+            let value = notifies
+            Task { await PlannerAPI.setFollowNotifies(kind: kind, id: id, value) }
+        } label: {
+            Image(systemName: notifies ? "bell.fill" : "bell.slash")
+                .font(.subheadline.weight(.semibold))
+                .frame(width: 38, height: 38)
+                .foregroundStyle(notifies ? KlangradarTheme.accent : .secondary)
+                .background(.thinMaterial, in: .circle)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(notifies ? "Mitteilungen zu neuen Konzerten von \(title) ausschalten" : "Mitteilungen zu neuen Konzerten von \(title) einschalten")
+        .task(id: id) { notifies = await PlannerAPI.followNotifies(kind: kind, id: id) }
     }
 }
