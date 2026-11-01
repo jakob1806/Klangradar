@@ -1,5 +1,5 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { assessEnsembleName, cleanEntityName } from "./entityNameValidation.ts";
+import { assessEnsembleName, cleanEntityName, isNonPersonName } from "./entityNameValidation.ts";
 
 Deno.test("accepts explicit ensemble names", () => {
   assertEquals(assessEnsembleName("Symphonieorchester des Bayerischen Rundfunks").safe, true);
@@ -45,4 +45,13 @@ Deno.test("holds likely persons for review", () => {
   const result = assessEnsembleName("Johann Sebastian Bach");
   assertEquals(result.safe, false);
   assertEquals(result.reason, "sieht wie ein Personenname aus");
+});
+
+Deno.test("isNonPersonName erkennt Gattungsbegriffe, nicht echte Namen", () => {
+  for (const name of ["Volkslied", "Komparserie", "Napoleon", "Traditional", "N.N.", "Überraschungsgast"]) {
+    assertEquals(isNonPersonName(name), true, name);
+  }
+  for (const name of ["Johann Sebastian Bach", "Anna Netrebko", "Hildegard von Bingen"]) {
+    assertEquals(isNonPersonName(name), false, name);
+  }
 });

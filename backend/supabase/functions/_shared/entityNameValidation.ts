@@ -149,3 +149,21 @@ export function isObviousNonEnsembleText(rawName: string): boolean {
   return ["multiple_people", "organization", "venue", "role_or_department", "generic", "text"]
     .includes(assessEnsembleName(rawName).classification);
 }
+
+// Bereinigung unsinniger Personeneinträge (01.11.2026): Die Bildprüfung hat
+// Personen wie „Volkslied“, „Komparserie“ oder „Napoleon“ (Bühnenfigur)
+// aufgedeckt. Diese Begriffe werden nie als Person angelegt; dieselbe Liste
+// steht in Migration 000149 (public.is_non_person_name) – beide gleich halten.
+export const NON_PERSON_NAMES = new Set([
+  "volkslied", "volksweise", "traditional", "traditionell", "trad", "anonym", "anonymus", "anonymous",
+  "unbekannt", "unknown", "nn", "n n", "tba", "tbd", "diverse", "verschiedene", "various", "various artists",
+  "komparserie", "statisterie", "kinderstatisterie", "extrachor", "zusatzchor", "kinderchor", "chor",
+  "orchester", "ensemble", "solisten", "ballett", "tanz", "band", "dj", "gaste", "gast", "special guest",
+  "uberraschungsgast", "moderation", "lesung", "sprecher", "erzahler", "napoleon", "gregorianik",
+  "gregorianischer choral", "spiritual", "gospel", "choral", "kirchenlied", "weihnachtslied",
+]);
+
+/** true, wenn der Name ein Gattungs-/Platzhalterbegriff statt einer Person ist. */
+export function isNonPersonName(rawName: string): boolean {
+  return NON_PERSON_NAMES.has(normalizedToken(cleanEntityName(rawName)));
+}

@@ -47,7 +47,7 @@ import {
   callAiFunction,
   hasAnyAiProviderConfigured,
 } from "../_shared/ai/router.ts";
-import { assessEnsembleName } from "../_shared/entityNameValidation.ts";
+import { assessEnsembleName, isNonPersonName } from "../_shared/entityNameValidation.ts";
 import { logSystemAction } from "../_shared/systemLog.ts";
 import { enrichCandidateContext } from "../_shared/entityEnrichment.ts";
 import { fetchPageText } from "../_shared/pageText.ts";
@@ -754,6 +754,7 @@ Deno.serve(async (req) => {
       const assessment = assessEnsembleName(name);
       if (entityType === "ensemble" && !assessment.safe) return null;
       if (entityType === "person" && assessment.safe) return null;
+      if (entityType === "person" && isNonPersonName(name)) return null;
 
       const table = entityType === "person" ? "persons" : "ensembles";
       const nameField = entityType === "person" ? "full_name" : "name";
@@ -889,6 +890,7 @@ Deno.serve(async (req) => {
     }
 
     async function getOrCreatePerson(name: string): Promise<string | null> {
+      if (isNonPersonName(name)) return null;
       const key = name.toLowerCase();
       if (personCache.has(key)) return personCache.get(key) ?? null;
       const { data: existing } = await supabase
@@ -962,6 +964,7 @@ Deno.serve(async (req) => {
       name: string,
     ): Promise<string | null> {
       const trimmed = name.trim().replace(/,+$/, "");
+      if (isNonPersonName(trimmed)) return null;
       if (!hasOfficialProgramSection || isPlaceholderName(trimmed)) {
         return await getOrCreatePerson(trimmed);
       }
