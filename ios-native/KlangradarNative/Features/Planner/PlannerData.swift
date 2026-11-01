@@ -158,6 +158,55 @@ enum PlannerAPI {
         return result
     }
 
+    /// Eigener Platz je Abo ("Parkett links, Reihe 12, Platz 7"), Nutzerwunsch
+    /// 01.11.2026: steht dann bei jedem Konzert des Abos.
+    static func mySeats() async -> [UUID: String] {
+        guard let client, let token, let userID else { return [:] }
+        let rows: [JSONObject]? = try? await client.get(table: "user_concert_subscriptions", queryItems: [
+            URLQueryItem(name: "select", value: "subscription_id,seat"),
+            URLQueryItem(name: "user_id", value: "eq.\(userID.uuidString)"),
+            URLQueryItem(name: "seat", value: "not.is.null")
+        ], accessToken: token)
+        var result: [UUID: String] = [:]
+        for row in rows ?? [] {
+            if let id = row.string("subscription_id").flatMap(UUID.init(uuidString:)), let seat = row.string("seat"), !seat.isEmpty {
+                result[id] = seat
+            }
+        }
+        return result
+    }
+
+    static func setSeat(_ subscriptionID: UUID, _ seat: String) async throws {
+        guard let client, let token, let userID else { return }
+        let trimmed = String(seat.trimmingCharacters(in: .whitespacesAndNewlines).prefix(80))
+        try await client.update(table: "user_concert_subscriptions", values: [
+            "seat": trimmed.isEmpty ? .null : .string(trimmed)
+        ], filters: [
+            URLQueryItem(name: "user_id", value: "eq.\(userID.uuidString)"),
+            URLQueryItem(name: "subscription_id", value: "eq.\(subscriptionID.uuidString)")
+        ], accessToken: token)
+    }
+
+    /// Termine (mit Beginn) aller eigenen Abos außer `excluding` – für den
+    /// Hinweis auf Überschneidungen zwischen zwei Abos am selben Tag.
+    static func otherSubscriptionDates(excluding subscriptionID: UUID) async -> [(date: Date, subscription: ConcertSubscription)] {
+        guard let client else { return [] }
+        let mine = await mySubscriptions().filter { $0.id != subscriptionID }
+        guard !mine.isEmpty else { return [] }
+        let variants = await myVariants()
+        let rows: [JSONObject]? = try? await client.get(table: "event_concert_subscriptions", queryItems: [
+            URLQueryItem(name: "select", value: "subscription_id,events(start_datetime)"),
+            URLQueryItem(name: "subscription_id", value: "in.(\(mine.map(\.id.uuidString).joined(separator: ",")))")
+        ])
+        let byID = Dictionary(uniqueKeysWithValues: mine.map { ($0.id, $0) })
+        return (rows ?? []).compactMap { row in
+            guard let sub = row.string("subscription_id").flatMap(UUID.init(uuidString:)).flatMap({ byID[$0] }),
+                  let start = row.object("events")?.string("start_datetime").flatMap(FlexibleDateParser.date(from:)) else { return nil }
+            if let weekday = variants[sub.id], SubscriptionVariant.isoWeekday(start) != weekday { return nil }
+            return (start, sub)
+        }
+    }
+
     static func setMine(_ subscriptionID: UUID, _ isMine: Bool, weekday: Int? = nil) async throws {
         guard let client, let token, let userID else { return }
         if isMine {

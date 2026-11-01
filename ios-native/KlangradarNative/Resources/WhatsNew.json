@@ -1,30 +1,33 @@
 {
   "_hinweis": "Erstellt von Claude Code. Bei jedem Release mit Neuerungen hier pflegen und die id ändern: Die App zeigt den Inhalt einmal pro id als 'Neu in Klangradar', upload-testflight.sh übernimmt ihn als TestFlight-Testhinweis. Ton: kurz, sachlich, ganze Sätze, keine Aufzählungsflut.",
-  "id": "2026-11-01-pause-abo-varianten-spielstaetten",
+  "id": "2026-11-01-abo-ausbau",
   "title": "Neu in Klangradar",
-  "intro": "Spielstätten zeigen ihre kommenden Konzerte übersichtlicher, und Abos mit mehreren Terminreihen lassen sich nach Wochentag unterscheiden.",
+  "intro": "Deine Abos können jetzt mehr: Platz merken, Erinnerung am Vorabend und alle Termine in den Kalender. Außerdem kennt Klangradar weitere Abos.",
   "sections": [
     {
-      "title": "Spielstätten",
-      "symbol": "building.columns.fill",
+      "title": "Dein Abo",
+      "symbol": "checkmark.seal.fill",
       "items": [
-        "„Kommende Konzerte“ einer Spielstätte lassen sich nach Woche, Wochenende oder Monat filtern und bei vielen Terminen durchsuchen.",
-        "Die Vorschau einer Spielstätte auf der Karte ist neu gestaltet, mit großem Bild, Route und den nächsten Konzerten."
+        "Auf der Seite eines eigenen Abos siehst du, wie viele Konzerte der Saison schon hinter dir liegen.",
+        "Speichere deinen Abo-Platz, er steht dann bei jedem Konzert des Abos.",
+        "Auf Wunsch erinnert dich Klangradar um 18 Uhr am Vortag an jedes Abo-Konzert.",
+        "Liegen Termine zweier deiner Abos am selben Tag, werden sie markiert."
       ]
     },
     {
-      "title": "Abos",
+      "title": "Abos entdecken",
       "symbol": "rectangle.stack.fill",
       "items": [
-        "Gibt es ein Abo an verschiedenen Wochentagen, etwa beim BR-Symphonieorchester donnerstags und freitags, wählst du deine Variante aus und siehst nur deine Termine."
+        "Alle Termine eines Abos lassen sich mit einem Tipp in den Kalender übernehmen.",
+        "Neu erkannt werden die Abos der Münchner Symphoniker, die Reihen des hr-Sinfonieorchesters und des Konzerthauses Berlin."
       ]
     },
     {
-      "title": "Konzerte und Werke",
+      "title": "Konzerte",
       "symbol": "music.note",
       "items": [
-        "Die Pause im Programm hat ein eigenes, deutlicheres Design.",
-        "Hörbeispiele zu Werken zeigen nur noch passende klassische Aufnahmen, leere Kontaktfelder entfallen."
+        "Die Pause im Programm ist schlichter gestaltet.",
+        "Doppelt gelistete Konzerte werden zuverlässiger zusammengeführt, besonders bei der Bayerischen Staatsoper."
       ]
     }
   ]

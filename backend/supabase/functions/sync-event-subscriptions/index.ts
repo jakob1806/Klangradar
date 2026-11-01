@@ -5,7 +5,8 @@ import { requireInternalAuth } from "../_shared/internalAuth.ts";
 import { musikvereinId } from "../_shared/musikvereinDetail.ts";
 import {
   brChorSubscriptions, BR_CALENDAR_URLS, brCalendarIndex, BRSO_CALENDAR_URL, brsoCalendarIndex, brsoKey, brsoSubscriptions, gaertnerplatzSeries, type GaertnerplatzSeries, gaertnerplatzSubscriptions,
-  linkEventSubscriptions, mkoSubscriptions, mphilSubscriptions, musikvereinSubscriptions, rundfunkorchesterSubscriptions,
+  hrSubscriptions, konzerthausBerlinSubscriptions, linkEventSubscriptions, mkoSubscriptions, MUENCHNER_SYMPHONIKER_ABO_SLUGS,
+  muenchnerSymphonikerAbo, muenchnerSymphonikerNodeId, mphilSubscriptions, musikvereinSubscriptions, rundfunkorchesterSubscriptions,
   seasonFor, type SubscriptionCandidate, wienerSymphonikerSubscriptions,
 } from "../_shared/subscriptions.ts";
 
@@ -16,6 +17,7 @@ import {
 const DOMAINS = [
   "mphil.de/", "brso.de/konzerte", "musikverein.at/konzert", "wienersymphoniker.at/konzert",
   "rundfunkorchester.de/konzerte", "br-chor.de/konzerte", "m-k-o.eu/event-detail", "gaertnerplatztheater.de/de/produktionen",
+  "muenchner-symphoniker.de/de/node", "hr-sinfonieorchester.de/konzerte", "konzerthaus.de/de/programm",
 ];
 
 Deno.serve(async (req) => {
@@ -71,6 +73,20 @@ Deno.serve(async (req) => {
     return brIndexes.get(organizer)!;
   };
 
+  // Münchner Symphoniker: alle Abo-Seiten einmal pro Lauf -> Konzert-ID -> Abos.
+  let msIndex: Promise<Map<string, SubscriptionCandidate[]>> | null = null;
+  const msAbos = () => msIndex ??= Promise.all(MUENCHNER_SYMPHONIKER_ABO_SLUGS.map((slug) =>
+    fetch(`https://www.muenchner-symphoniker.de/de/${slug}`, { headers: { "User-Agent": USER_AGENT } })
+      .then(async (res) => res.ok ? muenchnerSymphonikerAbo(slug, await res.text()) : null)
+      .catch(() => null)
+  )).then((abos) => {
+    const index = new Map<string, SubscriptionCandidate[]>();
+    for (const abo of abos) {
+      for (const node of abo?.nodeIds ?? []) index.set(node, [...(index.get(node) ?? []), abo!.candidate]);
+    }
+    return index;
+  });
+
   // deno-lint-ignore no-explicit-any
   const results = await mapLimit(events ?? [], 4, async (event: any) => {
     const urls = [event.external_id, event.website_url].filter((u): u is string => typeof u === "string" && u.startsWith("http"));
@@ -97,6 +113,8 @@ Deno.serve(async (req) => {
           const res = await fetch(url, { headers: { "User-Agent": USER_AGENT } });
           if (res.ok) subs = organizer === "brchor" ? brChorSubscriptions(await res.text()) : rundfunkorchesterSubscriptions(await res.text());
         }
+      } else if (muenchnerSymphonikerNodeId(url)) {
+        subs = (await msAbos()).get(muenchnerSymphonikerNodeId(url)!) ?? [];
       } else if (url.includes("m-k-o.eu")) {
         subs = mkoSubscriptions(url, event.title ?? "");
       } else if (mvId) {
@@ -110,6 +128,8 @@ Deno.serve(async (req) => {
           else if (url.includes("wienersymphoniker.at")) subs = wienerSymphonikerSubscriptions(html);
           else if (url.includes("rundfunkorchester.de")) subs = rundfunkorchesterSubscriptions(html);
           else if (url.includes("br-chor.de")) subs = brChorSubscriptions(html);
+          else if (url.includes("hr-sinfonieorchester.de")) subs = hrSubscriptions(html);
+          else if (url.includes("konzerthaus.de")) subs = konzerthausBerlinSubscriptions(html);
         }
       }
       const linked = await linkEventSubscriptions(supabase, event.id, event.start_datetime, subs);
