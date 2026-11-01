@@ -354,6 +354,7 @@ private struct VenuePreviewSheet: View {
     let repository: any ContentRepository
     let eventRepository: any EventRepository
     @State private var events: [ConcertEvent] = []
+    @State private var eventsLoaded = false
     @State private var venueImageURL: URL?
     // War auf [ConcertEvent] eingeschränkt — dadurch konnten Venue-/
     // Mitwirkenden-Links von einer hier gepushten EventDetailView nicht
@@ -408,28 +409,36 @@ private struct VenuePreviewSheet: View {
                     }
                     .clipShape(.rect(cornerRadius: 22, style: .continuous))
 
+                    // Nutzerwunsch 01.11.2026: die System-Buttons (bordered/
+                    // borderedProminent) wirkten auf dem grauen Sheet-Grund
+                    // grob – jetzt zwei gleich hohe Kacheln mit Symbolkreis
+                    // und Untertitel, Route als Akzentfläche.
                     HStack(spacing: 10) {
                         Button { openRoute() } label: {
-                            Label("Route", systemImage: "arrow.triangle.turn.up.right.diamond.fill")
-                                .font(.subheadline.weight(.semibold))
-                                .frame(maxWidth: .infinity, minHeight: 46)
+                            sheetAction(title: "Route", subtitle: "In Karten öffnen",
+                                        symbol: "arrow.triangle.turn.up.right.diamond.fill", prominent: true)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .buttonBorderShape(.roundedRectangle(radius: 14))
+                        .buttonStyle(SheetActionPressStyle())
                         if let slug = venue.slug {
                             NavigationLink {
                                 EntityDetailView(route: EntityRoute(kind: .venue, identifier: slug), repository: repository)
                             } label: {
-                                Label("Alle Konzerte", systemImage: "list.bullet")
-                                    .font(.subheadline.weight(.semibold))
-                                    .frame(maxWidth: .infinity, minHeight: 46)
+                                sheetAction(title: "Alle Konzerte",
+                                            subtitle: venue.upcomingEventCount > 0 ? "\(venue.upcomingEventCount) Termine" : "Zur Seite",
+                                            symbol: "music.note.list", prominent: false)
                             }
-                            .buttonStyle(.bordered)
-                            .buttonBorderShape(.roundedRectangle(radius: 14))
-                            .tint(KlangradarTheme.accent)
+                            .buttonStyle(SheetActionPressStyle())
                         }
                     }
 
+                    if eventsLoaded && events.isEmpty {
+                        Label("Gerade keine Konzerte angekündigt", systemImage: "calendar.badge.exclamationmark")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(16)
+                            .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 18, style: .continuous))
+                    }
                     if !events.isEmpty {
                         Text("Als Nächstes").font(.headline).padding(.top, 2)
                         VStack(spacing: 0) {
@@ -483,7 +492,35 @@ private struct VenuePreviewSheet: View {
                 venueImageURL = detail?.gallery.first?.url ?? detail?.primaryImageURL
             }
             events = (await loadedEvents) ?? []
+            eventsLoaded = true
         }
+    }
+
+    private func sheetAction(title: String, subtitle: String, symbol: String, prominent: Bool) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: symbol)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(prominent ? KlangradarTheme.accent : .white)
+                .frame(width: 34, height: 34)
+                .background(prominent ? AnyShapeStyle(.white) : AnyShapeStyle(KlangradarTheme.accent), in: .circle)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title).font(.subheadline.weight(.semibold))
+                Text(subtitle).font(.caption).opacity(prominent ? 0.85 : 0.6)
+            }
+            .lineLimit(1)
+            Spacer(minLength: 0)
+        }
+        .foregroundStyle(prominent ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
+        .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity, minHeight: 58)
+        .background {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(prominent
+                      ? AnyShapeStyle(LinearGradient(colors: [KlangradarTheme.accent, KlangradarTheme.deepInk], startPoint: .topLeading, endPoint: .bottomTrailing))
+                      : AnyShapeStyle(Color(uiColor: .secondarySystemGroupedBackground)))
+        }
+        .shadow(color: .black.opacity(prominent ? 0.12 : 0.05), radius: 8, y: 3)
+        .contentShape(.rect(cornerRadius: 18))
     }
 
     private func openRoute() {
@@ -541,5 +578,15 @@ private struct VenueGroupPickerSheet: View {
             }
             .listStyle(.plain)
         }
+    }
+}
+
+/// Leichtes Eindrücken der Aktionskacheln im Spielstätten-Sheet.
+private struct SheetActionPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .opacity(configuration.isPressed ? 0.9 : 1)
+            .animation(.snappy(duration: 0.15), value: configuration.isPressed)
     }
 }
