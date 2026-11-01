@@ -96,6 +96,7 @@ struct EntityDetailView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Bild von \(detail.title) vergrößern")
+                    .overlay(alignment: .bottomTrailing) { wrongImageLink(detail) }
                 } else {
                     entityImagePlaceholder(height: 190, systemImage: detail.kind.systemImage)
                 }
@@ -121,6 +122,7 @@ struct EntityDetailView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Bild von \(detail.title) vergrößern")
+                    .overlay(alignment: .bottomTrailing) { wrongImageLink(detail) }
                 } else {
                     Circle().fill(.quaternary)
                         .overlay { Image(systemName: detail.kind.systemImage).font(.largeTitle) }
@@ -206,6 +208,14 @@ struct EntityDetailView: View {
         }
     }
 
+    /// "Falsches Bild melden" dezent in der Bildecke (01.11.2026).
+    private func wrongImageLink(_ detail: EntityDetail) -> some View {
+        ReportContentLink(entityType: detail.kind.rawValue, entityID: detail.id, preselected: .wrongImage, title: "Falsches Bild?")
+            .padding(.horizontal, 8)
+            .background(.ultraThinMaterial, in: .capsule)
+            .padding(8)
+    }
+
     private func venueHeader(_ detail: EntityDetail) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             if let imageURL = detail.gallery.first?.url ?? detail.primaryImageURL {
@@ -214,6 +224,7 @@ struct EntityDetailView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Bild von \(detail.title) vergrößern")
+                    .overlay(alignment: .bottomTrailing) { wrongImageLink(detail) }
             } else {
                 entityImagePlaceholder(height: 210, systemImage: "building.columns")
             }

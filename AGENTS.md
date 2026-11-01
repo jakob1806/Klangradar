@@ -70,3 +70,4 @@ doppelt gebaute Features (Coach vs. Personal Concierge), ein komplett
 | Claude | 2026-11-01 | claude/staatsoper-gesamtquelle | Gesamtquelle Bayerische Staatsoper (source_groups, Quellen-Rang), Dubletten-Abgleich v2 (Migration 145), Admin: Gesamtquellen + Zusammenführungen |
 | Claude | 2026-11-01 | claude/abo-ausbau | iOS: Abo-Seite (Fortschritt, Platz, Vorabend-Erinnerung, Kalender, Überschneidungen), Pause ohne Tasse; Abo-Erkennung Münchner Symphoniker/hr/Konzerthaus Berlin (Migration 146) |
 | Claude | 2026-11-01 | claude/konzept-bildabdeckung | Konzept Bildabdeckung (docs/16), noch keine Umsetzung |
+| Claude | 2026-11-02 | claude/bildabdeckung | Konzertbilder aus Importquellen, Komponist-Ersatzbild, Prüfansicht /media/pruefen, Fehlzuordnungen, harvest-artist-photos (Migration 148) |
