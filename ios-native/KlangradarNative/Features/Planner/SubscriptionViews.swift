@@ -6,6 +6,8 @@
 // Fehlermeldung beim Hinzufügen.
 // 29.10.2026: Bilder oben verankert (Porträts verloren sonst den Kopf),
 // Abo-Bereich direkt im Profil und Abos auf der Ensembleseite.
+// 01.11.2026: "Dein Abo" mit Saisonfortschritt, eigenem Platz, Erinnerung am
+// Vortag, Kalender-Export und Hinweis auf Überschneidungen mit anderen Abos.
 import SwiftUI
 
 /// Kapseln unter den Eckdaten: "Teil von Abo B" → Abo-Seite.
@@ -14,9 +16,11 @@ struct EventSubscriptionsRow: View {
     let repository: any EventRepository
     let contentRepository: any ContentRepository
     @State private var subscriptions: [ConcertSubscription] = []
+    /// Eigener Platz, falls das Konzert zu einem eigenen Abo gehört.
+    @State private var seat: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 8) {
             if !subscriptions.isEmpty {
                 ScrollView(.horizontal) {
                     HStack(spacing: 8) {
@@ -41,8 +45,18 @@ struct EventSubscriptionsRow: View {
                 }
                 .scrollIndicators(.hidden)
             }
+            if let seat {
+                Label("Dein Abo-Platz: \(seat)", systemImage: "chair.lounge.fill")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
         }
-        .task(id: event.id) { subscriptions = await PlannerAPI.subscriptions(eventID: event.id) }
+        .task(id: event.id) {
+            subscriptions = await PlannerAPI.subscriptions(eventID: event.id)
+            guard !subscriptions.isEmpty, SocialStore.shared.isSignedIn else { return }
+            let seats = await PlannerAPI.mySeats()
+            seat = subscriptions.lazy.compactMap { seats[$0.id] }.first
+        }
     }
 }
 
@@ -111,6 +125,12 @@ struct SubscriptionDetailView: View {
     @State private var errorMessage: String?
     /// Gewählte Variante (ISO-Wochentag), nil = alle Termine.
     @State private var weekday: Int?
+    @State private var seat = ""
+    @State private var savedSeat = ""
+    @State private var remindersOn = false
+    @State private var remindersDenied = false
+    /// Tag (Start des Tages) -> Namen anderer eigener Abos an diesem Tag.
+    @State private var overlaps: [Date: [String]] = [:]
 
     private var variants: [Int] { SubscriptionVariant.variants(events.filter { ($0.startDate ?? .distantFuture) >= Calendar.current.startOfDay(for: .now) }) }
     private func inVariant(_ event: ConcertEvent) -> Bool {
@@ -154,10 +174,7 @@ struct SubscriptionDetailView: View {
                     Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
                         .font(.footnote).foregroundStyle(.orange)
                 }
-                if isMine {
-                    Label("Alle Termine stehen in deinem Saisonplaner.", systemImage: "calendar.badge.checkmark")
-                        .font(.footnote).foregroundStyle(.secondary)
-                }
+                if isMine && !isLoading { myAboCard }
                 if let nextEvent { nextCard(nextEvent) }
                 eventList("Alle Termine", upcoming, emptyText: isLoading ? nil : "Für dieses Abo sind keine kommenden Termine bekannt.")
                 if !past.isEmpty { eventList("Vergangen", past, emptyText: nil, dimmed: true) }
@@ -220,6 +237,8 @@ struct SubscriptionDetailView: View {
                         Task {
                             try? await PlannerAPI.setMine(subscription.id, true, weekday: newValue)
                             NotificationCenter.default.post(name: .subscriptionsChanged, object: nil)
+                            await SubscriptionReminders.schedule(subscription: subscription, events: upcoming)
+                            await loadOverlaps()
                         }
                     }
                 }
@@ -258,14 +277,118 @@ struct SubscriptionDetailView: View {
             }
             if let url = subscription.url {
                 Link(destination: url) {
-                    Label("Abo buchen", systemImage: "arrow.up.right")
+                    Label(isMine ? "Abo-Seite" : "Abo buchen", systemImage: "arrow.up.right")
                         .font(.subheadline.weight(.semibold))
                         .frame(maxWidth: .infinity).frame(height: 48)
                         .foregroundStyle(.primary)
                         .background(Color(uiColor: .secondarySystemBackground), in: .capsule)
                 }
             }
+            if let icsURL {
+                ShareLink(item: icsURL) {
+                    Image(systemName: "calendar.badge.plus")
+                        .font(.headline)
+                        .frame(width: 48, height: 48)
+                        .foregroundStyle(KlangradarTheme.accent)
+                        .background(KlangradarTheme.accent.opacity(0.1), in: .circle)
+                }
+                .accessibilityLabel("Alle Termine in den Kalender übernehmen")
+            }
         }
+    }
+
+    /// Alle kommenden Termine (der gewählten Variante) als .ics.
+    private var icsURL: URL? {
+        let inputs = upcoming.compactMap { event -> IcsEventInput? in
+            guard let start = event.startDate else { return nil }
+            return IcsEventInput(uid: event.id.uuidString, title: event.title, start: start,
+                                 description: subscription.title, location: event.venueName)
+        }
+        guard !inputs.isEmpty else { return nil }
+        return try? IcsExport.write(inputs, fileName: "abo_\(subscription.id.uuidString.prefix(8)).ics")
+    }
+
+    /// "Dein Abo": Fortschritt, Platz, Erinnerung – nur für eigene Abos.
+    private var myAboCard: some View {
+        let total = upcoming.count + past.count
+        return VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Label("Dein Abo", systemImage: "checkmark.seal.fill")
+                    .font(.headline).foregroundStyle(KlangradarTheme.accent)
+                Spacer()
+                Text("im Saisonplaner").font(.caption).foregroundStyle(.secondary)
+            }
+            if total > 0 {
+                VStack(alignment: .leading, spacing: 6) {
+                    ProgressView(value: Double(past.count), total: Double(total))
+                        .tint(KlangradarTheme.accent)
+                    Text(past.isEmpty
+                         ? "Die Saison beginnt: \(total) \(total == 1 ? "Konzert" : "Konzerte") vor dir."
+                         : "\(past.count) von \(total) Konzerten gehört · noch \(upcoming.count)")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Mein Platz").font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
+                HStack(spacing: 8) {
+                    Image(systemName: "chair.lounge").foregroundStyle(.secondary)
+                    TextField("z. B. Parkett links, Reihe 12, Platz 7", text: $seat)
+                        .submitLabel(.done)
+                        .onSubmit { Task { await saveSeat() } }
+                    if seat != savedSeat {
+                        Button("Sichern") { Task { await saveSeat() } }
+                            .font(.footnote.weight(.semibold))
+                    }
+                }
+                .padding(.horizontal, 12).frame(height: 44)
+                .background(Color(uiColor: .secondarySystemBackground), in: .rect(cornerRadius: 12))
+            }
+            Toggle(isOn: Binding(get: { remindersOn }, set: { newValue in
+                Task {
+                    let ok = await SubscriptionReminders.setEnabled(newValue, subscription: subscription, events: upcoming)
+                    remindersOn = newValue && ok
+                    remindersDenied = newValue && !ok
+                }
+            })) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Am Vorabend erinnern").font(.subheadline.weight(.semibold))
+                    Text(remindersDenied ? "Mitteilungen sind in den iOS-Einstellungen ausgeschaltet." : "Um 18 Uhr am Tag vor jedem Konzert")
+                        .font(.caption).foregroundStyle(remindersDenied ? .orange : .secondary)
+                }
+            }
+            .tint(KlangradarTheme.accent)
+            if !overlaps.isEmpty {
+                Label("\(overlaps.count) \(overlaps.count == 1 ? "Termin liegt" : "Termine liegen") am selben Tag wie ein anderes deiner Abos – unten markiert.",
+                      systemImage: "exclamationmark.2")
+                    .font(.footnote).foregroundStyle(.orange)
+            }
+        }
+        .padding(16)
+        .background(Color(uiColor: .secondarySystemGroupedBackground).opacity(0.7), in: .rect(cornerRadius: 20))
+    }
+
+    private func saveSeat() async {
+        do {
+            try await PlannerAPI.setSeat(subscription.id, seat)
+            savedSeat = seat
+            Haptics.confirm()
+        } catch {
+            errorMessage = "Der Platz konnte nicht gespeichert werden."
+        }
+    }
+
+    private func loadOverlaps() async {
+        guard isMine else { overlaps = [:]; return }
+        let calendar = KlangradarDateTime.calendar
+        let others = await PlannerAPI.otherSubscriptionDates(excluding: subscription.id)
+        let ownDays = Set(upcoming.compactMap { $0.startDate.map(calendar.startOfDay(for:)) })
+        var result: [Date: [String]] = [:]
+        for other in others {
+            let day = calendar.startOfDay(for: other.date)
+            guard ownDays.contains(day), !(result[day] ?? []).contains(other.subscription.name) else { continue }
+            result[day, default: []].append(other.subscription.name)
+        }
+        overlaps = result
     }
 
     private func detail(_ event: ConcertEvent) -> some View {
@@ -319,6 +442,10 @@ struct SubscriptionDetailView: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(item.title).font(.subheadline.weight(.semibold)).lineLimit(2).multilineTextAlignment(.leading)
                 Text(item.dateLine).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                if let day = item.startDate.map(KlangradarDateTime.calendar.startOfDay(for:)), let names = overlaps[day] {
+                    Label("Gleicher Tag: \(names.joined(separator: ", "))", systemImage: "exclamationmark.2")
+                        .font(.caption2.weight(.semibold)).foregroundStyle(.orange).lineLimit(1)
+                }
             }
             Spacer(minLength: 0)
             if item.id == currentEventID {
@@ -335,10 +462,20 @@ struct SubscriptionDetailView: View {
         defer { isLoading = false }
         guard let overview = await PlannerAPI.overview(subscription.id) else { return }
         isMine = overview.isMine
-        if isMine { weekday = await PlannerAPI.myVariants()[subscription.id] }
+        if isMine {
+            weekday = await PlannerAPI.myVariants()[subscription.id]
+            savedSeat = await PlannerAPI.mySeats()[subscription.id] ?? ""
+            seat = savedSeat
+            remindersOn = SubscriptionReminders.isEnabled(subscription.id)
+        }
         let loaded = (try? await repository.events(ids: overview.eventIDs)) ?? []
         let enriched = (try? await repository.enrichingImages(in: loaded)) ?? loaded
         events = enriched.sorted { ($0.startDate ?? .distantFuture) < ($1.startDate ?? .distantFuture) }
+        if isMine {
+            await loadOverlaps()
+            // Neue Termine seit dem letzten Öffnen ebenfalls erinnern.
+            await SubscriptionReminders.schedule(subscription: subscription, events: upcoming)
+        }
     }
 
     private func toggleMine() async {
@@ -348,6 +485,11 @@ struct SubscriptionDetailView: View {
         do {
             try await PlannerAPI.setMine(subscription.id, !isMine, weekday: weekday)
             isMine.toggle()
+            if !isMine {
+                await SubscriptionReminders.setEnabled(false, subscription: subscription, events: [])
+                remindersOn = false
+            }
+            await loadOverlaps()
             Haptics.confirm()
             NotificationCenter.default.post(name: .subscriptionsChanged, object: nil)
         } catch {

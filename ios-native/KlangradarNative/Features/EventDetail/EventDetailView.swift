@@ -579,7 +579,7 @@ struct EventDetailView: View {
     private var intermissionRow: some View {
         HStack(spacing: 12) {
             Capsule().fill(KlangradarTheme.accent.opacity(0.22)).frame(height: 1)
-            Label("Pause", systemImage: "cup.and.saucer.fill")
+            Text("Pause")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(KlangradarTheme.accent)
                 .padding(.horizontal, 14)

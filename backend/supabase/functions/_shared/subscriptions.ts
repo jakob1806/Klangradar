@@ -8,12 +8,15 @@
 // (Reihe wie "Sonntagskonzerte" je Termin), BR-Chor ("Teil des
 // Chor-Abonnements"), Münchener Kammerorchester ("Abo 3" in Titel/URL) und
 // Gärtnerplatztheater (Abo-Seite listet alle Serien mit exakten Terminen).
-// Nicht möglich: Bayerische Staatsoper (blockt Abrufe mit 403), Münchner
-// Symphoniker (Reihe steht nicht auf der Konzertseite).
+// Nicht möglich: Bayerische Staatsoper (blockt Abrufe mit 403).
+// Ergänzt 01.11.2026: Münchner Symphoniker (je Abo eine Seite, die ihre
+// Konzerte verlinkt), hr-Sinfonieorchester ("Reihen" am Termin) und
+// Konzerthaus Berlin ("Reihen und Abonnements" am Termin).
 // deno-lint-ignore-file no-explicit-any
 
 export interface SubscriptionCandidate {
-  organizer: "mphil" | "brso" | "musikverein" | "wienersymphoniker" | "rundfunkorchester" | "brchor" | "mko" | "gaertnerplatz";
+  organizer: "mphil" | "brso" | "musikverein" | "wienersymphoniker" | "rundfunkorchester" | "brchor" | "mko" | "gaertnerplatz"
+    | "muenchnersymphoniker" | "hrso" | "konzerthausberlin";
   code: string;
   name: string;
   url: string | null;
@@ -28,6 +31,9 @@ const ORGANIZER_LABEL: Record<SubscriptionCandidate["organizer"], string> = {
   brchor: "BR-Chor",
   mko: "Münchener Kammerorchester",
   gaertnerplatz: "Gärtnerplatztheater",
+  muenchnersymphoniker: "Münchner Symphoniker",
+  hrso: "hr-Sinfonieorchester",
+  konzerthausberlin: "Konzerthaus Berlin",
 };
 
 const ORGANIZER_ABO_PAGE: Record<SubscriptionCandidate["organizer"], string> = {
@@ -39,6 +45,9 @@ const ORGANIZER_ABO_PAGE: Record<SubscriptionCandidate["organizer"], string> = {
   brchor: "https://www.br-chor.de/konzerte-tickets/abonnements/",
   mko: "https://www.m-k-o.eu/tickets/abonnements/",
   gaertnerplatz: "https://www.gaertnerplatztheater.de/de/seiten/abo.html",
+  muenchnersymphoniker: "https://www.muenchner-symphoniker.de/de/abonnements",
+  hrso: "https://www.hr-sinfonieorchester.de/konzerte/index.html",
+  konzerthausberlin: "https://www.konzerthaus.de/de/abonnements",
 };
 
 function clean(text: string): string {
@@ -255,6 +264,44 @@ export function wienerSymphonikerSubscriptions(html: string): SubscriptionCandid
     out.push({ organizer: "wienersymphoniker", code: m[2].split("/").pop()!, name, url: `https://www.wienersymphoniker.at${m[2]}` });
   }
   return dedupe(out);
+}
+
+/** Münchner Symphoniker: Abo-Seiten (Slug unter /de/), die ihre Konzerte als
+ * relative Links "/de/node/<id>" auflisten. Absolute Links derselben Form
+ * sind die Seite selbst bzw. Navigation und zählen nicht. */
+export const MUENCHNER_SYMPHONIKER_ABO_SLUGS = ["prinze-y", "4-im-prinze", "meisterhaft", "prisma", "mikrokosmos", "hoerbar"];
+
+export function muenchnerSymphonikerAbo(slug: string, html: string): { candidate: SubscriptionCandidate; nodeIds: string[] } | null {
+  const title = clean(html.match(/<title>([^<]*)<\/title>/i)?.[1] ?? "").split("|")[0].replace(/Ÿ/g, "Y").trim();
+  const nodeIds = [...new Set([...html.matchAll(/href="\/de\/node\/(\d+)"/g)].map((m) => m[1]))];
+  if (!title || nodeIds.length === 0) return null;
+  return {
+    candidate: { organizer: "muenchnersymphoniker", code: slug, name: title, url: `https://www.muenchner-symphoniker.de/de/${slug}` },
+    nodeIds,
+  };
+}
+
+export function muenchnerSymphonikerNodeId(url: string): string | null {
+  return url.match(/muenchner-symphoniker\.de\/(?:de\/)?node\/(\d+)/)?.[1] ?? null;
+}
+
+/** hr-sinfonieorchester.de: <nav aria-label="Reihen"> mit einem Link je Reihe. */
+export function hrSubscriptions(html: string): SubscriptionCandidate[] {
+  const block = html.match(/<nav[^>]*aria-label="Reihen"[\s\S]*?<\/nav>/i)?.[0] ?? "";
+  return dedupe([...block.matchAll(/<a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g)].map((m) => {
+    const name = clean(m[2]);
+    const code = m[1].split("/").pop()!.replace(/-\d+\.html$|\.html$/, "");
+    return { organizer: "hrso" as const, code, name, url: m[1].startsWith("http") ? m[1] : `https://www.hr-sinfonieorchester.de${m[1]}` };
+  }).filter((s) => s.name.length >= 3 && s.name.length <= 60));
+}
+
+/** konzerthaus.de: Seitenleiste "Reihen und Abonnements" mit Links. */
+export function konzerthausBerlinSubscriptions(html: string): SubscriptionCandidate[] {
+  const block = html.match(/Reihen und Abonnements<\/h3>([\s\S]*?)<\/ul>/i)?.[1] ?? "";
+  return dedupe([...block.matchAll(/<a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g)].map((m) => {
+    const name = clean(m[2]).replace(/^(Reihe|Abonnement|Abo):\s*/i, "");
+    return { organizer: "konzerthausberlin" as const, code: m[1].split("/").filter(Boolean).pop()!, name, url: m[1].startsWith("http") ? m[1] : `https://www.konzerthaus.de${m[1]}` };
+  }).filter((s) => s.name.length >= 2 && s.name.length <= 60));
 }
 
 function dedupe(items: SubscriptionCandidate[]): SubscriptionCandidate[] {

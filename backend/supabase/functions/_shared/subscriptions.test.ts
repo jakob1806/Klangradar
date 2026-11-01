@@ -68,3 +68,26 @@ Deno.test("musikverein: Zyklus ohne Namen wird übersprungen", () => {
   const data = { distributionChannels: { data: [{ code: "AEG-K-2627", description_D: "-" }, { code: "KLZ2627", description_D: "Klavier-Zyklus" }] } };
   assertEquals(musikvereinSubscriptions(data).map((s) => s.name), ["Klavier-Zyklus"]);
 });
+
+// Ergänzt 01.11.2026 (Claude Code): Münchner Symphoniker, hr-Sinfonieorchester, Konzerthaus Berlin.
+import { hrSubscriptions, konzerthausBerlinSubscriptions, muenchnerSymphonikerAbo, muenchnerSymphonikerNodeId } from "./subscriptions.ts";
+
+Deno.test("münchner symphoniker: Abo-Seite listet relative Konzert-Links", () => {
+  const html = `<title>Prinze Ÿ | Münchner Symphoniker</title><a href="https://www.muenchner-symphoniker.de/de/node/1597">x</a>` +
+    `<a href="/de/node/1691">Konzert</a><a href="/de/node/1699">Konzert</a><a href="/de/node/1691">Tickets</a>`;
+  const abo = muenchnerSymphonikerAbo("prinze-y", html)!;
+  assertEquals(abo.candidate.name, "Prinze Y");
+  assertEquals(abo.nodeIds, ["1691", "1699"]);
+  assertEquals(muenchnerSymphonikerNodeId("https://www.muenchner-symphoniker.de/de/node/1691"), "1691");
+});
+
+Deno.test("hr-sinfonieorchester: Reihen-Navigation am Termin", () => {
+  const html = `<nav role="navigation" aria-label="Reihen" class="o-layout"><span>Reihen</span><ul><li>` +
+    `<a class="link" href="https://www.hr-sinfonieorchester.de/konzerte/konzerte-26-27/konzertreihen/grosse-reihe-104.html"><svg><use href="#taglabel"></use> </svg>Große Reihe </a></li></ul></nav>`;
+  assertEquals(hrSubscriptions(html).map((s) => [s.code, s.name]), [["grosse-reihe", "Große Reihe"]]);
+});
+
+Deno.test("konzerthaus berlin: Reihen und Abonnements in der Seitenleiste", () => {
+  const html = `<h3 class="headline">Reihen und Abonnements</h3> <ul class="anchor-list"> <li><a href="/de/zwei-mal-hoeren" class="link" title="Reihe: 2 x hören">Reihe: 2 x hören</a></li> </ul>`;
+  assertEquals(konzerthausBerlinSubscriptions(html).map((s) => [s.code, s.name]), [["zwei-mal-hoeren", "2 x hören"]]);
+});
