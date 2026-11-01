@@ -24,8 +24,9 @@ struct EntityDetailView: View {
                         if detail.kind == .venue {
                             venueHeader(detail)
                             followButton(detail)
+                            // Neue Konzertliste mit Zeitraum-Chips und Suche (01.11.2026).
+                            VenueUpcomingConcerts(events: detail.events, exportURL: calendarExportURL(detail.events, kind: .venue))
                             venueLocationMap(detail)
-                            if !detail.events.isEmpty { linkedEvents(detail.events, kind: detail.kind) }
                             metadata(detail)
                             venueGuide(detail)
                             if let biography = biography(in: detail) {
@@ -250,6 +251,9 @@ struct EntityDetailView: View {
         let musicPlatforms = socialLinks.keys.filter { ["spotify", "apple_music"].contains($0.lowercased()) && socialLinks.string($0)?.isEmpty == false }.sorted()
         let socialPlatforms = socialLinks.keys.filter { !["spotify", "apple_music"].contains($0.lowercased()) && socialLinks.string($0)?.isEmpty == false }.sorted()
 
+        // Werke haben keine Kontaktdaten (Nutzerfeedback 01.11.2026: leerer
+        // "Kontakt"-Block auf Werkseiten wirkte fehlerhaft).
+        if detail.kind != .work || !rows.isEmpty {
         section("Kontakt") {
             LiquidGlassSurface(cornerRadius: 20) {
                 VStack(spacing: 12) {
@@ -266,6 +270,7 @@ struct EntityDetailView: View {
                     }
                 }.padding(18)
             }
+        }
         }
 
         if !socialPlatforms.isEmpty {

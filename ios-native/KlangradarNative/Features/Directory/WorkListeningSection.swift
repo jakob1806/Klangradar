@@ -167,6 +167,7 @@ struct MusicPreview: Sendable {
             let previewUrl: String?
             let artworkUrl100: String?
             let trackViewUrl: String?
+            let primaryGenreName: String?
         }
         let results: [Item]
     }
@@ -196,7 +197,9 @@ struct MusicPreview: Sendable {
 
     static func search(title: String, composer: String?) async -> MusicPreview? {
         let cleanTitle = title.cleanedWorkTitle
-        let composerSurname = composer?.split(separator: " ").last.map(String.init)
+        // Nutzerfeedback 01.11.2026 ("falsche Songs", z. B. Mac Miller zu
+        // einem Ballett ohne Komponist): ohne Komponist keine Hörprobe.
+        guard let composerSurname = composer?.split(separator: " ").last.map(String.init), composerSurname.count > 2 else { return nil }
         let term = [composerSurname, normalized(cleanTitle)].compactMap { $0 }.joined(separator: " ")
         var components = URLComponents(string: "https://itunes.apple.com/search")!
         components.queryItems = [
@@ -217,11 +220,16 @@ struct MusicPreview: Sendable {
         let titleWords = normalized(cleanTitle).split(whereSeparator: { !$0.isLetter && !$0.isNumber }).filter { $0.count > 3 }
         let match = response.results.first { item in
             guard item.previewUrl != nil else { return false }
+            // Nur Klassik/Oper – Pop-Treffer mit zufällig gleichem Wort raus.
+            let genre = (item.primaryGenreName ?? "").lowercased()
+            guard ["klassik", "classical", "oper", "opera"].contains(where: { genre.contains($0) }) else { return false }
             let haystack = normalized([item.trackName, item.collectionName, item.artistName].compactMap { $0 }.joined(separator: " "))
-            let hasComposer = composerSurname.map { haystack.contains($0.lowercased()) } ?? true
+            let hasComposer = haystack.contains(composerSurname.lowercased())
             let itemMarkers = Set(catalogMarkers(in: haystack))
+            // Ohne Werknummer: mindestens zwei Titelwörter (bzw. alle, wenn es nur eines gibt).
+            let neededWords = min(2, titleWords.count)
             let hasTitle = markers.isEmpty
-                ? (titleWords.isEmpty || titleWords.contains { haystack.contains($0) })
+                ? (titleWords.filter { haystack.contains($0) }.count >= neededWords && neededWords > 0)
                 : markers.allSatisfy { itemMarkers.contains($0) }
             return hasComposer && hasTitle
         }

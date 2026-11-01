@@ -66,3 +66,4 @@ doppelt gebaute Features (Coach vs. Personal Concierge), ein komplett
 | Claude | 2026-10-31 | claude/ingest-gesundheit | Import: Zeitbudget statt 30-Min-Abbruch, Hash erst nach Erfolg, Venue-Aliasse im Matching, eingefrorene Quellen freigeben |
 | Claude | 2026-10-31 | claude/browserless-taeglich | Browserless-Quellen (renderJs) höchstens täglich, Untergrenze in adjustCrawlFrequency |
 | Claude | 2026-10-31 | claude/ingest-dispatch | run-all-sources startet jede Quelle als eigenen ingest-source-Aufruf (pg_net) statt in einer Instanz |
+| Claude | 2026-11-01 | claude/app-feinschliff-nov | iOS: Pausen-Design, Abo-Wochentagsvarianten (+Migration 144), Spielstätten-Konzertliste, Karten-Sheet, Hörbeispiel-Filter |
