@@ -78,6 +78,26 @@ private struct RemoteCover: View {
     }
 }
 
+/// Abo-Varianten nach Wochentag (Nutzerwunsch 01.11.2026): Viele Abos gibt
+/// es doppelt, z. B. BRSO Abo A am Donnerstag ODER am Freitag mit demselben
+/// Programm. Varianten = Wochentage, an denen mindestens zwei Termine liegen,
+/// sofern es mindestens zwei solche Wochentage gibt.
+enum SubscriptionVariant {
+    static let names = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"]
+
+    /// ISO-Wochentag in München (1 = Mo … 7 = So).
+    static func isoWeekday(_ date: Date) -> Int {
+        let weekday = KlangradarDateTime.calendar.component(.weekday, from: date) // 1 = So
+        return weekday == 1 ? 7 : weekday - 1
+    }
+
+    static func variants(_ events: [ConcertEvent]) -> [Int] {
+        let counts = Dictionary(grouping: events.compactMap(\.startDate).map(isoWeekday), by: { $0 }).mapValues(\.count)
+        let days = counts.filter { $0.value >= 2 }.keys.sorted()
+        return days.count >= 2 ? days : []
+    }
+}
+
 struct SubscriptionDetailView: View {
     let subscription: ConcertSubscription
     let repository: any EventRepository
@@ -89,9 +109,16 @@ struct SubscriptionDetailView: View {
     @State private var isLoading = true
     @State private var isSaving = false
     @State private var errorMessage: String?
+    /// Gewählte Variante (ISO-Wochentag), nil = alle Termine.
+    @State private var weekday: Int?
 
-    private var upcoming: [ConcertEvent] { events.filter { ($0.startDate ?? .distantFuture) >= Calendar.current.startOfDay(for: .now) } }
-    private var past: [ConcertEvent] { events.filter { ($0.startDate ?? .distantFuture) < Calendar.current.startOfDay(for: .now) } }
+    private var variants: [Int] { SubscriptionVariant.variants(events.filter { ($0.startDate ?? .distantFuture) >= Calendar.current.startOfDay(for: .now) }) }
+    private func inVariant(_ event: ConcertEvent) -> Bool {
+        guard let weekday, let date = event.startDate else { return true }
+        return SubscriptionVariant.isoWeekday(date) == weekday
+    }
+    private var upcoming: [ConcertEvent] { events.filter { ($0.startDate ?? .distantFuture) >= Calendar.current.startOfDay(for: .now) && inVariant($0) } }
+    private var past: [ConcertEvent] { events.filter { ($0.startDate ?? .distantFuture) < Calendar.current.startOfDay(for: .now) && inVariant($0) } }
     private var nextEvent: ConcertEvent? { upcoming.first { $0.id != currentEventID } }
 
     /// Titelbild (Nutzerwunsch 29.10.2026): das Foto des Ensembles, das in
@@ -176,6 +203,27 @@ struct SubscriptionDetailView: View {
                 }
                 if let pattern { Text(pattern).font(.subheadline).foregroundStyle(.secondary) }
             }
+            if variants.count >= 2 {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Dieses Abo gibt es an mehreren Wochentagen – wähle deine Reihe:")
+                        .font(.footnote).foregroundStyle(.secondary)
+                    Picker("Reihe", selection: $weekday) {
+                        Text("Alle").tag(Int?.none)
+                        ForEach(variants, id: \.self) { day in
+                            Text(SubscriptionVariant.names[day - 1]).tag(Int?.some(day))
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .onChange(of: weekday) { _, newValue in
+                        // Bereits gespeichertes Abo: Variante direkt übernehmen.
+                        guard isMine else { return }
+                        Task {
+                            try? await PlannerAPI.setMine(subscription.id, true, weekday: newValue)
+                            NotificationCenter.default.post(name: .subscriptionsChanged, object: nil)
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -195,7 +243,8 @@ struct SubscriptionDetailView: View {
                 Button { Task { await toggleMine() } } label: {
                     Group {
                         if isSaving { ProgressView() } else {
-                            Label(isMine ? "In meinem Profil" : "Ich habe dieses Abo", systemImage: isMine ? "checkmark.circle.fill" : "plus.circle")
+                            Label(isMine ? "In meinem Profil" : (weekday.map { "Ich habe das \(SubscriptionVariant.names[$0 - 1])-Abo" } ?? "Ich habe dieses Abo"),
+                                  systemImage: isMine ? "checkmark.circle.fill" : "plus.circle")
                         }
                     }
                     .font(.subheadline.weight(.semibold))
@@ -286,6 +335,7 @@ struct SubscriptionDetailView: View {
         defer { isLoading = false }
         guard let overview = await PlannerAPI.overview(subscription.id) else { return }
         isMine = overview.isMine
+        if isMine { weekday = await PlannerAPI.myVariants()[subscription.id] }
         let loaded = (try? await repository.events(ids: overview.eventIDs)) ?? []
         let enriched = (try? await repository.enrichingImages(in: loaded)) ?? loaded
         events = enriched.sorted { ($0.startDate ?? .distantFuture) < ($1.startDate ?? .distantFuture) }
@@ -296,7 +346,7 @@ struct SubscriptionDetailView: View {
         errorMessage = nil
         defer { isSaving = false }
         do {
-            try await PlannerAPI.setMine(subscription.id, !isMine)
+            try await PlannerAPI.setMine(subscription.id, !isMine, weekday: weekday)
             isMine.toggle()
             Haptics.confirm()
             NotificationCenter.default.post(name: .subscriptionsChanged, object: nil)

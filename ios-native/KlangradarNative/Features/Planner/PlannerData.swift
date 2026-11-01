@@ -141,11 +141,29 @@ enum PlannerAPI {
         return (rows ?? []).compactMap { $0.object("concert_subscriptions").flatMap(ConcertSubscription.init) }
     }
 
-    static func setMine(_ subscriptionID: UUID, _ isMine: Bool) async throws {
+    /// Gewählte Abo-Variante je Abo (ISO-Wochentag, 1 = Mo … 7 = So), z. B.
+    /// Donnerstag- oder Freitag-Reihe beim BRSO (Nutzerwunsch 01.11.2026).
+    static func myVariants() async -> [UUID: Int] {
+        guard let client, let token, let userID else { return [:] }
+        let rows: [JSONObject]? = try? await client.get(table: "user_concert_subscriptions", queryItems: [
+            URLQueryItem(name: "select", value: "subscription_id,weekday"),
+            URLQueryItem(name: "user_id", value: "eq.\(userID.uuidString)")
+        ], accessToken: token)
+        var result: [UUID: Int] = [:]
+        for row in rows ?? [] {
+            if let id = row.string("subscription_id").flatMap(UUID.init(uuidString:)), let weekday = row.integer("weekday") {
+                result[id] = weekday
+            }
+        }
+        return result
+    }
+
+    static func setMine(_ subscriptionID: UUID, _ isMine: Bool, weekday: Int? = nil) async throws {
         guard let client, let token, let userID else { return }
         if isMine {
             try await client.upsert(table: "user_concert_subscriptions", values: [
-                "user_id": .string(userID.uuidString), "subscription_id": .string(subscriptionID.uuidString)
+                "user_id": .string(userID.uuidString), "subscription_id": .string(subscriptionID.uuidString),
+                "weekday": weekday.map { .number(Double($0)) } ?? .null
             ], accessToken: token, conflictColumns: "user_id,subscription_id")
         } else {
             try await client.delete(table: "user_concert_subscriptions", filters: [
@@ -171,8 +189,9 @@ enum PlannerAPI {
         guard let client else { return [:] }
         let mine = await mySubscriptions()
         guard !mine.isEmpty else { return [:] }
+        let variants = await myVariants()
         let rows: [JSONObject]? = try? await client.get(table: "event_concert_subscriptions", queryItems: [
-            URLQueryItem(name: "select", value: "event_id,subscription_id"),
+            URLQueryItem(name: "select", value: "event_id,subscription_id,events(start_datetime)"),
             URLQueryItem(name: "subscription_id", value: "in.(\(mine.map(\.id.uuidString).joined(separator: ",")))")
         ])
         let byID = Dictionary(uniqueKeysWithValues: mine.map { ($0.id, $0) })
@@ -180,6 +199,10 @@ enum PlannerAPI {
         for row in rows ?? [] {
             guard let event = row.string("event_id").flatMap(UUID.init(uuidString:)),
                   let sub = row.string("subscription_id").flatMap(UUID.init(uuidString:)).flatMap({ byID[$0] }) else { continue }
+            // Gewählte Variante (z. B. nur Freitage): andere Wochentage weglassen.
+            if let weekday = variants[sub.id],
+               let start = row.object("events")?.string("start_datetime").flatMap(FlexibleDateParser.date(from:)),
+               SubscriptionVariant.isoWeekday(start) != weekday { continue }
             result[event, default: []].append(sub)
         }
         return result

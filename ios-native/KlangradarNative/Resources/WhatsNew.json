@@ -1,32 +1,30 @@
 {
   "_hinweis": "Erstellt von Claude Code. Bei jedem Release mit Neuerungen hier pflegen und die id ändern: Die App zeigt den Inhalt einmal pro id als 'Neu in Klangradar', upload-testflight.sh übernimmt ihn als TestFlight-Testhinweis. Ton: kurz, sachlich, ganze Sätze, keine Aufzählungsflut.",
-  "id": "2026-10-31-ticket-privat-pause",
+  "id": "2026-11-01-pause-abo-varianten-spielstaetten",
   "title": "Neu in Klangradar",
-  "intro": "Die Konzertseite ist aufgeräumter, und die Pause steht im Programm als eigener Punkt.",
+  "intro": "Spielstätten zeigen ihre kommenden Konzerte übersichtlicher, und Abos mit mehreren Terminreihen lassen sich nach Wochentag unterscheiden.",
   "sections": [
     {
-      "title": "Konzertseite",
-      "symbol": "music.note.list",
+      "title": "Spielstätten",
+      "symbol": "building.columns.fill",
       "items": [
-        "Im Programm erscheint die Pause jetzt als eigene Zeile zwischen den Werken.",
-        "„Ticket übrig“ und „Privat hingehen“ sind von der Konzertseite verschwunden. Du findest beides gesammelt für alle gemerkten Konzerte unter Freunde."
-      ]
-    },
-    {
-      "title": "Profil",
-      "symbol": "person.crop.circle.fill",
-      "items": [
-        "„Dein Geschmack“ zeigt deine Lieblingskomponist:innen, Künstler:innen, Orte und Konzerttage jetzt als Karten, so wie „Dein Konzertjahr“.",
-        "„Interessen“ sieht aus wie beim ersten Start: Genres als Kacheln, Personen, Ensembles und Orte als Bildraster zum Antippen.",
-        "Abos stehen im Profil jetzt etwas zurückhaltender unter „Abos & Zyklen“."
+        "„Kommende Konzerte“ einer Spielstätte lassen sich nach Woche, Wochenende oder Monat filtern und bei vielen Terminen durchsuchen.",
+        "Die Vorschau einer Spielstätte auf der Karte ist neu gestaltet, mit großem Bild, Route und den nächsten Konzerten."
       ]
     },
     {
       "title": "Abos",
       "symbol": "rectangle.stack.fill",
       "items": [
-        "Als Titelbild eines Abos erscheint jetzt das Ensemble, das darin spielt, statt des Bildes einer einzelnen Veranstaltung.",
-        "Beim BR-Symphonieorchester, beim Münchner Rundfunkorchester und beim BR-Chor werden deutlich mehr Abos und Reihen erkannt, zum Beispiel Sonntagskonzerte, Familienkonzerte und das Chor-Abonnement."
+        "Gibt es ein Abo an verschiedenen Wochentagen, etwa beim BR-Symphonieorchester donnerstags und freitags, wählst du deine Variante aus und siehst nur deine Termine."
+      ]
+    },
+    {
+      "title": "Konzerte und Werke",
+      "symbol": "music.note",
+      "items": [
+        "Die Pause im Programm hat ein eigenes, deutlicheres Design.",
+        "Hörbeispiele zu Werken zeigen nur noch passende klassische Aufnahmen, leere Kontaktfelder entfallen."
       ]
     }
   ]

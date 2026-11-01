@@ -67,6 +67,7 @@ struct VenueMapView: View {
             )
             .presentationDetents([.fraction(0.68), .large])
             .presentationDragIndicator(.visible)
+            .presentationBackground(Color(uiColor: .systemGroupedBackground))
         }
         .sheet(isPresented: showsVenueGroupSheet) {
             VenueGroupPickerSheet(venues: selectedVenueGroup ?? []) { venue in
@@ -365,32 +366,48 @@ private struct VenuePreviewSheet: View {
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
+            // Neu gestaltet 01.11.2026 (Nutzerfeedback: Sheet wirkte
+            // chaotisch, die Karte schien grünlich durch): fester Hintergrund,
+            // Titel auf dem Bild, Konzerte als Karte mit Datumsspalte.
             ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    AsyncImage(url: venueImageURL) { image in
-                        image.resizable().scaledToFill()
-                    } placeholder: {
-                        LinearGradient(
-                            colors: [KlangradarTheme.deepInk, KlangradarTheme.accent],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                        .overlay { Image(systemName: "building.columns").font(.largeTitle).foregroundStyle(.white.opacity(0.8)) }
-                    }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 150)
-                    .clipped()
-                    .clipShape(.rect(cornerRadius: 22))
+                VStack(alignment: .leading, spacing: 16) {
+                    ZStack(alignment: .bottomLeading) {
+                        AsyncImage(url: venueImageURL) { image in
+                            image.resizable().scaledToFill()
+                        } placeholder: {
+                            LinearGradient(
+                                colors: [KlangradarTheme.deepInk, KlangradarTheme.accent],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                            .overlay { Image(systemName: "building.columns").font(.largeTitle).foregroundStyle(.white.opacity(0.8)) }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 170)
+                        .clipped()
+                        .overlay {
+                            LinearGradient(colors: [.clear, .black.opacity(0.65)], startPoint: .center, endPoint: .bottom)
+                        }
 
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text(venue.name).font(.title2.bold())
-                        if let city = venue.city { Text(city).foregroundStyle(.secondary) }
-                        Text("\(venue.upcomingEventCount) kommende Veranstaltungen").font(.subheadline).foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(venue.name)
+                                .font(.title2.bold())
+                                .lineLimit(2)
+                            HStack(spacing: 6) {
+                                if let city = venue.city { Text(city) }
+                                if venue.upcomingEventCount > 0 {
+                                    Text("·")
+                                    Text("\(venue.upcomingEventCount) Konzerte")
+                                }
+                            }
+                            .font(.subheadline.weight(.medium))
+                            .opacity(0.9)
+                        }
+                        .foregroundStyle(.white)
+                        .padding(16)
                     }
+                    .clipShape(.rect(cornerRadius: 22, style: .continuous))
 
-                    // Nutzerwunsch 30.10.2026: Aktionen wie in Apple Maps direkt
-                    // unter dem Titel, zwei gleich breite Knöpfe statt zweier
-                    // Kapseln an den Rändern unten.
                     HStack(spacing: 10) {
                         Button { openRoute() } label: {
                             Label("Route", systemImage: "arrow.triangle.turn.up.right.diamond.fill")
@@ -403,7 +420,7 @@ private struct VenuePreviewSheet: View {
                             NavigationLink {
                                 EntityDetailView(route: EntityRoute(kind: .venue, identifier: slug), repository: repository)
                             } label: {
-                                Label("Spielstätte", systemImage: "info.circle")
+                                Label("Alle Konzerte", systemImage: "list.bullet")
                                     .font(.subheadline.weight(.semibold))
                                     .frame(maxWidth: .infinity, minHeight: 46)
                             }
@@ -413,31 +430,54 @@ private struct VenuePreviewSheet: View {
                         }
                     }
 
-                    if !events.isEmpty { Text("Nächste Konzerte").font(.headline).padding(.top, 4) }
-                    ForEach(events.prefix(3)) { event in
-                        Button {
-                            navigationPath.append(event)
-                        } label: {
-                            HStack(spacing: 12) {
-                                EventArtwork(event: event).frame(width: 48, height: 48).clipped().clipShape(.rect(cornerRadius: 10))
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(event.title).font(.headline).lineLimit(1)
-                                    Text(event.startDate.map { KlangradarDateTime.string($0, format: "dd.MM.yyyy, HH:mm") } ?? "").font(.caption).foregroundStyle(.secondary)
+                    if !events.isEmpty {
+                        Text("Als Nächstes").font(.headline).padding(.top, 2)
+                        VStack(spacing: 0) {
+                            ForEach(Array(events.prefix(5).enumerated()), id: \.element.id) { index, event in
+                                Button {
+                                    navigationPath.append(event)
+                                } label: {
+                                    HStack(spacing: 12) {
+                                        VStack(spacing: 1) {
+                                            Text(event.startDate.map { KlangradarDateTime.string($0, format: "EEE") } ?? "")
+                                                .font(.caption2.weight(.bold)).textCase(.uppercase)
+                                                .foregroundStyle(KlangradarTheme.accent)
+                                            Text(event.startDate.map { KlangradarDateTime.string($0, format: "d") } ?? "–")
+                                                .font(.title3.bold().monospacedDigit())
+                                            Text(event.startDate.map { KlangradarDateTime.string($0, format: "MMM") } ?? "")
+                                                .font(.caption2).foregroundStyle(.secondary)
+                                        }
+                                        .frame(width: 40)
+                                        EventArtwork(event: event)
+                                            .frame(width: 52, height: 52)
+                                            .clipShape(.rect(cornerRadius: 11, style: .continuous))
+                                        VStack(alignment: .leading, spacing: 3) {
+                                            Text(event.title).font(.subheadline.weight(.semibold)).lineLimit(2).multilineTextAlignment(.leading)
+                                            Text(event.startDate.map { KlangradarDateTime.string($0, format: "HH:mm 'Uhr'") } ?? "")
+                                                .font(.caption).foregroundStyle(.secondary)
+                                        }
+                                        Spacer(minLength: 4)
+                                        Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(.tertiary)
+                                    }
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 11)
+                                    .contentShape(.rect)
                                 }
-                                Spacer(); Image(systemName: "chevron.right").foregroundStyle(.tertiary)
+                                .buttonStyle(.plain)
+                                if index < min(events.count, 5) - 1 { Divider().padding(.leading, 118) }
                             }
                         }
-                        .buttonStyle(.plain)
+                        .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 20, style: .continuous))
                     }
-
                 }
                 .padding(20)
             }
+            .background(Color(uiColor: .systemGroupedBackground))
             .navigationDestination(for: ConcertEvent.self) { EventDetailView(event: $0, repository: eventRepository, contentRepository: repository) }
             .navigationDestination(for: EntityRoute.self) { EntityDetailView(route: $0, repository: repository) }
         }
         .task {
-            async let loadedEvents = try? repository.venueEvents(venueID: venue.id, limit: 3)
+            async let loadedEvents = try? repository.venueEvents(venueID: venue.id, limit: 5)
             if let slug = venue.slug {
                 let detail = try? await repository.detail(kind: .venue, identifier: slug)
                 venueImageURL = detail?.gallery.first?.url ?? detail?.primaryImageURL

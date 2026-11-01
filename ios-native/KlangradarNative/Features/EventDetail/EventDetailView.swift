@@ -522,12 +522,13 @@ struct EventDetailView: View {
                                 // Nutzerwunsch 30.10.2026: Pause als eigener Programmpunkt.
                                 if link.bool("after_intermission") == true,
                                    index == 0 || works[index - 1].bool("after_intermission") != true {
-                                    // Trenner davor kommt schon von der vorigen Zeile.
                                     intermissionRow
-                                    Divider().padding(.leading, 18)
                                 }
                                 programRow(link)
-                                if index < works.count - 1 { Divider().padding(.leading, 18) }
+                                // Kein Trenner direkt vor der Pause – die Pause bringt ihre eigenen Linien mit.
+                                if index < works.count - 1, !startsSecondHalf(works, at: index + 1) {
+                                    Divider().padding(.leading, 18)
+                                }
                             }
                         }
                     }
@@ -567,18 +568,31 @@ struct EventDetailView: View {
         }
     }
 
+    private func startsSecondHalf(_ works: [JSONObject], at index: Int) -> Bool {
+        guard works.indices.contains(index), works[index].bool("after_intermission") == true else { return false }
+        return index == 0 || works[index - 1].bool("after_intermission") != true
+    }
+
+    /// Pause als eigener Programmpunkt (Nutzerfeedback 01.11.2026: graues
+    /// Band wirkte wie ein Fehler): Linie – Kapsel "Pause" – Linie, in der
+    /// Akzentfarbe, mit Luft nach oben und unten.
     private var intermissionRow: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "cup.and.saucer.fill")
-            Text("Pause").font(.headline)
-            Spacer()
+        HStack(spacing: 12) {
+            Capsule().fill(KlangradarTheme.accent.opacity(0.22)).frame(height: 1)
+            Label("Pause", systemImage: "cup.and.saucer.fill")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(KlangradarTheme.accent)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 7)
+                .background(KlangradarTheme.accent.opacity(0.1), in: .capsule)
+                .fixedSize()
+            Capsule().fill(KlangradarTheme.accent.opacity(0.22)).frame(height: 1)
         }
-        .foregroundStyle(.secondary)
         .padding(.horizontal, 18)
-        .padding(.vertical, 12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.secondary.opacity(0.06))
+        .padding(.vertical, 14)
+        .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)
+        .accessibilityLabel("Pause")
     }
 
     @ViewBuilder private func programRow(_ link: JSONObject) -> some View {
