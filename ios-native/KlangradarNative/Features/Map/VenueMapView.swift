@@ -359,6 +359,10 @@ private struct VenuePreviewSheet: View {
     @State private var events: [ConcertEvent] = []
     @State private var venueImageURL: URL?
     @State private var websiteURL: URL?
+    @State private var phoneURL: URL?
+    @State private var galleryURLs: [URL] = []
+    @State private var travelMinutes: Int?
+    @State private var distanceText: String?
     @Environment(\.dismiss) private var dismiss
     // War auf [ConcertEvent] eingeschränkt — dadurch konnten Venue-/
     // Mitwirkenden-Links von einer hier gepushten EventDetailView nicht
@@ -401,16 +405,15 @@ private struct VenuePreviewSheet: View {
                             .accessibilityLabel("Schließen")
                     }
 
-                    HStack(spacing: 10) {
+                    // 02.11.2026 (Vergleich mit Apple Karten): schmale, gleich
+                    // breite Aktionen, die Route zeigt die Fahrzeit.
+                    HStack(spacing: 8) {
                         Button { openRoute() } label: {
-                            MapsActionLabel(title: "Route", systemImage: "arrow.triangle.turn.up.right.diamond.fill", prominent: true)
+                            MapsActionLabel(title: travelMinutes.map { "\($0) Min." } ?? "Route",
+                                            systemImage: travelMinutes == nil ? "arrow.triangle.turn.up.right.diamond.fill" : "tram.fill",
+                                            prominent: true)
                         }
                         .buttonStyle(.plain)
-                        if let websiteURL {
-                            Link(destination: websiteURL) {
-                                MapsActionLabel(title: "Website", systemImage: "safari.fill", prominent: false)
-                            }
-                        }
                         if let slug = venue.slug {
                             Button {
                                 navigationPath.append(EntityRoute(kind: .venue, identifier: slug))
@@ -419,17 +422,48 @@ private struct VenuePreviewSheet: View {
                             }
                             .buttonStyle(.plain)
                         }
+                        if let websiteURL {
+                            Link(destination: websiteURL) {
+                                MapsActionLabel(title: "Website", systemImage: "safari.fill", prominent: false)
+                            }
+                        }
+                        if let phoneURL {
+                            Link(destination: phoneURL) {
+                                MapsActionLabel(title: "Anrufen", systemImage: "phone.fill", prominent: false)
+                            }
+                        }
                     }
 
-                    if let venueImageURL {
-                        AsyncImage(url: venueImageURL) { image in
-                            image.resizable().scaledToFill()
-                        } placeholder: {
-                            Color.secondary.opacity(0.15)
+                    // Kennzahlen wie „Bewertungen · Entfernung“ in Karten.
+                    HStack(spacing: 0) {
+                        if venue.upcomingEventCount > 0 {
+                            mapsStat("Konzerte", "\(venue.upcomingEventCount)", symbol: "music.note")
                         }
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 150)
-                        .clipShape(.rect(cornerRadius: 20, style: .continuous))
+                        if let next = events.first?.startDate {
+                            mapsStat("Als Nächstes", KlangradarDateTime.string(next, format: "EE, d. MMM"), symbol: "calendar")
+                        }
+                        if let distanceText {
+                            mapsStat("Entfernung", distanceText, symbol: "location")
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+
+                    if !galleryURLs.isEmpty {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 10) {
+                                ForEach(galleryURLs, id: \.self) { url in
+                                    AsyncImage(url: url) { image in
+                                        image.resizable().scaledToFill()
+                                    } placeholder: {
+                                        Color.secondary.opacity(0.15)
+                                    }
+                                    .frame(width: galleryURLs.count == 1 ? nil : 220, height: 150)
+                                    .frame(maxWidth: galleryURLs.count == 1 ? .infinity : nil)
+                                    .clipShape(.rect(cornerRadius: 18, style: .continuous))
+                                }
+                            }
+                        }
+                        .scrollClipDisabled()
                     }
 
                     if !events.isEmpty {
@@ -446,7 +480,8 @@ private struct VenuePreviewSheet: View {
                                 if index < min(events.count, 5) - 1 { Divider().padding(.leading, 14) }
                             }
                         }
-                        .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 20, style: .continuous))
+                        // Glas statt weißer Fläche, wie die Karten in Apple Karten.
+                        .background(.thinMaterial, in: .rect(cornerRadius: 20, style: .continuous))
                     }
                 }
                 .padding(20)
@@ -455,15 +490,48 @@ private struct VenuePreviewSheet: View {
             .navigationDestination(for: ConcertEvent.self) { EventDetailView(event: $0, repository: eventRepository, contentRepository: repository) }
             .navigationDestination(for: EntityRoute.self) { EntityDetailView(route: $0, repository: repository) }
         }
+        // 02.11.2026 (Nutzer: „Popup lädt sehr lange“): Konzerte, Detail und
+        // Fahrzeit laden parallel; jedes Teil erscheint, sobald es da ist,
+        // statt erst nach der kompletten Spielstätten-Detailseite.
+        .task { events = (try? await repository.venueEvents(venueID: venue.id, limit: 5)) ?? [] }
+        .task { await loadTravel() }
         .task {
-            async let loadedEvents = try? repository.venueEvents(venueID: venue.id, limit: 5)
-            if let slug = venue.slug {
-                let detail = try? await repository.detail(kind: .venue, identifier: slug)
-                venueImageURL = detail?.gallery.first?.url ?? detail?.primaryImageURL
-                websiteURL = detail?.fields.string("website_url").flatMap(URL.init(string:))
-            }
-            events = (await loadedEvents) ?? []
+            guard let slug = venue.slug else { return }
+            let detail = try? await repository.detail(kind: .venue, identifier: slug)
+            venueImageURL = detail?.gallery.first?.url ?? detail?.primaryImageURL
+            websiteURL = detail?.fields.string("website_url").flatMap(URL.init(string:))
+            phoneURL = detail?.fields.string("phone")
+                .map { $0.filter { "+0123456789".contains($0) } }
+                .flatMap { $0.isEmpty ? nil : URL(string: "tel:\($0)") }
+            let gallery = (detail?.gallery ?? []).map(\.url)
+            galleryURLs = Array((gallery.isEmpty ? [venueImageURL].compactMap { $0 } : gallery).prefix(6))
         }
+    }
+
+    /// Entfernung und ÖPNV-Fahrzeit vom aktuellen Standort (nur mit Freigabe).
+    private func loadTravel() async {
+        let manager = CLLocationManager()
+        guard [.authorizedWhenInUse, .authorizedAlways].contains(manager.authorizationStatus),
+              let here = manager.location else { return }
+        let target = CLLocation(latitude: venue.coordinate.latitude, longitude: venue.coordinate.longitude)
+        let meters = here.distance(from: target)
+        distanceText = meters < 1000 ? "\(Int(meters.rounded())) m" : String(format: "%.1f km", meters / 1000).replacingOccurrences(of: ".", with: ",")
+        let request = MKDirections.Request()
+        request.source = MKMapItem.forCurrentLocation()
+        request.destination = MKMapItem(placemark: MKPlacemark(coordinate: venue.coordinate))
+        request.transportType = .transit
+        if let eta = try? await MKDirections(request: request).calculateETA() {
+            travelMinutes = Int((eta.expectedTravelTime / 60).rounded())
+        }
+    }
+
+    private func mapsStat(_ title: String, _ value: String, symbol: String) -> some View {
+        VStack(spacing: 2) {
+            Text(title).font(.caption).foregroundStyle(.secondary)
+            Label(value, systemImage: symbol).font(.subheadline.weight(.semibold)).labelStyle(.titleAndIcon).lineLimit(1)
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
     }
 
     private var subtitleLine: String {
@@ -551,15 +619,15 @@ private struct MapsActionLabel: View {
     let prominent: Bool
 
     var body: some View {
-        VStack(spacing: 4) {
-            Image(systemName: systemImage).font(.title3.weight(.semibold))
-            Text(title).font(.subheadline.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.8)
+        VStack(spacing: 3) {
+            Image(systemName: systemImage).font(.body.weight(.semibold))
+            Text(title).font(.footnote.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.75)
         }
         .foregroundStyle(prominent ? Color.white : KlangradarTheme.accent)
-        .frame(maxWidth: .infinity, minHeight: 62)
-        .modifier(MapsGlass(shape: RoundedRectangle(cornerRadius: 16, style: .continuous),
-                            tint: prominent ? KlangradarTheme.accent : KlangradarTheme.accent.opacity(0.14)))
-        .contentShape(.rect(cornerRadius: 16))
+        .frame(maxWidth: .infinity, minHeight: 52)
+        .modifier(MapsGlass(shape: RoundedRectangle(cornerRadius: 14, style: .continuous),
+                            tint: prominent ? KlangradarTheme.accent : KlangradarTheme.accent.opacity(0.18)))
+        .contentShape(.rect(cornerRadius: 14))
     }
 }
 
