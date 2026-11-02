@@ -1,4 +1,5 @@
 import ActivityKit
+import AppIntents
 import SwiftUI
 import WidgetKit
 
@@ -14,6 +15,10 @@ struct KlangradarWidgetsBundle: WidgetBundle {
     var body: some Widget {
         NextConcertWidget()
         ConcertLiveActivity()
+        if #available(iOS 18.0, *) {
+            CoachControl()
+            TodayConcertsControl()
+        }
     }
 }
 
@@ -32,6 +37,34 @@ private func circularLabel(_ date: Date) -> String {
 }
 
 private func clock(_ date: Date) -> String { date.formatted(.dateTime.hour().minute().locale(Locale(identifier: "de_DE"))) }
+
+// MARK: - Kontrollzentrum & Aktionstaste (iOS 18, 02.11.2026)
+
+@available(iOS 18.0, *)
+struct CoachControl: ControlWidget {
+    var body: some ControlWidgetConfiguration {
+        StaticControlConfiguration(kind: "de.klangradar.native.control.coach") {
+            ControlWidgetButton(action: OpenURLIntent(URL(string: "de.klangradar.native://coach")!)) {
+                Label("Klangradar KI", systemImage: "sparkles")
+            }
+        }
+        .displayName("Klangradar KI")
+        .description("Öffnet die Klangradar KI für Konzertempfehlungen.")
+    }
+}
+
+@available(iOS 18.0, *)
+struct TodayConcertsControl: ControlWidget {
+    var body: some ControlWidgetConfiguration {
+        StaticControlConfiguration(kind: "de.klangradar.native.control.today") {
+            ControlWidgetButton(action: OpenURLIntent(URL(string: "de.klangradar.native://calendar")!)) {
+                Label("Konzerte heute", systemImage: "music.note.list")
+            }
+        }
+        .displayName("Konzerte heute")
+        .description("Öffnet den Klangradar-Kalender mit dem heutigen Tag.")
+    }
+}
 
 // MARK: - Widget "Nächstes Konzert"
 

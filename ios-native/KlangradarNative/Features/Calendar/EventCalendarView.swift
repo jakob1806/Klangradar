@@ -1,4 +1,5 @@
 import SwiftUI
+import TipKit
 
 struct EventCalendarView: View {
     let repository: any EventRepository
@@ -176,6 +177,7 @@ struct EventCalendarView: View {
                 ForEach(Array(list.enumerated()), id: \.element.id) { index, event in
                     NavigationLink(value: event) { CalendarEventRow(event: event) }
                         .buttonStyle(.plain)
+                        .modifier(FirstRowTip(isFirst: index == 0))
                     if index < list.count - 1 { Divider().padding(.leading, 14) }
                 }
             }
@@ -396,6 +398,19 @@ private struct SwitcherGlass: ViewModifier {
         } else {
             content.background(.regularMaterial, in: .capsule)
                 .overlay(Capsule().stroke(Color.white.opacity(0.4), lineWidth: 0.5))
+        }
+    }
+}
+
+/// Tipp nur an der ersten Zeile. Die optionale `popoverTip`-Variante gibt es
+/// erst ab iOS 26, die App unterstützt noch iOS 17.
+private struct FirstRowTip: ViewModifier {
+    let isFirst: Bool
+    func body(content: Content) -> some View {
+        if isFirst {
+            content.popoverTip(ConcertLongPressTip(), arrowEdge: .bottom)
+        } else {
+            content
         }
     }
 }

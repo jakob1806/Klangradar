@@ -1,7 +1,9 @@
 import MapKit
 import SwiftUI
+import TipKit
 
-struct EntityRoute: Hashable {
+struct EntityRoute: Hashable, Identifiable {
+    var id: String { "\(kind.rawValue):\(identifier)" }
     let kind: EntityKind
     let identifier: String
 }
@@ -218,6 +220,7 @@ struct EntityDetailView: View {
             .padding(.horizontal, 8)
             .background(.ultraThinMaterial, in: .capsule)
             .padding(8)
+            .popoverTip(WrongImageTip())
     }
 
     private func venueHeader(_ detail: EntityDetail) -> some View {
@@ -876,6 +879,7 @@ private struct FollowBellButton: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(notifies ? "Mitteilungen zu neuen Konzerten von \(title) ausschalten" : "Mitteilungen zu neuen Konzerten von \(title) einschalten")
+        .popoverTip(FollowBellTip())
         .task(id: id) { notifies = await PlannerAPI.followNotifies(kind: kind, id: id) }
     }
 }

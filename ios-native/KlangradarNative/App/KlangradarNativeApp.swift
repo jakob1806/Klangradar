@@ -7,6 +7,8 @@ struct KlangradarNativeApp: App {
     private let environment = AppEnvironment.make()
     @AppStorage(KlangradarTheme.accentStorageKey) private var accentColorHex = KlangradarTheme.defaultAccentHex
 
+    init() { KlangradarTips.configure() }
+
     var body: some Scene {
         WindowGroup {
             Group {

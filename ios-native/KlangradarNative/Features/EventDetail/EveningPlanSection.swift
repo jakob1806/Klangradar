@@ -15,6 +15,7 @@ struct EveningPlanSection: View {
     let detail: JSONObject
 
     @State private var venueItem: MKMapItem?
+    @State private var weather: ConcertWeather?
     @State private var restaurants: [MKMapItem] = []
     @State private var didSearch = false
     @State private var etas: [String: TravelETA] = [:]
@@ -107,18 +108,45 @@ struct EveningPlanSection: View {
                 }
                 // Ticket liegt jetzt zusammen mit dem Sitzplatz in der
                 // "Ticket & Platz"-Karte (SeatCard, Nutzerwunsch 27.10.2026).
+                if let weather { weatherCard(weather) }
                 if !goodToKnow.isEmpty { goodToKnowCard }
                 if !restaurants.isEmpty { restaurantList }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .task { await search() }
             .task(id: venueItem?.placemark.coordinate.latitude) { await followLocation() }
+            .task(id: venueItem?.placemark.coordinate.latitude) {
+                guard let venueItem, let startDate else { return }
+                weather = await ConcertWeather.load(at: venueItem.placemark.coordinate, for: startDate)
+            }
             .onChange(of: scenePhase) { _, phase in
                 // Zurück in der App: Standort kann sich geändert haben.
                 guard phase == .active, let venueItem else { return }
                 Task { await estimateTravel(to: venueItem) }
             }
         }
+    }
+
+    // MARK: Wetter (02.11.2026)
+
+    private func weatherCard(_ weather: ConcertWeather) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: weather.symbol)
+                .symbolRenderingMode(.multicolor)
+                .font(.title)
+                .frame(width: 44)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Wetter zum Konzertbeginn").font(.caption).foregroundStyle(.secondary)
+                Text("\(weather.temperature) °C · \(weather.summary)").font(.headline)
+                if let hint = weather.hint {
+                    Text(hint).font(.subheadline).foregroundStyle(.secondary)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(16)
+        .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 20, style: .continuous))
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: Karte & Countdown
@@ -581,5 +609,76 @@ private struct PlaceCard: View {
         let options = MKLookAroundSnapshotter.Options()
         options.size = CGSize(width: 360, height: 220)
         photo = try? await MKLookAroundSnapshotter(scene: scene, options: options).snapshot.image
+    }
+}
+
+/// Wetter am Konzertort zur Beginnzeit über Open-Meteo (frei, ohne Schlüssel,
+/// bis 16 Tage im Voraus). Nur für Konzerte, die man besucht (02.11.2026).
+struct ConcertWeather: Sendable {
+    let temperature: Int
+    let precipitationChance: Int
+    let code: Int
+
+    var summary: String {
+        switch code {
+        case 0: "klar"
+        case 1, 2: "leicht bewölkt"
+        case 3: "bewölkt"
+        case 45, 48: "Nebel"
+        case 51...57: "Nieselregen"
+        case 61...67, 80...82: "Regen"
+        case 71...77, 85, 86: "Schnee"
+        case 95...99: "Gewitter"
+        default: "wechselhaft"
+        }
+    }
+
+    var symbol: String {
+        switch code {
+        case 0: "moon.stars.fill"
+        case 1, 2: "cloud.moon.fill"
+        case 3: "cloud.fill"
+        case 45, 48: "cloud.fog.fill"
+        case 51...67, 80...82: "cloud.rain.fill"
+        case 71...77, 85, 86: "cloud.snow.fill"
+        case 95...99: "cloud.bolt.rain.fill"
+        default: "cloud.fill"
+        }
+    }
+
+    var hint: String? {
+        if (61...67).contains(code) || (80...82).contains(code) || precipitationChance >= 60 { return "Schirm einpacken – Regenwahrscheinlichkeit \(precipitationChance) %." }
+        if (71...77).contains(code) { return "Warm anziehen, es kann schneien." }
+        if temperature <= 3 { return "Kalt – Mantel für die Garderobe einplanen." }
+        return nil
+    }
+
+    static func load(at coordinate: CLLocationCoordinate2D, for date: Date) async -> ConcertWeather? {
+        let days = date.timeIntervalSinceNow / 86_400
+        guard days > -0.2, days < 15 else { return nil }
+        var components = URLComponents(string: "https://api.open-meteo.com/v1/forecast")!
+        components.queryItems = [
+            URLQueryItem(name: "latitude", value: String(coordinate.latitude)),
+            URLQueryItem(name: "longitude", value: String(coordinate.longitude)),
+            URLQueryItem(name: "hourly", value: "temperature_2m,precipitation_probability,weather_code"),
+            URLQueryItem(name: "timezone", value: "Europe/Berlin"),
+            URLQueryItem(name: "forecast_days", value: "16"),
+        ]
+        guard let url = components.url,
+              let (data, _) = try? await URLSession.shared.data(from: url),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let hourly = json["hourly"] as? [String: Any],
+              let times = hourly["time"] as? [String],
+              let temps = hourly["temperature_2m"] as? [Double],
+              let rain = hourly["precipitation_probability"] as? [Any],
+              let codes = hourly["weather_code"] as? [Int] else { return nil }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(identifier: "Europe/Berlin")
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
+        let target = formatter.string(from: Calendar.current.dateInterval(of: .hour, for: date)?.start ?? date)
+        guard let index = times.firstIndex(of: target), index < temps.count, index < codes.count else { return nil }
+        let chance = (index < rain.count ? rain[index] as? Int : nil) ?? 0
+        return ConcertWeather(temperature: Int(temps[index].rounded()), precipitationChance: chance, code: codes[index])
     }
 }

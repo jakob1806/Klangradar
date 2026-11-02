@@ -193,6 +193,8 @@ Deno.serve(async (req) => {
           title: notification.title,
           body: notification.body,
           data: { route: `/event/${event.slug}` },
+          // Aktionen in der Mitteilung (02.11.2026): öffnen, Freunde informieren.
+          category: "CHANGE",
         });
         const invalidTokens = results.filter((r) => r.invalidToken).map((r) => r.token);
         if (invalidTokens.length > 0) {

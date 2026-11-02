@@ -57,6 +57,54 @@ struct ConcertCountdownIntent: AppIntent {
     }
 }
 
+/// Spielstätte für Siri/Kurzbefehle (02.11.2026), gesucht über die
+/// normale App-Suche – damit „Was läuft in der Isarphilharmonie?“ geht.
+struct VenueEntity: AppEntity {
+    static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Spielstätte")
+    static let defaultQuery = VenueEntityQuery()
+    let id: String
+    let name: String
+    var displayRepresentation: DisplayRepresentation { DisplayRepresentation(title: "\(name)") }
+}
+
+struct VenueEntityQuery: EntityStringQuery {
+    @MainActor
+    private func venues(matching text: String) async -> [VenueEntity] {
+        let hits = (try? await AppEnvironment.make().content.search(query: text, limit: 30)) ?? []
+        return hits.compactMap { hit in
+            guard hit.kind == .venue, let slug = hit.slug else { return nil }
+            return VenueEntity(id: slug, name: hit.title)
+        }
+    }
+
+    func entities(matching string: String) async throws -> [VenueEntity] { await venues(matching: string) }
+    func entities(for identifiers: [String]) async throws -> [VenueEntity] {
+        identifiers.map { VenueEntity(id: $0, name: $0.replacingOccurrences(of: "-", with: " ").capitalized) }
+    }
+    func suggestedEntities() async throws -> [VenueEntity] {
+        var result: [VenueEntity] = []
+        for name in ["Isarphilharmonie", "Nationaltheater", "Herkulessaal", "Prinzregententheater", "Gärtnerplatztheater"] {
+            if let first = await venues(matching: name).first { result.append(first) }
+        }
+        return result
+    }
+}
+
+/// Öffnet die Seite einer Spielstätte mit ihren nächsten Konzerten.
+struct VenueConcertsIntent: AppIntent {
+    static let title: LocalizedStringResource = "Konzerte einer Spielstätte"
+    static let description = IntentDescription("Zeigt, was demnächst in einer Spielstätte läuft.")
+    static let openAppWhenRun = true
+
+    @Parameter(title: "Spielstätte") var venue: VenueEntity
+
+    @MainActor
+    func perform() async throws -> some IntentResult {
+        DeepLinkRouter.shared.pendingEntity = EntityRoute(kind: .venue, identifier: venue.id)
+        return .result()
+    }
+}
+
 /// Öffnet den Kalender (startet beim heutigen Tag).
 struct TodayConcertsIntent: AppIntent {
     static let title: LocalizedStringResource = "Konzerte heute"
@@ -94,6 +142,15 @@ struct KlangradarShortcuts: AppShortcutsProvider {
             ],
             shortTitle: "Nächstes Konzert",
             systemImageName: "ticket"
+        )
+        AppShortcut(
+            intent: VenueConcertsIntent(),
+            phrases: [
+                "Was läuft in \(\.$venue) in \(.applicationName)",
+                "Konzerte in \(\.$venue) mit \(.applicationName)"
+            ],
+            shortTitle: "Spielstätte",
+            systemImageName: "building.columns"
         )
         AppShortcut(
             intent: UpcomingConcertsIntent(),
