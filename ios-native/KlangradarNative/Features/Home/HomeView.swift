@@ -330,8 +330,10 @@ struct HomeView: View {
                 EventRail(title: category.title(cityName: cityStore.selectedCity?.name), events: Array(model.favoriteEvents.prefix(14)))
                 // „Weil du X gemerkt hast“ (02.11.2026).
                 if let similar = becauseYouSaved(from: events) {
-                    EventRail(title: "Weil du »\(similar.anchor.title)« gemerkt hast", events: similar.events,
-                              subtitle: "Mit denselben Mitwirkenden oder im selben Haus")
+                    // Titel kurz halten (02.11.2026): lange Konzerttitel machten die
+                    // Überschrift fünfzeilig; der Titel steht jetzt einzeilig darunter.
+                    EventRail(title: "Weil du dir das gemerkt hast", events: similar.events,
+                              subtitle: "Ähnlich wie »\(similar.anchor.title)«")
                 }
             }
         case .taste:
@@ -759,7 +761,7 @@ private struct EventRail: View {
             VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title).font(.title2.bold())
-                if let subtitle { Text(subtitle).font(.subheadline).foregroundStyle(.secondary) }
+                if let subtitle { Text(subtitle).font(.subheadline).foregroundStyle(.secondary).lineLimit(1) }
             }
             .padding(.horizontal, KlangradarTheme.pagePadding)
 
