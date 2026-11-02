@@ -1,5 +1,5 @@
-import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { parseStaatsoperDetail } from "./staatsoperDetail.ts";
+import { assertEquals } from "jsr:@std/assert@1";
+import { parseStaatsoperCastHtml, parseStaatsoperDetail } from "./staatsoperDetail.ts";
 
 Deno.test("parses Staatsoper production image and performing cast", () => {
   const markdown = `
@@ -61,4 +61,10 @@ Deno.test("keeps Staatsoper part names as role labels", () => {
     ["Antonino Fogliani", "Musikalische Leitung"],
     ["Liam Bonthrone", "Don Ramiro"],
   ]);
+});
+
+Deno.test("Staatsoper: Besetzung aus HTML (Markdown liefert nur Rollen)", () => {
+  const html = `<ul class="cast-list"><li><strong>Inszenierung</strong><div><div><span><a href="/biographien/x">Regie Person</a></span></div></div></li><li><strong>Mitarbeit Regie</strong><div><div><span><a href="/biographien/y">Mit Arbeit</a></span></div></div></li></ul><ul class="cast-list"><li><strong>Mime</strong><div><div><span><a href="/biographien/klink-matthias">Matthias Klink</a></span></div></div></li><li><strong>Musikalische Leitung</strong><div><div><span><a href="/biographien/jurowski-vladimir">Vladimir Jurowski</a></span></div></div></li><li>Bayerisches Staatsorchester</li></ul>`;
+  const p = parseStaatsoperCastHtml(html);
+  assertEquals(p.map((x) => `${x.name}|${x.roleLabel ?? x.type}`), ["Matthias Klink|Mime", "Vladimir Jurowski|Musikalische Leitung", "Bayerisches Staatsorchester|ensemble"]);
 });

@@ -1,6 +1,6 @@
 import { type ProgramLink, replaceProgram } from "../_shared/programReplace.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { isBlockedReaderPage, parseStaatsoperDetail } from "../_shared/staatsoperDetail.ts";
+import { isBlockedReaderPage, parseStaatsoperCastHtml, parseStaatsoperDetail } from "../_shared/staatsoperDetail.ts";
 import { USER_AGENT } from "../_shared/robots.ts";
 import { json, mapLimit, replaceEventParticipants, resolveComposer, resolveWork } from "../_shared/eventParticipantResolution.ts";
 
@@ -56,7 +56,23 @@ Deno.serve(async (req) => {
       // vollständig, aber nur wenn tatsächlich Kandidaten geparst wurden —
       // nie bei einer unvollständig geladenen Seite (detail.participants
       // bleibt in dem Fall leer, siehe staatsoperDetail.ts).
-      const participantsAdded = await replaceEventParticipants(supabase, event.id, detail.participants);
+      // 02.11.2026: Der Markdown-Modus liefert die Besetzung teils nur noch
+      // als Rollen ohne Namen. Dann die Namen aus dem HTML lesen.
+      let participants = detail.participants;
+      if (detail.hasCastSection && !participants.some((p) => p.type === "person")) {
+        const html = await fetchReaderWithRetry(event.website_url, true);
+        const htmlText = html.ok ? await html.text() : "";
+        if (htmlText && !isBlockedReaderPage(htmlText)) {
+          const fromHtml = parseStaatsoperCastHtml(htmlText);
+          if (fromHtml.some((p) => p.type === "person")) participants = fromHtml;
+        }
+      }
+      // Schutz: Ohne eine einzige Person nie die bestehende Besetzung
+      // ersetzen (sonst blieb nur „Bayerisches Staatsorchester“ übrig).
+      if (detail.hasCastSection && !participants.some((p) => p.type === "person")) {
+        throw new Error("Besetzung ohne Namen gelesen – bestehende Besetzung bleibt erhalten");
+      }
+      const participantsAdded = await replaceEventParticipants(supabase, event.id, participants);
       let worksAdded = 0;
       if (detail.works.length > 0) {
         const links: ProgramLink[] = [];
@@ -73,7 +89,7 @@ Deno.serve(async (req) => {
         staatsoper_detail_sync_error: null,
         program_extraction_status: detail.works.length > 0 ? "complete" : event.program_extraction_status,
       }).eq("id", event.id);
-      return { id: event.id, imageAdded, participantsFound: detail.participants.length, participantsAdded, worksFound: detail.works.length, worksAdded };
+      return { id: event.id, imageAdded, participantsFound: participants.length, participantsAdded, worksFound: detail.works.length, worksAdded };
     } catch (err) {
       // Fehlerhafte Einzelzeile darf die Queue nicht dauerhaft am Anfang
       // blockieren. Sie wird als versucht markiert und über das Fehlerfeld
@@ -88,12 +104,13 @@ Deno.serve(async (req) => {
   return json({ processed: results.length, remaining: results.length === limit, results });
 });
 
-async function fetchReaderWithRetry(pageUrl: string): Promise<Response> {
-  let response = await fetch(`https://r.jina.ai/${pageUrl}`, { headers: { "User-Agent": USER_AGENT } });
+async function fetchReaderWithRetry(pageUrl: string, asHtml = false): Promise<Response> {
+  const headers: Record<string, string> = { "User-Agent": USER_AGENT, ...(asHtml ? { "X-Return-Format": "html" } : {}) };
+  let response = await fetch(`https://r.jina.ai/${pageUrl}`, { headers });
   for (let attempt = 1; response.status === 429 && attempt <= 4; attempt++) {
     const retryAfter = Math.min(Number(response.headers.get("retry-after") ?? 0) || attempt * 3, 15);
     await new Promise((resolve) => setTimeout(resolve, retryAfter * 1000));
-    response = await fetch(`https://r.jina.ai/${pageUrl}`, { headers: { "User-Agent": USER_AGENT } });
+    response = await fetch(`https://r.jina.ai/${pageUrl}`, { headers });
   }
   return response;
 }
