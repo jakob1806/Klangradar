@@ -17,11 +17,18 @@ final class KlangradarNativeUITests: XCTestCase {
         app.launch()
     }
 
+    /// Tab-Knopf in der Tab-Leiste, sonst irgendwo (Seitenleiste/schwebende Leiste ab iOS 18).
+    private func tabButton(_ name: String) -> XCUIElement {
+        let inBar = app.tabBars.buttons[name]
+        if inBar.waitForExistence(timeout: 5) { return inBar }
+        return app.buttons[name].firstMatch
+    }
+
     func testAllTabsOpen() {
         let tabBar = app.tabBars.firstMatch
         XCTAssertTrue(tabBar.waitForExistence(timeout: 10))
         for (tab, marker) in [("Suche", "Suche"), ("Karte", "Karte"), ("Kalender", "Kalender"), ("Profil", "Profil"), ("Home", "Klangradar")] {
-            tabBar.buttons[tab].tap()
+            tabButton(tab).tap()
             XCTAssertTrue(app.staticTexts[marker].firstMatch.waitForExistence(timeout: 15) || app.navigationBars[marker].exists, "Tab \(tab) zeigt keinen Inhalt")
         }
     }
@@ -34,7 +41,7 @@ final class KlangradarNativeUITests: XCTestCase {
     }
 
     func testCalendarMonthNavigation() {
-        app.tabBars.buttons["Kalender"].tap()
+        tabButton("Kalender").tap()
         let next = app.buttons["Nächster Monat"]
         XCTAssertTrue(next.waitForExistence(timeout: 15))
         next.tap()
@@ -43,7 +50,7 @@ final class KlangradarNativeUITests: XCTestCase {
     }
 
     func testSearchAcceptsInput() {
-        app.tabBars.buttons["Suche"].tap()
+        tabButton("Suche").tap()
         let field = app.textFields.firstMatch.exists ? app.textFields.firstMatch : app.searchFields.firstMatch
         XCTAssertTrue(field.waitForExistence(timeout: 15))
         field.tap()
@@ -52,7 +59,7 @@ final class KlangradarNativeUITests: XCTestCase {
     }
 
     func testPlusPaywallOpensAndCloses() {
-        app.tabBars.buttons["Profil"].tap()
+        tabButton("Profil").tap()
         let plus = app.buttons.containing(NSPredicate(format: "label CONTAINS %@", "Klangradar Plus")).firstMatch
         XCTAssertTrue(plus.waitForExistence(timeout: 15))
         plus.tap()
