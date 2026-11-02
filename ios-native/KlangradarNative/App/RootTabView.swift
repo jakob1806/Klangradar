@@ -414,7 +414,9 @@ struct RootTabView: View {
 // eigener Typ.
 private struct SidebarAdaptableTabs: ViewModifier {
     func body(content: Content) -> some View {
-        if #available(iOS 18.0, *) {
+        // Nur auf dem iPad: auf dem iPhone bringt die Seitenleiste nichts,
+        // ändert aber die Tab-Leiste so, dass UI-Tests die Tabs nicht finden.
+        if #available(iOS 18.0, *), UIDevice.current.userInterfaceIdiom == .pad {
             content.tabViewStyle(.sidebarAdaptable)
         } else {
             content
