@@ -530,7 +530,7 @@ private struct FriendCircleTile<Content: View>: View {
                 .overlay(alignment: .topLeading) {
                     if isClose {
                         Image(systemName: "star.fill")
-                            .font(.system(size: 11, weight: .bold))
+                            .font(.scaled(11, weight: .bold))
                             .foregroundStyle(.white)
                             .frame(width: 22, height: 22)
                             .background(Color.orange, in: .circle)
@@ -585,7 +585,7 @@ private struct PlanPosterCard: View {
         if let start = plan.event.start {
             VStack(spacing: 0) {
                 Text(KlangradarDateTime.string(start, format: "MMM").uppercased()).font(.caption2.weight(.bold)).foregroundStyle(KlangradarTheme.accent)
-                Text(KlangradarDateTime.string(start, format: "d")).font(.system(size: 26, weight: .semibold, design: .serif))
+                Text(KlangradarDateTime.string(start, format: "d")).font(.scaled(26, weight: .semibold, design: .serif))
                 Text(KlangradarDateTime.string(start, format: "EE")).font(.caption2).foregroundStyle(.secondary)
             }
             .frame(width: 52, height: 64)
@@ -669,7 +669,7 @@ private struct FriendCodeTicket: View {
                         .accessibilityLabel("Einladung teilen")
                     }
                 }
-                Text(code ?? "······").font(.system(size: 28, weight: .semibold, design: .monospaced)).foregroundStyle(.white)
+                Text(code ?? "······").font(.scaled(28, weight: .semibold, design: .monospaced)).foregroundStyle(.white)
                     .minimumScaleFactor(0.7).lineLimit(1)
                 Text("Eingeben oder scannen: Ihr seid sofort befreundet.").font(.caption).foregroundStyle(.white.opacity(0.75))
             }

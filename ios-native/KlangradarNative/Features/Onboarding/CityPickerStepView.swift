@@ -38,7 +38,7 @@ struct CityPickerStepView: View {
             VStack(spacing: 20) {
                 VStack(spacing: 8) {
                     Image(systemName: "map.circle")
-                        .font(.system(size: 52))
+                        .font(.scaled(52))
                         .foregroundStyle(KlangradarTheme.accent)
                     Text("Wo möchtest du Konzerte entdecken?")
                         .font(.largeTitle.bold())
@@ -181,7 +181,7 @@ private struct CityOptionRow: View {
                 }
                 Spacer()
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 28, weight: .regular))
+                    .font(.scaled(28, weight: .regular))
                     .frame(width: 44, height: 44)
                     .foregroundStyle(isSelected ? KlangradarTheme.accent : Color.secondary.opacity(0.5))
             }

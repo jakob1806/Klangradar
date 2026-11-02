@@ -99,7 +99,7 @@ struct CitySwitcherView: View {
     private var cityHeader: some View {
         VStack(alignment: .leading, spacing: 18) {
             Image(systemName: "music.note.house.fill")
-                .font(.system(size: 40, weight: .semibold))
+                .font(.scaled(40, weight: .semibold))
                 .foregroundStyle(KlangradarTheme.accent)
 
             Text("Stadt wechseln")

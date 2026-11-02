@@ -160,7 +160,7 @@ struct ConcertJournalEditor: View {
                 }
             } else {
                 VStack(spacing: 10) {
-                    Image(systemName: isUploading ? "arrow.up.circle" : "photo.on.rectangle.angled").font(.system(size: 34, weight: .light))
+                    Image(systemName: isUploading ? "arrow.up.circle" : "photo.on.rectangle.angled").font(.scaled(34, weight: .light))
                     Text(isUploading ? "Wird hochgeladen …" : "Foto vom Abend hinzufügen").font(.subheadline.weight(.semibold))
                 }
                 .foregroundStyle(KlangradarTheme.accent)

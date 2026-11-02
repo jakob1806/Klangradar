@@ -13,7 +13,7 @@ struct EditorialModeBanner: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 7) {
                     Text("REDAKTIONSMODUS").font(.caption.bold()).tracking(1.3).foregroundStyle(.orange)
-                    Text("LIVE").font(.system(size: 9, weight: .bold, design: .rounded))
+                    Text("LIVE").font(.scaled(9, weight: .bold, design: .rounded))
                         .padding(.horizontal, 6).padding(.vertical, 3)
                         .background(.orange.opacity(0.16), in: Capsule()).foregroundStyle(.orange)
                 }
@@ -50,16 +50,6 @@ struct EditorialCard<Content: View>: View {
         .background(.regularMaterial, in: .rect(cornerRadius: 20))
         .overlay { RoundedRectangle(cornerRadius: 20).stroke(.separator.opacity(0.18)) }
         .shadow(color: .black.opacity(0.04), radius: 12, y: 4)
-    }
-}
-
-struct EditorialPrimaryButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .fontWeight(.semibold)
-            .padding(13)
-            .background(KlangradarTheme.accent.opacity(configuration.isPressed ? 0.72 : 1), in: .rect(cornerRadius: 12))
-            .foregroundStyle(.white)
     }
 }
 

@@ -8,7 +8,7 @@ struct PriceBadge: View {
     var body: some View {
         if let label = text {
             Text(label)
-                .font(.system(size: 10, weight: .semibold))
+                .font(.scaled(10, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.95))
                 .padding(.horizontal, 7)
                 .padding(.vertical, 3)

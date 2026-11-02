@@ -23,7 +23,7 @@ struct VerifyEmailStepView: View {
             Section {
                 VStack(spacing: 16) {
                     Image(systemName: "envelope.badge.shield.half.filled")
-                        .font(.system(size: 44))
+                        .font(.scaled(44))
                         .symbolRenderingMode(.hierarchical)
                         .foregroundStyle(KlangradarTheme.accent)
                     Text("Wir haben einen sechsstelligen Code an **\(email)** gesendet.")

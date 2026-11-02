@@ -63,7 +63,7 @@ struct FindFriendsView: View {
             Section {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(spacing: 12) {
-                        Image(systemName: "link.circle.fill").font(.system(size: 38)).foregroundStyle(KlangradarTheme.accent)
+                        Image(systemName: "link.circle.fill").font(.scaled(38)).foregroundStyle(KlangradarTheme.accent)
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Freunde einladen").font(.headline)
                             Text("Wer deinen Link öffnet, ist sofort mit dir verbunden.").font(.caption).foregroundStyle(.secondary)

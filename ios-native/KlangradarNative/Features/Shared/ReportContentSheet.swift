@@ -59,7 +59,7 @@ struct ReportContentLink: View {
             showsSheet = true
         } label: {
             Text(title)
-                .font(.system(size: 11))
+                .font(.scaled(11))
                 .underline()
                 .foregroundStyle(.tertiary)
                 .padding(.vertical, 12)

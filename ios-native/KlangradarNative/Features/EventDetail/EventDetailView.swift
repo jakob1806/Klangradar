@@ -1264,7 +1264,7 @@ private struct EventHeroArtwork: View {
         )
         .overlay {
             Image(systemName: "music.note.list")
-                .font(.system(size: 46, weight: .light))
+                .font(.scaled(46, weight: .light))
                 .foregroundStyle(.white.opacity(0.8))
         }
     }

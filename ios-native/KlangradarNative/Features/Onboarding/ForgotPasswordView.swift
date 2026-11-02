@@ -65,7 +65,7 @@ struct ForgotPasswordView: View {
             Section {
                 VStack(spacing: 16) {
                     Image(systemName: "key.fill")
-                        .font(.system(size: 40))
+                        .font(.scaled(40))
                         .symbolRenderingMode(.hierarchical)
                         .foregroundStyle(KlangradarTheme.accent)
                     Text("Gib die E-Mail-Adresse deines Accounts ein.")

@@ -110,7 +110,7 @@ private struct YearHero: View {
             } else {
                 HStack(alignment: .lastTextBaseline, spacing: 10) {
                     Text("\(year.concerts)")
-                        .font(.system(size: 92, weight: .bold, design: .serif))
+                        .font(.scaled(92, weight: .bold, design: .serif))
                         .monospacedDigit()
                         .minimumScaleFactor(0.6)
                         .lineLimit(1)
@@ -339,7 +339,7 @@ private struct WeekdayTile: View {
                             .fill(index == peak ? AnyShapeStyle(KlangradarTheme.accent) : AnyShapeStyle(KlangradarTheme.accent.opacity(value > 0 ? 0.3 : 0.08)))
                             .frame(width: 6 + 10 * CGFloat(value) / maxValue, height: 6 + 10 * CGFloat(value) / maxValue)
                             .frame(height: 16, alignment: .bottom)
-                        Text(YearStyle.weekdayShort[index]).font(.system(size: 9)).foregroundStyle(.secondary)
+                        Text(YearStyle.weekdayShort[index]).font(.scaled(9)).foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity)
                 }
@@ -383,12 +383,12 @@ private struct YearStoryPoster: View {
         let peak = YearStyle.peak(year.months)
         let maxValue = CGFloat(max(1, year.months.max() ?? 1))
         VStack(alignment: .leading, spacing: 22) {
-            Text("Mein Konzertjahr").font(.system(size: 22, design: .serif).italic()).opacity(0.85)
-            Text(String(year.year)).font(.system(size: 30, weight: .semibold).monospacedDigit()).opacity(0.6)
+            Text("Mein Konzertjahr").font(.scaled(22, design: .serif).italic()).opacity(0.85)
+            Text(String(year.year)).font(.scaled(30, weight: .semibold).monospacedDigit()).opacity(0.6)
             Spacer(minLength: 0)
             VStack(alignment: .leading, spacing: 0) {
-                Text("\(year.concerts)").font(.system(size: 120, weight: .bold, design: .serif)).monospacedDigit()
-                Text(year.concerts == 1 ? "Konzert" : "Konzerte").font(.system(size: 28, design: .serif)).opacity(0.85)
+                Text("\(year.concerts)").font(.scaled(120, weight: .bold, design: .serif)).monospacedDigit()
+                Text(year.concerts == 1 ? "Konzert" : "Konzerte").font(.scaled(28, design: .serif)).opacity(0.85)
             }
             if !year.months.isEmpty {
                 HStack(alignment: .bottom, spacing: 5) {
@@ -397,7 +397,7 @@ private struct YearStoryPoster: View {
                             RoundedRectangle(cornerRadius: 3)
                                 .fill(.white.opacity(index == peak ? 1 : (value > 0 ? 0.45 : 0.15)))
                                 .frame(height: max(4, 70 * CGFloat(value) / maxValue))
-                            Text(YearStyle.monthInitials[index]).font(.system(size: 10)).opacity(0.7)
+                            Text(YearStyle.monthInitials[index]).font(.scaled(10)).opacity(0.7)
                         }
                         .frame(maxWidth: .infinity)
                     }
@@ -410,7 +410,7 @@ private struct YearStoryPoster: View {
                 posterLine("Musik", "\(max(1, year.minutes / 60)) Stunden in \(year.venues) \(year.venues == 1 ? "Saal" : "Sälen")")
             }
             Spacer(minLength: 0)
-            Text("klangradar").font(.system(size: 15, weight: .bold)).tracking(1.5).opacity(0.7)
+            Text("klangradar").font(.scaled(15, weight: .bold)).tracking(1.5).opacity(0.7)
         }
         .foregroundStyle(.white)
         .padding(32)
@@ -420,8 +420,8 @@ private struct YearStoryPoster: View {
 
     private func posterLine(_ label: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(label.uppercased()).font(.system(size: 10, weight: .semibold)).tracking(1.2).opacity(0.65)
-            Text(value).font(.system(size: 19, weight: .semibold)).lineLimit(2)
+            Text(label.uppercased()).font(.scaled(10, weight: .semibold)).tracking(1.2).opacity(0.65)
+            Text(value).font(.scaled(19, weight: .semibold)).lineLimit(2)
         }
     }
 }

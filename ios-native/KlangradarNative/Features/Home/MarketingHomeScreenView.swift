@@ -160,7 +160,7 @@ private struct MarketingArtwork: View {
                 endPoint: .bottomTrailing
             )
             Image(systemName: "music.note.list")
-                .font(.system(size: 42, weight: .light))
+                .font(.scaled(42, weight: .light))
                 .foregroundStyle(.white.opacity(0.75))
         }
     }
@@ -610,7 +610,7 @@ private struct MarketingDiscoveryTile: View {
             .fill(.white.opacity(0.16))
             .overlay {
                 Image(systemName: kind.systemImage)
-                    .font(.system(size: 32, weight: .semibold))
+                    .font(.scaled(32, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.9))
             }
     }

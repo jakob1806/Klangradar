@@ -115,6 +115,7 @@ struct UserProfileView: View {
         .navigationTitle(profile?.person.name ?? "Profil")
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
+        .refreshable { await load() }
     }
 
     private func header(_ profile: UserProfile) -> some View {
@@ -268,7 +269,8 @@ struct UserProfileView: View {
 
     private func load() async {
         guard let repository = SocialStore.shared.repository, let token = SocialStore.shared.token else { isLoading = false; return }
-        profile = try? await repository.userProfile(userID, token: token)
+        // Beim Aktualisieren den alten Stand behalten, falls der Abruf scheitert.
+        if let loaded = try? await repository.userProfile(userID, token: token) { profile = loaded }
         if profile?.isFriend == true {
             matches = (try? await repository.friendMatchEvents(userID, token: token)) ?? []
         }

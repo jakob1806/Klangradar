@@ -505,7 +505,7 @@ private struct BiometricLockView: View {
             Color(uiColor: .systemBackground).ignoresSafeArea()
             VStack(spacing: 18) {
                 Image(systemName: BiometricAuth.availableBiometryKind == .touchID ? "touchid" : "faceid")
-                    .font(.system(size: 48, weight: .regular))
+                    .font(.scaled(48, weight: .regular))
                     .foregroundStyle(KlangradarTheme.accent)
                 Text("Klangradar ist geschützt")
                     .font(.title2.bold())

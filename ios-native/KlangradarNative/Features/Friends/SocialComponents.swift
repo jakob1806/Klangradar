@@ -13,7 +13,7 @@ struct SocialAvatar: View {
             } else {
                 ZStack {
                     Circle().fill(KlangradarTheme.accent.opacity(0.14))
-                    Text(initials).font(.system(size: size * 0.38, weight: .semibold, design: .rounded)).foregroundStyle(KlangradarTheme.accent)
+                    Text(initials).font(.scaled(size * 0.38, weight: .semibold, design: .rounded)).foregroundStyle(KlangradarTheme.accent)
                 }
             }
         }
@@ -105,7 +105,7 @@ struct StarRating: View {
         HStack(spacing: size * 0.18) {
             ForEach(1...5, id: \.self) { value in
                 Image(systemName: value <= stars ? "star.fill" : "star")
-                    .font(.system(size: size))
+                    .font(.scaled(size))
                     .foregroundStyle(value <= stars ? Color.orange : Color.secondary.opacity(0.4))
                     .onTapGesture {
                         guard editable else { return }

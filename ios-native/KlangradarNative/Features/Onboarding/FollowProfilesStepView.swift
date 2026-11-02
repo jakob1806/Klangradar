@@ -296,7 +296,7 @@ private struct FollowGridCell: View {
 
                     if isFollowing {
                         Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 22))
+                            .font(.scaled(22))
                             .symbolRenderingMode(.palette)
                             .foregroundStyle(.white, KlangradarTheme.accent)
                             .background(Circle().fill(.white))
