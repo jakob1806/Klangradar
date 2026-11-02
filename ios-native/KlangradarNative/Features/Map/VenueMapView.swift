@@ -448,7 +448,19 @@ private struct VenuePreviewSheet: View {
                     }
                     .frame(maxWidth: .infinity)
 
-                    if !galleryURLs.isEmpty {
+                    // Ein einzelnes Bild über die volle Breite, unverzerrt
+                    // (füllt und wird beschnitten); mehrere als Galerie.
+                    if galleryURLs.count == 1, let url = galleryURLs.first {
+                        Color.secondary.opacity(0.15)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 190)
+                            .overlay {
+                                AsyncImage(url: url) { image in
+                                    image.resizable().scaledToFill()
+                                } placeholder: { Color.clear }
+                            }
+                            .clipShape(.rect(cornerRadius: 18, style: .continuous))
+                    } else if !galleryURLs.isEmpty {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 10) {
                                 ForEach(galleryURLs, id: \.self) { url in
@@ -457,8 +469,7 @@ private struct VenuePreviewSheet: View {
                                     } placeholder: {
                                         Color.secondary.opacity(0.15)
                                     }
-                                    .frame(width: galleryURLs.count == 1 ? nil : 220, height: 150)
-                                    .frame(maxWidth: galleryURLs.count == 1 ? .infinity : nil)
+                                    .frame(width: 220, height: 150)
                                     .clipShape(.rect(cornerRadius: 18, style: .continuous))
                                 }
                             }
