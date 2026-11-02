@@ -219,6 +219,11 @@ struct EventDetailView: View {
                             if calendarEventInput() != nil {
                                 Button("Zum Kalender hinzufügen", systemImage: "calendar.badge.plus") { calendarTrigger = true }
                             }
+                            // SharePlay (02.11.2026): im FaceTime-Anruf öffnet sich
+                            // die Konzertseite bei allen Teilnehmenden.
+                            Button("Per SharePlay ansehen", systemImage: "shareplay") {
+                                Task { await ConcertTogetherActivity(slug: event.slug, title: event.title).startOrShare() }
+                            }
                             if (event.startDate ?? .distantPast) > .now {
                                 Button(favorites.ids.contains(event.id) ? "Restkarten-Alarm an" : "Bei Restkarten melden",
                                        systemImage: favorites.ids.contains(event.id) ? "bell.fill" : "bell") {
