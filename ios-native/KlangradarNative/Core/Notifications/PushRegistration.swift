@@ -84,6 +84,14 @@ final class PushRegistration {
             UNNotificationCategory(identifier: "EVENT", actions: [save, going, ask], intentIdentifiers: [], options: []),
             UNNotificationCategory(identifier: "CONCERT_DAY", actions: [route, ask], intentIdentifiers: [], options: []),
             UNNotificationCategory(identifier: "RATE", actions: [rate], intentIdentifiers: [], options: []),
+            // Absage/Verschiebung/Zeitänderung (notify-changes, 02.11.2026).
+            UNNotificationCategory(
+                identifier: "CHANGE",
+                actions: [
+                    UNNotificationAction(identifier: actionOpen, title: "Details ansehen", options: [.foreground], icon: UNNotificationActionIcon(systemImageName: "info.circle")),
+                    UNNotificationAction(identifier: actionAskFriends, title: "Freunden Bescheid sagen", options: [.foreground], icon: UNNotificationActionIcon(systemImageName: "person.2")),
+                ],
+                intentIdentifiers: [], options: []),
         ]
     }
 

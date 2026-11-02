@@ -1,4 +1,5 @@
 import SwiftUI
+import TipKit
 
 struct EventCalendarView: View {
     let repository: any EventRepository
@@ -176,6 +177,7 @@ struct EventCalendarView: View {
                 ForEach(Array(list.enumerated()), id: \.element.id) { index, event in
                     NavigationLink(value: event) { CalendarEventRow(event: event) }
                         .buttonStyle(.plain)
+                        .popoverTip(index == 0 ? ConcertLongPressTip() : nil, arrowEdge: .bottom)
                     if index < list.count - 1 { Divider().padding(.leading, 14) }
                 }
             }

@@ -31,6 +31,10 @@ final class DeepLinkRouter: ObservableObject {
         if url.scheme == "de.klangradar.native", url.host == "event" {
             return open(slug: url.lastPathComponent)
         }
+        if url.scheme == "de.klangradar.native", let host = url.host, url.path.isEmpty || url.path == "/",
+           ["coach", "calendar", "search", "map"].contains(host) {
+            return handle(route: "/\(host)")
+        }
         if url.scheme == "de.klangradar.native", let host = url.host, let kind = EntityKind(rawValue: host),
            !url.lastPathComponent.isEmpty, url.lastPathComponent != "/" {
             pendingEntity = EntityRoute(kind: kind, identifier: url.lastPathComponent)
@@ -55,6 +59,9 @@ final class DeepLinkRouter: ObservableObject {
             return true
         }
         if parts.count == 1, parts[0] == "friends" { pendingFriendsTab = .friends; return true }
+        // Kontrollzentrum/Aktionstaste (02.11.2026).
+        if parts.count == 1, parts[0] == "coach" { pendingCoach = true; return true }
+        if parts.count == 1, ["calendar", "search", "map"].contains(String(parts[0])) { pendingTab = String(parts[0]); return true }
         if parts.count == 1, parts[0] == "plans" { pendingFriendsTab = .plans; return true }
         if parts.count == 2, let kind = EntityKind(rawValue: String(parts[0])) {
             pendingEntity = EntityRoute(kind: kind, identifier: String(parts[1]))
