@@ -11,6 +11,9 @@ final class KlangradarNativeUITests: XCTestCase {
         app = XCUIApplication()
         app.launchEnvironment["KLANGRADAR_UI_TEST"] = "1"
         app.launchArguments += ["-didCompleteOnboarding", "YES", "-appearance", "light"]
+        // Seit der englischen Oberfläche (String-Katalog) heißen die Tabs auf
+        // englischen Simulatoren „Search“ usw. – Tests laufen immer auf Deutsch.
+        app.launchArguments += ["-AppleLanguages", "(de)", "-AppleLocale", "de_DE"]
         app.launch()
     }
 
