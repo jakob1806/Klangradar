@@ -46,6 +46,7 @@ struct EntityDetailView: View {
                                 WorkListeningSection(title: detail.title, composer: detail.fields.object("composer")?.string("full_name"))
                             }
                             if detail.kind != .work, !detail.gallery.isEmpty { gallery(detail.gallery) }
+                            if detail.kind == .work, !detail.events.isEmpty { workPerformanceSummary(detail.events) }
                             if !detail.events.isEmpty { linkedEvents(detail.events, kind: detail.kind) }
                             if detail.kind == .ensemble {
                                 EnsembleSubscriptionsSection(ensembleID: detail.id, ensembleName: detail.title, contentRepository: repository)
@@ -552,15 +553,44 @@ private extension EntityDetailView {
     /// obwohl dann bereits alles sichtbar war — MonthGroupedEventList
     /// (unten) ersetzt ihn durch einen Button, der nach dem Ausklappen zu
     /// "Alle einklappen" wechselt.
+    /// Werkseite (02.11.2026): nächste und letzte Aufführung, Anzahl.
+    @ViewBuilder private func workPerformanceSummary(_ events: [LinkedEvent]) -> some View {
+        let startOfToday = KlangradarDateTime.calendar.startOfDay(for: .now)
+        let dated = events.filter { $0.startDate != nil }
+        let upcoming = dated.filter { $0.startDate! >= startOfToday }.sorted { $0.startDate! < $1.startDate! }
+        let past = dated.filter { $0.startDate! < startOfToday }.sorted { $0.startDate! > $1.startDate! }
+        HStack(spacing: 10) {
+            workStat(title: "Nächste", value: upcoming.first?.startDate.map { KlangradarDateTime.string($0, format: "d. MMM yyyy") } ?? "–",
+                     detail: upcoming.first?.venueName)
+            workStat(title: "Zuletzt", value: past.first?.startDate.map { KlangradarDateTime.string($0, format: "d. MMM yyyy") } ?? "–",
+                     detail: past.first?.venueName)
+            workStat(title: "Aufführungen", value: "\(dated.count)", detail: upcoming.isEmpty ? nil : "\(upcoming.count) kommend")
+        }
+    }
+
+    private func workStat(title: String, value: String, detail: String?) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title).font(.caption).foregroundStyle(.secondary)
+            Text(value).font(.subheadline.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.8)
+            Text(detail ?? " ").font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 14, style: .continuous))
+        .accessibilityElement(children: .combine)
+    }
+
     @ViewBuilder private func linkedEvents(_ events: [LinkedEvent], kind: EntityKind) -> some View {
         let sorted = events
             // Seit 23.10.2026 (Nutzerwunsch) auch bei Personen/Ensembles nur
             // kommende Termine, wie schon bei Venues.
-            .filter { kind == .work || ($0.startDate ?? .distantPast) >= KlangradarDateTime.calendar.startOfDay(for: .now) }
+            // Seit 02.11.2026 auch bei Werken nur kommende Aufführungen; die
+            // früheren fasst workPerformanceSummary zusammen.
+            .filter { ($0.startDate ?? .distantPast) >= KlangradarDateTime.calendar.startOfDay(for: .now) }
             .sorted { ($0.startDate ?? .distantFuture) < ($1.startDate ?? .distantFuture) }
 
         if !sorted.isEmpty {
-            section(kind == .work ? "Veranstaltungen" : "Kommende Veranstaltungen") {
+            section(kind == .work ? "Kommende Aufführungen" : "Kommende Veranstaltungen") {
                 VStack(alignment: .leading, spacing: 12) {
                     if let icsURL = calendarExportURL(sorted, kind: kind) {
                         ShareLink(item: icsURL) {
