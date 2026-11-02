@@ -116,6 +116,15 @@ struct StarRating: View {
         }
         .accessibilityElement()
         .accessibilityLabel("\(stars) von 5 Sternen")
+        // VoiceOver: mit Wischen nach oben/unten bewerten (02.11.2026).
+        .accessibilityAdjustableAction { direction in
+            guard editable else { return }
+            switch direction {
+            case .increment: stars = min(stars + 1, 5)
+            case .decrement: stars = max(stars - 1, 1)
+            @unknown default: break
+            }
+        }
         .accessibilityAdjustableAction { direction in
             guard editable else { return }
             switch direction {

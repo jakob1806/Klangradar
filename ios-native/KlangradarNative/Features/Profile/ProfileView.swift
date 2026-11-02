@@ -1175,6 +1175,7 @@ struct KlangradarCoachView: View {
                                 .shadow(color: KlangradarTheme.accent.opacity(0.35), radius: 8, y: 3)
                         }
                         .buttonStyle(CoachSendButtonStyle())
+                        .accessibilityLabel(isSending ? "Antwort stoppen" : "Nachricht senden")
                         .disabled(!isSending && draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
                     .padding(.horizontal, 14)

@@ -106,6 +106,9 @@ struct RootTabView: View {
                     Label("Profil", systemImage: "person")
                 }
         }
+        // iPad (02.11.2026): ab iOS 18 wird die Tab-Leiste dort zur
+        // Seitenleiste (wie Musik/Podcasts), auf dem iPhone bleibt sie unten.
+        .modifier(SidebarAdaptableTabs())
         .environmentObject(favorites)
         .environmentObject(follows)
         .environmentObject(reportStore)
@@ -408,6 +411,16 @@ struct RootTabView: View {
 // ab iOS 18, ein reiner `if #available`-Ausdruck als ViewModifier-Body lässt
 // sich nicht direkt inline in eine Modifier-Kette schreiben, deshalb als
 // eigener Typ.
+private struct SidebarAdaptableTabs: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content.tabViewStyle(.sidebarAdaptable)
+        } else {
+            content
+        }
+    }
+}
+
 private struct ClearNavigationContainerBackground: ViewModifier {
     func body(content: Content) -> some View {
         if #available(iOS 18.0, *) {

@@ -186,6 +186,8 @@ struct EventDetailView: View {
                         fullScreenImage = FullScreenImageReference(url: url, title: event.title)
                     }
                 }
+                .accessibilityAddTraits(.isButton)
+                .accessibilityLabel("Bild von \(event.title) vergrößern")
                 .overlay {
                     LinearGradient(
                         colors: [.black.opacity(0.56), .clear, .black.opacity(0.18)],
