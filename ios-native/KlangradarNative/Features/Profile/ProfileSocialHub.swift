@@ -891,7 +891,7 @@ struct AchievementBadge: View {
                 Circle().fill(color)
                 Circle().stroke(.white.opacity(0.55), lineWidth: 1.5).padding(size * 0.07)
                 Image(systemName: achievement.symbol)
-                    .font(.system(size: size * 0.34, weight: .semibold))
+                    .font(.scaled(size * 0.34, weight: .semibold))
                     .foregroundStyle(.white)
             } else {
                 Circle().fill(Color(uiColor: .secondarySystemBackground))
@@ -901,7 +901,7 @@ struct AchievementBadge: View {
                     .stroke(color, style: StrokeStyle(lineWidth: size * 0.06, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                 Image(systemName: achievement.symbol)
-                    .font(.system(size: size * 0.3, weight: .semibold))
+                    .font(.scaled(size * 0.3, weight: .semibold))
                     .foregroundStyle(color.opacity(0.45))
             }
         }

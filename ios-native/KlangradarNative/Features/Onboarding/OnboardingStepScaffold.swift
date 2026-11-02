@@ -377,7 +377,7 @@ struct OnboardingStepScaffold<Content: View>: View {
             Spacer(minLength: 8)
             if let systemImage {
                 Image(systemName: systemImage)
-                    .font(.system(size: 52))
+                    .font(.scaled(52))
                     .foregroundStyle(KlangradarTheme.accent)
             }
             VStack(spacing: 8) {

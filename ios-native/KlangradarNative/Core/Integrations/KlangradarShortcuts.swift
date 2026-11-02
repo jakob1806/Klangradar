@@ -19,6 +19,44 @@ struct NextConcertIntent: AppIntent {
     }
 }
 
+/// Liest die nächsten drei gemerkten Konzerte vor (02.11.2026).
+struct UpcomingConcertsIntent: AppIntent {
+    static let title: LocalizedStringResource = "Meine nächsten Konzerte"
+    static let description = IntentDescription("Liest deine nächsten drei gemerkten Konzerte vor.")
+
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        let upcoming = SharedConcertStore.load().filter { $0.start > .now }.prefix(3)
+        guard !upcoming.isEmpty else {
+            return .result(dialog: "Du hast gerade keine kommenden Konzerte gemerkt.")
+        }
+        let lines = upcoming.map { concert in
+            "\(KlangradarDateTime.string(concert.start, format: "EEEE, d. MMMM")): \(concert.title)"
+        }
+        return .result(dialog: "\(lines.joined(separator: ". ")).")
+    }
+}
+
+/// „Wie lange noch?“ – Abstand bis zum nächsten gemerkten Konzert (02.11.2026).
+struct ConcertCountdownIntent: AppIntent {
+    static let title: LocalizedStringResource = "Wie lange bis zum nächsten Konzert"
+    static let description = IntentDescription("Sagt dir, wie lange es noch bis zu deinem nächsten gemerkten Konzert dauert.")
+
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        guard let next = SharedConcertStore.load().first(where: { $0.start > .now }) else {
+            return .result(dialog: "Du hast gerade kein kommendes Konzert gemerkt.")
+        }
+        let calendar = Calendar.current
+        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: .now), to: calendar.startOfDay(for: next.start)).day ?? 0
+        let time = KlangradarDateTime.string(next.start, format: "HH:mm")
+        let when: String = switch days {
+        case 0: "heute um \(time) Uhr"
+        case 1: "morgen um \(time) Uhr"
+        default: "in \(days) Tagen"
+        }
+        return .result(dialog: "\(next.title) ist \(when), \(next.venue).")
+    }
+}
+
 /// Öffnet den Kalender (startet beim heutigen Tag).
 struct TodayConcertsIntent: AppIntent {
     static let title: LocalizedStringResource = "Konzerte heute"
@@ -56,6 +94,24 @@ struct KlangradarShortcuts: AppShortcutsProvider {
             ],
             shortTitle: "Nächstes Konzert",
             systemImageName: "ticket"
+        )
+        AppShortcut(
+            intent: UpcomingConcertsIntent(),
+            phrases: [
+                "Meine nächsten Konzerte in \(.applicationName)",
+                "Welche Konzerte habe ich in \(.applicationName)"
+            ],
+            shortTitle: "Nächste Konzerte",
+            systemImageName: "music.note.list"
+        )
+        AppShortcut(
+            intent: ConcertCountdownIntent(),
+            phrases: [
+                "Wie lange noch bis zum Konzert in \(.applicationName)",
+                "Countdown bis zum Konzert in \(.applicationName)"
+            ],
+            shortTitle: "Countdown",
+            systemImageName: "hourglass"
         )
         AppShortcut(
             intent: TodayConcertsIntent(),

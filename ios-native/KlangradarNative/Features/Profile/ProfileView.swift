@@ -362,7 +362,7 @@ struct ProfileView: View {
                 ZStack {
                     PlusStyle.gradient
                     Image(systemName: "waveform")
-                        .font(.system(size: 120, weight: .black))
+                        .font(.scaled(120, weight: .black))
                         .foregroundStyle(.white.opacity(0.08))
                         .offset(x: 110, y: 20)
                 }
@@ -790,7 +790,7 @@ private struct MyKlangradarHubView: View {
 
     private func heroNumber(_ value: Int, _ label: String) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(value.formatted()).font(.system(size: 34, weight: .bold, design: .rounded)).monospacedDigit().foregroundStyle(.white)
+            Text(value.formatted()).font(.scaled(34, weight: .bold, design: .rounded)).monospacedDigit().foregroundStyle(.white)
             Text(label).font(.caption.weight(.semibold)).foregroundStyle(.white.opacity(0.8))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1168,7 +1168,7 @@ struct KlangradarCoachView: View {
                             }
                         } label: {
                             Image(systemName: isSending ? "square.fill" : "arrow.up")
-                                .font(.system(size: isSending ? 15 : 17, weight: .bold))
+                                .font(.scaled(isSending ? 15 : 17, weight: .bold))
                                 .foregroundStyle(.white)
                                 .frame(width: 50, height: 50)
                                 .background(LinearGradient(colors: [KlangradarTheme.accent, .purple], startPoint: .topLeading, endPoint: .bottomTrailing), in: Circle())
@@ -1492,7 +1492,7 @@ private struct AccentColorSettingsView: View {
                                     ).padding(-3)
                                 }
                                 Text(option.name)
-                                    .font(.system(size: 10))
+                                    .font(.scaled(10))
                                     .foregroundStyle(.secondary)
                                     .lineLimit(1)
                             }
@@ -1583,7 +1583,7 @@ private struct ProfileOverview: View {
                     if plus.isPlus {
                         Button { showsPlus = true } label: {
                             Image(systemName: "diamond.fill")
-                                .font(.system(size: 12, weight: .bold))
+                                .font(.scaled(12, weight: .bold))
                                 .foregroundStyle(.white)
                                 .frame(width: 26, height: 26)
                                 .background(KlangradarTheme.accent, in: .circle)
@@ -1924,46 +1924,8 @@ struct PlannedEventsListView: View {
 
 private struct FavoriteEventRow: View {
     let event: ConcertEvent
-
-    var body: some View {
-        HStack(spacing: 12) {
-            AsyncImage(url: event.primaryImageURL) { phase in
-                switch phase {
-                case let .success(image):
-                    image.resizable().scaledToFill()
-                case .failure:
-                    placeholder
-                default:
-                    placeholder.overlay { ProgressView().controlSize(.small) }
-                }
-            }
-            .frame(width: 68, height: 68)
-            .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
-            .clipped()
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(event.title)
-                    .font(.headline)
-                    .lineLimit(2)
-                Text(event.dateLine)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-            }
-            Spacer(minLength: 4)
-        }
-        .padding(.vertical, 3)
-        .contentShape(Rectangle())
-    }
-
-    private var placeholder: some View {
-        RoundedRectangle(cornerRadius: 11, style: .continuous)
-            .fill(KlangradarTheme.accent.opacity(0.1))
-            .overlay {
-                Image(systemName: "music.note")
-                    .foregroundStyle(KlangradarTheme.accent)
-            }
-    }
+    // Einheitliche Konzertzeile (02.11.2026).
+    var body: some View { ConcertRow(event: event, horizontalPadding: 0) }
 }
 
 private struct UserEventListsView: View {
@@ -2341,20 +2303,8 @@ private struct EventListPicker: View {
 
 private struct UserListEventRow: View {
     let event: ConcertEvent
-
-    var body: some View {
-        HStack(spacing: 12) {
-            EventArtwork(event: event)
-                .frame(width: 78, height: 64)
-                .clipped()
-                .clipShape(.rect(cornerRadius: 13))
-            VStack(alignment: .leading, spacing: 4) {
-                Text(event.title).font(.headline).lineLimit(2)
-                Text(event.dateLine).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-            }
-        }
-        .padding(.vertical, 3)
-    }
+    // Einheitliche Konzertzeile (02.11.2026).
+    var body: some View { ConcertRow(event: event, horizontalPadding: 0) }
 }
 
 
@@ -2368,7 +2318,7 @@ private struct ProfileIcon: View {
 
     var body: some View {
         Image(systemName: symbol)
-            .font(.system(size: size * 0.48, weight: .semibold))
+            .font(.scaled(size * 0.48, weight: .semibold))
             .foregroundStyle(.white)
             .frame(width: size, height: size)
             .background(color.gradient, in: .rect(cornerRadius: size * 0.27, style: .continuous))
@@ -2706,7 +2656,7 @@ private struct ProfileContentSection: View {
 
     private func emptyState(symbol: String, title: String, text: String) -> some View {
         VStack(spacing: 10) {
-            Image(systemName: symbol).font(.system(size: 34, weight: .light)).foregroundStyle(KlangradarTheme.accent)
+            Image(systemName: symbol).font(.scaled(34, weight: .light)).foregroundStyle(KlangradarTheme.accent)
             Text(title).font(.headline)
             Text(text).font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
         }
@@ -2746,7 +2696,7 @@ struct CoachOrb: View {
                 .blur(radius: size * 0.08)
                 .rotationEffect(.degrees(pulse ? 360 : 0))
             Circle().fill(.white.opacity(0.18)).padding(size * 0.18)
-            Image(systemName: "sparkles").font(.system(size: size * 0.42, weight: .semibold)).foregroundStyle(.white)
+            Image(systemName: "sparkles").font(.scaled(size * 0.42, weight: .semibold)).foregroundStyle(.white)
         }
         .frame(width: size, height: size)
         .scaleEffect(pulse ? 1.06 : 0.96)

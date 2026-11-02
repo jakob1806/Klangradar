@@ -50,6 +50,7 @@ struct SeasonPlannerView: View {
         .navigationTitle("Saisonplaner")
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
+        .refreshable { await load() }
     }
 
     private var header: some View {

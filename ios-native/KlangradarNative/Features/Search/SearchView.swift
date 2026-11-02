@@ -639,7 +639,7 @@ private struct DiscoveryTile: View {
             .fill(.white.opacity(0.16))
             .overlay {
                 Image(systemName: kind.systemImage)
-                    .font(.system(size: 32, weight: .semibold))
+                    .font(.scaled(32, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.9))
             }
     }
@@ -656,7 +656,7 @@ private struct InspirationTile: View {
             ZStack(alignment: .bottomTrailing) {
                 LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
                 Image(systemName: symbol)
-                    .font(.system(size: 52, weight: .bold))
+                    .font(.scaled(52, weight: .bold))
                     .foregroundStyle(.white.opacity(0.22))
                     .rotationEffect(.degrees(-9))
                     .offset(x: 8, y: 8)
@@ -797,33 +797,8 @@ private struct SearchEntityRow: View {
 
 private struct SearchEventRow: View {
     let event: ConcertEvent
-
-    var body: some View {
-        HStack(spacing: 12) {
-            EventArtwork(event: event)
-                .frame(width: 56, height: 56)
-                .clipped()
-                .clipShape(.rect(cornerRadius: 12, style: .continuous))
-            VStack(alignment: .leading, spacing: 4) {
-                Text(event.title)
-                    .font(.subheadline.weight(.semibold))
-                    .multilineTextAlignment(.leading)
-                    .lineLimit(2)
-                Label(event.dateLine, systemImage: "calendar")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .labelStyle(.titleAndIcon)
-                    .lineLimit(1)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            Image(systemName: "chevron.right")
-                .font(.caption.bold())
-                .foregroundStyle(.tertiary)
-        }
-        .padding(.vertical, 10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(.rect)
-    }
+    // Einheitliche Konzertzeile (02.11.2026).
+    var body: some View { ConcertRow(event: event, horizontalPadding: 0) }
 }
 
 private struct SearchResultsSkeleton: View {
@@ -1188,7 +1163,7 @@ private struct AlphabetIndexRail: View {
             VStack(spacing: 0) {
                 ForEach(DirectorySection.indexTitles, id: \.self) { title in
                     Text(title)
-                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .font(.scaled(10, weight: .semibold, design: .rounded))
                         .foregroundStyle(availableTitles.contains(title) ? KlangradarTheme.accent : Color.secondary.opacity(0.35))
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .accessibilityHidden(true)

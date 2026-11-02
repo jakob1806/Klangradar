@@ -70,6 +70,7 @@ struct EntityDetailView: View {
         .edgeSwipeBack { dismiss() }
         .fullScreenCover(item: $fullScreenImage) { FullScreenImageViewer(image: $0) }
         .task { await load() }
+        .refreshable { await load() }
     }
 
     @ViewBuilder private func header(_ detail: EntityDetail) -> some View {

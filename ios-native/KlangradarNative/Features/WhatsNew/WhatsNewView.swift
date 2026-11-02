@@ -54,7 +54,7 @@ struct WhatsNewView: View {
                     .foregroundStyle(.secondary)
                     .padding(.top, 12)
                 Text(notes.title)
-                    .font(.system(size: 38, weight: .semibold, design: .serif))
+                    .font(.scaled(38, weight: .semibold, design: .serif))
                     .padding(.top, 6)
                 if let intro = notes.intro {
                     Text(intro)

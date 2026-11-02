@@ -146,7 +146,7 @@ struct InterestsView: View {
                             Text(option.label).foregroundStyle(.primary)
                             Spacer()
                             Image(systemName: selected.contains(option.id) ? "checkmark.circle.fill" : "circle")
-                                .font(.system(size: 28, weight: .regular))
+                                .font(.scaled(28, weight: .regular))
                                 .frame(width: 44, height: 44)
                                 .foregroundStyle(selected.contains(option.id) ? KlangradarTheme.accent : .secondary)
                         }
@@ -217,7 +217,7 @@ private struct GenreTile: View {
         Button(action: action) {
             HStack(spacing: 12) {
                 Image(systemName: style.symbol)
-                    .font(.system(size: 17, weight: .semibold))
+                    .font(.scaled(17, weight: .semibold))
                     .foregroundStyle(isSelected ? KlangradarTheme.accent : .white)
                     .frame(width: 40, height: 40)
                     .background(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(style.color.gradient), in: .circle)
@@ -243,7 +243,7 @@ private struct GenreTile: View {
             .overlay(alignment: .topTrailing) {
                 if isSelected {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 16))
+                        .font(.scaled(16))
                         .foregroundStyle(.white)
                         .padding(8)
                 }

@@ -85,7 +85,7 @@ struct EventArtwork: View {
                     // Bewusst winzig: Kennzeichnung als Werbung, ohne die
                     // Kachel zu dominieren.
                     Text("Anzeige")
-                        .font(.system(size: 8.5, weight: .medium))
+                        .font(.scaled(8.5, weight: .medium))
                         .foregroundStyle(.white.opacity(0.92))
                         .padding(.horizontal, 5)
                         .padding(.vertical, 2)
@@ -124,7 +124,7 @@ struct EventArtwork: View {
                 endPoint: .bottomTrailing
             )
             Image(systemName: "music.note.list")
-                .font(.system(size: 42, weight: .light))
+                .font(.scaled(42, weight: .light))
                 .foregroundStyle(.white.opacity(0.75))
         }
     }

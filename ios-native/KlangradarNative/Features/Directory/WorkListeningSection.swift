@@ -60,7 +60,7 @@ struct WorkListeningSection: View {
                     isPlaying ? stop() : play(preview)
                 } label: {
                     Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                        .font(.system(size: 40))
+                        .font(.scaled(40))
                         .foregroundStyle(KlangradarTheme.accent)
                 }
                 .buttonStyle(.plain)

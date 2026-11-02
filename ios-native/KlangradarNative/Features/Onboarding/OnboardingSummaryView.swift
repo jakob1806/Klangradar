@@ -53,7 +53,7 @@ struct OnboardingSummaryView: View {
             VStack(spacing: 28) {
                 VStack(spacing: 8) {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 52))
+                        .font(.scaled(52))
                         .foregroundStyle(KlangradarTheme.accent)
                     Text("Dein Profil ist eingerichtet")
                         .font(.largeTitle.bold())

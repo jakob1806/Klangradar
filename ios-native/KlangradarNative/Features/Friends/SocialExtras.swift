@@ -499,7 +499,7 @@ struct SharedYearCard: View {
                 VStack(alignment: .leading, spacing: 14) {
                     Text("EUER JAHR \(String(shared.year))").font(.caption.weight(.bold)).tracking(1.4).foregroundStyle(.white.opacity(0.8))
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text("\(shared.concerts)").font(.system(size: 56, weight: .bold, design: .rounded)).monospacedDigit()
+                        Text("\(shared.concerts)").font(.scaled(56, weight: .bold, design: .rounded)).monospacedDigit()
                         Text(shared.concerts == 1 ? "Konzert zusammen" : "Konzerte zusammen").font(.headline)
                     }
                     VStack(alignment: .leading, spacing: 8) {
@@ -621,7 +621,7 @@ struct GroupDetailView: View {
         List {
             Section {
                 VStack(spacing: 10) {
-                    Text(group.emoji ?? "🎻").font(.system(size: 56))
+                    Text(group.emoji ?? "🎻").font(.scaled(56))
                     Text(group.name).font(.system(.title, design: .serif).weight(.semibold))
                     Text("\(group.members.count) \(group.members.count == 1 ? "Mitglied" : "Mitglieder")").font(.subheadline).foregroundStyle(.secondary)
                 }

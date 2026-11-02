@@ -263,6 +263,7 @@ struct RootTabView: View {
                             startsInChat: true,
                             showsDismissButton: false
                         )
+                        .contentNavigationDestinations(events: environment.events, content: environment.content)
                         .modifier(ClearNavigationContainerBackground())
                         .toolbar(.hidden, for: .navigationBar)
                     }
@@ -505,7 +506,7 @@ private struct BiometricLockView: View {
             Color(uiColor: .systemBackground).ignoresSafeArea()
             VStack(spacing: 18) {
                 Image(systemName: BiometricAuth.availableBiometryKind == .touchID ? "touchid" : "faceid")
-                    .font(.system(size: 48, weight: .regular))
+                    .font(.scaled(48, weight: .regular))
                     .foregroundStyle(KlangradarTheme.accent)
                 Text("Klangradar ist geschützt")
                     .font(.title2.bold())
@@ -602,6 +603,7 @@ private struct DeepLinkRoutingModifier: ViewModifier {
                 NavigationStack {
                     FriendsView(auth: environment.auth, repository: environment.restClient.map(UserRepository.init(client:)), initialTab: friendsSheetTab)
                         .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fertig") { showsFriends = false } } }
+                        .contentNavigationDestinations(events: environment.events, content: environment.content)
                 }
             }
             .onChange(of: deepLinks.pendingTab) { _, tab in

@@ -176,7 +176,7 @@ struct EventCalendarView: View {
                 ForEach(Array(list.enumerated()), id: \.element.id) { index, event in
                     NavigationLink(value: event) { CalendarEventRow(event: event) }
                         .buttonStyle(.plain)
-                    if index < list.count - 1 { Divider().padding(.leading, 78) }
+                    if index < list.count - 1 { Divider().padding(.leading, 14) }
                 }
             }
         }
@@ -302,25 +302,8 @@ private struct MonthEventCalendar: View {
 
 private struct CalendarEventRow: View {
     let event: ConcertEvent
-    var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            EventArtwork(event: event)
-                .frame(width: 52, height: 52)
-                .clipped()
-                .clipShape(.rect(cornerRadius: 12))
-            VStack(alignment: .leading, spacing: 5) {
-                Text(event.startDate.map { KlangradarDateTime.string($0, format: "HH:mm") } ?? "–")
-                    .font(.caption.bold().monospacedDigit())
-                    .foregroundStyle(KlangradarTheme.accent)
-                Text(event.title).font(.headline).lineLimit(2).fixedSize(horizontal: false, vertical: true)
-                Text([event.venueName, event.priceLabel].compactMap { $0 }.joined(separator: " · ")).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-            }
-            Spacer(minLength: 4)
-            Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(.tertiary)
-        }
-        .padding(13)
-        .contentShape(.rect)
-    }
+    // Einheitliche Konzertzeile (02.11.2026), im Kalender mit Uhrzeit links.
+    var body: some View { ConcertRow(event: event, leading: .time) }
 }
 
 /// Tagesansicht als Zeitleiste: Uhrzeit links, Konzerte rechts.

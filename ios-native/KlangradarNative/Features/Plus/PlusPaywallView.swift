@@ -71,13 +71,13 @@ struct PlusPaywallView: View {
             HStack(spacing: 8) {
                 ForEach([PlusFeature.instantAlerts, .coach, .concertYear, .appIcons]) { item in
                     Image(systemName: item.symbol)
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(.scaled(15, weight: .semibold))
                         .frame(width: 34, height: 34)
                         .background(.white.opacity(0.16), in: .circle)
                 }
             }
             VStack(alignment: .leading, spacing: 4) {
-                Text("Klangradar Plus").font(.system(size: 36, weight: .bold, design: .serif))
+                Text("Klangradar Plus").font(.scaled(36, weight: .bold, design: .serif))
                 Text("Mehr aus jedem Konzertabend.").font(.title3).opacity(0.85)
             }
             if let text = reason ?? feature?.paywallReason {
@@ -221,7 +221,7 @@ struct PlusPaywallView: View {
         HStack(alignment: .top, spacing: 14) {
             VStack(spacing: 0) {
                 Image(systemName: symbol)
-                    .font(.system(size: 13, weight: .bold))
+                    .font(.scaled(13, weight: .bold))
                     .foregroundStyle(.white)
                     .frame(width: 30, height: 30)
                     .background(KlangradarTheme.accent, in: .circle)
@@ -378,7 +378,7 @@ struct PlusFeatureRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
             Image(systemName: feature.symbol)
-                .font(.system(size: 17, weight: .semibold))
+                .font(.scaled(17, weight: .semibold))
                 .foregroundStyle(.white)
                 .frame(width: 40, height: 40)
                 .background(feature.color.gradient, in: .rect(cornerRadius: 12, style: .continuous))
@@ -412,9 +412,9 @@ private struct PlusWelcomeContent: View {
         VStack(alignment: .leading, spacing: 22) {
             VStack(alignment: .leading, spacing: 8) {
                 Image(systemName: "checkmark.seal.fill")
-                    .font(.system(size: 44))
+                    .font(.scaled(44))
                     .foregroundStyle(PlusStyle.gradient)
-                Text("Willkommen bei Plus").font(.system(size: 34, weight: .bold, design: .serif))
+                Text("Willkommen bei Plus").font(.scaled(34, weight: .bold, design: .serif))
                 Text("Alles ist freigeschaltet. Hier findest du deine neuen Funktionen.")
                     .font(.title3).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -464,7 +464,7 @@ private struct PlusMemberContent: View {
             VStack(alignment: .leading, spacing: 10) {
                 Label("Plus ist aktiv", systemImage: "checkmark.seal.fill")
                     .font(.subheadline.weight(.bold))
-                Text("Danke, dass du dabei bist.").font(.system(size: 30, weight: .bold, design: .serif))
+                Text("Danke, dass du dabei bist.").font(.scaled(30, weight: .bold, design: .serif))
                 Text(statusText).font(.subheadline).opacity(0.85)
             }
             .foregroundStyle(.white)

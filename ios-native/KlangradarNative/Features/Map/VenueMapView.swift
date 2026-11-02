@@ -58,6 +58,8 @@ struct VenueMapView: View {
     var body: some View {
         NavigationStack {
             mapContent
+                // Auch der Karten-Stapel kennt alle Ziele (02.11.2026).
+                .contentNavigationDestinations(events: eventRepository, content: repository)
         }
         .sheet(item: $selectedVenue) { venue in
             VenuePreviewSheet(
@@ -436,34 +438,11 @@ private struct VenuePreviewSheet: View {
                                 Button {
                                     navigationPath.append(event)
                                 } label: {
-                                    HStack(spacing: 12) {
-                                        VStack(spacing: 1) {
-                                            Text(event.startDate.map { KlangradarDateTime.string($0, format: "EEE") } ?? "")
-                                                .font(.caption2.weight(.bold)).textCase(.uppercase)
-                                                .foregroundStyle(KlangradarTheme.accent)
-                                            Text(event.startDate.map { KlangradarDateTime.string($0, format: "d") } ?? "–")
-                                                .font(.title3.bold().monospacedDigit())
-                                            Text(event.startDate.map { KlangradarDateTime.string($0, format: "MMM") } ?? "")
-                                                .font(.caption2).foregroundStyle(.secondary)
-                                        }
-                                        .frame(width: 40)
-                                        EventArtwork(event: event)
-                                            .frame(width: 52, height: 52)
-                                            .clipShape(.rect(cornerRadius: 11, style: .continuous))
-                                        VStack(alignment: .leading, spacing: 3) {
-                                            Text(event.title).font(.subheadline.weight(.semibold)).lineLimit(2).multilineTextAlignment(.leading)
-                                            Text(event.startDate.map { KlangradarDateTime.string($0, format: "HH:mm 'Uhr'") } ?? "")
-                                                .font(.caption).foregroundStyle(.secondary)
-                                        }
-                                        Spacer(minLength: 4)
-                                        Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(.tertiary)
-                                    }
-                                    .padding(.horizontal, 14)
-                                    .padding(.vertical, 11)
-                                    .contentShape(.rect)
+                                    // Einheitliche Konzertzeile (02.11.2026).
+                                    ConcertRow(event: event)
                                 }
                                 .buttonStyle(.plain)
-                                if index < min(events.count, 5) - 1 { Divider().padding(.leading, 118) }
+                                if index < min(events.count, 5) - 1 { Divider().padding(.leading, 14) }
                             }
                         }
                         .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 20, style: .continuous))

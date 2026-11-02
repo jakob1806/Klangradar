@@ -84,7 +84,7 @@ enum PlusFeature: String, CaseIterable, Identifiable {
 struct PlusBadge: View {
     var body: some View {
         Text("PLUS")
-            .font(.system(size: 9, weight: .heavy))
+            .font(.scaled(9, weight: .heavy))
             .tracking(0.8)
             .foregroundStyle(.white)
             .padding(.horizontal, 6)

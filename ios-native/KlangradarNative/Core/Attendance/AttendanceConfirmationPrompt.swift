@@ -14,7 +14,7 @@ struct AttendanceConfirmationPrompt: View {
     var body: some View {
         VStack(spacing: 20) {
             Image(systemName: "mappin.circle.fill")
-                .font(.system(size: 44))
+                .font(.scaled(44))
                 .foregroundStyle(KlangradarTheme.accent)
                 .padding(.top, 12)
 

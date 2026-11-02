@@ -8,7 +8,7 @@ struct GlassIconButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .font(.system(size: 19, weight: .bold))
+                .font(.scaled(19, weight: .bold))
                 .foregroundStyle(.white)
                 // Das Herz liegt direkt auf dem Konzertbild. Zwei kompakte
                 // Schatten halten Kontur und Füllung sowohl auf sehr dunklen

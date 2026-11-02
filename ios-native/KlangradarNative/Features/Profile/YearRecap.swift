@@ -130,7 +130,7 @@ struct YearRecapView: View {
     private var overviewPage: some View {
         VStack(alignment: .leading, spacing: 22) {
             Text("DEIN JAHR \(String(year))").font(.caption.bold()).tracking(2).opacity(0.8)
-            Text("\(recap.concerts)").font(.system(size: 96, weight: .heavy, design: .rounded)).monospacedDigit()
+            Text("\(recap.concerts)").font(.scaled(96, weight: .heavy, design: .rounded)).monospacedDigit()
             Text(recap.concerts == 1 ? "Konzert erlebt" : "Konzerte erlebt").font(.title.bold())
             VStack(alignment: .leading, spacing: 10) {
                 stat(recap.works, "Werke", "music.note.list")
@@ -157,7 +157,7 @@ struct YearRecapView: View {
     private func highlightPage(_ eyebrow: String, value: String, detail: String, symbol: String) -> some View {
         VStack(spacing: 18) {
             Spacer()
-            Image(systemName: symbol).font(.system(size: 54, weight: .semibold))
+            Image(systemName: symbol).font(.scaled(54, weight: .semibold))
             Text(eyebrow.uppercased()).font(.caption.bold()).tracking(2).opacity(0.8)
             Text(value).font(.largeTitle.bold()).multilineTextAlignment(.center).minimumScaleFactor(0.6)
             Text(detail).font(.title3).opacity(0.85)
@@ -169,7 +169,7 @@ struct YearRecapView: View {
         if plus.enforcesLimits {
             VStack(spacing: 16) {
                 Spacer()
-                Image(systemName: "lock.fill").font(.system(size: 44))
+                Image(systemName: "lock.fill").font(.scaled(44))
                 Text("Deine Top-Werke \(String(year))").font(.title.bold()).multilineTextAlignment(.center)
                 Text("Der vollständige Rückblick gehört zu Klangradar Plus.").multilineTextAlignment(.center).opacity(0.85)
                 Button("Plus ansehen") { showsPaywall = true }
@@ -277,7 +277,7 @@ struct YearRecapShareCard: View {
                 Text(String(recap.year)).font(.headline).monospacedDigit()
             }
             Spacer()
-            Text("\(recap.concerts)").font(.system(size: 72, weight: .heavy, design: .rounded)).monospacedDigit()
+            Text("\(recap.concerts)").font(.scaled(72, weight: .heavy, design: .rounded)).monospacedDigit()
             Text(recap.concerts == 1 ? "Konzert" : "Konzerte").font(.title2.bold())
             Text("\(recap.works) Werke · \(recap.composers) Komponist:innen · \(recap.venues) Säle").font(.caption).opacity(0.9)
             if let composer = recap.topComposer {

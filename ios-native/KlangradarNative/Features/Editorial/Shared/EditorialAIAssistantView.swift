@@ -59,7 +59,7 @@ struct EditorialAIAssistantView: View {
             TextField("Was soll Gemini recherchieren?", text: $prompt, axis: .vertical)
                 .lineLimit(2...5)
             Button("Recherchieren", systemImage: "sparkle.magnifyingglass") { Task { await ask() } }
-                .buttonStyle(EditorialPrimaryButtonStyle()).disabled(isWorking || prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .buttonStyle(.borderedProminent).controlSize(.large).tint(KlangradarTheme.accent).disabled(isWorking || prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             if isWorking { ProgressView().tint(KlangradarTheme.accent) }
             if let message { Text(message).font(.caption).foregroundStyle(message.contains("übernommen") ? .green : .red) }
         }

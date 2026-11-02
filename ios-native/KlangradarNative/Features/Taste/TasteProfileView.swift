@@ -111,7 +111,7 @@ private struct TasteHero: View {
                 Image(systemName: "waveform").font(.headline).opacity(0.75)
             }
             Text(headline)
-                .font(.system(size: 34, weight: .bold, design: .serif))
+                .font(.scaled(34, weight: .bold, design: .serif))
                 .fixedSize(horizontal: false, vertical: true)
             if let profile, !profile.isEmpty {
                 HStack(spacing: 0) {
@@ -184,7 +184,7 @@ private struct TasteInitials: View {
 
     var body: some View {
         let placeholder = Text(initials)
-            .font(.system(size: size * 0.36, weight: .semibold, design: .serif))
+            .font(.scaled(size * 0.36, weight: .semibold, design: .serif))
             .foregroundStyle(highlighted ? .white : KlangradarTheme.accent)
             .frame(width: size, height: size)
             .background(highlighted ? AnyShapeStyle(KlangradarTheme.accent) : AnyShapeStyle(KlangradarTheme.accent.opacity(0.12)), in: .circle)
@@ -267,7 +267,7 @@ private struct TasteArtistsTile: View {
                                 TasteInitials(name: entry.name, highlighted: index == 0, size: 60, imageURL: thumbnails[entry.id])
                                     .overlay(alignment: .bottomTrailing) {
                                         Image(systemName: entry.kind == "ensemble" ? "person.3.fill" : "person.fill")
-                                            .font(.system(size: 9, weight: .bold))
+                                            .font(.scaled(9, weight: .bold))
                                             .foregroundStyle(KlangradarTheme.accent)
                                             .padding(5)
                                             .background(Color(uiColor: .secondarySystemGroupedBackground), in: .circle)

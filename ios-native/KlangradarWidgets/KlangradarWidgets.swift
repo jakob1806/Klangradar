@@ -5,7 +5,9 @@ import WidgetKit
 // Gestaltung (Nutzerwunsch 24.10.2026): flach, weiß, ein Akzent in
 // Klangradar-Blau, klare Typo – keine Verläufe.
 private let accent = Color(red: 0.078, green: 0.380, blue: 0.580) // #146194
-private let ink = Color(red: 0.07, green: 0.08, blue: 0.10)
+// 02.11.2026: dynamisch statt fest Schwarz/Weiß – im Dunkelmodus und bei
+// getönten Home-Bildschirmen war das Widget sonst ein weißer Block.
+private let ink = Color.primary
 
 @main
 struct KlangradarWidgetsBundle: WidgetBundle {
@@ -20,6 +22,13 @@ private func dayLabel(_ date: Date) -> String {
     if calendar.isDateInToday(date) { return "Heute" }
     if calendar.isDateInTomorrow(date) { return "Morgen" }
     return date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).locale(Locale(identifier: "de_DE")))
+}
+
+private func circularLabel(_ date: Date) -> String {
+    let calendar = Calendar.current
+    if calendar.isDateInToday(date) { return clock(date) }
+    let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: .now), to: calendar.startOfDay(for: date)).day ?? 0
+    return "\(max(days, 1)) T"
 }
 
 private func clock(_ date: Date) -> String { date.formatted(.dateTime.hour().minute().locale(Locale(identifier: "de_DE"))) }
@@ -51,11 +60,11 @@ struct NextConcertProvider: TimelineProvider {
 struct NextConcertWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "NextConcert", provider: NextConcertProvider()) { entry in
-            NextConcertView(entry: entry).containerBackground(.white, for: .widget)
+            NextConcertView(entry: entry).containerBackground(.background, for: .widget)
         }
         .configurationDisplayName("Nächstes Konzert")
         .description("Deine nächsten gemerkten Konzerte auf einen Blick.")
-        .supportedFamilies([.systemSmall, .systemMedium, .accessoryRectangular, .accessoryInline])
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .accessoryCircular, .accessoryRectangular, .accessoryInline])
     }
 }
 
@@ -74,10 +83,20 @@ struct NextConcertView: View {
                     Text(first.title).font(.caption).lineLimit(2)
                 }
                 .widgetURL(first.deepLink)
-            case .systemMedium:
+            case .accessoryCircular:
+                // Countdown in Tagen bzw. Uhrzeit am Konzerttag.
+                ZStack {
+                    AccessoryWidgetBackground()
+                    VStack(spacing: 0) {
+                        Image(systemName: "music.note").font(.caption2)
+                        Text(circularLabel(first.start)).font(.headline.monospacedDigit()).minimumScaleFactor(0.6)
+                    }
+                }
+                .widgetURL(first.deepLink)
+            case .systemMedium, .systemLarge:
                 VStack(alignment: .leading, spacing: 10) {
                     WidgetHeader(title: "Gemerkt")
-                    ForEach(entry.concerts.prefix(3)) { concert in
+                    ForEach(entry.concerts.prefix(family == .systemLarge ? 7 : 3)) { concert in
                         Link(destination: concert.deepLink) { ConcertLine(concert: concert) }
                     }
                     Spacer(minLength: 0)
