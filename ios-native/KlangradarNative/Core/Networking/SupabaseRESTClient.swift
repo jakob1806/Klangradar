@@ -135,6 +135,15 @@ struct SupabaseRESTClient: Sendable {
         return try decoder.decode(Response.self, from: try await perform(request))
     }
 
+    /// Rohdaten einer Edge Function per GET, z. B. die Wallet-Karte (02.11.2026).
+    func edgeFunctionData(_ function: String, queryItems: [URLQueryItem], accessToken: String?) async throws -> Data {
+        var components = URLComponents(url: configuration.supabaseURL.appendingPathComponent("functions/v1").appendingPathComponent(function), resolvingAgainstBaseURL: false)!
+        components.queryItems = queryItems
+        var request = authorizedRequest(url: components.url!, accessToken: accessToken)
+        request.httpMethod = "GET"
+        return try await perform(request)
+    }
+
     func insert(
         table: String,
         values: JSONObject,

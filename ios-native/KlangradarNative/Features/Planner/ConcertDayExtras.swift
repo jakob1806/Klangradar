@@ -3,6 +3,7 @@
 // vorbereitet", Hinweis auf Besetzungsänderungen und eigener Sitzplatz.
 import PhotosUI
 import SwiftUI
+import PassKit
 
 /// Wer steht auf der Bühne? Zwei Sätze aus der Biografie plus aktuelle Position.
 struct PerformerBriefs: View {
@@ -219,6 +220,8 @@ struct SeatCard: View {
     @State private var ticketImage: UIImage?
     @State private var seatingPlanURL: URL?
     @State private var isEditing = false
+    @State private var walletPass: WalletPassItem?
+    @State private var walletError: String?
 
     private var isUpcoming: Bool { (event.startDate ?? .distantPast).addingTimeInterval(3 * 3600) > .now }
 
@@ -231,7 +234,20 @@ struct SeatCard: View {
                     .sheet(isPresented: $isEditing, onDismiss: { SharedSeatStore.save(seat, forSlug: event.slug) }) {
                         TicketSeatEditor(event: event, seat: $seat, ticketImage: $ticketImage, seatingPlanURL: seatingPlanURL)
                     }
+                // Apple Wallet (02.11.2026): Karte mit Termin, Ort und Platz.
+                if PKAddPassesViewController.canAddPasses() {
+                    AddToWalletButton { Task { await loadWalletPass() } }
+                        .frame(height: 48)
+                        .padding(.top, 10)
+                        .accessibilityLabel("Zu Apple Wallet hinzufügen")
+                    if let walletError {
+                        Text(walletError).font(.footnote).foregroundStyle(.secondary).padding(.top, 4)
+                    }
+                }
             }
+        }
+        .sheet(item: $walletPass) { item in
+            AddPassSheet(pass: item.pass).ignoresSafeArea()
         }
         .task(id: event.id) {
             seat = SharedSeatStore.seat(forSlug: event.slug) ?? ConcertSeat()
@@ -376,4 +392,53 @@ private struct TicketSeatEditor: View {
         ticketImage = image
         Haptics.confirm()
     }
+}
+
+// MARK: - Apple Wallet (02.11.2026)
+
+private struct WalletPassItem: Identifiable {
+    let id = UUID()
+    let pass: PKPass
+}
+
+extension SeatCard {
+    @MainActor
+    fileprivate func loadWalletPass() async {
+        walletError = nil
+        guard let client = SocialStore.shared.repository?.client else { walletError = "Wallet ist gerade nicht verfügbar."; return }
+        let items = [URLQueryItem(name: "slug", value: event.slug),
+                     URLQueryItem(name: "entrance", value: seat.entrance), URLQueryItem(name: "block", value: seat.block),
+                     URLQueryItem(name: "row", value: seat.row), URLQueryItem(name: "seat", value: seat.seat)]
+        do {
+            let data = try await client.edgeFunctionData("wallet-pass", queryItems: items, accessToken: SocialStore.shared.token)
+            walletPass = WalletPassItem(pass: try PKPass(data: data))
+        } catch {
+            walletError = "Die Wallet-Karte konnte nicht erstellt werden."
+        }
+    }
+}
+
+/// Offizieller „Zu Apple Wallet hinzufügen“-Knopf.
+private struct AddToWalletButton: UIViewRepresentable {
+    let action: () -> Void
+    func makeCoordinator() -> Coordinator { Coordinator(action: action) }
+    func makeUIView(context: Context) -> PKAddPassButton {
+        let button = PKAddPassButton(addPassButtonStyle: .black)
+        button.addTarget(context.coordinator, action: #selector(Coordinator.tap), for: .touchUpInside)
+        return button
+    }
+    func updateUIView(_ uiView: PKAddPassButton, context: Context) { context.coordinator.action = action }
+    final class Coordinator: NSObject {
+        var action: () -> Void
+        init(action: @escaping () -> Void) { self.action = action }
+        @objc func tap() { action() }
+    }
+}
+
+private struct AddPassSheet: UIViewControllerRepresentable {
+    let pass: PKPass
+    func makeUIViewController(context: Context) -> UIViewController {
+        PKAddPassesViewController(pass: pass) ?? UIViewController()
+    }
+    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}
 }
