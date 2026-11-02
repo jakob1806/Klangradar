@@ -797,33 +797,8 @@ private struct SearchEntityRow: View {
 
 private struct SearchEventRow: View {
     let event: ConcertEvent
-
-    var body: some View {
-        HStack(spacing: 12) {
-            EventArtwork(event: event)
-                .frame(width: 56, height: 56)
-                .clipped()
-                .clipShape(.rect(cornerRadius: 12, style: .continuous))
-            VStack(alignment: .leading, spacing: 4) {
-                Text(event.title)
-                    .font(.subheadline.weight(.semibold))
-                    .multilineTextAlignment(.leading)
-                    .lineLimit(2)
-                Label(event.dateLine, systemImage: "calendar")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .labelStyle(.titleAndIcon)
-                    .lineLimit(1)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            Image(systemName: "chevron.right")
-                .font(.caption.bold())
-                .foregroundStyle(.tertiary)
-        }
-        .padding(.vertical, 10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(.rect)
-    }
+    // Einheitliche Konzertzeile (02.11.2026).
+    var body: some View { ConcertRow(event: event, horizontalPadding: 0) }
 }
 
 private struct SearchResultsSkeleton: View {

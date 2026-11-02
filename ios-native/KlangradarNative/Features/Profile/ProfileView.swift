@@ -1924,46 +1924,8 @@ struct PlannedEventsListView: View {
 
 private struct FavoriteEventRow: View {
     let event: ConcertEvent
-
-    var body: some View {
-        HStack(spacing: 12) {
-            AsyncImage(url: event.primaryImageURL) { phase in
-                switch phase {
-                case let .success(image):
-                    image.resizable().scaledToFill()
-                case .failure:
-                    placeholder
-                default:
-                    placeholder.overlay { ProgressView().controlSize(.small) }
-                }
-            }
-            .frame(width: 68, height: 68)
-            .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
-            .clipped()
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(event.title)
-                    .font(.headline)
-                    .lineLimit(2)
-                Text(event.dateLine)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-            }
-            Spacer(minLength: 4)
-        }
-        .padding(.vertical, 3)
-        .contentShape(Rectangle())
-    }
-
-    private var placeholder: some View {
-        RoundedRectangle(cornerRadius: 11, style: .continuous)
-            .fill(KlangradarTheme.accent.opacity(0.1))
-            .overlay {
-                Image(systemName: "music.note")
-                    .foregroundStyle(KlangradarTheme.accent)
-            }
-    }
+    // Einheitliche Konzertzeile (02.11.2026).
+    var body: some View { ConcertRow(event: event, horizontalPadding: 0) }
 }
 
 private struct UserEventListsView: View {
@@ -2341,20 +2303,8 @@ private struct EventListPicker: View {
 
 private struct UserListEventRow: View {
     let event: ConcertEvent
-
-    var body: some View {
-        HStack(spacing: 12) {
-            EventArtwork(event: event)
-                .frame(width: 78, height: 64)
-                .clipped()
-                .clipShape(.rect(cornerRadius: 13))
-            VStack(alignment: .leading, spacing: 4) {
-                Text(event.title).font(.headline).lineLimit(2)
-                Text(event.dateLine).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-            }
-        }
-        .padding(.vertical, 3)
-    }
+    // Einheitliche Konzertzeile (02.11.2026).
+    var body: some View { ConcertRow(event: event, horizontalPadding: 0) }
 }
 
 

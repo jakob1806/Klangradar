@@ -87,31 +87,6 @@ struct CollectionDetailView: View {
 
 private struct CollectionEventRow: View {
     let event: ConcertEvent
-
-    var body: some View {
-        HStack(spacing: 14) {
-            EventArtwork(event: event)
-                .frame(width: 112, height: 92)
-                .clipped()
-                .clipShape(.rect(cornerRadius: 16))
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text(event.title)
-                    .font(.headline)
-                    .lineLimit(3)
-                    .fixedSize(horizontal: false, vertical: true)
-                Text(event.dateLine)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-            }
-            Spacer(minLength: 4)
-            Image(systemName: "chevron.right")
-                .font(.caption.bold())
-                .foregroundStyle(.tertiary)
-        }
-        .padding(12)
-        .background(.thinMaterial, in: .rect(cornerRadius: 20))
-        .contentShape(.rect)
-    }
+    // Einheitliche Konzertzeile (02.11.2026).
+    var body: some View { ConcertRow(event: event).background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 16, style: .continuous)) }
 }

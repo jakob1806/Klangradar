@@ -87,6 +87,9 @@ struct MarketingHomeScreenView: View {
             .navigationDestination(for: MarketingEventData.self) { event in
                 MarketingEventDetailView(event: event)
             }
+            .navigationDestination(for: EntityRoute.self) { route in
+                EntityDetailView(route: route, repository: contentRepository)
+            }
             .navigationDestination(for: ConcertEvent.self) { event in
                 EventDetailView(event: event, repository: eventRepository, contentRepository: contentRepository)
             }

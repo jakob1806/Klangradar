@@ -116,7 +116,7 @@ struct VenueUpcomingConcerts: View {
                         VStack(spacing: 0) {
                             ForEach(Array(filtered.prefix(visibleLimit).enumerated()), id: \.element.id) { index, event in
                                 row(event)
-                                if index < min(filtered.count, visibleLimit) - 1 { Divider().padding(.leading, 126) }
+                                if index < min(filtered.count, visibleLimit) - 1 { Divider().padding(.leading, 14) }
                             }
                         }
                     }
@@ -164,7 +164,8 @@ struct VenueUpcomingConcerts: View {
 
     @ViewBuilder private func row(_ event: LinkedEvent) -> some View {
         if let concert = event.concertEvent {
-            NavigationLink(value: concert) { rowLabel(event, concert: concert) }
+            // Einheitliche Konzertzeile (02.11.2026), sobald das Konzert geladen ist.
+            NavigationLink(value: concert) { ConcertRow(event: concert) }
                 .buttonStyle(.plain)
         } else {
             rowLabel(event, concert: nil)
