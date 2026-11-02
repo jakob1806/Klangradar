@@ -136,6 +136,9 @@ app_target.resources_build_phase.add_file_reference(privacy_manifest, true)
 # "Neu in Klangradar" (auch Quelle für den TestFlight-Testhinweis).
 whats_new = app_target.project.main_group.find_subpath("KlangradarNative/Resources", true).new_reference(root.join("KlangradarNative", "Resources", "WhatsNew.json").to_s)
 app_target.resources_build_phase.add_file_reference(whats_new, true)
+# Englische Oberfläche (02.11.2026): String-Katalog, Quellsprache Deutsch.
+localizable = app_target.project.main_group.find_subpath("KlangradarNative/Resources", true).new_reference(root.join("KlangradarNative", "Resources", "Localizable.xcstrings").to_s)
+app_target.resources_build_phase.add_file_reference(localizable, true)
 
 secrets_path = root.join("Config", "Secrets.plist")
 if secrets_path.exist?
@@ -322,6 +325,7 @@ project.build_configurations.each do |config|
   config.build_settings["IPHONEOS_DEPLOYMENT_TARGET"] = "17.0"
 end
 
+project.root_object.known_regions = ["en", "de", "Base"]
 project.save
 
 scheme = Xcodeproj::XCScheme.new

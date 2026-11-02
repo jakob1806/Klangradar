@@ -172,6 +172,18 @@ struct SearchView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(speechSearch.isRecording ? "Sprachsuche beenden" : "Sprachsuche starten")
+            // Konzerte nach Zeitraum, Preis, Genre und Spielstätte filtern (02.11.2026).
+            NavigationLink {
+                ConcertFilterView(events: events)
+            } label: {
+                Image(systemName: "line.3.horizontal.decrease")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(KlangradarTheme.accent)
+                    .frame(width: 30, height: 30)
+                    .background(KlangradarTheme.accent.opacity(0.11), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Konzerte filtern")
         }
         .padding(.leading, 14)
         .padding(.trailing, 8)

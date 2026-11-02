@@ -286,6 +286,28 @@ struct HomeView: View {
         }
     }
 
+    /// Ähnliche Konzerte zu einem gemerkten: gleiche Mitwirkende zählen
+    /// doppelt, gleiche Spielstätte und gleiches Genre einfach. Anker ist das
+    /// zuletzt anstehende gemerkte Konzert mit mindestens drei Treffern.
+    private func becauseYouSaved(from events: [ConcertEvent]) -> (anchor: ConcertEvent, events: [ConcertEvent])? {
+        let savedIDs = Set(model.favoriteEvents.map(\.id))
+        for anchor in model.favoriteEvents.prefix(5) {
+            let people = Set((anchor.eventParticipants ?? []).compactMap { $0.persons?.id ?? $0.ensembles?.id })
+            let genres = Set(anchor.genreIDs)
+            let scored: [(ConcertEvent, Int)] = events.compactMap { event in
+                guard !savedIDs.contains(event.id), (event.startDate ?? .distantPast) > .now else { return nil }
+                let shared = Set((event.eventParticipants ?? []).compactMap { $0.persons?.id ?? $0.ensembles?.id }).intersection(people).count
+                let sameVenue = event.venues?.id != nil && event.venues?.id == anchor.venues?.id
+                let sameGenre = !genres.isDisjoint(with: event.genreIDs)
+                let score = shared * 2 + (sameVenue && sameGenre ? 1 : 0)
+                return score > 0 ? (event, score) : nil
+            }
+            let ranked = scored.sorted { $0.1 != $1.1 ? $0.1 > $1.1 : ($0.0.startDate ?? .distantFuture) < ($1.0.startDate ?? .distantFuture) }.map(\.0)
+            if ranked.count >= 3 { return (anchor, Array(ranked.prefix(12))) }
+        }
+        return nil
+    }
+
     @ViewBuilder
     private func recommendationSection(_ category: HomeRecommendationCategory, events: [ConcertEvent]) -> some View {
         switch category {
@@ -304,7 +326,14 @@ struct HomeView: View {
                 )
             }
         case .favorites:
-            EventRail(title: category.title(cityName: cityStore.selectedCity?.name), events: Array(model.favoriteEvents.prefix(14)))
+            VStack(alignment: .leading, spacing: 34) {
+                EventRail(title: category.title(cityName: cityStore.selectedCity?.name), events: Array(model.favoriteEvents.prefix(14)))
+                // „Weil du X gemerkt hast“ (02.11.2026).
+                if let similar = becauseYouSaved(from: events) {
+                    EventRail(title: "Weil du »\(similar.anchor.title)« gemerkt hast", events: similar.events,
+                              subtitle: "Mit denselben Mitwirkenden oder im selben Haus")
+                }
+            }
         case .taste:
             let spotlight = tasteSpotlight(from: events)
             EventRail(title: spotlight.title, events: spotlight.events)
