@@ -212,6 +212,7 @@ struct RootTabView: View {
             .environmentObject(genreFilterRouter)
             .environmentObject(cityStore)
         }
+        .task { await ConcertTogetherCoordinator.listen() }
         .task {
             EngagementLogger.shared.configure(client: environment.restClient, auth: environment.auth)
             PartnerStore.shared.configure(client: environment.restClient)

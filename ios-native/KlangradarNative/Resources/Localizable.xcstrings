@@ -5531,6 +5531,16 @@
         }
       }
     },
+    "Per SharePlay ansehen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Watch Together with SharePlay"
+          }
+        }
+      }
+    },
     "Person anlegen": {
       "localizations": {
         "en": {

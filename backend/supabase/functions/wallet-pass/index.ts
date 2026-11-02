@@ -100,12 +100,18 @@ Deno.serve(async (req) => {
   for (const [name, bytes] of Object.entries(files)) manifest[name] = sha1Hex(bytes);
   const manifestBytes = strToU8(JSON.stringify(manifest));
 
+  // Schritt merken, damit ein Fehler ohne Log-Zugriff eingegrenzt werden kann
+  // (02.11.2026). Gibt nie Passwort, Schlüssel oder Zertifikatsinhalt aus.
+  let stage = "p12";
   try {
     const { cert, key } = signerFromP12();
+    stage = "wwdr";
+    const intermediate = await wwdr();
+    stage = "sign";
     const p7 = forge.pkcs7.createSignedData();
     p7.content = forge.util.createBuffer(forge.util.binary.raw.encode(manifestBytes));
     p7.addCertificate(cert);
-    p7.addCertificate(await wwdr());
+    p7.addCertificate(intermediate);
     p7.addSigner({
       key,
       certificate: cert,
@@ -117,6 +123,7 @@ Deno.serve(async (req) => {
       ],
     });
     p7.sign({ detached: true });
+    stage = "zip";
     const signature = forge.util.binary.raw.decode(forge.asn1.toDer(p7.toAsn1()).getBytes());
 
     const zip = zipSync({ ...files, "manifest.json": manifestBytes, signature });
@@ -128,7 +135,16 @@ Deno.serve(async (req) => {
       },
     });
   } catch (err) {
-    console.error("wallet-pass", err);
-    return new Response("Karte konnte nicht signiert werden", { status: 500 });
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("wallet-pass", stage, message);
+    const hint: Record<string, string> = {
+      p12: "Zertifikat (.p12) nicht lesbar – Passwort oder Base64 prüfen",
+      wwdr: "Apple-Zwischenzertifikat nicht abrufbar",
+      sign: "Signieren fehlgeschlagen",
+      zip: "Paket konnte nicht erstellt werden",
+    };
+    // Nur Kategorie und eine gekürzte Fehlermeldung ohne Geheimnisse.
+    const safe = message.replace(/[A-Za-z0-9+/=]{40,}/g, "…").slice(0, 160);
+    return new Response(`Karte konnte nicht signiert werden (${stage}): ${hint[stage] ?? ""} – ${safe}`, { status: 500 });
   }
 });
