@@ -165,7 +165,18 @@ export function isBlockedReaderPage(text: string): boolean {
 export function parseStaatsoperCastHtml(html: string): StaatsoperParticipant[] {
   const participants: StaatsoperParticipant[] = [];
   const seen = new Set<string>();
-  const decode = (t: string) => t.replace(/&amp;/g, "&").replace(/&#39;|&#039;/g, "'").replace(/&quot;/g, '"').replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+  // Tags per Zeichen-Schleife entfernen, Entities danach, „&amp;“ zuletzt
+  // (kein doppeltes Entschlüsseln, keine „<script“-Reste; CodeQL).
+  const decode = (t: string) => {
+    let out = "";
+    let inTag = false;
+    for (const ch of t) {
+      if (ch === "<") inTag = true;
+      else if (ch === ">") inTag = false;
+      else if (!inTag) out += ch;
+    }
+    return out.replace(/&#39;|&#039;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
+  };
   for (const list of html.matchAll(/<ul class="cast-list">([\s\S]*?)<\/ul>/g)) {
     for (const item of list[1].matchAll(/<li><strong>([\s\S]*?)<\/strong>([\s\S]*?)<\/li>/g)) {
       const label = decode(item[1]);
