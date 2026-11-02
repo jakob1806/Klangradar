@@ -69,7 +69,8 @@ struct VenueMapView: View {
             )
             .presentationDetents([.fraction(0.68), .large])
             .presentationDragIndicator(.visible)
-            .presentationBackground(Color(uiColor: .systemGroupedBackground))
+            // Liquid Glass wie in Apple Karten (ab iOS 26 Standard-Sheet).
+            .modifier(VenueSheetBackground())
         }
         .sheet(isPresented: showsVenueGroupSheet) {
             VenueGroupPickerSheet(venues: selectedVenueGroup ?? []) { venue in
@@ -357,6 +358,8 @@ private struct VenuePreviewSheet: View {
     let eventRepository: any EventRepository
     @State private var events: [ConcertEvent] = []
     @State private var venueImageURL: URL?
+    @State private var websiteURL: URL?
+    @Environment(\.dismiss) private var dismiss
     // War auf [ConcertEvent] eingeschränkt — dadurch konnten Venue-/
     // Mitwirkenden-Links von einer hier gepushten EventDetailView nicht
     // wertbasiert weiternavigieren (siehe EntityRoute-Destination unten),
@@ -373,63 +376,61 @@ private struct VenuePreviewSheet: View {
             // Titel auf dem Bild, Konzerte als Karte mit Datumsspalte.
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    ZStack(alignment: .bottomLeading) {
+                    // 02.11.2026 (Nutzer, mit Apple-Karten-Screenshot): Kopf wie
+                    // in Karten – Name mittig, Teilen links, Schließen rechts;
+                    // drei gleich breite Aktionen; Foto darunter.
+                    HStack(alignment: .center, spacing: 12) {
+                        if let shareURL = venueShareURL {
+                            ShareLink(item: shareURL) { circleIcon("square.and.arrow.up") }
+                                .accessibilityLabel("Teilen")
+                        } else {
+                            Color.clear.frame(width: 44, height: 44)
+                        }
+                        VStack(spacing: 2) {
+                            Text(venue.name)
+                                .font(.title3.bold())
+                                .multilineTextAlignment(.center)
+                                .lineLimit(2)
+                            Text(subtitleLine)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                        .frame(maxWidth: .infinity)
+                        Button { dismiss() } label: { circleIcon("xmark") }
+                            .accessibilityLabel("Schließen")
+                    }
+
+                    HStack(spacing: 10) {
+                        Button { openRoute() } label: {
+                            MapsActionLabel(title: "Route", systemImage: "arrow.triangle.turn.up.right.diamond.fill", prominent: true)
+                        }
+                        .buttonStyle(.plain)
+                        if let websiteURL {
+                            Link(destination: websiteURL) {
+                                MapsActionLabel(title: "Website", systemImage: "safari.fill", prominent: false)
+                            }
+                        }
+                        if let slug = venue.slug {
+                            Button {
+                                navigationPath.append(EntityRoute(kind: .venue, identifier: slug))
+                            } label: {
+                                MapsActionLabel(title: "Konzerte", systemImage: "music.note.list", prominent: false)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+
+                    if let venueImageURL {
                         AsyncImage(url: venueImageURL) { image in
                             image.resizable().scaledToFill()
                         } placeholder: {
-                            LinearGradient(
-                                colors: [KlangradarTheme.deepInk, KlangradarTheme.accent],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                            .overlay { Image(systemName: "building.columns").font(.largeTitle).foregroundStyle(.white.opacity(0.8)) }
+                            Color.secondary.opacity(0.15)
                         }
                         .frame(maxWidth: .infinity)
-                        .frame(height: 170)
-                        .clipped()
-                        .overlay {
-                            LinearGradient(colors: [.clear, .black.opacity(0.65)], startPoint: .center, endPoint: .bottom)
-                        }
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(venue.name)
-                                .font(.title2.bold())
-                                .lineLimit(2)
-                            HStack(spacing: 6) {
-                                if let city = venue.city { Text(city) }
-                                if venue.upcomingEventCount > 0 {
-                                    Text("·")
-                                    Text("\(venue.upcomingEventCount) Konzerte")
-                                }
-                            }
-                            .font(.subheadline.weight(.medium))
-                            .opacity(0.9)
-                        }
-                        .foregroundStyle(.white)
-                        .padding(16)
+                        .frame(height: 150)
+                        .clipShape(.rect(cornerRadius: 20, style: .continuous))
                     }
-                    .clipShape(.rect(cornerRadius: 22, style: .continuous))
-
-                    // 02.11.2026 (Nutzer: „sieht nicht nach iOS aus“): Aktionen wie
-                    // in Apple Karten – Systemknöpfe mit Symbol über dem Text,
-                    // Kapselform, auf iOS 26 Liquid Glass, davor bordered.
-                    HStack(spacing: 10) {
-                        Button { openRoute() } label: {
-                            mapsActionLabel("Route", systemImage: "arrow.triangle.turn.up.right.diamond.fill")
-                        }
-                        .authPrimaryButtonStyle()
-                        if let slug = venue.slug {
-                            NavigationLink {
-                                EntityDetailView(route: EntityRoute(kind: .venue, identifier: slug), repository: repository)
-                            } label: {
-                                mapsActionLabel("Konzerte", systemImage: "music.note.list")
-                            }
-                            .authSecondaryButtonStyle()
-                        }
-                    }
-                    .buttonBorderShape(.roundedRectangle(radius: 16))
-                    .controlSize(.large)
-                    .tint(KlangradarTheme.accent)
 
                     if !events.isEmpty {
                         Text("Als Nächstes").font(.headline).padding(.top, 2)
@@ -450,7 +451,7 @@ private struct VenuePreviewSheet: View {
                 }
                 .padding(20)
             }
-            .background(Color(uiColor: .systemGroupedBackground))
+            // Kein fester Grund: das Sheet zeigt Liquid Glass (02.11.2026).
             .navigationDestination(for: ConcertEvent.self) { EventDetailView(event: $0, repository: eventRepository, contentRepository: repository) }
             .navigationDestination(for: EntityRoute.self) { EntityDetailView(route: $0, repository: repository) }
         }
@@ -459,19 +460,29 @@ private struct VenuePreviewSheet: View {
             if let slug = venue.slug {
                 let detail = try? await repository.detail(kind: .venue, identifier: slug)
                 venueImageURL = detail?.gallery.first?.url ?? detail?.primaryImageURL
+                websiteURL = detail?.fields.string("website_url").flatMap(URL.init(string:))
             }
             events = (await loadedEvents) ?? []
         }
     }
 
-    private func mapsActionLabel(_ title: String, systemImage: String) -> some View {
-        VStack(spacing: 3) {
-            Image(systemName: systemImage).font(.body.weight(.semibold))
-            Text(title).font(.caption.weight(.semibold))
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 2)
+    private var subtitleLine: String {
+        [venue.city, venue.upcomingEventCount > 0 ? "\(venue.upcomingEventCount) Konzerte" : nil]
+            .compactMap { $0 }.joined(separator: " · ")
     }
+
+    private var venueShareURL: URL? {
+        venue.slug.flatMap { URL(string: "https://klangradar.com/venue/\($0)") }
+    }
+
+    private func circleIcon(_ systemImage: String) -> some View {
+        Image(systemName: systemImage)
+            .font(.body.weight(.semibold))
+            .foregroundStyle(.primary)
+            .frame(width: 44, height: 44)
+            .modifier(MapsGlass(shape: Circle(), tint: nil))
+    }
+
 
     private func openRoute() {
         let item = MKMapItem(placemark: MKPlacemark(coordinate: venue.coordinate))
@@ -527,6 +538,50 @@ private struct VenueGroupPickerSheet: View {
                 }
             }
             .listStyle(.plain)
+        }
+    }
+}
+
+/// Aktion wie in Apple Karten: Symbol über Text, gleich breit, abgerundet;
+/// die Hauptaktion farbig gefüllt, die übrigen leicht getönt (Liquid Glass
+/// ab iOS 26, darunter Material).
+private struct MapsActionLabel: View {
+    let title: String
+    let systemImage: String
+    let prominent: Bool
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Image(systemName: systemImage).font(.title3.weight(.semibold))
+            Text(title).font(.subheadline.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.8)
+        }
+        .foregroundStyle(prominent ? Color.white : KlangradarTheme.accent)
+        .frame(maxWidth: .infinity, minHeight: 62)
+        .modifier(MapsGlass(shape: RoundedRectangle(cornerRadius: 16, style: .continuous),
+                            tint: prominent ? KlangradarTheme.accent : KlangradarTheme.accent.opacity(0.14)))
+        .contentShape(.rect(cornerRadius: 16))
+    }
+}
+
+private struct MapsGlass<S: Shape>: ViewModifier {
+    let shape: S
+    let tint: Color?
+
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.glassEffect(tint.map { Glass.regular.tint($0).interactive() } ?? Glass.regular.interactive(), in: shape)
+        } else {
+            content.background(tint.map { AnyShapeStyle($0) } ?? AnyShapeStyle(.thinMaterial), in: shape)
+        }
+    }
+}
+
+private struct VenueSheetBackground: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content
+        } else {
+            content.presentationBackground(.regularMaterial)
         }
     }
 }
