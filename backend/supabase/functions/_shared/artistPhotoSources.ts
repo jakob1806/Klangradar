@@ -193,6 +193,20 @@ export function parseMaestroDetail(html: string, pageUrl: string, name: string):
   return { name, imageUrl: `https:${url}`, credit: `© ${decode(credit)}`, pageUrl };
 }
 
+/** NDR (Elbphilharmonie Orchester u. a.): `alt="Name, Funktion"`,
+ * `title="… | NDR, Fotograf, Fotograf"`. Geprüft 02.11.2026. */
+export function parseNdrRoster(html: string, pageUrl: string): ArtistPhoto[] {
+  const out = new Map<string, ArtistPhoto>();
+  for (const m of html.matchAll(/<img src="(https:\/\/images\.ndr\.de\/image\/[^"?]+)(?:\?[^"]*)?" alt="([^",]+),[^"]*" title="[^"|]*\|\s*([^"]+)"/g)) {
+    const name = decode(m[2]);
+    const parts = [...new Set(decode(m[3]).split(",").map((x) => x.trim()).filter(Boolean))];
+    const photographer = parts.filter((x) => x !== "NDR").join(", ");
+    if (!name || name.split(" ").length < 2 || !photographer || out.has(name)) continue;
+    out.set(name, { name, imageUrl: `${m[1]}?width=1200`, credit: `© NDR / ${photographer}`, pageUrl });
+  }
+  return [...out.values()];
+}
+
 export interface ArtistSource {
   key: string;
   label: string;
@@ -223,6 +237,10 @@ export const ARTIST_SOURCES: ArtistSource[] = [
   {
     key: "berlinerphil", label: "Berliner Philharmoniker",
     list: { url: "https://www.berliner-philharmoniker.de/ueber-uns/orchester/musikerinnen/", parse: parseBerlinerPhilList, detail: parseBerlinerPhilDetail },
+  },
+  {
+    key: "ndr", label: "NDR Elbphilharmonie Orchester",
+    rosterPages: [{ url: "https://www.ndr.de/orchester_chor/elbphilharmonieorchester/orchester/Mitglieder-des-NDR-Elbphilharmonie-Orchesters,mitglieder103.html", parse: parseNdrRoster }],
   },
   { key: "maestroarts", label: "Maestro Arts", list: { url: "https://www.maestroarts.com/artists", parse: parseMaestroList, detail: parseMaestroDetail } },
   { key: "askonasholt", label: "Askonas Holt", list: { url: "https://www.askonasholt.com/artists", parse: parseAskonasList, detail: parseAskonasDetail } },

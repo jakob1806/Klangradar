@@ -6,6 +6,7 @@ import {
   parseMaestroDetail,
   parseMphilDetail,
   parseMphilList,
+  parseNdrRoster,
 } from "./artistPhotoSources.ts";
 
 Deno.test("Gärtnerplatz: Name aus alt, Fotograf aus Dateiname", () => {
@@ -35,4 +36,10 @@ Deno.test("Maestro Arts: Galerie-Original und Credit", () => {
   const p = parseMaestroDetail(html, "x", "Adam Walker");
   assertEquals(p?.credit, "© Christa Holka");
   assertEquals(p?.imageUrl.startsWith("https://maestro-arts-production"), true);
+});
+
+Deno.test("NDR: Name aus alt, Fotograf aus title", () => {
+  const html = `<img src="https://images.ndr.de/image/ed19594e/AAABkXDBJ8E/AAABnSSvrFg/16x9-big/ruxandraklein104.webp?width=576" alt="Ruxandra Klein, Stellvertretende Konzertmeisterin des NDR Elbphilharmonie Orchesters" title="Ruxandra Klein, Stellvertretende Konzertmeisterin des NDR Elbphilharmonie Orchesters | NDR, Jewgeni Roppel, Jewgeni Roppel" class="responsive" loading="lazy" />`;
+  const [p] = parseNdrRoster(html, "x");
+  assertEquals([p.name, p.credit], ["Ruxandra Klein", "© NDR / Jewgeni Roppel"]);
 });
