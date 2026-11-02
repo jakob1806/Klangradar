@@ -14,7 +14,8 @@ export interface StaatsoperDetail {
   works: Array<{ title: string; composerName: string | null; position: number }>;
 }
 
-const CREATIVE_ROLES = /^(Inszenierung|Regie|Bühne|Kostüme?|Licht|Video|Dramaturgie|Choreographie|Produktionsleitung|Regieassistenz|Bühnenbild|Kostümbild)$/i;
+// 02.11.2026: auch zusammengesetzte Teamrollen („Mitarbeit Regie“, „Bühne und Kostüm“).
+const CREATIVE_ROLES = /^(?:(?:Mitarbeit|Co-|Assistenz)\s*)?(?:Inszenierung|Regie|Bühne(?:nbild)?|Kostüme?|Kostümbild|Licht|Video|Dramaturgie|Choreographie|Choreografie|Produktionsleitung|Regieassistenz)(?:\s+(?:und|&)\s+(?:Bühne|Kostüme?|Licht|Video))?$/i;
 
 // Live-Datenbestand bestätigt: fehlerhaft angelegte Ensembles wie "**Chor**"
 // oder "**Choreographie**" (Markdown-Sternchen als Teil des gespeicherten
@@ -157,3 +158,47 @@ export function isBlockedReaderPage(text: string): boolean {
     (/HOFFENTLICH KURZES INTERMEZZO/i.test(text) && !/Weitere Informationen zu/.test(text));
 }
 
+/** Besetzung direkt aus dem HTML der Detailseite (02.11.2026). Der
+ * Markdown-Modus des Readers liefert seit Kurzem nur noch die Rollen ohne
+ * Namen („**Mime**“), das HTML enthält sie weiterhin:
+ * `<ul class="cast-list"><li><strong>Mime</strong>…<a href="/biographien/…">Matthias Klink</a>`. */
+export function parseStaatsoperCastHtml(html: string): StaatsoperParticipant[] {
+  const participants: StaatsoperParticipant[] = [];
+  const seen = new Set<string>();
+  const decode = (t: string) => t.replace(/&amp;/g, "&").replace(/&#39;|&#039;/g, "'").replace(/&quot;/g, '"').replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+  for (const list of html.matchAll(/<ul class="cast-list">([\s\S]*?)<\/ul>/g)) {
+    for (const item of list[1].matchAll(/<li><strong>([\s\S]*?)<\/strong>([\s\S]*?)<\/li>/g)) {
+      const label = decode(item[1]);
+      if (!label || CREATIVE_ROLES.test(label)) continue;
+      const role = /Musikalische Leitung|Dirigent/i.test(label) ? "dirigent" : /^Chor(?:leitung)?$/i.test(label) ? "chorleiter" : "solist";
+      const links = [...item[2].matchAll(/<a href="(\/biographien\/[^"]+)">([\s\S]*?)<\/a>/g)];
+      const plain = links.length === 0 ? decode(item[2]) : "";
+      for (const link of links) {
+        const name = stripMarkdownEmphasis(decode(link[2]));
+        if (!name || /^(N\.N\.?|TBA|TBD)$/i.test(name)) continue;
+        const profileUrl = `https://www.staatsoper.de${link[1]}`;
+        const isEnsemble = /(?:orchester|chor|ensemble|ballett)/i.test(name) && isPlausibleEnsembleName(name);
+        const key = `${isEnsemble ? "ensemble" : "person"}:${name.toLocaleLowerCase("de")}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        participants.push(isEnsemble
+          ? { name, profileUrl, role: null, type: "ensemble" }
+          : { name, profileUrl, role, type: "person", roleLabel: role === "dirigent" ? "Musikalische Leitung" : role === "chorleiter" ? "Chor" : label });
+      }
+      // Reine Textzeile ohne Link, z. B. „Bayerisches Staatsorchester“.
+      if (plain && /(?:orchester|chor|ensemble|ballett)/i.test(plain) && isPlausibleEnsembleName(plain)) {
+        const key = `ensemble:${plain.toLocaleLowerCase("de")}`;
+        if (!seen.has(key)) { seen.add(key); participants.push({ name: plain, profileUrl: null, role: null, type: "ensemble" }); }
+      }
+    }
+    // Ensemble-Zeilen ohne <strong> (eigene <li>-Form)
+    for (const item of list[1].matchAll(/<li>(?!<strong>)([\s\S]*?)<\/li>/g)) {
+      const name = decode(item[1]);
+      if (name && /(?:orchester|chor|ensemble|ballett)/i.test(name) && isPlausibleEnsembleName(name)) {
+        const key = `ensemble:${name.toLocaleLowerCase("de")}`;
+        if (!seen.has(key)) { seen.add(key); participants.push({ name, profileUrl: null, role: null, type: "ensemble" }); }
+      }
+    }
+  }
+  return participants;
+}
