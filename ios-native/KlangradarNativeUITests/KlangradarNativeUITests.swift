@@ -24,7 +24,9 @@ final class KlangradarNativeUITests: XCTestCase {
         let order = ["Home", "Suche", "Karte", "Kalender", "Profil"]
         let tabBar = app.tabBars.firstMatch
         _ = tabBar.waitForExistence(timeout: 10)
-        let byLabel = NSPredicate(format: "label == %@ OR identifier == %@", name, name)
+        // Englische Bezeichnung mitprüfen, falls die App doch englisch startet.
+        let english = ["Home": "Home", "Suche": "Search", "Karte": "Map", "Kalender": "Calendar", "Profil": "Profile"][name] ?? name
+        let byLabel = NSPredicate(format: "label == %@ OR label == %@ OR identifier == %@", name, english, name)
         let inBar = tabBar.descendants(matching: .any).matching(byLabel).firstMatch
         if inBar.waitForExistence(timeout: 3), inBar.isHittable { inBar.tap(); return }
         let anywhere = app.descendants(matching: .any).matching(byLabel).firstMatch

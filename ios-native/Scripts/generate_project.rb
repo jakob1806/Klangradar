@@ -325,7 +325,11 @@ project.build_configurations.each do |config|
   config.build_settings["IPHONEOS_DEPLOYMENT_TARGET"] = "17.0"
 end
 
-project.root_object.known_regions = ["en", "de", "Base"]
+# Deutsch ist Quellsprache (Localizable.xcstrings sourceLanguage "de").
+# Mit developmentRegion "en" fehlte die deutsche Variante im Bundle, und die
+# App lief selbst mit -AppleLanguages (de) auf Englisch (UI-Tests, Nutzer).
+project.root_object.development_region = "de"
+project.root_object.known_regions = ["de", "en", "Base"]
 project.save
 
 scheme = Xcodeproj::XCScheme.new
