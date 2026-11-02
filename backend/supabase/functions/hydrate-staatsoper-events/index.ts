@@ -1,6 +1,6 @@
 import { type ProgramLink, replaceProgram } from "../_shared/programReplace.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { parseStaatsoperDetail } from "../_shared/staatsoperDetail.ts";
+import { isBlockedReaderPage, parseStaatsoperDetail } from "../_shared/staatsoperDetail.ts";
 import { USER_AGENT } from "../_shared/robots.ts";
 import { json, mapLimit, replaceEventParticipants, resolveComposer, resolveWork } from "../_shared/eventParticipantResolution.ts";
 
@@ -32,7 +32,12 @@ Deno.serve(async (req) => {
     try {
       const reader = await fetchReaderWithRetry(event.website_url);
       if (!reader.ok) return { id: event.id, error: `reader HTTP ${reader.status}` };
-      const detail = parseStaatsoperDetail(await reader.text());
+      const readerText = await reader.text();
+      // Sperrseite (02.11.2026) als Fehler werten: sonst galt der Termin als
+      // „abgeglichen ohne Besetzung“ und wurde nie wiederholt. Fehlerzeilen
+      // setzt der Retry-Pass gezielt zurück.
+      if (isBlockedReaderPage(readerText)) throw new Error("Sperrseite statt Detailseite (403/Challenge)");
+      const detail = parseStaatsoperDetail(readerText);
       let imageAdded = false;
       if (detail.imageUrl) {
         // Bestands-Backfill bewusst ohne WASM-Bildkonvertierung: hunderte

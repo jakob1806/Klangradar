@@ -61,10 +61,18 @@ class ReportContentLink extends StatelessWidget {
     super.key,
     required this.entityType,
     required this.entityId,
+    this.preselected,
+    this.title,
   });
 
   final String entityType;
   final String entityId;
+
+  /// Vorausgewählter Grund, z. B. "Falsches Bild" direkt am Foto (01.11.2026).
+  final ReportReason? preselected;
+
+  /// Eigener Linktext statt "Fehler melden".
+  final String? title;
 
   @override
   Widget build(BuildContext context) {
@@ -73,7 +81,8 @@ class ReportContentLink extends StatelessWidget {
       button: true,
       link: true,
       child: GestureDetector(
-        onTap: () => _showReportSheet(context, entityType, entityId),
+        onTap: () =>
+            _showReportSheet(context, entityType, entityId, preselected),
         behavior: HitTestBehavior.opaque,
         // Sichtbarer Text bleibt klein, die Tap-Fläche wird unsichtbar auf
         // die 44x44pt-Mindestgröße aufgeweitet (siehe Barrierefreiheits-
@@ -81,7 +90,7 @@ class ReportContentLink extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
           child: Text(
-            AppLocalizations.of(context)!.reportLinkText,
+            title ?? AppLocalizations.of(context)!.reportLinkText,
             style: TextStyle(
               color: colors.textTertiary,
               fontSize: 11,
@@ -97,27 +106,85 @@ class ReportContentLink extends StatelessWidget {
 void _showReportSheet(
   BuildContext context,
   String entityType,
-  String entityId,
-) {
+  String entityId, [
+  ReportReason? preselected,
+]) {
   showModalBottomSheet(
     context: context,
     isScrollControlled: true,
-    builder: (_) => _ReportSheet(entityType: entityType, entityId: entityId),
+    builder: (_) => _ReportSheet(
+      entityType: entityType,
+      entityId: entityId,
+      preselected: preselected,
+    ),
   );
 }
 
-class _ReportSheet extends StatefulWidget {
-  const _ReportSheet({required this.entityType, required this.entityId});
+/// "Falsches Bild?" als kleine Kapsel in der Bildecke (wie iOS, 01.11.2026).
+/// Öffnet das Meldeformular mit vorausgewähltem Grund "Falsches Bild".
+class WrongImageChip extends StatelessWidget {
+  const WrongImageChip({
+    super.key,
+    required this.entityType,
+    required this.entityId,
+  });
 
   final String entityType;
   final String entityId;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: AppLocalizations.of(context)!.reportWrongImageLink,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => _showReportSheet(
+          context,
+          entityType,
+          entityId,
+          ReportReason.wrongImage,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.sm),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.45),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              child: ExcludeSemantics(
+                child: Text(
+                  AppLocalizations.of(context)!.reportWrongImageLink,
+                  style: const TextStyle(color: Colors.white, fontSize: 11),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ReportSheet extends StatefulWidget {
+  const _ReportSheet({
+    required this.entityType,
+    required this.entityId,
+    this.preselected,
+  });
+
+  final String entityType;
+  final String entityId;
+  final ReportReason? preselected;
 
   @override
   State<_ReportSheet> createState() => _ReportSheetState();
 }
 
 class _ReportSheetState extends State<_ReportSheet> {
-  ReportReason? _selected;
+  late ReportReason? _selected = widget.preselected;
   final _messageController = TextEditingController();
   bool _submitting = false;
   bool _submitted = false;

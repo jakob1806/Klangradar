@@ -37,16 +37,33 @@ export async function fetchStaatsoperSchedule(
       // Der Paket-Cursor wäre sonst auf einer wechselnden Liste ungültig.
       throw new Error(`Staatsoper reader fetch ${ym}: HTTP ${res.status}`);
     }
-    pages.push(await res.text());
+    let text = await res.text();
+    // 02.11.2026: Die Staatsoper antwortet dem Reader zeitweise mit einer
+    // Sperr-/Wartungsseite („Just a moment…“, „Target URL returned error
+    // 403“), der Reader selbst meldet trotzdem HTTP 200. Bisher landete so
+    // ein leerer Monat im Ergebnis, die Termine fehlten still. Jetzt: bis zu
+    // zweimal mit Pause neu versuchen, sonst den ganzen Lauf abbrechen.
+    for (let attempt = 1; isBlockedReaderPage(text) && attempt <= 2; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, attempt * 8000));
+      const retry = await fetch(readerUrl, { headers: { "User-Agent": USER_AGENT } });
+      text = retry.ok ? await retry.text() : text;
+    }
+    if (isBlockedReaderPage(text)) {
+      throw new Error(`Staatsoper reader ${ym}: Sperrseite statt Spielplan (403/Challenge)`);
+    }
+    pages.push(text);
   }
   return pages.join("\n\n");
 }
+
+export { isBlockedReaderPage } from "../../_shared/staatsoperDetail.ts";
+import { isBlockedReaderPage } from "../../_shared/staatsoperDetail.ts";
 
 export function parseStaatsoper(markdown: string): ParseResult {
   const events: RawEvent[] = [];
   const errors: string[] = [];
   const seen = new Set<string>();
-  const linkPattern = /\[([^\]]*?Weitere Informationen zu ([\s\S]*?) anzeigen - (\d{2})\.(\d{2})\.(\d{4}), (\d{2})[.:](\d{2}) Uhr[^\]]*)\]\((https:\/\/www\.staatsoper\.de\/(?:stuecke|produktionen)\/[^)]+)\)/g;
+  const linkPattern = /\[([^\]]*?Weitere Informationen zu ([\s\S]*?) anzeigen - (\d{2})\.(\d{2})\.(\d{4}), (\d{2})[.:](\d{2}) Uhr[^\]]*)\]\((https:\/\/www\.staatsoper\.de\/[a-z0-9\/_-]+\/\d{4}-\d{2}-\d{2}-\d{4}[^)]*|https:\/\/www\.staatsoper\.de\/(?:stuecke|produktionen)\/[^)]+)\)/g;
 
   for (const match of markdown.matchAll(linkPattern)) {
     const [, label, rawTitle, day, month, year, hour, minute, url] = match;
@@ -57,7 +74,10 @@ export function parseStaatsoper(markdown: string): ParseResult {
     // Vermittlungskalender des Hauses. Die offizielle Linkzeile endet mit
     // der Kategorie; nur musikalische Bühnen- und Konzertformate zulassen.
     const categoryTail = clean(label.slice(label.lastIndexOf("Uhr") + 3));
-    if (!/\b(Oper|Ballett|Konzert|Liederabend)\b/i.test(categoryTail)) continue;
+    // 01.11.2026 (Nutzer: „bei der Staatsoper fehlen ganz viele Termine“):
+    // Wortgrenzen ließen zusammengesetzte Kategorien wie „Akademiekonzert“,
+    // „Kammerkonzert“, „Kinderoper“ oder „Opernfestspiele“ durchfallen.
+    if (!/(oper|ballett|konzert|liederabend|lied|matinee|festspiel|kammermusik|recital|gala|soiree|tanz)/i.test(categoryTail)) continue;
     // Manche Vermittlungsformate werden auf der Website trotzdem pauschal
     // als „Ballett“ kategorisiert. Sie sind keine Aufführungen und werden
     // deshalb zusätzlich über ihren eindeutigen Titel ausgeschlossen.

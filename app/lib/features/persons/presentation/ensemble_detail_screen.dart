@@ -158,20 +158,34 @@ class EnsembleDetailScreen extends ConsumerWidget {
                   ),
                 ],
                 flexibleSpace: FlexibleSpaceBar(
-                  background: gallery.maybeWhen(
-                    data: (images) => images.isNotEmpty
-                        ? EntityPhotoGallery(
-                            images: images,
-                            fallbackGenre: EventGenre.orchester,
-                          )
-                        : DetailHeroBackground(
-                            photoUrl: ensemble['photo_url'] as String?,
-                            fallbackGenre: EventGenre.orchester,
+                  background: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      gallery.maybeWhen(
+                        data: (images) => images.isNotEmpty
+                            ? EntityPhotoGallery(
+                                images: images,
+                                fallbackGenre: EventGenre.orchester,
+                              )
+                            : DetailHeroBackground(
+                                photoUrl: ensemble['photo_url'] as String?,
+                                fallbackGenre: EventGenre.orchester,
+                              ),
+                        orElse: () => DetailHeroBackground(
+                          photoUrl: ensemble['photo_url'] as String?,
+                          fallbackGenre: EventGenre.orchester,
+                        ),
+                      ),
+                      if (ensemble['photo_url'] != null)
+                        Positioned(
+                          right: AppSpacing.sm,
+                          bottom: AppSpacing.sm,
+                          child: WrongImageChip(
+                            entityType: 'ensemble',
+                            entityId: ensemble['id'] as String,
                           ),
-                    orElse: () => DetailHeroBackground(
-                      photoUrl: ensemble['photo_url'] as String?,
-                      fallbackGenre: EventGenre.orchester,
-                    ),
+                        ),
+                    ],
                   ),
                 ),
               ),

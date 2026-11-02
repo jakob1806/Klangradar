@@ -117,20 +117,34 @@ class VenueDetailScreen extends ConsumerWidget {
                   ),
                 ],
                 flexibleSpace: FlexibleSpaceBar(
-                  background: gallery.maybeWhen(
-                    data: (images) => images.isNotEmpty
-                        ? EntityPhotoGallery(
-                            images: images,
-                            fallbackGenre: EventGenre.kirchenmusik,
-                          )
-                        : DetailHeroBackground(
-                            photoUrl: venue['photo_url'] as String?,
-                            fallbackGenre: EventGenre.kirchenmusik,
+                  background: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      gallery.maybeWhen(
+                        data: (images) => images.isNotEmpty
+                            ? EntityPhotoGallery(
+                                images: images,
+                                fallbackGenre: EventGenre.kirchenmusik,
+                              )
+                            : DetailHeroBackground(
+                                photoUrl: venue['photo_url'] as String?,
+                                fallbackGenre: EventGenre.kirchenmusik,
+                              ),
+                        orElse: () => DetailHeroBackground(
+                          photoUrl: venue['photo_url'] as String?,
+                          fallbackGenre: EventGenre.kirchenmusik,
+                        ),
+                      ),
+                      if (venue['photo_url'] != null)
+                        Positioned(
+                          right: AppSpacing.sm,
+                          bottom: AppSpacing.sm,
+                          child: WrongImageChip(
+                            entityType: 'venue',
+                            entityId: venue['id'] as String,
                           ),
-                    orElse: () => DetailHeroBackground(
-                      photoUrl: venue['photo_url'] as String?,
-                      fallbackGenre: EventGenre.kirchenmusik,
-                    ),
+                        ),
+                    ],
                   ),
                 ),
               ),

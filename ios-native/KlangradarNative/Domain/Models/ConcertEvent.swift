@@ -306,3 +306,12 @@ enum FlexibleDateParser {
         return ISO8601DateFormatter().date(from: value)
     }
 }
+
+extension ConcertEvent {
+    /// Öffentliche Konzertseite (admin/src/app/(public)/e/[slug]) – damit
+    /// Geteiltes für Empfänger ohne App einen Link hat (02.11.2026).
+    var shareURL: URL {
+        URL(string: "https://klangradar.com/e/\(slug.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? slug)")
+            ?? URL(string: "https://klangradar.com")!
+    }
+}

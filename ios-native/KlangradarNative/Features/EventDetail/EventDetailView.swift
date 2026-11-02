@@ -190,7 +190,7 @@ struct EventDetailView: View {
                     HStack(spacing: 10) {
                         heroButton(systemImage: "chevron.left", label: "Zurück") { dismiss() }
                         Spacer()
-                        ShareLink(item: shareText) {
+                        ShareLink(item: event.shareURL, subject: Text(event.title), message: Text(shareText)) {
                             heroButtonLabel(systemImage: "square.and.arrow.up").offset(y: -1.5)
                         }
                         .accessibilityLabel("Teilen")

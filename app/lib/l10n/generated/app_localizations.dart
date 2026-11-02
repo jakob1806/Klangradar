@@ -1424,6 +1424,12 @@ abstract class AppLocalizations {
   /// **'Fehler melden'**
   String get reportLinkText;
 
+  /// No description provided for @reportWrongImageLink.
+  ///
+  /// In de, this message translates to:
+  /// **'Falsches Bild?'**
+  String get reportWrongImageLink;
+
   /// No description provided for @reportThankYou.
   ///
   /// In de, this message translates to:
@@ -2521,6 +2527,168 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Jede E-Mail enthält einen Link zum Abmelden.'**
   String get notificationEmailFooter;
+
+  /// No description provided for @notificationSectionImportant.
+  ///
+  /// In de, this message translates to:
+  /// **'Wichtig'**
+  String get notificationSectionImportant;
+
+  /// No description provided for @notificationAlwaysImmediate.
+  ///
+  /// In de, this message translates to:
+  /// **'Absagen und Verschiebungen kommen immer sofort – für Konzerte, die du gemerkt, geplant oder im Abo hast.'**
+  String get notificationAlwaysImmediate;
+
+  /// No description provided for @notificationChangesTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Zeit- und Terminänderungen'**
+  String get notificationChangesTitle;
+
+  /// No description provided for @notificationChangesSubtitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Wenn sich Beginn oder Datum deutlich ändert'**
+  String get notificationChangesSubtitle;
+
+  /// No description provided for @notificationSectionMyConcerts.
+  ///
+  /// In de, this message translates to:
+  /// **'Deine Konzerte'**
+  String get notificationSectionMyConcerts;
+
+  /// No description provided for @notificationConcertDayTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Erinnerung am Konzerttag'**
+  String get notificationConcertDayTitle;
+
+  /// No description provided for @notificationConcertDaySubtitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Genau eine pro Konzert, auch für Abo-Konzerte'**
+  String get notificationConcertDaySubtitle;
+
+  /// No description provided for @notificationHowWasItTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'„Wie war\'s?“ am Tag danach'**
+  String get notificationHowWasItTitle;
+
+  /// No description provided for @notificationHowWasItSubtitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Kurze Frage nach deiner Bewertung'**
+  String get notificationHowWasItSubtitle;
+
+  /// No description provided for @notificationSectionDiscover.
+  ///
+  /// In de, this message translates to:
+  /// **'Entdecken'**
+  String get notificationSectionDiscover;
+
+  /// No description provided for @notificationNewFollowedTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Neue Konzerte von Gefolgten'**
+  String get notificationNewFollowedTitle;
+
+  /// No description provided for @notificationFrequencyOff.
+  ///
+  /// In de, this message translates to:
+  /// **'Aus'**
+  String get notificationFrequencyOff;
+
+  /// No description provided for @notificationFrequencyWeekly.
+  ///
+  /// In de, this message translates to:
+  /// **'Einmal pro Woche'**
+  String get notificationFrequencyWeekly;
+
+  /// No description provided for @notificationFrequencyDaily.
+  ///
+  /// In de, this message translates to:
+  /// **'Täglich gesammelt'**
+  String get notificationFrequencyDaily;
+
+  /// No description provided for @notificationFrequencyTwiceDaily.
+  ///
+  /// In de, this message translates to:
+  /// **'Zweimal täglich (Plus)'**
+  String get notificationFrequencyTwiceDaily;
+
+  /// No description provided for @notificationWeeklyPickTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Tipp der Woche'**
+  String get notificationWeeklyPickTitle;
+
+  /// No description provided for @notificationWeeklyPickSubtitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Donnerstags ein Konzert, das zu dir passt'**
+  String get notificationWeeklyPickSubtitle;
+
+  /// No description provided for @notificationSectionFriends.
+  ///
+  /// In de, this message translates to:
+  /// **'Freunde'**
+  String get notificationSectionFriends;
+
+  /// No description provided for @notificationFriendsTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Anfragen & Einladungen'**
+  String get notificationFriendsTitle;
+
+  /// No description provided for @notificationFriendsDirect.
+  ///
+  /// In de, this message translates to:
+  /// **'Sofort'**
+  String get notificationFriendsDirect;
+
+  /// No description provided for @notificationFriendsDaily.
+  ///
+  /// In de, this message translates to:
+  /// **'Einmal täglich'**
+  String get notificationFriendsDaily;
+
+  /// No description provided for @notificationFriendActivityTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Applaus, Kommentare, wer mitgeht'**
+  String get notificationFriendActivityTitle;
+
+  /// No description provided for @notificationFriendActivitySubtitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Gesammelt einmal am Tag – in der App siehst du alles'**
+  String get notificationFriendActivitySubtitle;
+
+  /// No description provided for @notificationSectionLimit.
+  ///
+  /// In de, this message translates to:
+  /// **'Wie viel?'**
+  String get notificationSectionLimit;
+
+  /// No description provided for @notificationWeeklyLimitTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Höchstens pro Woche'**
+  String get notificationWeeklyLimitTitle;
+
+  /// No description provided for @notificationWeeklyLimitValue.
+  ///
+  /// In de, this message translates to:
+  /// **'{count} Mitteilungen'**
+  String notificationWeeklyLimitValue(int count);
+
+  /// No description provided for @notificationWeeklyLimitFooter.
+  ///
+  /// In de, this message translates to:
+  /// **'Gilt für Entdecken und Freunde. Wichtiges und Erinnerungen an deine Konzerte zählen nicht mit. Zwischen 21 und 8 Uhr ist Ruhe.'**
+  String get notificationWeeklyLimitFooter;
 }
 
 class _AppLocalizationsDelegate

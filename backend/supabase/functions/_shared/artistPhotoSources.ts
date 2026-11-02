@@ -125,6 +125,88 @@ export function parseAskonasDetail(html: string, pageUrl: string, name: string):
   return null;
 }
 
+/** "MarkusTordik" / "Co_Merz" / "Hoederath" → "Markus Tordik" usw. */
+function creditFromToken(token: string): string {
+  return token.replace(/[_-]+/g, " ").replace(/([a-zäöü])([A-ZÄÖÜ])/g, "$1 $2").replace(/\s+/g, " ").trim();
+}
+
+/** Gärtnerplatztheater: Ensembleseiten mit `alt="Portrait NAME"`, Fotograf im
+ * Dateinamen ("Berg_cMarkusTordik.jpg"). Geprüft 02.11.2026. */
+export function parseGaertnerplatzRoster(html: string, pageUrl: string): ArtistPhoto[] {
+  const out = new Map<string, ArtistPhoto>();
+  for (const m of html.matchAll(/<img src="(https:\/\/www\.gaertnerplatztheater\.de\/uploads\/[^"?]+?_c([A-ZÄÖÜ][A-Za-zÄÖÜäöüß]+)\.(?:jpe?g|png|webp))(?:\?[^"]*)?"\s+alt="Portrait ([^"]+)"/g)) {
+    const name = decode(m[3]);
+    if (!name || name.split(" ").length < 2 || out.has(name)) continue;
+    out.set(name, { name, imageUrl: m[1], credit: `© ${creditFromToken(m[2])}`, pageUrl });
+  }
+  return [...out.values()];
+}
+
+/** Münchner Philharmoniker: Liste /orchester/musikerinnen-und-musiker. */
+export function parseMphilList(html: string): ArtistListEntry[] {
+  const seen = new Set<string>();
+  return [...html.matchAll(/<a href="(\/ueber-uns\/musikerinnen-und-musiker\/details\/[a-z0-9-]+)">\s*([^<]+?)\s*<\/a>/g)]
+    .filter((m) => !seen.has(m[1]) && seen.add(m[1]))
+    .map((m) => ({ name: decode(m[2]), detailUrl: `https://www.mphil.de${m[1]}` }));
+}
+
+/** MPhil-Detailseite: og:image, Credit im Pfad ("…/credit_Co_Merz/…"). Ohne Credit kein Treffer. */
+export function parseMphilDetail(html: string, pageUrl: string, name: string): ArtistPhoto | null {
+  const url = html.match(/<meta property="og:image" content="(https:\/\/www\.mphil\.de\/fileadmin\/[^"]+\.(?:jpe?g|png|webp))"/i)?.[1];
+  const credit = url?.match(/credit_([A-Za-zÄÖÜäöüß_-]+?)(?:\/|_?\.\w+$)/)?.[1];
+  if (!url || !credit) return null;
+  return { name, imageUrl: url, credit: `© ${creditFromToken(credit)}`, pageUrl };
+}
+
+/** Berliner Philharmoniker: Liste der Musiker:innen. */
+export function parseBerlinerPhilList(html: string): ArtistListEntry[] {
+  const seen = new Set<string>();
+  return [...html.matchAll(/href="(\/ueber-uns\/orchester\/musikerinnen\/([a-z0-9-]+)\/)"/g)]
+    .filter((m) => !seen.has(m[1]) && seen.add(m[1]))
+    .map((m) => ({ name: titleCase(m[2]), detailUrl: `https://www.berliner-philharmoniker.de${m[1]}` }));
+}
+
+/** Berliner-Phil-Detailseite: og:image, Fotograf im Dateinamen ("…_c_Hoederath_32095…"),
+ * Name aus dem Seitentitel (mit Umlauten statt Slug). */
+export function parseBerlinerPhilDetail(html: string, pageUrl: string, fallbackName: string): ArtistPhoto | null {
+  const url = html.match(/<meta property="og:image" content="(https:\/\/www\.berliner-philharmoniker\.de\/fileadmin\/[^"]+\.(?:jpe?g|png|webp))"/i)?.[1];
+  const credit = url?.match(/_c_([A-Za-zÄÖÜäöüß-]+(?:_[A-Z][A-Za-zÄÖÜäöüß-]+)?)_/)?.[1];
+  if (!url || !credit || /Orchesterfoto/i.test(url)) return null;
+  const name = decode(html.match(/<title>([^<|]+)\|/)?.[1] ?? fallbackName);
+  return { name, imageUrl: url, credit: `© ${creditFromToken(credit)}`, pageUrl };
+}
+
+/** Maestro Arts: Liste /artists mit Links /artists/<slug>. */
+export function parseMaestroList(html: string): ArtistListEntry[] {
+  const seen = new Set<string>();
+  return [...html.matchAll(/href="https:\/\/www\.maestroarts\.com\/artists\/([a-z0-9-]+)"/g)]
+    .map((m) => m[1])
+    .filter((slug) => slug.includes("-") && !seen.has(slug) && seen.add(slug))
+    .map((slug) => ({ name: titleCase(slug), detailUrl: `https://www.maestroarts.com/artists/${slug}` }));
+}
+
+/** Maestro-Arts-Detailseite: Galerie-Original (media/…jpg) + erster "© Fotograf". */
+export function parseMaestroDetail(html: string, pageUrl: string, name: string): ArtistPhoto | null {
+  const url = html.match(/href="(\/\/maestro-arts-production\.s3\.amazonaws\.com\/media\/Artists\/[^"]+\.jpe?g)"/i)?.[1];
+  const credit = html.match(/>\s*©\s*([^<\n]{2,60}?)\s*</)?.[1];
+  if (!url || !credit) return null;
+  return { name, imageUrl: `https:${url}`, credit: `© ${decode(credit)}`, pageUrl };
+}
+
+/** NDR (Elbphilharmonie Orchester u. a.): `alt="Name, Funktion"`,
+ * `title="… | NDR, Fotograf, Fotograf"`. Geprüft 02.11.2026. */
+export function parseNdrRoster(html: string, pageUrl: string): ArtistPhoto[] {
+  const out = new Map<string, ArtistPhoto>();
+  for (const m of html.matchAll(/<img src="(https:\/\/images\.ndr\.de\/image\/[^"?]+)(?:\?[^"]*)?" alt="([^",]+),[^"]*" title="[^"|]*\|\s*([^"]+)"/g)) {
+    const name = decode(m[2]);
+    const parts = [...new Set(decode(m[3]).split(",").map((x) => x.trim()).filter(Boolean))];
+    const photographer = parts.filter((x) => x !== "NDR").join(", ");
+    if (!name || name.split(" ").length < 2 || !photographer || out.has(name)) continue;
+    out.set(name, { name, imageUrl: `${m[1]}?width=1200`, credit: `© NDR / ${photographer}`, pageUrl });
+  }
+  return [...out.values()];
+}
+
 export interface ArtistSource {
   key: string;
   label: string;
@@ -144,6 +226,23 @@ export const ARTIST_SOURCES: ArtistSource[] = [
   { key: "intermusica", label: "Intermusica", list: { url: "https://www.intermusica.com/artists", parse: parseIntermusicaList, detail: parseIntermusicaDetail } },
   { key: "harrisonparrott", label: "HarrisonParrott", list: { url: "https://www.harrisonparrott.com/artists", parse: parseHarrisonParrottList, detail: parseHarrisonParrottDetail } },
   { key: "kdschmid", label: "KD Schmid", list: { url: "https://www.kdschmid.de/kd-schmid/artists/", parse: parseKdSchmidList, detail: parseKdSchmidDetail } },
+  {
+    key: "mphil", label: "Münchner Philharmoniker",
+    list: { url: "https://www.mphil.de/orchester/musikerinnen-und-musiker", parse: parseMphilList, detail: parseMphilDetail },
+  },
+  {
+    key: "gaertnerplatz", label: "Staatstheater am Gärtnerplatz", rosterPages: ["solistinnen-und-solisten", "musikalische-leitung"]
+      .map((p) => ({ url: `https://www.gaertnerplatztheater.de/de/ensemble/${p}.html`, parse: parseGaertnerplatzRoster })),
+  },
+  {
+    key: "berlinerphil", label: "Berliner Philharmoniker",
+    list: { url: "https://www.berliner-philharmoniker.de/ueber-uns/orchester/musikerinnen/", parse: parseBerlinerPhilList, detail: parseBerlinerPhilDetail },
+  },
+  {
+    key: "ndr", label: "NDR Elbphilharmonie Orchester",
+    rosterPages: [{ url: "https://www.ndr.de/orchester_chor/elbphilharmonieorchester/orchester/Mitglieder-des-NDR-Elbphilharmonie-Orchesters,mitglieder103.html", parse: parseNdrRoster }],
+  },
+  { key: "maestroarts", label: "Maestro Arts", list: { url: "https://www.maestroarts.com/artists", parse: parseMaestroList, detail: parseMaestroDetail } },
   { key: "askonasholt", label: "Askonas Holt", list: { url: "https://www.askonasholt.com/artists", parse: parseAskonasList, detail: parseAskonasDetail } },
 ];
 

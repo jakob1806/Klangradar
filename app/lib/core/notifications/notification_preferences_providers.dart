@@ -13,7 +13,12 @@ enum NotificationPreferenceKey {
   emailWeeklyDigest('email_weekly_digest', defaultValue: false),
   emailFollowedNewEvent('email_followed_new_event', defaultValue: false),
   emailEventChanges('email_event_changes', defaultValue: false),
-  emailReminderDayBefore('email_reminder_day_before', defaultValue: false);
+  emailReminderDayBefore('email_reminder_day_before', defaultValue: false),
+  // Mitteilungs-Konzept 01.11.2026 (Migration 20261231000147).
+  pushChanges('push_changes'),
+  pushHowWasIt('push_how_was_it'),
+  pushWeeklyPick('push_weekly_pick'),
+  pushFriendActivity('push_friend_activity', defaultValue: false);
 
   const NotificationPreferenceKey(this.column, {this.defaultValue = true});
 
@@ -22,9 +27,23 @@ enum NotificationPreferenceKey {
 }
 
 class NotificationPreferences {
-  const NotificationPreferences(this._values);
+  const NotificationPreferences(
+    this._values, {
+    this.weeklyLimit = 10,
+    this.newFollowed = 'daily',
+    this.friends = 'direct',
+  });
 
   final Map<NotificationPreferenceKey, bool> _values;
+
+  /// Wochenbudget für Entdecken und Freunde (3–40, Standard 10).
+  final int weeklyLimit;
+
+  /// off | weekly | daily | twice_daily (Plus)
+  final String newFollowed;
+
+  /// off | daily | direct
+  final String friends;
 
   static final defaults = NotificationPreferences({
     for (final key in NotificationPreferenceKey.values) key: key.defaultValue,
@@ -43,10 +62,15 @@ class NotificationPreferences {
       this[NotificationPreferenceKey.followedEnsembleNewEvent];
 
   factory NotificationPreferences.fromRow(Map<String, dynamic> row) {
-    return NotificationPreferences({
-      for (final key in NotificationPreferenceKey.values)
-        key: row[key.column] as bool? ?? key.defaultValue,
-    });
+    return NotificationPreferences(
+      {
+        for (final key in NotificationPreferenceKey.values)
+          key: row[key.column] as bool? ?? key.defaultValue,
+      },
+      weeklyLimit: (row['push_weekly_limit'] as num?)?.toInt() ?? 10,
+      newFollowed: row['push_new_followed'] as String? ?? 'daily',
+      friends: row['push_friends'] as String? ?? 'direct',
+    );
   }
 }
 
@@ -100,6 +124,21 @@ class NotificationPreferencesService {
     await Supabase.instance.client.from('notification_preferences').upsert({
       'user_id': user.id,
       key.column: value,
+    }, onConflict: 'user_id');
+    ref.invalidate(notificationPreferencesProvider);
+  }
+
+  /// Auswahl-Einstellungen (Wochenbudget, Häufigkeiten).
+  static Future<void> setValue(
+    WidgetRef ref,
+    String column,
+    Object value,
+  ) async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+    await Supabase.instance.client.from('notification_preferences').upsert({
+      'user_id': user.id,
+      column: value,
     }, onConflict: 'user_id');
     ref.invalidate(notificationPreferencesProvider);
   }

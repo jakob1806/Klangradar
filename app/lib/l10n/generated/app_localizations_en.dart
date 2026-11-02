@@ -1,5 +1,6 @@
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
+
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -745,6 +746,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get reportLinkText => 'Report an issue';
 
   @override
+  String get reportWrongImageLink => 'Wrong image?';
+
+  @override
   String get reportThankYou => 'Thanks for the heads up!';
 
   @override
@@ -1362,4 +1366,94 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get notificationEmailFooter =>
       'Every email contains an unsubscribe link.';
+
+  @override
+  String get notificationSectionImportant => 'Important';
+
+  @override
+  String get notificationAlwaysImmediate =>
+      'Cancellations and postponements always arrive immediately – for concerts you saved, planned or subscribed to.';
+
+  @override
+  String get notificationChangesTitle => 'Time and date changes';
+
+  @override
+  String get notificationChangesSubtitle =>
+      'When the start time or date changes noticeably';
+
+  @override
+  String get notificationSectionMyConcerts => 'Your concerts';
+
+  @override
+  String get notificationConcertDayTitle => 'Reminder on concert day';
+
+  @override
+  String get notificationConcertDaySubtitle =>
+      'Exactly one per concert, including subscriptions';
+
+  @override
+  String get notificationHowWasItTitle => '“How was it?” the day after';
+
+  @override
+  String get notificationHowWasItSubtitle => 'A quick request for your rating';
+
+  @override
+  String get notificationSectionDiscover => 'Discover';
+
+  @override
+  String get notificationNewFollowedTitle =>
+      'New concerts from people you follow';
+
+  @override
+  String get notificationFrequencyOff => 'Off';
+
+  @override
+  String get notificationFrequencyWeekly => 'Once a week';
+
+  @override
+  String get notificationFrequencyDaily => 'Daily digest';
+
+  @override
+  String get notificationFrequencyTwiceDaily => 'Twice a day (Plus)';
+
+  @override
+  String get notificationWeeklyPickTitle => 'Pick of the week';
+
+  @override
+  String get notificationWeeklyPickSubtitle =>
+      'Every Thursday, one concert that suits you';
+
+  @override
+  String get notificationSectionFriends => 'Friends';
+
+  @override
+  String get notificationFriendsTitle => 'Requests & invitations';
+
+  @override
+  String get notificationFriendsDirect => 'Immediately';
+
+  @override
+  String get notificationFriendsDaily => 'Once a day';
+
+  @override
+  String get notificationFriendActivityTitle => 'Applause, comments, who joins';
+
+  @override
+  String get notificationFriendActivitySubtitle =>
+      'Bundled once a day – you can see everything in the app';
+
+  @override
+  String get notificationSectionLimit => 'How many?';
+
+  @override
+  String get notificationWeeklyLimitTitle => 'At most per week';
+
+  @override
+  String notificationWeeklyLimitValue(int count) {
+    return '$count notifications';
+  }
+
+  @override
+  String get notificationWeeklyLimitFooter =>
+      'Applies to Discover and Friends. Important updates and reminders for your concerts don\'t count. Quiet hours 9 pm to 8 am.';
 }

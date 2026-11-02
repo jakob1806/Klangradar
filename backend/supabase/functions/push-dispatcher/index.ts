@@ -13,11 +13,11 @@ import { SYSTEM_PROMPT, TEXT_FUNCTION, templateText, userPrompt, validateText, t
 const TRANSACTIONAL = new Set(["concert_day"]);
 const CATEGORY: Record<string, string> = {
   new_followed: "EVENT", almost_sold_out: "EVENT", weekly_pick: "EVENT", reengagement: "EVENT",
-  concert_day: "CONCERT_DAY", how_was_it: "RATE",
+  concert_day: "CONCERT_DAY", how_was_it: "RATE", friends_digest: "SOCIAL",
 };
 const THREAD: Record<string, string> = {
   new_followed: "neu", almost_sold_out: "erinnerungen", concert_day: "erinnerungen",
-  how_was_it: "erinnerungen", weekly_pick: "empfehlungen", reengagement: "empfehlungen",
+  how_was_it: "erinnerungen", weekly_pick: "empfehlungen", reengagement: "empfehlungen", friends_digest: "social",
 };
 
 async function writeText(c: Candidate, useAi: boolean): Promise<{ text: PushText; author: string }> {
@@ -41,11 +41,12 @@ Deno.serve(async (req) => {
   const now = body.now ? new Date(body.now) : new Date();
   const db = createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "");
 
-  const [{ data: candidates, error }, { data: engagement }, { data: hours }, { data: recent }] = await Promise.all([
+  const [{ data: candidates, error }, { data: engagement }, { data: hours }, { data: recent }, { data: limits }] = await Promise.all([
     db.rpc("push_candidates"),
     db.rpc("push_engagement"),
     db.rpc("push_preferred_hours"),
     db.from("push_log").select("user_id, kind, sent_at").gte("sent_at", new Date(now.getTime() - 7 * 86400000).toISOString()),
+    db.rpc("push_user_limits"),
   ]);
   if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500 });
 
@@ -58,8 +59,11 @@ Deno.serve(async (req) => {
     if (TRANSACTIONAL.has(row.kind)) continue;
     const ctx = ctxFor(row.user_id);
     ctx.sentLastWeek++;
-    if (now.getTime() - new Date(row.sent_at).getTime() < 86400000) ctx.sentLastDay++;
+    const sentAt = new Date(row.sent_at).getTime();
+    if (now.getTime() - sentAt < 86400000) ctx.sentLastDay++;
+    ctx.lastSentAt = Math.max(ctx.lastSentAt ?? 0, sentAt);
   }
+  for (const row of (limits ?? []) as { user_id: string; weekly_limit: number }[]) ctxFor(row.user_id).weeklyLimit = row.weekly_limit;
   for (const row of (engagement ?? []) as { user_id: string; kind: string; sent: number; opened: number }[]) {
     ctxFor(row.user_id).engagement[row.kind] = { sent: Number(row.sent), opened: Number(row.opened) };
   }
@@ -77,6 +81,8 @@ Deno.serve(async (req) => {
     const { data: log, error: logError } = await db.from("push_log").insert({
       user_id: c.user_id, kind: c.kind, dedupe_key: c.dedupe_key, event_id: c.event_id,
       title: text.title, body: text.body, author, priority: c.priority,
+      // Gebündelte Neuankündigungen: welche Termine gemeldet wurden (nicht doppelt melden).
+      facts_event_ids: Array.isArray(c.facts.event_ids) ? c.facts.event_ids : (c.event_id ? [c.event_id] : []),
     }).select("id").single();
     if (logError || !log) continue;
 
@@ -86,11 +92,11 @@ Deno.serve(async (req) => {
     const sendResults = await sendPushToTokens(list, {
       title: text.title,
       body: text.body,
-      category: CATEGORY[c.kind],
+      category: c.kind === "friends_digest" ? undefined : CATEGORY[c.kind],
       threadId: THREAD[c.kind],
       imageUrl: c.facts.image_url ?? c.facts.events?.[0]?.image_url ?? undefined,
       data: {
-        route: slug ? `/event/${slug}` : "/",
+        route: c.kind === "friends_digest" ? "/friends" : slug ? `/event/${slug}` : "/",
         push_log_id: String(log.id),
         ...(c.event_id ? { event_id: c.event_id } : {}),
         ...(slug ? { event_slug: slug } : {}),

@@ -624,3 +624,176 @@ export async function importParsedParticipantsToGroup(groupId: string, formData:
 
   revalidatePath(`/event-groups/${groupId}`);
 }
+
+// ---------------------------------------------------------------------------
+// Überarbeitung Eventgruppen (01.11.2026, Nutzerfeedback: „man kann nicht alle
+// Events sehen, nicht richtig suchen, Mitwirkende nicht schnell alle
+// hinzufügen“). Termine werden jetzt serverseitig gesucht statt als ein
+// <select> mit allen ungruppierten Events (PostgREST kappt bei 1000 Zeilen),
+// und Besetzung/Programm lassen sich in einem Schritt übernehmen.
+
+export interface GroupCandidateEvent {
+  id: string;
+  title: string;
+  start_datetime: string;
+  venue: string | null;
+  otherGroup: { id: string; title: string } | null;
+}
+
+function searchPattern(query: string): string | null {
+  const q = query.trim().replace(/[%_,()\\]/g, " ").replace(/\s+/g, " ").slice(0, 80);
+  return q ? `%${q.split(" ").join("%")}%` : null;
+}
+
+/** Termine für „Weitere Termine hinzufügen“. Ohne Suchtext: Termine mit
+ * gleichem Titel wie die Gruppe bzw. ihre Termine (wahrscheinlichste Treffer).
+ * Mit Suchtext: Titel enthält alle Wörter. Vergangene Termine optional. */
+export async function searchGroupCandidateEvents(
+  groupId: string,
+  query: string,
+  includePast: boolean,
+): Promise<GroupCandidateEvent[]> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  let patterns: string[] = [];
+  const typed = searchPattern(query);
+  if (typed) patterns = [typed];
+  else {
+    const { data: group } = await supabase.from("programs").select("title").eq("id", groupId).maybeSingle();
+    const { data: titles } = await supabase.from("events").select("title").eq("program_id", groupId).limit(50);
+    const unique = new Set([group?.title, ...(titles ?? []).map((t) => t.title)].filter((t): t is string => !!t));
+    patterns = [...unique].slice(0, 5).map((t) => searchPattern(t)).filter((p): p is string => !!p);
+    if (patterns.length === 0) return [];
+  }
+
+  let request = supabase
+    .from("events")
+    .select("id, title, start_datetime, program_id, venues(name), programs(id, title)")
+    .neq("status", "draft")
+    .or(patterns.map((p) => `title.ilike.${p}`).join(","))
+    .order("start_datetime", { ascending: true })
+    .limit(150);
+  if (!includePast) request = request.gte("start_datetime", new Date(Date.now() - 6 * 3600 * 1000).toISOString());
+  const { data } = await request.returns<{
+    id: string;
+    title: string;
+    start_datetime: string;
+    program_id: string | null;
+    venues: { name: string } | null;
+    programs: { id: string; title: string } | null;
+  }[]>();
+
+  return (data ?? [])
+    .filter((e) => e.program_id !== groupId)
+    .map((e) => ({
+      id: e.id,
+      title: e.title,
+      start_datetime: e.start_datetime,
+      venue: e.venues?.name ?? null,
+      otherGroup: e.programs ? { id: e.programs.id, title: e.programs.title } : null,
+    }));
+}
+
+/** Mehrere Termine auf einmal aufnehmen. Termine aus einer anderen Gruppe
+ * werden umgehängt; leere Altgruppen räumt removeEventFromGroup-Logik auf.
+ * Optional übernehmen neue Termine sofort Programm und Besetzung der Gruppe. */
+export async function addEventsToGroup(groupId: string, eventIds: string[], copyLineup: boolean) {
+  const { addEventToGroup } = await import("../actions");
+  const { cleanupEventGroupIfEmpty } = await import("@/lib/event-group-cleanup");
+  const supabase = await createClient();
+  const { data: previous } = await supabase.from("events").select("program_id").in("id", eventIds);
+  for (const eventId of eventIds) await addEventToGroup(groupId, eventId);
+  for (const oldGroup of new Set((previous ?? []).map((p) => p.program_id).filter((p): p is string => !!p && p !== groupId))) {
+    await cleanupEventGroupIfEmpty(supabase, oldGroup);
+  }
+  if (copyLineup) await alignGroupLineup(groupId);
+  revalidatePath(`/event-groups/${groupId}`);
+}
+
+/** „Alles auf alle Termine“: jedes Werk und jede:r Mitwirkende, die bei
+ * irgendeinem Termin der Gruppe stehen, kommen zu allen Terminen. */
+export async function alignGroupLineup(groupId: string) {
+  const supabase = await createClient();
+  const eventIds = await memberEventIds(supabase, groupId);
+  if (eventIds.length < 2) return;
+
+  const [{ data: works }, { data: participants }] = await Promise.all([
+    supabase.from("event_works").select("work_id, position, after_intermission").in("event_id", eventIds).order("position"),
+    supabase.from("event_participants").select("person_id, ensemble_id, role, role_label").in("event_id", eventIds),
+  ]);
+  const seenWorks = new Set<string>();
+  for (const w of works ?? []) {
+    if (seenWorks.has(w.work_id)) continue;
+    seenWorks.add(w.work_id);
+    await addWorkToEvents(supabase, eventIds, w.work_id, !!w.after_intermission);
+  }
+  const seenParticipants = new Set<string>();
+  for (const p of participants ?? []) {
+    const key = p.person_id ?? `e:${p.ensemble_id}`;
+    if (seenParticipants.has(key)) continue;
+    seenParticipants.add(key);
+    await addParticipantToEvents(supabase, eventIds, p.person_id, p.ensemble_id, p.role_label, p.role);
+  }
+  revalidatePath(`/event-groups/${groupId}`);
+}
+
+/** Besetzung (und optional Programm) eines beliebigen Termins – auch aus einer
+ * anderen Gruppe oder einem Einzelevent – auf ausgewählte Gruppentermine. */
+export async function copyLineupFromEvent(groupId: string, formData: FormData) {
+  const sourceEventId = String(formData.get("source_event_id") ?? "");
+  const withWorks = formData.get("with_works") === "on";
+  if (!sourceEventId) return;
+  const supabase = await createClient();
+  const eventIds = selectedEventIds(formData, await memberEventIds(supabase, groupId)).filter((id) => id !== sourceEventId);
+  const { data: participants } = await supabase
+    .from("event_participants")
+    .select("person_id, ensemble_id, role, role_label")
+    .eq("event_id", sourceEventId);
+  for (const p of participants ?? []) {
+    await addParticipantToEvents(supabase, eventIds, p.person_id, p.ensemble_id, p.role_label, p.role);
+  }
+  if (withWorks) {
+    const { data: works } = await supabase
+      .from("event_works")
+      .select("work_id, after_intermission")
+      .eq("event_id", sourceEventId)
+      .order("position");
+    for (const w of works ?? []) await addWorkToEvents(supabase, eventIds, w.work_id, !!w.after_intermission);
+  }
+  revalidatePath(`/event-groups/${groupId}`);
+}
+
+/** Mehrere Personen/Ensembles in einem Schritt (Mehrfachauswahl). */
+export async function addParticipantsBulk(
+  groupId: string,
+  entries: { personId: string | null; ensembleId: string | null; roleLabel: string | null }[],
+  eventIds: string[],
+) {
+  const supabase = await createClient();
+  const members = await memberEventIds(supabase, groupId);
+  const targets = eventIds.length > 0 ? eventIds.filter((id) => members.includes(id)) : members;
+  for (const e of entries) {
+    if (!e.personId && !e.ensembleId) continue;
+    await addParticipantToEvents(supabase, targets, e.personId, e.ensembleId, e.roleLabel?.trim().slice(0, 160) || null);
+  }
+  revalidatePath(`/event-groups/${groupId}`);
+}
+
+/** Rolle einer/eines Mitwirkenden auf allen Gruppenterminen ändern. */
+export async function setParticipantRoleInGroup(
+  groupId: string,
+  personId: string | null,
+  ensembleId: string | null,
+  formData: FormData,
+) {
+  const roleLabel = String(formData.get("role_label") ?? "").trim().slice(0, 160) || null;
+  const supabase = await createClient();
+  const eventIds = await memberEventIds(supabase, groupId);
+  let query = supabase.from("event_participants").update({ role_label: roleLabel }).in("event_id", eventIds);
+  query = personId ? query.eq("person_id", personId) : query.eq("ensemble_id", ensembleId);
+  const { error } = await query;
+  if (error) throw new Error(error.message);
+  revalidatePath(`/event-groups/${groupId}`);
+}

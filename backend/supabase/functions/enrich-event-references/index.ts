@@ -47,7 +47,7 @@ import {
   callAiFunction,
   hasAnyAiProviderConfigured,
 } from "../_shared/ai/router.ts";
-import { assessEnsembleName } from "../_shared/entityNameValidation.ts";
+import { assessEnsembleName, isNonPersonName } from "../_shared/entityNameValidation.ts";
 import { logSystemAction } from "../_shared/systemLog.ts";
 import { enrichCandidateContext } from "../_shared/entityEnrichment.ts";
 import { fetchPageText } from "../_shared/pageText.ts";
@@ -174,6 +174,12 @@ const ENRICH_FUNCTION: AiFunctionDeclaration = {
             instrument: {
               type: "string",
               description: "Falls im Text erkennbar, sonst weglassen.",
+            },
+            roleLabel: {
+              type: "string",
+              description:
+                "Konkrete Partie bzw. Rolle in Oper/Operette/Oratorium (z. B. 'Tosca', 'Scarpia', 'Evangelist') " +
+                "oder Funktion wie 'Musikalische Leitung'. Nur aus dem Text übernehmen, nie erfinden; sonst weglassen.",
             },
           },
           required: ["name", "type"],
@@ -326,6 +332,7 @@ interface ExtractedReferences {
       role: string | null;
       ensembleType: string | null;
       instrument: string | null;
+      roleLabel?: string | null;
     }
   >;
   tags: string[];
@@ -754,6 +761,7 @@ Deno.serve(async (req) => {
       const assessment = assessEnsembleName(name);
       if (entityType === "ensemble" && !assessment.safe) return null;
       if (entityType === "person" && assessment.safe) return null;
+      if (entityType === "person" && isNonPersonName(name)) return null;
 
       const table = entityType === "person" ? "persons" : "ensembles";
       const nameField = entityType === "person" ? "full_name" : "name";
@@ -889,6 +897,7 @@ Deno.serve(async (req) => {
     }
 
     async function getOrCreatePerson(name: string): Promise<string | null> {
+      if (isNonPersonName(name)) return null;
       const key = name.toLowerCase();
       if (personCache.has(key)) return personCache.get(key) ?? null;
       const { data: existing } = await supabase
@@ -962,6 +971,7 @@ Deno.serve(async (req) => {
       name: string,
     ): Promise<string | null> {
       const trimmed = name.trim().replace(/,+$/, "");
+      if (isNonPersonName(trimmed)) return null;
       if (!hasOfficialProgramSection || isPlaceholderName(trimmed)) {
         return await getOrCreatePerson(trimmed);
       }
@@ -1440,7 +1450,15 @@ Deno.serve(async (req) => {
             .eq("event_id", event.id)
             .eq(isEnsemble ? "ensemble_id" : "person_id", entityId)
             .limit(1);
-          if (existingParticipant && existingParticipant.length > 0) continue;
+          // Partie/Instrument statt nur „Solist:in“ (01.11.2026).
+          const roleLabel = (p.roleLabel ?? p.instrument ?? "").trim().slice(0, 160) || null;
+          if (existingParticipant && existingParticipant.length > 0) {
+            if (roleLabel) {
+              await supabase.from("event_participants").update({ role_label: roleLabel })
+                .eq("id", existingParticipant[0].id).is("role_label", null);
+            }
+            continue;
+          }
 
           const { error: linkError } = await supabase
             .from("event_participants")
@@ -1449,6 +1467,7 @@ Deno.serve(async (req) => {
               person_id: isEnsemble ? null : entityId,
               ensemble_id: isEnsemble ? entityId : null,
               role: p.role ?? null,
+              role_label: roleLabel,
               display_order: i + resolvedIndex,
             });
           if (linkError) {

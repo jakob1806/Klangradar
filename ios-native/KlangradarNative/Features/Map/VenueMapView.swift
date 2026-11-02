@@ -408,27 +408,26 @@ private struct VenuePreviewSheet: View {
                     }
                     .clipShape(.rect(cornerRadius: 22, style: .continuous))
 
+                    // 02.11.2026 (Nutzer: „sieht nicht nach iOS aus“): Aktionen wie
+                    // in Apple Karten – Systemknöpfe mit Symbol über dem Text,
+                    // Kapselform, auf iOS 26 Liquid Glass, davor bordered.
                     HStack(spacing: 10) {
                         Button { openRoute() } label: {
-                            Label("Route", systemImage: "arrow.triangle.turn.up.right.diamond.fill")
-                                .font(.subheadline.weight(.semibold))
-                                .frame(maxWidth: .infinity, minHeight: 46)
+                            mapsActionLabel("Route", systemImage: "arrow.triangle.turn.up.right.diamond.fill")
                         }
-                        .buttonStyle(.borderedProminent)
-                        .buttonBorderShape(.roundedRectangle(radius: 14))
+                        .authPrimaryButtonStyle()
                         if let slug = venue.slug {
                             NavigationLink {
                                 EntityDetailView(route: EntityRoute(kind: .venue, identifier: slug), repository: repository)
                             } label: {
-                                Label("Alle Konzerte", systemImage: "list.bullet")
-                                    .font(.subheadline.weight(.semibold))
-                                    .frame(maxWidth: .infinity, minHeight: 46)
+                                mapsActionLabel("Konzerte", systemImage: "music.note.list")
                             }
-                            .buttonStyle(.bordered)
-                            .buttonBorderShape(.roundedRectangle(radius: 14))
-                            .tint(KlangradarTheme.accent)
+                            .authSecondaryButtonStyle()
                         }
                     }
+                    .buttonBorderShape(.roundedRectangle(radius: 16))
+                    .controlSize(.large)
+                    .tint(KlangradarTheme.accent)
 
                     if !events.isEmpty {
                         Text("Als Nächstes").font(.headline).padding(.top, 2)
@@ -484,6 +483,15 @@ private struct VenuePreviewSheet: View {
             }
             events = (await loadedEvents) ?? []
         }
+    }
+
+    private func mapsActionLabel(_ title: String, systemImage: String) -> some View {
+        VStack(spacing: 3) {
+            Image(systemName: systemImage).font(.body.weight(.semibold))
+            Text(title).font(.caption.weight(.semibold))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 2)
     }
 
     private func openRoute() {

@@ -17,16 +17,46 @@ function fmt(iso: string | undefined, opts: Intl.DateTimeFormatOptions): string 
   return new Intl.DateTimeFormat("de-DE", { ...opts, timeZone: "Europe/Berlin" }).format(new Date(iso));
 }
 
+/** Entfernt Tags in einem Durchgang: alles ab "<" bis einschließlich ">"
+ * fällt weg, ebenso ein einzelnes ">" (kein Rest wie "<script" möglich). */
+function stripTags(input: string): string {
+  let out = "";
+  let inTag = false;
+  for (const ch of input) {
+    if (ch === "<") inTag = true;
+    else if (ch === ">") inTag = false;
+    else if (!inTag) out += ch;
+  }
+  return out;
+}
+
+/** Titel aus Quellen bereinigen (01.11.2026: "dirigiert<br/>Debussy",
+ * "TANNHÄUSER", "C A R P A T H I A" standen so in Mitteilungen). */
+export function cleanTitle(raw: unknown): string {
+  let t = stripTags(String(raw ?? "").replace(/<br\s*\/?>/gi, " ")).replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
+  // Sperrschrift: einzelne Großbuchstaben mit Leerzeichen dazwischen.
+  t = t.replace(/\b(?:[A-ZÄÖÜ] ){3,}[A-ZÄÖÜ]\b/g, (m) => m.replace(/ /g, ""));
+  // Ganz in Versalien: Wörter mit großem Anfangsbuchstaben, kurze Füllwörter klein.
+  const letters = t.replace(/[^A-Za-zÄÖÜäöüß]/g, "");
+  if (letters.length >= 4 && letters === letters.toUpperCase()) {
+    const small = new Set(["di", "de", "la", "le", "il", "in", "und", "der", "die", "das", "des", "von", "a", "e", "et", "of", "the"]);
+    t = t.toLowerCase().split(" ").map((w, i) => (i > 0 && small.has(w)) ? w : w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+  }
+  return t;
+}
+
 /** Ergänzt menschenlesbare Datums-/Zeitangaben, die die KI verwenden darf. */
 export function enrichFacts(c: Candidate): Facts {
   const f: Facts = { ...c.facts };
+  if (f.title) f.title = cleanTitle(f.title);
+  delete f.event_ids;
   if (f.start) {
     f.time = fmt(f.start, { hour: "2-digit", minute: "2-digit" });
     f.day = fmt(f.start, { weekday: "long" });
     f.date = fmt(f.start, { day: "numeric", month: "long" });
   }
   if (Array.isArray(f.events)) {
-    f.events = f.events.slice(0, 3).map((e: Facts) => ({ ...e, date: fmt(e.start, { day: "numeric", month: "long" }) }));
+    f.events = f.events.slice(0, 3).map((e: Facts) => ({ ...e, title: cleanTitle(e.title), date: fmt(e.start, { day: "numeric", month: "long" }) }));
   }
   delete f.slug;
   delete f.image_url;
@@ -47,6 +77,10 @@ export function templateText(c: Candidate): PushText {
     case "new_followed": {
       const who = (f.followed ?? []).slice(0, 2).join(" und ") || "Von dir Gefolgte";
       const first = f.events?.[0];
+      // Großer Spielplan-Import: eine Zusammenfassung statt Einzeltitel.
+      if (f.count > 8) {
+        return { title: `Neuer Spielplan: ${who}`, body: `${f.count} neue Termine, ab ${first?.date ?? "bald"}. Alles in der App.` };
+      }
       return pick(c.dedupe_key, [
         { title: `Neu von ${who}`, body: f.count > 1 ? `${f.count} neue Termine, darunter „${first?.title}“ am ${first?.date}.` : `„${first?.title}“ am ${first?.date} – frisch angekündigt.` },
         { title: "Gerade angekündigt", body: `${who}: ${f.count > 1 ? `${f.count} neue Konzerte` : `„${first?.title}“`} bei Klangradar.` },
@@ -75,6 +109,10 @@ export function templateText(c: Candidate): PushText {
         { title: `${name}unser Tipp der Woche`.replace(/^,\s*/, ""), body: `„${f.title}“, ${f.day} ${f.time} Uhr${f.venue ? `, ${f.venue}` : ""}.` },
         { title: f.title, body: `${f.reason ?? "Passt zu dir"} · ${f.day}, ${f.date}` },
       ]);
+    case "friends_digest": {
+      const names = (f.names ?? []).slice(0, 2).join(" und ") || "Deine Freunde";
+      return { title: "Neues von Freunden", body: f.count > 1 ? `${names} und andere: ${f.count} Neuigkeiten für dich.` : `${names} hat etwas für dich.` };
+    }
     case "reengagement":
       return pick(c.dedupe_key, [
         { title: "Lust auf einen Konzertabend?", body: `„${f.title}“ am ${f.date} könnte dir gefallen.` },
@@ -92,6 +130,7 @@ const TONE: Record<string, string> = {
   how_was_it: "persönlich und leicht, wie eine Frage unter Freunden",
   weekly_pick: "empfehlend, mit einem konkreten Detail zum Werk oder zur Besetzung",
   reengagement: "einladend, ohne Vorwurf",
+  friends_digest: "freundlich, knapp",
 };
 
 export const SYSTEM_PROMPT =

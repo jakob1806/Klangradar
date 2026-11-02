@@ -1,5 +1,5 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import { parseStaatsoper } from "./staatsoper.ts";
+import { isBlockedReaderPage, parseStaatsoper } from "./staatsoper.ts";
 
 Deno.test("parseStaatsoper reads official schedule links", () => {
   const markdown = `[19. September 2026.9.26 _Samstag_ _Sa._ 18.00 Uhr | Nationaltheater LA CENERENTOLA Gioachino Rossini Weitere Informationen zu LA CENERENTOLA anzeigen - 19.09.2026, 18.00 Uhr Oper](https://www.staatsoper.de/stuecke/la-cenerentola/2026-09-19-1800-16092)`;
@@ -22,4 +22,20 @@ Deno.test("parseStaatsoper excludes tours and workshops but keeps ballet", () =>
   ].join("\n");
   const result = parseStaatsoper(markdown);
   assertEquals(result.events.map((event) => event.title), ["C A R P A T H I A"]);
+});
+
+Deno.test("Staatsoper: zusammengesetzte Kategorien (Akademiekonzert, Kinderoper) werden übernommen", () => {
+  const markdown = [
+    `[05. Oktober 2026 20.00 Uhr | Nationaltheater 1. AKADEMIEKONZERT Weitere Informationen zu 1. AKADEMIEKONZERT anzeigen - 05.10.2026, 20.00 Uhr Akademiekonzert](https://www.staatsoper.de/stuecke/1-akademiekonzert/2026-10-05-2000-7)`,
+    `[06. Oktober 2026 11.00 Uhr | Cuvilliés-Theater DIE ZAUBERFLÖTE FÜR KINDER Weitere Informationen zu DIE ZAUBERFLÖTE FÜR KINDER anzeigen - 06.10.2026, 11.00 Uhr Kinderoper](https://www.staatsoper.de/stuecke/zauberfloete-kinder/2026-10-06-1100-8)`,
+    `[07. Oktober 2026 20.00 Uhr | Allerheiligen Hofkirche KAMMERKONZERT Weitere Informationen zu KAMMERKONZERT anzeigen - 07.10.2026, 20.00 Uhr Kammerkonzert](https://www.staatsoper.de/konzerte/kammerkonzert/2026-10-07-2000-9)`,
+  ].join("\n");
+  const { events } = parseStaatsoper(markdown);
+  assertEquals(events.map((e) => e.title), ["1. AKADEMIEKONZERT", "DIE ZAUBERFLÖTE FÜR KINDER", "KAMMERKONZERT"]);
+});
+
+Deno.test("Staatsoper: Sperrseite des Readers wird erkannt", () => {
+  const blocked = "Title: Just a moment...\n\nURL Source: https://www.staatsoper.de/spielplan/2026-12\n\nWarning: Target URL returned error 403: Forbidden\n\n## EIN HOFFENTLICH KURZES INTERMEZZO!";
+  assertEquals(isBlockedReaderPage(blocked), true);
+  assertEquals(isBlockedReaderPage("[x Weitere Informationen zu TOSCA anzeigen - 01.12.2026, 19.00 Uhr Oper](https://www.staatsoper.de/stuecke/tosca/2026-12-01-1900-1)"), false);
 });

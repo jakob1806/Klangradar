@@ -42,5 +42,16 @@ struct EventCard: View {
         .frame(width: 196, height: 192, alignment: .topLeading)
         .contentShape(.rect)
         .accessibilityElement(children: .combine)
+        // Langes Drücken wie in System-Apps: Merken und Teilen ohne die
+        // Detailseite zu öffnen (02.11.2026).
+        .contextMenu {
+            Button(favorites.ids.contains(event.id) ? "Nicht mehr merken" : "Merken",
+                   systemImage: favorites.ids.contains(event.id) ? "heart.slash" : "heart") {
+                Task { await favorites.toggle(event.id) }
+            }
+            ShareLink(item: event.shareURL, subject: Text(event.title), message: Text("\(event.title) · \(event.dateLine)")) {
+                Label("Teilen", systemImage: "square.and.arrow.up")
+            }
+        }
     }
 }

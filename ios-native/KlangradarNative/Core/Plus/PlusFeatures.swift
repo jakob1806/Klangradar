@@ -12,7 +12,7 @@ enum PlusFeature: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .instantAlerts: "Neue Termine sofort"
+        case .instantAlerts: "Neue Termine zweimal täglich"
         case .coach: "Klangradar KI ohne Limit"
         case .concertYear: "Dein Konzertjahr komplett"
         case .lists: "Unbegrenzte Listen"
@@ -24,7 +24,7 @@ enum PlusFeature: String, CaseIterable, Identifiable {
     /// Ein Satz: was man davon hat.
     var pitch: String {
         switch self {
-        case .instantAlerts: "Kündigt jemand, dem du folgst, ein Konzert an, erfährst du es noch am selben Tag. Ohne Plus kommt das einmal täglich gesammelt."
+        case .instantAlerts: "Neue Konzerte von Künstler:innen, Ensembles und Orten, denen du folgst, kommen mittags und abends gesammelt. Ohne Plus einmal täglich."
         case .coach: "Programme erklären, Abende planen, Werke vorbereiten. Ohne Plus sind es \(CoachQuota.weeklyLimit) Fragen pro Woche."
         case .concertYear: "Monatsrhythmus, Lieblingstag, deine Säle und Mitwirkenden, dazu ein Bild im Story-Format."
         case .lists: "Ohne Plus sind es \(PlusLimits.freeLists). Mit Plus sammelst du für jede Saison und jeden Anlass."
@@ -36,7 +36,7 @@ enum PlusFeature: String, CaseIterable, Identifiable {
     /// Wo die Funktion in der App sitzt.
     var whereToFind: String {
         switch self {
-        case .instantAlerts: "Läuft automatisch, sobald du Künstler:innen, Ensembles oder Orten folgst."
+        case .instantAlerts: "In den Benachrichtigungen unter „Neue Konzerte von Gefolgten“ wählen."
         case .coach: "Profil → Klangradar KI, und bei jedem Werk unter „Einführung“."
         case .concertYear: "Profil → Dein Konzertjahr."
         case .lists: "Profil → Mein Klangradar → Meine Listen."
