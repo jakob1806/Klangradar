@@ -1,5 +1,5 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import { parseStaatsoper } from "./staatsoper.ts";
+import { isBlockedReaderPage, parseStaatsoper } from "./staatsoper.ts";
 
 Deno.test("parseStaatsoper reads official schedule links", () => {
   const markdown = `[19. September 2026.9.26 _Samstag_ _Sa._ 18.00 Uhr | Nationaltheater LA CENERENTOLA Gioachino Rossini Weitere Informationen zu LA CENERENTOLA anzeigen - 19.09.2026, 18.00 Uhr Oper](https://www.staatsoper.de/stuecke/la-cenerentola/2026-09-19-1800-16092)`;
@@ -32,4 +32,10 @@ Deno.test("Staatsoper: zusammengesetzte Kategorien (Akademiekonzert, Kinderoper)
   ].join("\n");
   const { events } = parseStaatsoper(markdown);
   assertEquals(events.map((e) => e.title), ["1. AKADEMIEKONZERT", "DIE ZAUBERFLÖTE FÜR KINDER", "KAMMERKONZERT"]);
+});
+
+Deno.test("Staatsoper: Sperrseite des Readers wird erkannt", () => {
+  const blocked = "Title: Just a moment...\n\nURL Source: https://www.staatsoper.de/spielplan/2026-12\n\nWarning: Target URL returned error 403: Forbidden\n\n## EIN HOFFENTLICH KURZES INTERMEZZO!";
+  assertEquals(isBlockedReaderPage(blocked), true);
+  assertEquals(isBlockedReaderPage("[x Weitere Informationen zu TOSCA anzeigen - 01.12.2026, 19.00 Uhr Oper](https://www.staatsoper.de/stuecke/tosca/2026-12-01-1900-1)"), false);
 });

@@ -150,3 +150,10 @@ function parseWorks(markdown: string, castStart: number) {
   }
   return works;
 }
+
+/** Sperr-/Wartungsseite statt Spielplan (Reader liefert dann trotzdem 200). */
+export function isBlockedReaderPage(text: string): boolean {
+  return /Target URL returned error 40[13]|^Title: Just a moment/m.test(text) ||
+    (/HOFFENTLICH KURZES INTERMEZZO/i.test(text) && !/Weitere Informationen zu/.test(text));
+}
+

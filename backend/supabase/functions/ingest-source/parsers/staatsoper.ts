@@ -37,10 +37,27 @@ export async function fetchStaatsoperSchedule(
       // Der Paket-Cursor wäre sonst auf einer wechselnden Liste ungültig.
       throw new Error(`Staatsoper reader fetch ${ym}: HTTP ${res.status}`);
     }
-    pages.push(await res.text());
+    let text = await res.text();
+    // 02.11.2026: Die Staatsoper antwortet dem Reader zeitweise mit einer
+    // Sperr-/Wartungsseite („Just a moment…“, „Target URL returned error
+    // 403“), der Reader selbst meldet trotzdem HTTP 200. Bisher landete so
+    // ein leerer Monat im Ergebnis, die Termine fehlten still. Jetzt: bis zu
+    // zweimal mit Pause neu versuchen, sonst den ganzen Lauf abbrechen.
+    for (let attempt = 1; isBlockedReaderPage(text) && attempt <= 2; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, attempt * 8000));
+      const retry = await fetch(readerUrl, { headers: { "User-Agent": USER_AGENT } });
+      text = retry.ok ? await retry.text() : text;
+    }
+    if (isBlockedReaderPage(text)) {
+      throw new Error(`Staatsoper reader ${ym}: Sperrseite statt Spielplan (403/Challenge)`);
+    }
+    pages.push(text);
   }
   return pages.join("\n\n");
 }
+
+export { isBlockedReaderPage } from "../../_shared/staatsoperDetail.ts";
+import { isBlockedReaderPage } from "../../_shared/staatsoperDetail.ts";
 
 export function parseStaatsoper(markdown: string): ParseResult {
   const events: RawEvent[] = [];
