@@ -1257,7 +1257,7 @@
 			};
 			buildConfigurationList = E588F594E638ED472E1CB32D /* Build configuration list for PBXProject "KlangradarNative" */;
 			compatibilityVersion = "Xcode 3.2";
-			developmentRegion = en;
+			developmentRegion = de;
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
