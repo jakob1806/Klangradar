@@ -6,6 +6,9 @@ import Foundation
 final class DeepLinkRouter: ObservableObject {
     static let shared = DeepLinkRouter()
     @Published var pendingEventSlug: String?
+    /// Spielstätte/Person/Ensemble/Werk per Link (02.11.2026):
+    /// de.klangradar.native://venue/<slug> bzw. klangradar.com/venue/<slug>.
+    @Published var pendingEntity: EntityRoute?
     /// Freundes-Einladung (de.klangradar.native://friend/<CODE>).
     /// Seit 28.10.2026 gespeichert, damit der Code Anmeldung und Onboarding
     /// (auch einen App-Neustart) übersteht; FriendsView übernimmt ihn danach.
@@ -28,6 +31,11 @@ final class DeepLinkRouter: ObservableObject {
         if url.scheme == "de.klangradar.native", url.host == "event" {
             return open(slug: url.lastPathComponent)
         }
+        if url.scheme == "de.klangradar.native", let host = url.host, let kind = EntityKind(rawValue: host),
+           !url.lastPathComponent.isEmpty, url.lastPathComponent != "/" {
+            pendingEntity = EntityRoute(kind: kind, identifier: url.lastPathComponent)
+            return true
+        }
         if url.scheme == "de.klangradar.native", url.host == "friend", url.lastPathComponent.count >= 6 {
             pendingFriendCode = url.lastPathComponent.uppercased()
             return true
@@ -48,6 +56,10 @@ final class DeepLinkRouter: ObservableObject {
         }
         if parts.count == 1, parts[0] == "friends" { pendingFriendsTab = .friends; return true }
         if parts.count == 1, parts[0] == "plans" { pendingFriendsTab = .plans; return true }
+        if parts.count == 2, let kind = EntityKind(rawValue: String(parts[0])) {
+            pendingEntity = EntityRoute(kind: kind, identifier: String(parts[1]))
+            return true
+        }
         // Konzertlinks aus E-Mails: https://klangradar.com/e/<slug>
         guard parts.count == 2, parts[0] == "event" || parts[0] == "e" else { return false }
         return open(slug: String(parts[1]))

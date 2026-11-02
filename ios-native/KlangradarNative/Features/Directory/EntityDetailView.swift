@@ -1,7 +1,8 @@
 import MapKit
 import SwiftUI
 
-struct EntityRoute: Hashable {
+struct EntityRoute: Hashable, Identifiable {
+    var id: String { "\(kind.rawValue):\(identifier)" }
     let kind: EntityKind
     let identifier: String
 }

@@ -23,6 +23,9 @@ struct EventDetailView: View {
     }
     @State private var isUpdatingAttendance = false
     @State private var attendanceError: String?
+    /// Anreise und Wetter nur bei Konzerten, die man besucht (geplant, Abo
+    /// oder Platz/Ticket hinterlegt) – Nutzerwunsch 02.11.2026.
+    @State private var willAttend = false
     @State private var locationRequester = LocationRequester()
     @State private var showsLocationConfirmation = false
     @EnvironmentObject private var favorites: FavoriteStore
@@ -80,7 +83,9 @@ struct EventDetailView: View {
                             if !PerformerBriefs.replacesParticipantList(detail) { participants(detail) }
                             ticketDetails(detail)
                             SeatCard(event: event, detail: detail)
-                            EveningPlanSection(event: event, detail: detail)
+                            if willAttend {
+                                EveningPlanSection(event: event, detail: detail)
+                            }
                             accessibility(detail)
                             venue(detail)
                             similarEvents(detail)
@@ -132,6 +137,7 @@ struct EventDetailView: View {
         .task {
             EngagementLogger.shared.logView(eventID: event.id)
             async let attendance: Void = loadAttendance()
+            async let attending: Void = loadWillAttend()
             do {
                 if let base = try await repository.eventDetailBase(slug: event.slug) {
                     detail = base
@@ -141,6 +147,7 @@ struct EventDetailView: View {
             } catch { loadError = error.localizedDescription }
             isLoading = false
             await attendance
+            await attending
         }
     }
 
@@ -279,6 +286,13 @@ struct EventDetailView: View {
     }
 
     @MainActor
+    private func loadWillAttend() async {
+        guard (event.startDate ?? .distantPast) > .now.addingTimeInterval(-4 * 3600) else { return }
+        if SharedSeatStore.seat(forSlug: event.slug) != nil { willAttend = true; return }
+        if await PlannerAPI.plannedEventIDs().contains(event.id) { willAttend = true; return }
+        willAttend = await PlannerAPI.subscriptionEventIDs()[event.id] != nil
+    }
+
     private func loadAttendance() async {
         guard let repository = reportStore.repository,
               let userID = reportStore.auth.userID,

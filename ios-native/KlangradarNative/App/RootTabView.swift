@@ -192,6 +192,23 @@ struct RootTabView: View {
                 .environmentObject(genreFilterRouter)
                 .environmentObject(cityStore)
         }
+        .sheet(item: $deepLinks.pendingEntity) { route in
+            // Spielstätte/Person/Ensemble per Link oder Siri (02.11.2026).
+            NavigationStack {
+                EntityDetailView(route: route, repository: environment.content)
+                    .contentNavigationDestinations(events: environment.events, content: environment.content)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarLeading) {
+                            Button("Schließen", systemImage: "xmark") { deepLinks.pendingEntity = nil }
+                        }
+                    }
+            }
+            .environmentObject(favorites)
+            .environmentObject(follows)
+            .environmentObject(reportStore)
+            .environmentObject(genreFilterRouter)
+            .environmentObject(cityStore)
+        }
         .task {
             EngagementLogger.shared.configure(client: environment.restClient, auth: environment.auth)
             PartnerStore.shared.configure(client: environment.restClient)

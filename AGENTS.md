@@ -72,4 +72,4 @@ doppelt gebaute Features (Coach vs. Personal Concierge), ein komplett
 | Claude | 2026-11-01 | claude/konzept-bildabdeckung | Konzept Bildabdeckung (docs/16), noch keine Umsetzung |
 | Claude | 2026-11-02 | claude/bildabdeckung | Konzertbilder aus Importquellen, Komponist-Ersatzbild, Prüfansicht /media/pruefen, Fehlzuordnungen, harvest-artist-photos (Migration 148) |
 | Claude | 2026-11-02 | claude/mitteilungen-neu | Mitteilungen nach Konzept: Budget/Woche, gebündelt, 1 Erinnerung pro Konzert, neue Einstellungen iOS+Flutter, Glocke je Gefolgtem (Migration 147) |
-| Claude | 2026-11-02 | claude/laughing-goodall-2ordj6 | iOS: einheitliche Konzertzeile, Navigation repariert, Dynamic Type, Widget, Siri, Pull-to-Refresh (davor PR #430, gemergt) |
+| Claude | 2026-11-02 | claude/laughing-goodall-2ordj6 | iOS-Ausbau in Paketen: Links/Siri Spielstätten, Anreise+Wetter nur bei Besuch, TipKit, Kontrollzentrum, Mitteilungsaktionen, iPad, Wallet, Suche/Werke/Ähnliches, Gruppenplan, SharePlay, A11y, Englisch (davor #430/#431 gemergt) |
