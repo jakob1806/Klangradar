@@ -239,65 +239,109 @@ private func primaryLabel(_ state: ConcertActivityAttributes.ContentState, start
     return "Läuft"
 }
 
-/// Konzertkarte mit Bild (06.11.2026): Konzertbild links, Titel und Ort,
-/// rechts der laufende Countdown zum jeweils nächsten Schritt. Vergangene
-/// Losgeh-Zeiten werden nicht mehr angezeigt.
+/// Konzertabend-Cockpit (06.11.2026): alles Zeitliche auf einen Blick –
+/// großer Countdown zum nächsten Schritt, Fortschritt bis zum Beginn,
+/// Fahrzeit, Platz und die Stationen des Abends. Kein Bild.
 private struct LockScreenConcertView: View {
     let attributes: ConcertActivityAttributes
     let state: ConcertActivityAttributes.ContentState
 
+    private let dim = Color.white.opacity(0.65)
+
     var body: some View {
-        HStack(spacing: 14) {
-            artwork
-            VStack(alignment: .leading, spacing: 3) {
-                Text(attributes.title).font(.headline).foregroundStyle(.white).lineLimit(2)
-                Text(attributes.venue).font(.caption).foregroundStyle(.white.opacity(0.7)).lineLimit(1)
-                if let seat = SharedSeatStore.seat(forSlug: attributes.slug) {
-                    Label(seat.summary, systemImage: "chair.fill").font(.caption.weight(.semibold))
-                        .foregroundStyle(.white.opacity(0.85)).lineLimit(1)
-                } else if let travel = state.travel, let leave = state.leaveAt, leave > .now {
-                    Label(travel, systemImage: "tram.fill").font(.caption).foregroundStyle(.white.opacity(0.7)).lineLimit(1)
+        let now = Date.now
+        let leave = state.leaveAt.flatMap { $0 > now ? $0 : nil }
+        VStack(alignment: .leading, spacing: 10) {
+            // Kopf: Titel · Ort
+            HStack(spacing: 6) {
+                Image(systemName: "music.note").font(.caption.weight(.bold)).foregroundStyle(accentLight)
+                Text(attributes.title).font(.subheadline.weight(.semibold)).foregroundStyle(.white).lineLimit(1)
+                Spacer(minLength: 4)
+                Text(attributes.venue).font(.caption).foregroundStyle(dim).lineLimit(1)
+            }
+
+            // Mitte: Countdown links, Fakten rechts
+            HStack(alignment: .bottom) {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(phaseLabel(now: now, leave: leave)).font(.caption.weight(.semibold)).foregroundStyle(dim)
+                    if let target = countdownTarget(now: now, leave: leave) {
+                        Text(timerInterval: now...target, countsDown: true)
+                            .font(.system(size: 34, weight: .bold, design: .rounded).monospacedDigit())
+                            .foregroundStyle(.white)
+                    } else {
+                        Text(attributes.start > now ? clock(attributes.start) : "Läuft")
+                            .font(.system(size: 34, weight: .bold, design: .rounded)).foregroundStyle(.white)
+                    }
+                }
+                Spacer(minLength: 8)
+                VStack(alignment: .trailing, spacing: 3) {
+                    fact("clock", "Beginn \(clock(attributes.start))")
+                    if let travel = state.travel, leave != nil { fact("tram.fill", travel) }
+                    if let seat = SharedSeatStore.seat(forSlug: attributes.slug) { fact("chair.fill", seat.summary) }
                 }
             }
-            Spacer(minLength: 0)
-            countdown
+
+            // Fortschritt: Losgehen → Beginn (bzw. Beginn → Pause)
+            if let range = progressRange(now: now) {
+                ProgressView(timerInterval: range, countsDown: false) { EmptyView() } currentValueLabel: { EmptyView() }
+                    .tint(accentLight)
+            }
+
+            // Stationen des Abends
+            HStack(spacing: 0) {
+                if let planned = state.leaveAt { station("Losgehen", planned, done: planned <= now) }
+                station("Beginn", attributes.start, done: attributes.start <= now)
+                if let pause = state.pauseAt { station("Pause ca.", pause, done: pause <= now) }
+            }
         }
         .padding(14)
     }
 
-    @ViewBuilder private var artwork: some View {
-        if let data = SharedActivityImageStore.data(forSlug: attributes.slug), let image = UIImage(data: data) {
-            Image(uiImage: image).resizable().scaledToFill()
-                .frame(width: 64, height: 64)
-                .clipShape(.rect(cornerRadius: 14, style: .continuous))
-        } else {
-            Image(systemName: "music.note").font(.title2.weight(.semibold)).foregroundStyle(.white)
-                .frame(width: 64, height: 64)
-                .background(accent, in: .rect(cornerRadius: 14, style: .continuous))
-        }
+    private var accentLight: Color { Color(red: 0.45, green: 0.72, blue: 0.95) }
+
+    private func phaseLabel(now: Date, leave: Date?) -> String {
+        if leave != nil { return "Losgehen in" }
+        if attributes.start > now { return "Beginn in" }
+        if let pause = state.pauseAt, pause > now { return "Pause in ca." }
+        return "Konzert"
     }
 
-    /// Nächster Schritt: Losgehen → Beginn → Pause → „Läuft“.
-    @ViewBuilder private var countdown: some View {
-        let now = Date.now
-        VStack(alignment: .trailing, spacing: 2) {
-            if let leave = state.leaveAt, leave > now {
-                Text("Losgehen in").font(.caption2).foregroundStyle(.white.opacity(0.7))
-                Text(timerInterval: now...leave, countsDown: true).font(.title2.weight(.bold).monospacedDigit())
-                    .foregroundStyle(.white).multilineTextAlignment(.trailing).frame(maxWidth: 96, alignment: .trailing)
-                Text("Beginn \(clock(attributes.start))").font(.caption2).foregroundStyle(.white.opacity(0.7))
-            } else if attributes.start > now {
-                Text("Beginn in").font(.caption2).foregroundStyle(.white.opacity(0.7))
-                Text(timerInterval: now...attributes.start, countsDown: true).font(.title2.weight(.bold).monospacedDigit())
-                    .foregroundStyle(.white).multilineTextAlignment(.trailing).frame(maxWidth: 96, alignment: .trailing)
-                Text(clock(attributes.start)).font(.caption2).foregroundStyle(.white.opacity(0.7))
-            } else if let pause = state.pauseAt, pause > now {
-                Text("Pause ca.").font(.caption2).foregroundStyle(.white.opacity(0.7))
-                Text(clock(pause)).font(.title2.weight(.bold).monospacedDigit()).foregroundStyle(.white)
-            } else {
-                Image(systemName: "music.note").font(.title3).foregroundStyle(.white)
-                Text("Läuft").font(.caption.weight(.semibold)).foregroundStyle(.white.opacity(0.8))
+    private func countdownTarget(now: Date, leave: Date?) -> Date? {
+        if let leave { return leave }
+        if attributes.start > now { return attributes.start }
+        if let pause = state.pauseAt, pause > now { return pause }
+        return nil
+    }
+
+    private func progressRange(now: Date) -> ClosedRange<Date>? {
+        if attributes.start > now {
+            let from = min(state.leaveAt ?? attributes.start.addingTimeInterval(-3600), now)
+            return from...attributes.start
+        }
+        if let pause = state.pauseAt, pause > now { return attributes.start...pause }
+        return nil
+    }
+
+    private func fact(_ symbol: String, _ text: String) -> some View {
+        Label(text, systemImage: symbol).font(.caption.weight(.medium)).foregroundStyle(.white.opacity(0.85))
+            .lineLimit(1).labelStyle(TrailingIconLabel())
+    }
+
+    private func station(_ label: String, _ time: Date, done: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(label).font(.caption2).foregroundStyle(dim)
+            HStack(spacing: 3) {
+                if done { Image(systemName: "checkmark").font(.caption2.weight(.bold)).foregroundStyle(accentLight) }
+                Text(clock(time)).font(.footnote.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(done ? dim : .white)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct TrailingIconLabel: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 4) { configuration.title; configuration.icon.font(.caption2) }
     }
 }

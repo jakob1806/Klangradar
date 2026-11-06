@@ -1,7 +1,6 @@
 import ActivityKit
 import CoreSpotlight
 import Foundation
-import UIKit
 import UniformTypeIdentifiers
 import WidgetKit
 
@@ -21,27 +20,9 @@ final class ConcertSync {
         }.sorted { $0.start < $1.start }
 
         SharedConcertStore.save(Array(concerts.prefix(10)))
-        await cacheActivityImages(for: events)
         WidgetCenter.shared.reloadAllTimelines()
         indexSpotlight(concerts)
         await updateLiveActivities(concerts)
-    }
-
-    /// Bilder der Konzerte in den nächsten 24 h verkleinert für die
-    /// Live-Aktivität ablegen (höchstens ein Download je Konzert).
-    private func cacheActivityImages(for events: [ConcertEvent]) async {
-        let soon = events.filter { ($0.startDate ?? .distantPast).timeIntervalSinceNow < 24 * 3600 && ($0.startDate ?? .distantPast) > .now.addingTimeInterval(-3 * 3600) }
-        for event in soon {
-            guard let target = SharedActivityImageStore.url(forSlug: event.slug),
-                  !FileManager.default.fileExists(atPath: target.path),
-                  let source = event.primaryImageURL,
-                  let (data, _) = try? await URLSession.shared.data(from: source),
-                  let image = UIImage(data: data) else { continue }
-            let width: CGFloat = 400
-            let size = CGSize(width: width, height: width * image.size.height / max(image.size.width, 1))
-            let small = UIGraphicsImageRenderer(size: size).image { _ in image.draw(in: CGRect(origin: .zero, size: size)) }
-            try? small.jpegData(compressionQuality: 0.7)?.write(to: target)
-        }
     }
 
     private func indexSpotlight(_ concerts: [SharedConcert]) {
