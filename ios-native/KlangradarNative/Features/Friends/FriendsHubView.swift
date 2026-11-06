@@ -104,8 +104,8 @@ struct FriendsView: View {
             tab = initialTab
             await load()
         }
-        .onChange(of: deepLinks.pendingFriendCode) { _, value in
-            guard value != nil else { return }
+        .onChange(of: deepLinks.friendInviteTick) { _, _ in
+            guard deepLinks.pendingFriendCode != nil else { return }
             Task { await acceptPendingInvite() }
         }
     }

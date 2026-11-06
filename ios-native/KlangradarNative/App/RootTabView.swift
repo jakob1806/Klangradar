@@ -302,6 +302,11 @@ struct RootTabView: View {
         } message: {
             Text(auth.callbackErrorMessage ?? "Bitte fordere einen neuen Link an.")
         }
+        // QR-Code mit der Kamera (06.11.2026): https-Links kommen als
+        // Web-Aktivität an, nicht immer über onOpenURL.
+        .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+            if let url = activity.webpageURL { DeepLinkRouter.shared.handle(url: url) }
+        }
         .onOpenURL { url in
             if DeepLinkRouter.shared.handle(url: url) { return }
             if url.scheme == AuthService.callbackScheme, url.host == "auth-callback" {
@@ -621,8 +626,8 @@ private struct DeepLinkRoutingModifier: ViewModifier {
             // Freundes-Einladung per Link: Freunde-Ansicht öffnen, die den Code
             // aus DeepLinkRouter.pendingFriendCode übernimmt – bei neuen
             // Nutzer:innen erst nach Anmeldung/Onboarding.
-            .onChange(of: deepLinks.pendingFriendCode) { _, code in
-                if code != nil && isReadyForInvite { friendsSheetTab = .friends; showsFriends = true }
+            .onChange(of: deepLinks.friendInviteTick) { _, _ in
+                if deepLinks.pendingFriendCode != nil && isReadyForInvite { friendsSheetTab = .friends; showsFriends = true }
             }
             .onChange(of: isReadyForInvite) { _, ready in
                 if ready && deepLinks.pendingFriendCode != nil { friendsSheetTab = .friends; showsFriends = true }

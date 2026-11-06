@@ -16,6 +16,7 @@ struct NotificationSettingsView: View {
     @State private var preferences = NotificationPreferences()
     @State private var newsletter = false
     @State private var showsPlusPaywall = false
+    @State private var showsDetails = false
 
     var body: some View {
         Form {
@@ -35,9 +36,36 @@ struct NotificationSettingsView: View {
                     .listRowBackground(Color.clear)
                 }
             }
-            // Neu geordnet nach dem Mitteilungs-Konzept (Claude Code, 01.11.2026):
-            // Wichtiges sofort, Planung genau eine pro Konzert, alles andere
-            // in einem selbst gewählten Wochenbudget.
+            // 06.11.2026 (Nutzerwunsch: „zu unübersichtlich“): erst eine von
+            // drei Stufen wählen; Einzelheiten nur auf Wunsch.
+            Section {
+                ForEach(NotificationPreset.allCases) { preset in
+                    Button { apply(preset) } label: {
+                        HStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(preset.title).font(.body.weight(.semibold)).foregroundStyle(.primary)
+                                Text(preset.subtitle).font(.footnote).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: currentPreset == preset ? "checkmark.circle.fill" : "circle")
+                                .font(.title3)
+                                .foregroundStyle(currentPreset == preset ? KlangradarTheme.accent : Color.secondary.opacity(0.4))
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            } header: {
+                Text("Wie viel möchtest du hören?")
+            } footer: {
+                Text(currentPreset == nil ? "Eigene Auswahl. Absagen und Verschiebungen kommen immer sofort." : "Absagen und Verschiebungen kommen immer sofort. Zwischen 21 und 8 Uhr ist Ruhe.")
+            }
+
+            Section {
+                Toggle("Einzeln anpassen", isOn: $showsDetails.animation())
+            }
+
+            if showsDetails {
             Section {
                 Label("Absagen und Verschiebungen kommen immer sofort", systemImage: "exclamationmark.triangle.fill")
                     .font(.subheadline)
@@ -103,7 +131,9 @@ struct NotificationSettingsView: View {
                 Text("Gilt für Entdecken und Freunde. Wichtiges und Erinnerungen an deine Konzerte zählen nicht mit. Zwischen 21 und 8 Uhr ist Ruhe.")
             }
 
-            if auth.userID != nil {
+            }
+
+            if auth.userID != nil && (showsDetails || introTitle == nil) {
                 Section {
                     Toggle("Deine Konzertwoche", isOn: binding(\.emailWeeklyDigest, "email_weekly_digest"))
                     Toggle("Neue Termine gefolgter Personen, Ensembles & Orte", isOn: binding(\.emailFollowedNewEvent, "email_followed_new_event"))
@@ -128,6 +158,25 @@ struct NotificationSettingsView: View {
             guard let repository, let id = auth.userID, let token = auth.accessToken else { return }
             preferences = (try? await repository.preferences(userID: id, token: token)) ?? NotificationPreferences()
             newsletter = (try? await repository.newsletterOptIn(userID: id, token: token)) ?? false
+        }
+    }
+
+    private var currentPreset: NotificationPreset? {
+        NotificationPreset.allCases.first { $0.matches(preferences) }
+    }
+
+    private func apply(_ preset: NotificationPreset) {
+        Haptics.confirm()
+        preset.apply(to: &preferences)
+        guard let repository, let id = auth.userID, let token = auth.accessToken else { return }
+        let snapshot = preferences
+        Task {
+            for (column, value) in NotificationPreset.boolColumns(snapshot) {
+                try? await repository.setPreference(userID: id, token: token, column: column, value: value)
+            }
+            try? await repository.setPreferenceValue(userID: id, token: token, column: "push_new_followed", value: .string(snapshot.newFollowed))
+            try? await repository.setPreferenceValue(userID: id, token: token, column: "push_friends", value: .string(snapshot.friends))
+            try? await repository.setPreferenceValue(userID: id, token: token, column: "push_weekly_limit", value: .number(Double(snapshot.weeklyLimit)))
         }
     }
 
@@ -177,5 +226,59 @@ struct NotificationSettingsView: View {
             guard let repository, let id = auth.userID, let token = auth.accessToken else { return }
             Task { try? await repository.setPreference(userID: id, token: token, column: column, value: value) }
         })
+    }
+}
+
+/// Drei Stufen für Mitteilungen (06.11.2026).
+enum NotificationPreset: String, CaseIterable, Identifiable {
+    case essentials, balanced, everything
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .essentials: return "Nur das Wichtigste"
+        case .balanced: return "Ausgewogen"
+        case .everything: return "Alles"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .essentials: return "Änderungen und Erinnerung an deine Konzerte, Neues einmal pro Woche"
+        case .balanced: return "Dazu neue Termine täglich gesammelt und Freunde – empfohlen"
+        case .everything: return "Jeder Tipp, jede Freundes-Aktivität, bis zu 30 pro Woche"
+        }
+    }
+
+    private struct Values {
+        var almostSoldOut: Bool, howWasIt: Bool, weeklyPick: Bool, friendActivity: Bool
+        var newFollowed: String, friends: String, limit: Int
+    }
+
+    private var values: Values {
+        switch self {
+        case .essentials: return Values(almostSoldOut: false, howWasIt: false, weeklyPick: false, friendActivity: false, newFollowed: "weekly", friends: "daily", limit: 5)
+        case .balanced: return Values(almostSoldOut: true, howWasIt: true, weeklyPick: true, friendActivity: false, newFollowed: "daily", friends: "direct", limit: 10)
+        case .everything: return Values(almostSoldOut: true, howWasIt: true, weeklyPick: true, friendActivity: true, newFollowed: "daily", friends: "direct", limit: 30)
+        }
+    }
+
+    func matches(_ p: NotificationPreferences) -> Bool {
+        let v = values
+        return p.changes && p.reminderDayBefore && p.almostSoldOut == v.almostSoldOut && p.howWasIt == v.howWasIt
+            && p.weeklyPick == v.weeklyPick && p.friendActivity == v.friendActivity
+            && p.newFollowed == v.newFollowed && p.friends == v.friends && p.weeklyLimit == v.limit
+    }
+
+    func apply(to p: inout NotificationPreferences) {
+        let v = values
+        p.changes = true; p.reminderDayBefore = true
+        p.almostSoldOut = v.almostSoldOut; p.howWasIt = v.howWasIt; p.weeklyPick = v.weeklyPick; p.friendActivity = v.friendActivity
+        p.newFollowed = v.newFollowed; p.friends = v.friends; p.weeklyLimit = v.limit
+    }
+
+    static func boolColumns(_ p: NotificationPreferences) -> [(String, Bool)] {
+        [("push_changes", p.changes), ("reminder_day_before", p.reminderDayBefore), ("almost_sold_out", p.almostSoldOut),
+         ("push_how_was_it", p.howWasIt), ("push_weekly_pick", p.weeklyPick), ("push_friend_activity", p.friendActivity)]
     }
 }
