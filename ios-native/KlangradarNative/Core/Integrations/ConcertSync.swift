@@ -1,5 +1,5 @@
 import ActivityKit
-import CoreSpotlight
+@preconcurrency import CoreSpotlight
 import Foundation
 import UniformTypeIdentifiers
 import WidgetKit

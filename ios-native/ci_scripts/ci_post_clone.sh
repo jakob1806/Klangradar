@@ -23,3 +23,14 @@ cat > Config/Secrets.plist <<PLIST
 </plist>
 PLIST
 echo "Secrets.plist erstellt."
+
+# Die Datei muss auch ins App-Paket: Das eingecheckte Xcode-Projekt kennt sie
+# nicht (sie ist nicht im Repo). Wie beim lokalen Upload das Projekt neu
+# erzeugen – generate_project.rb nimmt Secrets.plist auf, wenn sie existiert.
+# (06.11.2026: Build 1.0 (3) startete sonst ohne Supabase-Konfiguration.)
+gem install --user-install --no-document xcodeproj -v 1.28.1
+export PATH="$(ruby -e 'print Gem.user_dir')/bin:$PATH"
+export GEM_PATH="$(ruby -e 'print Gem.user_dir'):${GEM_PATH:-}"
+ruby Scripts/generate_project.rb
+grep -q "Secrets.plist" KlangradarNative.xcodeproj/project.pbxproj || { echo "error: Secrets.plist nicht im Projekt" >&2; exit 1; }
+echo "Projekt mit Secrets.plist neu erzeugt."
