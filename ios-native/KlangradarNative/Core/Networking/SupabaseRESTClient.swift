@@ -119,7 +119,12 @@ struct SupabaseRESTClient: Sendable {
         request.httpMethod = "POST"
         request.httpBody = try JSONEncoder().encode(parameters)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        return try decoder.decode(Response.self, from: try await perform(request))
+        let data = try await perform(request)
+        // 06.11.2026: Funktionen ohne Rückgabewert (returns void) liefern
+        // 204 ohne Inhalt. Das Dekodieren scheiterte dann, die App meldete
+        // „hat nicht geklappt“, obwohl der Server die Änderung gespeichert
+        // hatte (Freundschaft annehmen, enge Freunde, Stummschalten …).
+        return try decoder.decode(Response.self, from: data.isEmpty ? Data("null".utf8) : data)
     }
 
     func edgeFunction<Response: Decodable & Sendable>(

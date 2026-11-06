@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 
 private enum ProfileDestination: String, Identifiable {
-    case visits, follows, level, edit
+    case visits, friends, follows, level, edit
     var id: String { rawValue }
 }
 
@@ -185,6 +185,8 @@ struct ProfileView: View {
                 switch destination {
                 case .visits:
                     VisitedConcertsView(auth: auth, repository: userRepository, eventRepository: eventRepository, contentRepository: contentRepository)
+                case .friends:
+                    FriendListView {}
                 case .follows:
                     FollowedPeopleView(auth: auth, repository: userRepository, contentRepository: contentRepository)
                 case .level:
@@ -1574,6 +1576,7 @@ private struct ProfileOverview: View {
     let onSelect: (ProfileDestination) -> Void
     @State private var profile: KlangradarUserProfile?
     @State private var socialSummary: ProfileSocialSummary = .empty
+    @State private var friendCount = 0
     @ObservedObject private var plus = PlusStore.shared
     @State private var showsPlus = false
 
@@ -1622,6 +1625,13 @@ private struct ProfileOverview: View {
                 Button { onSelect(.visits) } label: {
                     profileMetric(value: socialSummary.visitedConcerts, label: "Besuche")
                 }
+                // 06.11.2026: Freunde wie bei Instagram direkt unter dem Profilbild.
+                if auth.userID != nil {
+                    Divider().frame(height: 40)
+                    Button { onSelect(.friends) } label: {
+                        profileMetric(value: friendCount, label: "Freunde")
+                    }
+                }
                 Divider().frame(height: 40)
                 Button { onSelect(.follows) } label: {
                     profileMetric(value: followCount, label: "Gefolgt")
@@ -1649,6 +1659,10 @@ private struct ProfileOverview: View {
         .padding(.vertical, 6)
         .task(id: auth.userID) { await load() }
         .onAppear { Task { await load() } }
+        .task(id: auth.userID) {
+            guard let repository, let token = auth.accessToken else { return }
+            friendCount = (try? await repository.friends(token: token).count) ?? friendCount
+        }
         .sheet(isPresented: $showsPlus) { PlusPaywallView() }
     }
 
@@ -2473,8 +2487,11 @@ private struct ProfileContentSection: View {
         if planned.isEmpty && savedOnly.isEmpty {
             emptyState(symbol: "ticket", title: "Noch nichts geplant", text: "Merke dir Konzerte mit dem Herz oder wähle „Ich gehe hin“ – sie erscheinen dann hier.")
         } else {
-            if !planned.isEmpty { rail("Ich gehe hin", events: planned) }
-            if !savedOnly.isEmpty { rail("Gemerkt", events: savedOnly) }
+            // 06.11.2026: „Ich gehe hin“ war doppelt zu „Gemerkt“ und liegt
+            // jetzt unter Freunde → Gemeinsame Abende; hier eine Liste.
+            let all = (planned.filter { ($0.startDate ?? .distantPast) > .now } + savedOnly)
+                .sorted { ($0.startDate ?? .distantFuture) < ($1.startDate ?? .distantFuture) }
+            rail("Gemerkt", events: all)
         }
     }
 
@@ -2555,26 +2572,30 @@ private struct ProfileContentSection: View {
                     .font(.subheadline)
                 }
                 .padding(.bottom, 6)
-                ForEach(summary.visits.prefix(5)) { visit in
+                // 06.11.2026: neueste zuerst, mit Bild und vollem Datum.
+                let recent = Array(summary.visits.sorted { ($0.attendedAt ?? .distantPast) > ($1.attendedAt ?? .distantPast) }.prefix(5))
+                ForEach(recent) { visit in
                     let row = HStack(spacing: 12) {
-                        VStack(spacing: 0) {
-                            Text(visit.attendedAt.map { KlangradarDateTime.string($0, format: "d") } ?? "–").font(.title3.bold()).monospacedDigit()
-                            Text(visit.attendedAt.map { KlangradarDateTime.string($0, format: "MMM") } ?? "").font(.caption2.weight(.semibold)).foregroundStyle(.secondary).textCase(.uppercase)
+                        CachedAsyncImage(url: visit.event?.primaryImageURL, maxPixel: 160) { phase in
+                            if let image = phase.image { image.resizable().scaledToFill() }
+                            else { KlangradarTheme.accent.opacity(0.12) }
                         }
-                        .frame(width: 44)
+                        .frame(width: 52, height: 52)
+                        .clipShape(.rect(cornerRadius: 12, style: .continuous))
                         VStack(alignment: .leading, spacing: 2) {
                             Text(visit.title).font(.subheadline.weight(.semibold)).foregroundStyle(.primary).lineLimit(2)
-                            Text(visit.venue).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                            Text([visit.attendedAt.map { KlangradarDateTime.string($0, format: "EE, d. MMM yyyy") }, visit.venue].compactMap { $0 }.joined(separator: " · "))
+                                .font(.caption).foregroundStyle(.secondary).lineLimit(1)
                         }
                         Spacer(minLength: 0)
                     }
-                    .padding(.vertical, 10)
+                    .padding(.vertical, 8)
                     if let event = visit.event {
                         NavigationLink(value: event) { row }.buttonStyle(.plain)
                     } else {
                         row
                     }
-                    if visit.id != summary.visits.prefix(5).last?.id { Divider() }
+                    if visit.id != recent.last?.id { Divider() }
                 }
             }
             .padding(14)
@@ -2588,23 +2609,32 @@ private struct ProfileContentSection: View {
         if summary.followed.isEmpty {
             emptyState(symbol: "person.crop.circle.badge.plus", title: "Noch niemandem gefolgt", text: "Folge Künstler:innen, Ensembles und Orten auf ihrer Seite. Du erfährst dann von neuen Konzerten.")
         } else {
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10, alignment: .top), count: 4), spacing: 16) {
-                ForEach(summary.followed.prefix(16)) { profile in
-                    NavigationLink(value: EntityRoute(kind: profile.kind.entityKind, identifier: profile.slug ?? profile.id.uuidString)) {
-                        VStack(spacing: 6) {
-                            CachedAsyncImage(url: profile.imageURL, maxPixel: 200) { phase in
-                                if let image = phase.image { image.resizable().scaledToFill() }
-                                else { Color.secondary.opacity(0.12).overlay { Image(systemName: profile.kind.entityKind.systemImage).foregroundStyle(.secondary) } }
+            // 06.11.2026: nach Personen, Ensembles und Spielstätten getrennt.
+            ForEach([(FollowedProfileKind.person, "Personen"), (.ensemble, "Ensembles"), (.venue, "Spielstätten")], id: \.0) { kind, title in
+                let group = summary.followed.filter { $0.kind == kind }
+                if !group.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("\(title) · \(group.count)").font(.headline)
+                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10, alignment: .top), count: 4), spacing: 16) {
+                            ForEach(group.prefix(8)) { profile in
+                                NavigationLink(value: EntityRoute(kind: profile.kind.entityKind, identifier: profile.slug ?? profile.id.uuidString)) {
+                                    VStack(spacing: 6) {
+                                        CachedAsyncImage(url: profile.imageURL, maxPixel: 200) { phase in
+                                            if let image = phase.image { image.resizable().scaledToFill() }
+                                            else { Color.secondary.opacity(0.12).overlay { Image(systemName: profile.kind.entityKind.systemImage).foregroundStyle(.secondary) } }
+                                        }
+                                        .frame(width: 64, height: 64)
+                                        .clipShape(profile.kind == .venue ? AnyShape(RoundedRectangle(cornerRadius: 16, style: .continuous)) : AnyShape(Circle()))
+                                        Text(profile.name).font(.caption2.weight(.medium)).foregroundStyle(.primary).lineLimit(2).multilineTextAlignment(.center)
+                                    }
+                                }
+                                .buttonStyle(.plain)
                             }
-                            .frame(width: 64, height: 64)
-                            .clipShape(profile.kind == .venue ? AnyShape(RoundedRectangle(cornerRadius: 16, style: .continuous)) : AnyShape(Circle()))
-                            Text(profile.name).font(.caption2.weight(.medium)).foregroundStyle(.primary).lineLimit(2).multilineTextAlignment(.center)
                         }
                     }
-                    .buttonStyle(.plain)
                 }
             }
-            if summary.followed.count > 16 {
+            if summary.followed.count > 8 {
                 NavigationLink("Alle \(summary.followed.count) ansehen") {
                     FollowedPeopleView(auth: auth, repository: repository, contentRepository: contentRepository)
                 }
