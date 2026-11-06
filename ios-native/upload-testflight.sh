@@ -13,16 +13,19 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 TEAM_ID="DVH3MYQ64A"
 CONFIG="$HOME/.appstoreconnect/config"
-[ -f "$CONFIG" ] || { echo "❌ $CONFIG fehlt (ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_PATH)."; exit 1; }
-# shellcheck disable=SC1090
-source "$CONFIG"
+# GitHub Actions (06.11.2026): Werte kommen dort als Umgebungsvariablen.
+if [ -z "${ASC_KEY_ID:-}" ]; then
+  [ -f "$CONFIG" ] || { echo "❌ $CONFIG fehlt (ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_PATH)."; exit 1; }
+  # shellcheck disable=SC1090
+  source "$CONFIG"
+fi
 [ -f "$ASC_KEY_PATH" ] || { echo "❌ API-Schlüssel nicht gefunden: $ASC_KEY_PATH"; exit 1; }
 [ -f Config/Secrets.plist ] || { echo "❌ Config/Secrets.plist fehlt — ohne Supabase-Konfiguration kein Upload."; exit 1; }
 
 # Gemeinsamer Zähler mit deploy-iphone.sh: jede hochgeladene Build-Nummer
 # muss eindeutig und steigend sein.
 COUNTER="$HOME/.klangradar-build-number"
-BUILD_NUMBER=$(( $(cat "$COUNTER" 2>/dev/null || echo 722) + 1 ))
+BUILD_NUMBER=${BUILD_NUMBER:-$(( $(cat "$COUNTER" 2>/dev/null || echo 722) + 1 ))}
 VERSION="$((BUILD_NUMBER / 100)).$(((BUILD_NUMBER / 10) % 10)).$((BUILD_NUMBER % 10))"
 WORK="/tmp/KlangradarTestFlight"
 rm -rf "$WORK"; mkdir -p "$WORK"
