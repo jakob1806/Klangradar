@@ -195,20 +195,7 @@ struct RootTabView: View {
                 .environmentObject(genreFilterRouter)
                 .environmentObject(cityStore)
         }
-        .fullScreenCover(item: Binding(
-            get: { deepLinks.pendingTicketSlug.flatMap(TicketLink.init(slug:)) },
-            set: { if $0 == nil { deepLinks.pendingTicketSlug = nil } }
-        )) { link in
-            TicketFullScreen(image: link.image) { deepLinks.pendingTicketSlug = nil } onRemove: {
-                TicketStore.remove(for: link.eventID); deepLinks.pendingTicketSlug = nil
-            }
-        }
-        .onChange(of: deepLinks.pendingTicketSlug) { _, slug in
-            // Kein Ticket hinterlegt: stattdessen die Konzertseite öffnen.
-            guard let slug, TicketLink(slug: slug) == nil else { return }
-            deepLinks.pendingTicketSlug = nil
-            deepLinks.pendingEventSlug = slug
-        }
+        .modifier(TicketDeepLinkPresenter(deepLinks: deepLinks))
         .sheet(item: $deepLinks.pendingEntity) { route in
             // Spielstätte/Person/Ensemble per Link oder Siri (02.11.2026).
             NavigationStack {
@@ -685,5 +672,29 @@ struct TicketLink: Identifiable {
               let image = TicketStore.image(for: eventID) else { return nil }
         self.eventID = eventID
         self.image = image
+    }
+}
+
+/// Eigener Modifier, damit der Typprüfer die lange Kette in RootTabView
+/// schafft: zeigt das per Live-Aktivität angeforderte Ticket.
+private struct TicketDeepLinkPresenter: ViewModifier {
+    @ObservedObject var deepLinks: DeepLinkRouter
+
+    func body(content: Content) -> some View {
+        content
+            .fullScreenCover(item: Binding(
+                get: { deepLinks.pendingTicketSlug.flatMap(TicketLink.init(slug:)) },
+                set: { if $0 == nil { deepLinks.pendingTicketSlug = nil } }
+            )) { link in
+                TicketFullScreen(image: link.image) { deepLinks.pendingTicketSlug = nil } onRemove: {
+                    TicketStore.remove(for: link.eventID); deepLinks.pendingTicketSlug = nil
+                }
+            }
+            .onChange(of: deepLinks.pendingTicketSlug) { _, slug in
+                // Kein Ticket hinterlegt: stattdessen die Konzertseite öffnen.
+                guard let slug, TicketLink(slug: slug) == nil else { return }
+                deepLinks.pendingTicketSlug = nil
+                deepLinks.pendingEventSlug = slug
+            }
     }
 }
