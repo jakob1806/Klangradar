@@ -25,6 +25,30 @@ final class ConcertSync {
         await updateLiveActivities(concerts)
     }
 
+    private var observedTokens: Set<String> = []
+
+    /// Token der Live-Aktivität in live_activity_tokens hinterlegen.
+    private func observePushToken(_ activity: Activity<ConcertActivityAttributes>, eventID: String) {
+        guard observedTokens.insert(activity.id).inserted else { return }
+        Task {
+            for await data in activity.pushTokenUpdates {
+                #if DEBUG
+                let environment = "dev"
+                #else
+                let environment = "prod"
+                #endif
+                let token = "apns:\(environment):" + data.map { String(format: "%02x", $0) }.joined()
+                guard let client = SocialStore.shared.repository?.client, let access = SocialStore.shared.token,
+                      let userID = SocialStore.shared.auth?.userID else { continue }
+                try? await client.upsert(table: "live_activity_tokens", values: [
+                    "token": .string(token),
+                    "user_id": .string(userID.uuidString),
+                    "event_id": .string(eventID)
+                ], accessToken: access, conflictColumns: "token")
+            }
+        }
+    }
+
     /// Einlass/Pause/Ende für die Live-Aktivität aus der Event-Zeile.
     static func loadTimes(eventID: String, start: Date) async -> ConcertTimes? {
         guard let client = SocialStore.shared.repository?.client else { return nil }
@@ -61,6 +85,9 @@ final class ConcertSync {
             let unfavorited = !concerts.contains { $0.slug == activity.attributes.slug }
             if ended || unfavorited { await activity.end(nil, dismissalPolicy: .immediate) }
         }
+        for activity in Activity<ConcertActivityAttributes>.activities {
+            if let concert = concerts.first(where: { $0.slug == activity.attributes.slug }) { observePushToken(activity, eventID: concert.id) }
+        }
         let running = Set(Activity<ConcertActivityAttributes>.activities.map(\.attributes.slug))
         for concert in concerts where !running.contains(concert.slug) {
             let untilStart = concert.start.timeIntervalSince(now)
@@ -69,7 +96,11 @@ final class ConcertSync {
             var state = ConcertActivityAttributes.ContentState(phase: "upcoming")
             if let times = await Self.loadTimes(eventID: concert.id, start: concert.start) { state.apply(times) }
             let content = ActivityContent(state: state, staleDate: (state.endAt ?? concert.start.addingTimeInterval(3 * 3600)).addingTimeInterval(1800))
-            _ = try? Activity.request(attributes: attributes, content: content)
+            // Mit Push-Token (06.11.2026): Server-Updates bei Absage,
+            // Zeit- oder Besetzungsänderung.
+            if let activity = try? Activity.request(attributes: attributes, content: content, pushType: .token) {
+                observePushToken(activity, eventID: concert.id)
+            }
         }
     }
 }

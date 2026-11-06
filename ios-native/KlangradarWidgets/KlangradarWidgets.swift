@@ -215,6 +215,12 @@ struct ConcertLiveActivity: Widget {
                             Text(context.attributes.venue).font(.caption).foregroundStyle(islandDim).lineLimit(1)
                         }
                         StationRow(evening: evening, dim: islandDim, highlight: islandAccent)
+                        if let notice = context.state.notice, !notice.isEmpty {
+                            Text(notice).font(.caption2.weight(.semibold)).foregroundStyle(islandAccent).lineLimit(1)
+                        }
+                        if evening.next != nil, !evening.isCancelled {
+                            ActivityButton(title: "Ticket zeigen", url: "de.klangradar.native://ticket/\(context.attributes.slug)")
+                        }
                     }
                     .padding(.horizontal, 4)
                 }
@@ -250,10 +256,14 @@ private struct Evening {
     let state: ConcertActivityAttributes.ContentState
     var now: Date = .now
 
+    /// Beginn, ggf. vom Server geändert.
+    var start: Date { state.startAt ?? attributes.start }
+    var isCancelled: Bool { state.phase == "cancelled" }
+
     var stations: [Station] {
         var list: [Station] = []
         if let doors = state.doorsAt { list.append(.init(id: "doors", label: "Einlass", time: doors, estimated: state.doorsEstimated ?? true)) }
-        list.append(.init(id: "start", label: "Beginn", time: attributes.start, estimated: false))
+        list.append(.init(id: "start", label: "Beginn", time: start, estimated: false))
         if let pause = state.pauseAt { list.append(.init(id: "pause", label: "Pause", time: pause, estimated: true)) }
         if let second = state.pauseEndAt { list.append(.init(id: "second", label: "2. Teil", time: second, estimated: true)) }
         if let end = state.endAt { list.append(.init(id: "end", label: "Ende", time: end, estimated: state.endEstimated ?? true)) }
@@ -264,6 +274,7 @@ private struct Evening {
     var previous: Station? { stations.last { $0.time <= now } }
 
     var phaseLabel: String {
+        if isCancelled { return "Abgesagt" }
         guard let next else { return "Konzert vorbei" }
         switch next.id {
         case "doors": return "Einlass in"
@@ -276,7 +287,7 @@ private struct Evening {
     }
 
     var nextLabel: String { next.map { $0.estimated ? "\($0.label) ca." : $0.label } ?? "Ende" }
-    var nextClock: String { next.map { clock($0.time) } ?? (state.endAt.map(clock) ?? clock(attributes.start)) }
+    var nextClock: String { next.map { clock($0.time) } ?? (state.endAt.map(clock) ?? clock(start)) }
 
     /// Fortschritt vom letzten bis zum nächsten Schritt.
     var segment: ClosedRange<Date>? {
@@ -377,7 +388,36 @@ private struct LockScreenConcertView: View {
                     .tint(islandAccent)
             }
             StationRow(evening: evening, dim: islandDim, highlight: islandAccent)
+            if let notice = state.notice, !notice.isEmpty {
+                Text(notice).font(.caption.weight(.semibold))
+                    .foregroundStyle(evening.isCancelled ? Color(red: 1, green: 0.55, blue: 0.5) : islandAccent)
+                    .lineLimit(2)
+            }
+            // Knöpfe (06.11.2026): Ticket mit voller Helligkeit, nach dem
+            // Konzert bewerten; beide öffnen die App an der richtigen Stelle.
+            HStack(spacing: 8) {
+                if evening.next == nil || evening.isCancelled {
+                    ActivityButton(title: "Konzert bewerten", url: "de.klangradar.native://event/\(attributes.slug)")
+                } else {
+                    ActivityButton(title: "Ticket zeigen", url: "de.klangradar.native://ticket/\(attributes.slug)")
+                    ActivityButton(title: "Konzertseite", url: "de.klangradar.native://event/\(attributes.slug)")
+                }
+            }
         }
         .padding(14)
+    }
+}
+
+private struct ActivityButton: View {
+    let title: String
+    let url: String
+    var body: some View {
+        if let destination = URL(string: url) {
+            Link(destination: destination) {
+                Text(title).font(.caption.weight(.semibold)).foregroundStyle(.white)
+                    .frame(maxWidth: .infinity).padding(.vertical, 7)
+                    .background(.white.opacity(0.14), in: Capsule())
+            }
+        }
     }
 }

@@ -24,6 +24,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendPushToTokens } from "../_shared/fcm.ts";
+import { sendLiveActivityUpdate, swiftDate } from "../_shared/apns.ts";
 
 interface EventChangeRow {
   id: number;
@@ -89,6 +90,49 @@ function notificationFor(
 
 import { requireInternalAuth } from "../_shared/internalAuth.ts";
 
+/** Gleiche Regeln wie ConcertTimes.compute in der iOS-App. */
+function doorsMinutes(text: string | null | undefined): number | null {
+  if (!text) return null;
+  const lower = text.toLowerCase();
+  if (!/einlass|öffn|vor beginn|vorher/.test(lower)) return null;
+  if (/eine stunde|1 stunde/.test(lower)) return 60;
+  if (/halbe stunde/.test(lower)) return 30;
+  const m = lower.match(/(\d{2,3})\s*(minuten|min\.?)/);
+  const v = m ? Number(m[1]) : NaN;
+  return v >= 10 && v <= 120 ? v : null;
+}
+
+// deno-lint-ignore no-explicit-any
+async function updateLiveActivities(supabase: any, eventId: string, notice: string) {
+  const { data: tokens } = await supabase.from("live_activity_tokens").select("token").eq("event_id", eventId);
+  const list = (tokens ?? []).map((r: { token: string }) => r.token);
+  if (list.length === 0) return;
+  const { data: ev } = await supabase
+    .from("events")
+    .select("start_datetime, end_datetime, duration_minutes, has_intermission, status, venues(doors_info_de)")
+    .eq("id", eventId)
+    .maybeSingle();
+  if (!ev) return;
+  const start = Date.parse(ev.start_datetime);
+  let end: number | null = ev.end_datetime ? Date.parse(ev.end_datetime) : null;
+  let endEstimated = end == null;
+  if (end == null && ev.duration_minutes) { end = start + ev.duration_minutes * 60000; endEstimated = false; }
+  const state: Record<string, unknown> = { phase: ev.status === "cancelled" ? "cancelled" : "upcoming", notice, startAt: swiftDate(start) };
+  const doors = doorsMinutes(ev.venues?.doors_info_de);
+  state.doorsAt = swiftDate(start - (doors ?? 45) * 60000);
+  state.doorsEstimated = doors == null;
+  if (ev.has_intermission) {
+    const length = end != null ? end - start : 120 * 60000;
+    const pause = start + length / 2 - 10 * 60000;
+    state.pauseAt = swiftDate(pause);
+    state.pauseEndAt = swiftDate(pause + 20 * 60000);
+  }
+  if (end != null) { state.endAt = swiftDate(end); state.endEstimated = endEstimated; }
+  const results = await sendLiveActivityUpdate(list, state);
+  const invalid = results.filter((r) => r.invalidToken).map((r) => r.token);
+  if (invalid.length) await supabase.from("live_activity_tokens").delete().in("token", invalid);
+}
+
 Deno.serve(async (req) => {
   const unauthorized = await requireInternalAuth(req);
   if (unauthorized) return unauthorized;
@@ -141,6 +185,14 @@ Deno.serve(async (req) => {
 
       const notification = notificationFor(change, event.title as string, event.start_datetime as string);
       if (!notification) continue;
+
+      // Laufende Live-Aktivitäten zu diesem Konzert direkt aktualisieren
+      // (06.11.2026): neue Zeiten bzw. Hinweis auf Absage/Umbesetzung.
+      try {
+        await updateLiveActivities(supabase, change.event_id, notification.body);
+      } catch (err) {
+        errors.push(`live-activity ${change.event_id}: ${err instanceof Error ? err.message : String(err)}`);
+      }
 
       // Gemerkt, geplant oder im Abo.
       const [{ data: favs }, { data: planned }, { data: aboLinks }] = await Promise.all([

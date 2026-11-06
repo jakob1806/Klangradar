@@ -24,10 +24,16 @@ final class DeepLinkRouter: ObservableObject {
     @Published var pendingPlanForSlug: String?
     /// Freunde-Bereich öffnen (Push "/friends" bzw. "/plans").
     @Published var pendingFriendsTab: FriendsHubTab?
+    /// Live-Aktivität „Ticket“ (06.11.2026): de.klangradar.native://ticket/<slug>.
+    @Published var pendingTicketSlug: String?
 
     /// true, wenn der Link ein Event-Link war und übernommen wurde.
     @discardableResult
     func handle(url: URL) -> Bool {
+        if url.scheme == "de.klangradar.native", url.host == "ticket", !url.lastPathComponent.isEmpty {
+            pendingTicketSlug = url.lastPathComponent
+            return true
+        }
         if url.scheme == "de.klangradar.native", url.host == "event" {
             return open(slug: url.lastPathComponent)
         }
