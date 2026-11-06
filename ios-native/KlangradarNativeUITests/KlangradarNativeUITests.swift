@@ -14,6 +14,14 @@ final class KlangradarNativeUITests: XCTestCase {
         // Seit der englischen Oberfläche (String-Katalog) heißen die Tabs auf
         // englischen Simulatoren „Search“ usw. – Tests laufen immer auf Deutsch.
         app.launchArguments += ["-AppleLanguages", "(de)", "-AppleLocale", "de_DE"]
+        // Systemabfragen (Mitteilungen, Standort) auf frischen Simulatoren
+        // wegtippen, damit sie die App nicht verdecken.
+        addUIInterruptionMonitor(withDescription: "Systemabfrage") { alert in
+            for label in ["Erlauben", "Beim Verwenden der App erlauben", "Allow", "Allow While Using App", "OK"] where alert.buttons[label].exists {
+                alert.buttons[label].tap(); return true
+            }
+            return false
+        }
         app.launch()
     }
 
@@ -39,7 +47,14 @@ final class KlangradarNativeUITests: XCTestCase {
 
     func testAllTabsOpen() {
         let tabBar = app.tabBars.firstMatch
-        XCTAssertTrue(tabBar.waitForExistence(timeout: 10))
+        // 06.11.2026: Auf einem frisch angelegten Simulator (nach Xcode-
+        // Update) braucht der erste Start deutlich länger; bei Misserfolg
+        // die sichtbare Oberfläche ins Log schreiben.
+        if !tabBar.waitForExistence(timeout: 60) {
+            print("Tab-Leiste fehlt – sichtbar ist:\n\(app.debugDescription)")
+            XCTFail("Tab-Leiste nach 60 s nicht sichtbar")
+            return
+        }
         for (tab, marker) in [("Suche", "Suche"), ("Karte", "Karte"), ("Kalender", "Kalender"), ("Profil", "Profil"), ("Home", "Klangradar")] {
             tapTab(tab)
             XCTAssertTrue(app.staticTexts[marker].firstMatch.waitForExistence(timeout: 15) || app.navigationBars[marker].exists, "Tab \(tab) zeigt keinen Inhalt")
