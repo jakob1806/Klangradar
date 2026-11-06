@@ -25,6 +25,40 @@ final class ConcertSync {
         await updateLiveActivities(concerts)
     }
 
+    private var observedTokens: Set<String> = []
+
+    /// Token der Live-Aktivität in live_activity_tokens hinterlegen.
+    private func observePushToken(_ activity: Activity<ConcertActivityAttributes>, eventID: String) {
+        guard observedTokens.insert(activity.id).inserted else { return }
+        Task {
+            for await data in activity.pushTokenUpdates {
+                #if DEBUG
+                let environment = "dev"
+                #else
+                let environment = "prod"
+                #endif
+                let token = "apns:\(environment):" + data.map { String(format: "%02x", $0) }.joined()
+                guard let client = SocialStore.shared.repository?.client, let access = SocialStore.shared.token,
+                      let userID = SocialStore.shared.auth?.userID else { continue }
+                try? await client.upsert(table: "live_activity_tokens", values: [
+                    "token": .string(token),
+                    "user_id": .string(userID.uuidString),
+                    "event_id": .string(eventID)
+                ], accessToken: access, conflictColumns: "token")
+            }
+        }
+    }
+
+    /// Einlass/Pause/Ende für die Live-Aktivität aus der Event-Zeile.
+    static func loadTimes(eventID: String, start: Date) async -> ConcertTimes? {
+        guard let client = SocialStore.shared.repository?.client else { return nil }
+        let rows: [JSONObject]? = try? await client.get(table: "events", queryItems: [
+            URLQueryItem(name: "select", value: "end_datetime,duration_minutes,has_intermission,venues(doors_info_de)"),
+            URLQueryItem(name: "id", value: "eq.\(eventID)")
+        ])
+        return rows?.first.map { ConcertTimes.compute(start: start, detail: $0) }
+    }
+
     private func indexSpotlight(_ concerts: [SharedConcert]) {
         let items = concerts.map { concert -> CSSearchableItem in
             let attributes = CSSearchableItemAttributeSet(contentType: .content)
@@ -51,13 +85,30 @@ final class ConcertSync {
             let unfavorited = !concerts.contains { $0.slug == activity.attributes.slug }
             if ended || unfavorited { await activity.end(nil, dismissalPolicy: .immediate) }
         }
+        for activity in Activity<ConcertActivityAttributes>.activities {
+            if let concert = concerts.first(where: { $0.slug == activity.attributes.slug }) { observePushToken(activity, eventID: concert.id) }
+        }
         let running = Set(Activity<ConcertActivityAttributes>.activities.map(\.attributes.slug))
         for concert in concerts where !running.contains(concert.slug) {
             let untilStart = concert.start.timeIntervalSince(now)
             guard untilStart <= 4 * 3600, untilStart > -3600 else { continue }
             let attributes = ConcertActivityAttributes(slug: concert.slug, title: concert.title, venue: concert.venue, start: concert.start)
-            let content = ActivityContent(state: ConcertActivityAttributes.ContentState(phase: "upcoming"), staleDate: concert.start.addingTimeInterval(3 * 3600))
-            _ = try? Activity.request(attributes: attributes, content: content)
+            var state = ConcertActivityAttributes.ContentState(phase: "upcoming")
+            if let times = await Self.loadTimes(eventID: concert.id, start: concert.start) { state.apply(times) }
+            let content = ActivityContent(state: state, staleDate: (state.endAt ?? concert.start.addingTimeInterval(3 * 3600)).addingTimeInterval(1800))
+            // Mit Push-Token (06.11.2026): Server-Updates bei Absage,
+            // Zeit- oder Besetzungsänderung.
+            if let activity = try? Activity.request(attributes: attributes, content: content, pushType: .token) {
+                observePushToken(activity, eventID: concert.id)
+            }
         }
+    }
+}
+
+extension ConcertActivityAttributes.ContentState {
+    mutating func apply(_ times: ConcertTimes) {
+        doorsAt = times.doorsAt; doorsEstimated = times.doorsEstimated
+        pauseAt = times.pauseAt; pauseEndAt = times.pauseEndAt
+        endAt = times.endAt; endEstimated = times.endEstimated
     }
 }

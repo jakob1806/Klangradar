@@ -271,13 +271,23 @@ struct EventDetailView: View {
             .modifier(AddToCalendarPresenter(input: calendarEventInput(), trigger: $calendarTrigger))
     }
 
+    private func titleFont(for title: String) -> Font {
+        switch title.count {
+        case ..<50: return .title.bold()
+        case ..<90: return .title2.bold()
+        default: return .title3.bold()
+        }
+    }
+
     private var titleBlockContent: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(event.title)
                 // Nutzerfeedback: Überschrift in der Detailansicht war zu
                 // groß — .title statt .largeTitle, bleibt fett/prominent,
                 // wirkt aber weniger überdimensioniert bei langen Titeln.
-                .font(.title.bold())
+                // 06.11.2026: lange Titel (z. B. BRSO-Programmtitel) eine bzw.
+                // zwei Stufen kleiner, nie gekürzt.
+                .font(titleFont(for: event.title))
                 .fixedSize(horizontal: false, vertical: true)
             if let subtitle = event.subtitle, !subtitle.isEmpty {
                 Text(subtitle).font(.title3).foregroundStyle(.secondary)

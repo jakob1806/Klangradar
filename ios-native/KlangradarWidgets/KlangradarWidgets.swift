@@ -185,99 +185,239 @@ struct ConcertLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: ConcertActivityAttributes.self) { context in
             LockScreenConcertView(attributes: context.attributes, state: context.state)
-                .activityBackgroundTint(.white)
-                .activitySystemActionForegroundColor(accent)
+                // 06.11.2026: dunkel statt Weiß – vorher war weiße Schrift
+                // (Dunkelmodus) auf weißem Grund unlesbar.
+                .activityBackgroundTint(Color(red: 0.07, green: 0.09, blue: 0.13))
+                .activitySystemActionForegroundColor(.white)
                 .widgetURL(URL(string: "de.klangradar.native://event/\(context.attributes.slug)"))
         } dynamicIsland: { context in
-            DynamicIsland {
+            let evening = Evening(attributes: context.attributes, state: context.state)
+            return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        Text(primaryLabel(context.state, start: context.attributes.start)).font(.caption2).foregroundStyle(.secondary)
-                        Text(clock(primaryTime(context.state, start: context.attributes.start))).font(.title2.weight(.semibold).monospacedDigit())
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(evening.phaseLabel).font(.caption2.weight(.semibold)).foregroundStyle(islandDim)
+                        CountdownText(evening: evening, size: 26)
                     }
+                    .padding(.leading, 4)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    VStack(alignment: .trailing, spacing: 0) {
-                        Text("Beginn").font(.caption2).foregroundStyle(.secondary)
-                        Text(clock(context.attributes.start)).font(.title2.weight(.semibold).monospacedDigit())
+                    VStack(alignment: .trailing, spacing: 1) {
+                        Text(evening.nextLabel).font(.caption2.weight(.semibold)).foregroundStyle(islandDim)
+                        Text(evening.nextClock).font(.system(size: 20, weight: .semibold, design: .rounded).monospacedDigit())
                     }
+                    .padding(.trailing, 4)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(context.attributes.title).font(.headline).lineLimit(1)
-                        Text([context.state.travel, context.attributes.venue].compactMap { $0 }.joined(separator: " · ")).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 6) {
+                            Text(context.attributes.title).font(.subheadline.weight(.semibold)).lineLimit(1)
+                            Spacer(minLength: 4)
+                            Text(context.attributes.venue).font(.caption).foregroundStyle(islandDim).lineLimit(1)
+                        }
+                        StationRow(evening: evening, dim: islandDim, highlight: islandAccent)
+                        if let notice = context.state.notice, !notice.isEmpty {
+                            Text(notice).font(.caption2.weight(.semibold)).foregroundStyle(islandAccent).lineLimit(1)
+                        }
+                        if evening.next != nil, !evening.isCancelled {
+                            ActivityButton(title: "Ticket zeigen", url: "de.klangradar.native://ticket/\(context.attributes.slug)")
+                        }
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 4)
                 }
             } compactLeading: {
-                Image(systemName: context.state.leaveAt.map { $0 > .now } == true ? "figure.walk" : "music.note").foregroundStyle(accent)
+                PhaseRing(evening: evening).frame(width: 18, height: 18)
             } compactTrailing: {
-                Text(clock(primaryTime(context.state, start: context.attributes.start))).monospacedDigit()
+                CountdownText(evening: evening, size: 15).frame(maxWidth: 58)
             } minimal: {
-                Image(systemName: "music.note").foregroundStyle(accent)
+                PhaseRing(evening: evening).frame(width: 18, height: 18)
             }
             .widgetURL(URL(string: "de.klangradar.native://event/\(context.attributes.slug)"))
         }
     }
 }
 
-/// Was gerade zählt: vor der Losgeh-Zeit "Losgehen", danach "Beginn",
-/// während des Konzerts die Pause.
-private func primaryTime(_ state: ConcertActivityAttributes.ContentState, start: Date) -> Date {
-    if let leave = state.leaveAt, leave > .now { return leave }
-    if start > .now { return start }
-    if let pause = state.pauseAt, pause > .now { return pause }
-    return start
+// MARK: - Konzertabend (06.11.2026)
+
+private let islandDim = Color.white.opacity(0.6)
+private let islandAccent = Color(red: 0.45, green: 0.72, blue: 0.95)
+
+/// Stationen des Abends und was gerade dran ist. Reihenfolge: Einlass →
+/// Beginn → Pause → 2. Teil → Ende. Die Losgeh-Zeit ist bewusst keine
+/// Station mehr (jeder reist anders an).
+private struct Evening {
+    struct Station: Identifiable {
+        let id: String
+        let label: String
+        let time: Date
+        let estimated: Bool
+    }
+
+    let attributes: ConcertActivityAttributes
+    let state: ConcertActivityAttributes.ContentState
+    var now: Date = .now
+
+    /// Beginn, ggf. vom Server geändert.
+    var start: Date { state.startAt ?? attributes.start }
+    var isCancelled: Bool { state.phase == "cancelled" }
+
+    var stations: [Station] {
+        var list: [Station] = []
+        if let doors = state.doorsAt { list.append(.init(id: "doors", label: "Einlass", time: doors, estimated: state.doorsEstimated ?? true)) }
+        list.append(.init(id: "start", label: "Beginn", time: start, estimated: false))
+        if let pause = state.pauseAt { list.append(.init(id: "pause", label: "Pause", time: pause, estimated: true)) }
+        if let second = state.pauseEndAt { list.append(.init(id: "second", label: "2. Teil", time: second, estimated: true)) }
+        if let end = state.endAt { list.append(.init(id: "end", label: "Ende", time: end, estimated: state.endEstimated ?? true)) }
+        return list
+    }
+
+    var next: Station? { stations.first { $0.time > now } }
+    var previous: Station? { stations.last { $0.time <= now } }
+
+    var phaseLabel: String {
+        if isCancelled { return "Abgesagt" }
+        guard let next else { return "Konzert vorbei" }
+        switch next.id {
+        case "doors": return "Einlass in"
+        case "start": return previous?.id == "doors" ? "Einlass läuft · Beginn in" : "Beginn in"
+        case "pause": return "Pause in ca."
+        case "second": return "Pause · noch"
+        case "end": return "Ende in ca."
+        default: return ""
+        }
+    }
+
+    var nextLabel: String { next.map { $0.estimated ? "\($0.label) ca." : $0.label } ?? "Ende" }
+    var nextClock: String { next.map { clock($0.time) } ?? (state.endAt.map(clock) ?? clock(start)) }
+
+    /// Fortschritt vom letzten bis zum nächsten Schritt.
+    var segment: ClosedRange<Date>? {
+        guard let next else { return nil }
+        let from = previous?.time ?? min(next.time.addingTimeInterval(-3600), now)
+        return from < next.time ? from...next.time : nil
+    }
 }
 
-private func primaryLabel(_ state: ConcertActivityAttributes.ContentState, start: Date) -> String {
-    if let leave = state.leaveAt, leave > .now { return "Losgehen" }
-    if start > .now { return "Beginn" }
-    if let pause = state.pauseAt, pause > .now { return "Pause ca." }
-    return "Läuft"
+/// Countdown bis zum nächsten Schritt; ohne nächsten Schritt „Vorbei“.
+private struct CountdownText: View {
+    let evening: Evening
+    let size: CGFloat
+    var body: some View {
+        if let next = evening.next {
+            Text(timerInterval: evening.now...next.time, countsDown: true)
+                .font(.system(size: size, weight: .bold, design: .rounded).monospacedDigit())
+                .multilineTextAlignment(.trailing)
+        } else {
+            Text("Vorbei").font(.system(size: size, weight: .bold, design: .rounded))
+        }
+    }
 }
 
+/// Ring für kompakte/minimale Dynamic Island: füllt sich bis zum nächsten Schritt.
+private struct PhaseRing: View {
+    let evening: Evening
+    var body: some View {
+        if let segment = evening.segment {
+            ProgressView(timerInterval: segment, countsDown: false) { EmptyView() } currentValueLabel: { EmptyView() }
+                .progressViewStyle(.circular)
+                .tint(islandAccent)
+        } else {
+            Circle().strokeBorder(islandAccent, lineWidth: 2.5)
+        }
+    }
+}
+
+/// Stationen als Zeile: Punkt, Bezeichnung, Uhrzeit; erledigte gedimmt.
+private struct StationRow: View {
+    let evening: Evening
+    let dim: Color
+    let highlight: Color
+    var body: some View {
+        HStack(alignment: .top, spacing: 0) {
+            ForEach(evening.stations) { station in
+                let done = station.time <= evening.now
+                let isNext = station.id == evening.next?.id
+                VStack(alignment: .leading, spacing: 2) {
+                    Circle().fill(isNext ? highlight : (done ? dim.opacity(0.5) : .white.opacity(0.35)))
+                        .frame(width: 6, height: 6)
+                    Text(station.label).font(.caption2).foregroundStyle(dim).lineLimit(1)
+                    Text((station.estimated ? "~" : "") + clock(station.time))
+                        .font(.caption.weight(isNext ? .bold : .medium).monospacedDigit())
+                        .foregroundStyle(done ? dim : .white)
+                        .lineLimit(1)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+}
+
+/// Sperrbildschirm: Kopf, großer Countdown, Platz, Fortschritt, Stationen.
 private struct LockScreenConcertView: View {
     let attributes: ConcertActivityAttributes
     let state: ConcertActivityAttributes.ContentState
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(attributes.title).font(.headline).foregroundStyle(ink).lineLimit(1)
-                Spacer()
-                Text(attributes.venue).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+        let evening = Evening(attributes: attributes, state: state)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Text(attributes.title).font(.subheadline.weight(.semibold)).foregroundStyle(.white).lineLimit(1)
+                Spacer(minLength: 4)
+                Text(attributes.venue).font(.caption).foregroundStyle(islandDim).lineLimit(1)
             }
-            if let seat = SharedSeatStore.seat(forSlug: attributes.slug) {
-                Label(seat.summary, systemImage: "chair.fill").font(.caption.weight(.semibold)).foregroundStyle(accent).lineLimit(1)
-            }
-            HStack(spacing: 0) {
-                step("Losgehen", state.leaveAt, active: (state.leaveAt ?? .distantPast) > .now)
-                line
-                step("Beginn", attributes.start, active: (state.leaveAt ?? .distantPast) <= .now && attributes.start > .now)
-                if state.pauseAt != nil {
-                    line
-                    step("Pause", state.pauseAt, active: attributes.start <= .now)
+            HStack(alignment: .bottom) {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(evening.phaseLabel).font(.caption.weight(.semibold)).foregroundStyle(islandDim)
+                    CountdownText(evening: evening, size: 34).foregroundStyle(.white)
+                }
+                Spacer(minLength: 8)
+                if let seat = SharedSeatStore.seat(forSlug: attributes.slug) {
+                    VStack(alignment: .trailing, spacing: 1) {
+                        Text("Dein Platz").font(.caption2).foregroundStyle(islandDim)
+                        Text(seat.summary).font(.footnote.weight(.semibold)).foregroundStyle(.white)
+                            .multilineTextAlignment(.trailing).lineLimit(2)
+                    }
+                } else {
+                    VStack(alignment: .trailing, spacing: 1) {
+                        Text(evening.nextLabel).font(.caption2).foregroundStyle(islandDim)
+                        Text(evening.nextClock).font(.title3.weight(.semibold).monospacedDigit()).foregroundStyle(.white)
+                    }
                 }
             }
-            if let travel = state.travel, (state.leaveAt ?? .distantPast) > .now {
-                Text(travel).font(.caption).foregroundStyle(.secondary)
+            if let segment = evening.segment {
+                ProgressView(timerInterval: segment, countsDown: false) { EmptyView() } currentValueLabel: { EmptyView() }
+                    .tint(islandAccent)
+            }
+            StationRow(evening: evening, dim: islandDim, highlight: islandAccent)
+            if let notice = state.notice, !notice.isEmpty {
+                Text(notice).font(.caption.weight(.semibold))
+                    .foregroundStyle(evening.isCancelled ? Color(red: 1, green: 0.55, blue: 0.5) : islandAccent)
+                    .lineLimit(2)
+            }
+            // Knöpfe (06.11.2026): Ticket mit voller Helligkeit, nach dem
+            // Konzert bewerten; beide öffnen die App an der richtigen Stelle.
+            HStack(spacing: 8) {
+                if evening.next == nil || evening.isCancelled {
+                    ActivityButton(title: "Konzert bewerten", url: "de.klangradar.native://event/\(attributes.slug)")
+                } else {
+                    ActivityButton(title: "Ticket zeigen", url: "de.klangradar.native://ticket/\(attributes.slug)")
+                    ActivityButton(title: "Konzertseite", url: "de.klangradar.native://event/\(attributes.slug)")
+                }
             }
         }
-        .padding(16)
+        .padding(14)
     }
+}
 
-    private var line: some View {
-        Rectangle().fill(accent.opacity(0.25)).frame(height: 2).frame(maxWidth: .infinity).padding(.horizontal, 6).padding(.top, 8)
-            .frame(maxHeight: .infinity, alignment: .top)
-    }
-
-    private func step(_ label: String, _ time: Date?, active: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Circle().fill(active ? accent : accent.opacity(0.25)).frame(width: 10, height: 10).padding(.bottom, 4)
-            Text(label).font(.caption2).foregroundStyle(.secondary)
-            Text(time.map(clock) ?? "–").font(.title3.weight(.semibold).monospacedDigit()).foregroundStyle(active ? accent : ink)
+private struct ActivityButton: View {
+    let title: String
+    let url: String
+    var body: some View {
+        if let destination = URL(string: url) {
+            Link(destination: destination) {
+                Text(title).font(.caption.weight(.semibold)).foregroundStyle(.white)
+                    .frame(maxWidth: .infinity).padding(.vertical, 7)
+                    .background(.white.opacity(0.14), in: Capsule())
+            }
         }
-        .fixedSize()
     }
 }

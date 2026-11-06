@@ -92,3 +92,62 @@ export async function sendApnsToTokens(tokens: string[], payload: PushPayload): 
   }
   return results;
 }
+
+// Erstellt von Claude Code (06.11.2026): Updates für laufende Live-
+// Aktivitäten (apns-push-type "liveactivity"). `contentState` muss exakt
+// ConcertActivityAttributes.ContentState entsprechen; Datumswerte als
+// Sekunden seit 2001-01-01 (Standard von JSONDecoder in Swift).
+export async function sendLiveActivityUpdate(
+  tokens: string[],
+  contentState: Record<string, unknown>,
+  alert?: { title: string; body: string },
+): Promise<PushSendResult[]> {
+  if (tokens.length === 0) return [];
+  const topic = `${Deno.env.get("APNS_TOPIC") ?? "de.klangradar.native"}.push-type.liveactivity`;
+  let jwt: string;
+  try {
+    jwt = await providerToken();
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    return tokens.map((token) => ({ token, ok: false, invalidToken: false, error }));
+  }
+  const body = JSON.stringify({
+    aps: {
+      timestamp: Math.floor(Date.now() / 1000),
+      event: "update",
+      "content-state": contentState,
+      ...(alert ? { alert, sound: "default" } : {}),
+    },
+  });
+  const results: PushSendResult[] = [];
+  for (const token of tokens) {
+    const [, environment, deviceToken] = token.split(":");
+    const host = environment === "dev" ? "api.sandbox.push.apple.com" : "api.push.apple.com";
+    try {
+      const res = await fetch(`https://${host}/3/device/${deviceToken}`, {
+        method: "POST",
+        headers: {
+          authorization: `bearer ${jwt}`,
+          "apns-topic": topic,
+          "apns-push-type": "liveactivity",
+          "apns-priority": "10",
+          "content-type": "application/json",
+        },
+        body,
+      });
+      if (res.ok) results.push({ token, ok: true, invalidToken: false });
+      else {
+        const errText = await res.text();
+        results.push({ token, ok: false, invalidToken: res.status === 410 || /BadDeviceToken|Unregistered/.test(errText), error: errText });
+      }
+    } catch (err) {
+      results.push({ token, ok: false, invalidToken: false, error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+  return results;
+}
+
+/** Sekunden seit 2001-01-01 (Swift-Referenzdatum). */
+export function swiftDate(ms: number): number {
+  return ms / 1000 - 978307200;
+}

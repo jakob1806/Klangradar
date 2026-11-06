@@ -76,6 +76,16 @@ struct ConcertActivityAttributes: ActivityAttributes {
         var travel: String? = nil
         /// Geschätzter Pausenbeginn, falls bekannt.
         var pauseAt: Date? = nil
+        /// 06.11.2026: Einlass, Pausenende, Ende (jeweils ggf. geschätzt).
+        var doorsAt: Date? = nil
+        var doorsEstimated: Bool? = nil
+        var pauseEndAt: Date? = nil
+        var endAt: Date? = nil
+        var endEstimated: Bool? = nil
+        /// Vom Server (06.11.2026): geänderte Beginnzeit und Hinweis wie
+        /// „Die Veranstaltung wurde abgesagt.“ oder eine Umbesetzung.
+        var startAt: Date? = nil
+        var notice: String? = nil
     }
     let slug: String
     let title: String

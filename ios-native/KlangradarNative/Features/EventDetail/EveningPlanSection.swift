@@ -429,7 +429,8 @@ struct EveningPlanSection: View {
             ? endDate.map { startDate.addingTimeInterval($0.timeIntervalSince(startDate) / 2 - 10 * 60) } : nil
         let plan = ConcertDayCoordinator.Plan(
             slug: event.slug, title: event.title, venue: venue?.string("name") ?? event.venueName,
-            start: startDate, leaveAt: leave, travel: "\(pick.minutes) Min. \(pick.label)", pauseAt: pause
+            start: startDate, leaveAt: leave, travel: "\(pick.minutes) Min. \(pick.label)", pauseAt: pause,
+            times: ConcertTimes.compute(start: startDate, detail: detail)
         )
         Task { await ConcertDayCoordinator.shared.update(plan) }
     }
