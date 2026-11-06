@@ -25,6 +25,16 @@ final class ConcertSync {
         await updateLiveActivities(concerts)
     }
 
+    /// Einlass/Pause/Ende für die Live-Aktivität aus der Event-Zeile.
+    static func loadTimes(eventID: String, start: Date) async -> ConcertTimes? {
+        guard let client = SocialStore.shared.repository?.client else { return nil }
+        let rows: [JSONObject]? = try? await client.get(table: "events", queryItems: [
+            URLQueryItem(name: "select", value: "end_datetime,duration_minutes,has_intermission,venues(doors_info_de)"),
+            URLQueryItem(name: "id", value: "eq.\(eventID)")
+        ])
+        return rows?.first.map { ConcertTimes.compute(start: start, detail: $0) }
+    }
+
     private func indexSpotlight(_ concerts: [SharedConcert]) {
         let items = concerts.map { concert -> CSSearchableItem in
             let attributes = CSSearchableItemAttributeSet(contentType: .content)
@@ -56,8 +66,18 @@ final class ConcertSync {
             let untilStart = concert.start.timeIntervalSince(now)
             guard untilStart <= 4 * 3600, untilStart > -3600 else { continue }
             let attributes = ConcertActivityAttributes(slug: concert.slug, title: concert.title, venue: concert.venue, start: concert.start)
-            let content = ActivityContent(state: ConcertActivityAttributes.ContentState(phase: "upcoming"), staleDate: concert.start.addingTimeInterval(3 * 3600))
+            var state = ConcertActivityAttributes.ContentState(phase: "upcoming")
+            if let times = await Self.loadTimes(eventID: concert.id, start: concert.start) { state.apply(times) }
+            let content = ActivityContent(state: state, staleDate: (state.endAt ?? concert.start.addingTimeInterval(3 * 3600)).addingTimeInterval(1800))
             _ = try? Activity.request(attributes: attributes, content: content)
         }
+    }
+}
+
+extension ConcertActivityAttributes.ContentState {
+    mutating func apply(_ times: ConcertTimes) {
+        doorsAt = times.doorsAt; doorsEstimated = times.doorsEstimated
+        pauseAt = times.pauseAt; pauseEndAt = times.pauseEndAt
+        endAt = times.endAt; endEstimated = times.endEstimated
     }
 }

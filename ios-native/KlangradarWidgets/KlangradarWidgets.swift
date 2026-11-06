@@ -191,157 +191,193 @@ struct ConcertLiveActivity: Widget {
                 .activitySystemActionForegroundColor(.white)
                 .widgetURL(URL(string: "de.klangradar.native://event/\(context.attributes.slug)"))
         } dynamicIsland: { context in
-            DynamicIsland {
+            let evening = Evening(attributes: context.attributes, state: context.state)
+            return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        Text(primaryLabel(context.state, start: context.attributes.start)).font(.caption2).foregroundStyle(.secondary)
-                        Text(clock(primaryTime(context.state, start: context.attributes.start))).font(.title2.weight(.semibold).monospacedDigit())
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(evening.phaseLabel).font(.caption2.weight(.semibold)).foregroundStyle(islandDim)
+                        CountdownText(evening: evening, size: 26)
                     }
+                    .padding(.leading, 4)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    VStack(alignment: .trailing, spacing: 0) {
-                        Text("Beginn").font(.caption2).foregroundStyle(.secondary)
-                        Text(clock(context.attributes.start)).font(.title2.weight(.semibold).monospacedDigit())
+                    VStack(alignment: .trailing, spacing: 1) {
+                        Text(evening.nextLabel).font(.caption2.weight(.semibold)).foregroundStyle(islandDim)
+                        Text(evening.nextClock).font(.system(size: 20, weight: .semibold, design: .rounded).monospacedDigit())
                     }
+                    .padding(.trailing, 4)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(context.attributes.title).font(.headline).lineLimit(1)
-                        Text([context.state.travel, context.attributes.venue].compactMap { $0 }.joined(separator: " · ")).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 6) {
+                            Text(context.attributes.title).font(.subheadline.weight(.semibold)).lineLimit(1)
+                            Spacer(minLength: 4)
+                            Text(context.attributes.venue).font(.caption).foregroundStyle(islandDim).lineLimit(1)
+                        }
+                        StationRow(evening: evening, dim: islandDim, highlight: islandAccent)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 4)
                 }
             } compactLeading: {
-                Image(systemName: context.state.leaveAt.map { $0 > .now } == true ? "figure.walk" : "music.note").foregroundStyle(accent)
+                PhaseRing(evening: evening).frame(width: 18, height: 18)
             } compactTrailing: {
-                Text(clock(primaryTime(context.state, start: context.attributes.start))).monospacedDigit()
+                CountdownText(evening: evening, size: 15).frame(maxWidth: 58)
             } minimal: {
-                Image(systemName: "music.note").foregroundStyle(accent)
+                PhaseRing(evening: evening).frame(width: 18, height: 18)
             }
             .widgetURL(URL(string: "de.klangradar.native://event/\(context.attributes.slug)"))
         }
     }
 }
 
-/// Was gerade zählt: vor der Losgeh-Zeit "Losgehen", danach "Beginn",
-/// während des Konzerts die Pause.
-private func primaryTime(_ state: ConcertActivityAttributes.ContentState, start: Date) -> Date {
-    if let leave = state.leaveAt, leave > .now { return leave }
-    if start > .now { return start }
-    if let pause = state.pauseAt, pause > .now { return pause }
-    return start
+// MARK: - Konzertabend (06.11.2026)
+
+private let islandDim = Color.white.opacity(0.6)
+private let islandAccent = Color(red: 0.45, green: 0.72, blue: 0.95)
+
+/// Stationen des Abends und was gerade dran ist. Reihenfolge: Einlass →
+/// Beginn → Pause → 2. Teil → Ende. Die Losgeh-Zeit ist bewusst keine
+/// Station mehr (jeder reist anders an).
+private struct Evening {
+    struct Station: Identifiable {
+        let id: String
+        let label: String
+        let time: Date
+        let estimated: Bool
+    }
+
+    let attributes: ConcertActivityAttributes
+    let state: ConcertActivityAttributes.ContentState
+    var now: Date = .now
+
+    var stations: [Station] {
+        var list: [Station] = []
+        if let doors = state.doorsAt { list.append(.init(id: "doors", label: "Einlass", time: doors, estimated: state.doorsEstimated ?? true)) }
+        list.append(.init(id: "start", label: "Beginn", time: attributes.start, estimated: false))
+        if let pause = state.pauseAt { list.append(.init(id: "pause", label: "Pause", time: pause, estimated: true)) }
+        if let second = state.pauseEndAt { list.append(.init(id: "second", label: "2. Teil", time: second, estimated: true)) }
+        if let end = state.endAt { list.append(.init(id: "end", label: "Ende", time: end, estimated: state.endEstimated ?? true)) }
+        return list
+    }
+
+    var next: Station? { stations.first { $0.time > now } }
+    var previous: Station? { stations.last { $0.time <= now } }
+
+    var phaseLabel: String {
+        guard let next else { return "Konzert vorbei" }
+        switch next.id {
+        case "doors": return "Einlass in"
+        case "start": return previous?.id == "doors" ? "Einlass läuft · Beginn in" : "Beginn in"
+        case "pause": return "Pause in ca."
+        case "second": return "Pause · noch"
+        case "end": return "Ende in ca."
+        default: return ""
+        }
+    }
+
+    var nextLabel: String { next.map { $0.estimated ? "\($0.label) ca." : $0.label } ?? "Ende" }
+    var nextClock: String { next.map { clock($0.time) } ?? (state.endAt.map(clock) ?? clock(attributes.start)) }
+
+    /// Fortschritt vom letzten bis zum nächsten Schritt.
+    var segment: ClosedRange<Date>? {
+        guard let next else { return nil }
+        let from = previous?.time ?? min(next.time.addingTimeInterval(-3600), now)
+        return from < next.time ? from...next.time : nil
+    }
 }
 
-private func primaryLabel(_ state: ConcertActivityAttributes.ContentState, start: Date) -> String {
-    if let leave = state.leaveAt, leave > .now { return "Losgehen" }
-    if start > .now { return "Beginn" }
-    if let pause = state.pauseAt, pause > .now { return "Pause ca." }
-    return "Läuft"
+/// Countdown bis zum nächsten Schritt; ohne nächsten Schritt „Vorbei“.
+private struct CountdownText: View {
+    let evening: Evening
+    let size: CGFloat
+    var body: some View {
+        if let next = evening.next {
+            Text(timerInterval: evening.now...next.time, countsDown: true)
+                .font(.system(size: size, weight: .bold, design: .rounded).monospacedDigit())
+                .multilineTextAlignment(.trailing)
+        } else {
+            Text("Vorbei").font(.system(size: size, weight: .bold, design: .rounded))
+        }
+    }
 }
 
-/// Konzertabend-Cockpit (06.11.2026): alles Zeitliche auf einen Blick –
-/// großer Countdown zum nächsten Schritt, Fortschritt bis zum Beginn,
-/// Fahrzeit, Platz und die Stationen des Abends. Kein Bild.
+/// Ring für kompakte/minimale Dynamic Island: füllt sich bis zum nächsten Schritt.
+private struct PhaseRing: View {
+    let evening: Evening
+    var body: some View {
+        if let segment = evening.segment {
+            ProgressView(timerInterval: segment, countsDown: false) { EmptyView() } currentValueLabel: { EmptyView() }
+                .progressViewStyle(.circular)
+                .tint(islandAccent)
+        } else {
+            Circle().strokeBorder(islandAccent, lineWidth: 2.5)
+        }
+    }
+}
+
+/// Stationen als Zeile: Punkt, Bezeichnung, Uhrzeit; erledigte gedimmt.
+private struct StationRow: View {
+    let evening: Evening
+    let dim: Color
+    let highlight: Color
+    var body: some View {
+        HStack(alignment: .top, spacing: 0) {
+            ForEach(evening.stations) { station in
+                let done = station.time <= evening.now
+                let isNext = station.id == evening.next?.id
+                VStack(alignment: .leading, spacing: 2) {
+                    Circle().fill(isNext ? highlight : (done ? dim.opacity(0.5) : .white.opacity(0.35)))
+                        .frame(width: 6, height: 6)
+                    Text(station.label).font(.caption2).foregroundStyle(dim).lineLimit(1)
+                    Text((station.estimated ? "~" : "") + clock(station.time))
+                        .font(.caption.weight(isNext ? .bold : .medium).monospacedDigit())
+                        .foregroundStyle(done ? dim : .white)
+                        .lineLimit(1)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+}
+
+/// Sperrbildschirm: Kopf, großer Countdown, Platz, Fortschritt, Stationen.
 private struct LockScreenConcertView: View {
     let attributes: ConcertActivityAttributes
     let state: ConcertActivityAttributes.ContentState
 
-    private let dim = Color.white.opacity(0.65)
-
     var body: some View {
-        let now = Date.now
-        let leave = state.leaveAt.flatMap { $0 > now ? $0 : nil }
+        let evening = Evening(attributes: attributes, state: state)
         VStack(alignment: .leading, spacing: 10) {
-            // Kopf: Titel · Ort
-            HStack(spacing: 6) {
-                Image(systemName: "music.note").font(.caption.weight(.bold)).foregroundStyle(accentLight)
+            HStack(spacing: 8) {
                 Text(attributes.title).font(.subheadline.weight(.semibold)).foregroundStyle(.white).lineLimit(1)
                 Spacer(minLength: 4)
-                Text(attributes.venue).font(.caption).foregroundStyle(dim).lineLimit(1)
+                Text(attributes.venue).font(.caption).foregroundStyle(islandDim).lineLimit(1)
             }
-
-            // Mitte: Countdown links, Fakten rechts
             HStack(alignment: .bottom) {
                 VStack(alignment: .leading, spacing: 0) {
-                    Text(phaseLabel(now: now, leave: leave)).font(.caption.weight(.semibold)).foregroundStyle(dim)
-                    if let target = countdownTarget(now: now, leave: leave) {
-                        Text(timerInterval: now...target, countsDown: true)
-                            .font(.system(size: 34, weight: .bold, design: .rounded).monospacedDigit())
-                            .foregroundStyle(.white)
-                    } else {
-                        Text(attributes.start > now ? clock(attributes.start) : "Läuft")
-                            .font(.system(size: 34, weight: .bold, design: .rounded)).foregroundStyle(.white)
-                    }
+                    Text(evening.phaseLabel).font(.caption.weight(.semibold)).foregroundStyle(islandDim)
+                    CountdownText(evening: evening, size: 34).foregroundStyle(.white)
                 }
                 Spacer(minLength: 8)
-                VStack(alignment: .trailing, spacing: 3) {
-                    fact("clock", "Beginn \(clock(attributes.start))")
-                    if let travel = state.travel, leave != nil { fact("tram.fill", travel) }
-                    if let seat = SharedSeatStore.seat(forSlug: attributes.slug) { fact("chair.fill", seat.summary) }
+                if let seat = SharedSeatStore.seat(forSlug: attributes.slug) {
+                    VStack(alignment: .trailing, spacing: 1) {
+                        Text("Dein Platz").font(.caption2).foregroundStyle(islandDim)
+                        Text(seat.summary).font(.footnote.weight(.semibold)).foregroundStyle(.white)
+                            .multilineTextAlignment(.trailing).lineLimit(2)
+                    }
+                } else {
+                    VStack(alignment: .trailing, spacing: 1) {
+                        Text(evening.nextLabel).font(.caption2).foregroundStyle(islandDim)
+                        Text(evening.nextClock).font(.title3.weight(.semibold).monospacedDigit()).foregroundStyle(.white)
+                    }
                 }
             }
-
-            // Fortschritt: Losgehen → Beginn (bzw. Beginn → Pause)
-            if let range = progressRange(now: now) {
-                ProgressView(timerInterval: range, countsDown: false) { EmptyView() } currentValueLabel: { EmptyView() }
-                    .tint(accentLight)
+            if let segment = evening.segment {
+                ProgressView(timerInterval: segment, countsDown: false) { EmptyView() } currentValueLabel: { EmptyView() }
+                    .tint(islandAccent)
             }
-
-            // Stationen des Abends
-            HStack(spacing: 0) {
-                if let planned = state.leaveAt { station("Losgehen", planned, done: planned <= now) }
-                station("Beginn", attributes.start, done: attributes.start <= now)
-                if let pause = state.pauseAt { station("Pause ca.", pause, done: pause <= now) }
-            }
+            StationRow(evening: evening, dim: islandDim, highlight: islandAccent)
         }
         .padding(14)
-    }
-
-    private var accentLight: Color { Color(red: 0.45, green: 0.72, blue: 0.95) }
-
-    private func phaseLabel(now: Date, leave: Date?) -> String {
-        if leave != nil { return "Losgehen in" }
-        if attributes.start > now { return "Beginn in" }
-        if let pause = state.pauseAt, pause > now { return "Pause in ca." }
-        return "Konzert"
-    }
-
-    private func countdownTarget(now: Date, leave: Date?) -> Date? {
-        if let leave { return leave }
-        if attributes.start > now { return attributes.start }
-        if let pause = state.pauseAt, pause > now { return pause }
-        return nil
-    }
-
-    private func progressRange(now: Date) -> ClosedRange<Date>? {
-        if attributes.start > now {
-            let from = min(state.leaveAt ?? attributes.start.addingTimeInterval(-3600), now)
-            return from...attributes.start
-        }
-        if let pause = state.pauseAt, pause > now { return attributes.start...pause }
-        return nil
-    }
-
-    private func fact(_ symbol: String, _ text: String) -> some View {
-        Label(text, systemImage: symbol).font(.caption.weight(.medium)).foregroundStyle(.white.opacity(0.85))
-            .lineLimit(1).labelStyle(TrailingIconLabel())
-    }
-
-    private func station(_ label: String, _ time: Date, done: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
-            Text(label).font(.caption2).foregroundStyle(dim)
-            HStack(spacing: 3) {
-                if done { Image(systemName: "checkmark").font(.caption2.weight(.bold)).foregroundStyle(accentLight) }
-                Text(clock(time)).font(.footnote.weight(.semibold).monospacedDigit())
-                    .foregroundStyle(done ? dim : .white)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-private struct TrailingIconLabel: LabelStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        HStack(spacing: 4) { configuration.title; configuration.icon.font(.caption2) }
     }
 }
