@@ -536,7 +536,7 @@ struct ProfileView: View {
                     accountContent
                 }
 
-                if hasEditorialAccess, let editorialRepository {
+                if hasEditorialAccess, editorialRepository != nil {
                     Section {
                         // Punkt 2 des Redesigns (Heute/Events/Meldungen/Medien/
                         // Mehr, siehe EditorialShellView): per .fullScreenCover
