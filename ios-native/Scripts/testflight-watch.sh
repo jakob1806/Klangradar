@@ -25,8 +25,22 @@ UPLOAD="$HOME/bin/klangradar-testflight"
 MAX_ATTEMPTS=3
 
 log() { echo "$(date '+%Y-%m-%d %H:%M:%S') $*"; }
+# Optional (06.11.2026): dieselbe Meldung zusätzlich als iMessage aufs iPhone.
+# Einmalig einrichten: echo "deine@apple-id.de" > ~/.klangradar-testflight-imessage
+# (Apple-ID oder Telefonnummer, mit der Nachrichten auf dem Mac angemeldet ist).
+IMESSAGE_TO=$(cat "$HOME/.klangradar-testflight-imessage" 2>/dev/null | tr -d '[:space:]')
 notify() {
   osascript -e "display notification \"$2\" with title \"Klangradar TestFlight\" subtitle \"$1\"" >/dev/null 2>&1 || true
+  if [ -n "$IMESSAGE_TO" ]; then
+    osascript - "$IMESSAGE_TO" "Klangradar TestFlight – $1: $2" >/dev/null 2>&1 <<'APPLESCRIPT' || true
+on run argv
+  tell application "Messages"
+    set svc to 1st account whose service type = iMessage
+    send (item 2 of argv) to participant (item 1 of argv) of svc
+  end tell
+end run
+APPLESCRIPT
+  fi
 }
 notify_once() { # sha grund titel text
   grep -qx "$1 $2" "$NOTIFIED" 2>/dev/null && return
