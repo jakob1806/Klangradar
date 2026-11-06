@@ -165,6 +165,8 @@ version_phase = app_target.new_shell_script_build_phase("Version aus Build-Zähl
 version_phase.always_out_of_date = "1"
 version_phase.shell_script = <<~'SH'
   BUILD="${CURRENT_PROJECT_VERSION}"
+  # Xcode Cloud (06.11.2026): dessen Build-Nummer verwenden.
+  if [ -n "${CI_BUILD_NUMBER:-}" ]; then BUILD="$CI_BUILD_NUMBER"; fi
   COUNTER="$HOME/.klangradar-build-number"
   if [ "$BUILD" = "1" ] && [ -f "$COUNTER" ]; then BUILD=$(cat "$COUNTER"); fi
   case "$BUILD" in ''|*[!0-9]*) exit 0 ;; esac

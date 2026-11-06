@@ -1340,7 +1340,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "BUILD=\"${CURRENT_PROJECT_VERSION}\"\nCOUNTER=\"$HOME/.klangradar-build-number\"\nif [ \"$BUILD\" = \"1\" ] && [ -f \"$COUNTER\" ]; then BUILD=$(cat \"$COUNTER\"); fi\ncase \"$BUILD\" in ''|*[!0-9]*) exit 0 ;; esac\nif [ \"$BUILD\" -le 1 ]; then exit 0; fi\nVERSION=\"$((BUILD / 100)).$(((BUILD / 10) % 10)).$((BUILD % 10))\"\nPLIST=\"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\n/usr/libexec/PlistBuddy -c \"Set :CFBundleVersion $BUILD\" \"$PLIST\"\n/usr/libexec/PlistBuddy -c \"Set :CFBundleShortVersionString $VERSION\" \"$PLIST\"\n";
+			shellScript = "BUILD=\"${CURRENT_PROJECT_VERSION}\"\nif [ -n \"${CI_BUILD_NUMBER:-}\" ]; then BUILD=\"$CI_BUILD_NUMBER\"; fi\nCOUNTER=\"$HOME/.klangradar-build-number\"\nif [ \"$BUILD\" = \"1\" ] && [ -f \"$COUNTER\" ]; then BUILD=$(cat \"$COUNTER\"); fi\ncase \"$BUILD\" in ''|*[!0-9]*) exit 0 ;; esac\nif [ \"$BUILD\" -le 1 ]; then exit 0; fi\nVERSION=\"$((BUILD / 100)).$(((BUILD / 10) % 10)).$((BUILD % 10))\"\nPLIST=\"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\n/usr/libexec/PlistBuddy -c \"Set :CFBundleVersion $BUILD\" \"$PLIST\"\n/usr/libexec/PlistBuddy -c \"Set :CFBundleShortVersionString $VERSION\" \"$PLIST\"\n";
 		};
 		BA4BC0F92680D82C5E62611C /* Version aus Build-Zähler */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -1359,7 +1359,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "BUILD=\"${CURRENT_PROJECT_VERSION}\"\nCOUNTER=\"$HOME/.klangradar-build-number\"\nif [ \"$BUILD\" = \"1\" ] && [ -f \"$COUNTER\" ]; then BUILD=$(cat \"$COUNTER\"); fi\ncase \"$BUILD\" in ''|*[!0-9]*) exit 0 ;; esac\nif [ \"$BUILD\" -le 1 ]; then exit 0; fi\nVERSION=\"$((BUILD / 100)).$(((BUILD / 10) % 10)).$((BUILD % 10))\"\nPLIST=\"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\n/usr/libexec/PlistBuddy -c \"Set :CFBundleVersion $BUILD\" \"$PLIST\"\n/usr/libexec/PlistBuddy -c \"Set :CFBundleShortVersionString $VERSION\" \"$PLIST\"\n";
+			shellScript = "BUILD=\"${CURRENT_PROJECT_VERSION}\"\nif [ -n \"${CI_BUILD_NUMBER:-}\" ]; then BUILD=\"$CI_BUILD_NUMBER\"; fi\nCOUNTER=\"$HOME/.klangradar-build-number\"\nif [ \"$BUILD\" = \"1\" ] && [ -f \"$COUNTER\" ]; then BUILD=$(cat \"$COUNTER\"); fi\ncase \"$BUILD\" in ''|*[!0-9]*) exit 0 ;; esac\nif [ \"$BUILD\" -le 1 ]; then exit 0; fi\nVERSION=\"$((BUILD / 100)).$(((BUILD / 10) % 10)).$((BUILD % 10))\"\nPLIST=\"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\n/usr/libexec/PlistBuddy -c \"Set :CFBundleVersion $BUILD\" \"$PLIST\"\n/usr/libexec/PlistBuddy -c \"Set :CFBundleShortVersionString $VERSION\" \"$PLIST\"\n";
 		};
 		EE4C300519D639F4F87ED801 /* Version aus Build-Zähler */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -1378,7 +1378,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "BUILD=\"${CURRENT_PROJECT_VERSION}\"\nCOUNTER=\"$HOME/.klangradar-build-number\"\nif [ \"$BUILD\" = \"1\" ] && [ -f \"$COUNTER\" ]; then BUILD=$(cat \"$COUNTER\"); fi\ncase \"$BUILD\" in ''|*[!0-9]*) exit 0 ;; esac\nif [ \"$BUILD\" -le 1 ]; then exit 0; fi\nVERSION=\"$((BUILD / 100)).$(((BUILD / 10) % 10)).$((BUILD % 10))\"\nPLIST=\"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\n/usr/libexec/PlistBuddy -c \"Set :CFBundleVersion $BUILD\" \"$PLIST\"\n/usr/libexec/PlistBuddy -c \"Set :CFBundleShortVersionString $VERSION\" \"$PLIST\"\n";
+			shellScript = "BUILD=\"${CURRENT_PROJECT_VERSION}\"\nif [ -n \"${CI_BUILD_NUMBER:-}\" ]; then BUILD=\"$CI_BUILD_NUMBER\"; fi\nCOUNTER=\"$HOME/.klangradar-build-number\"\nif [ \"$BUILD\" = \"1\" ] && [ -f \"$COUNTER\" ]; then BUILD=$(cat \"$COUNTER\"); fi\ncase \"$BUILD\" in ''|*[!0-9]*) exit 0 ;; esac\nif [ \"$BUILD\" -le 1 ]; then exit 0; fi\nVERSION=\"$((BUILD / 100)).$(((BUILD / 10) % 10)).$((BUILD % 10))\"\nPLIST=\"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\n/usr/libexec/PlistBuddy -c \"Set :CFBundleVersion $BUILD\" \"$PLIST\"\n/usr/libexec/PlistBuddy -c \"Set :CFBundleShortVersionString $VERSION\" \"$PLIST\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
