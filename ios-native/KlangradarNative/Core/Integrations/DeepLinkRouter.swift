@@ -16,6 +16,10 @@ final class DeepLinkRouter: ObservableObject {
         didSet { UserDefaults.standard.set(pendingFriendCode, forKey: Self.pendingFriendCodeKey) }
     }
     nonisolated static let pendingFriendCodeKey = "pendingFriendInviteCode"
+    /// Zählt jeden geöffneten Einladungslink (06.11.2026). Wurde derselbe
+    /// QR-Code erneut gescannt, änderte sich pendingFriendCode nicht und es
+    /// passierte nichts; der Zähler löst trotzdem aus.
+    @Published var friendInviteTick = 0
     /// Von Siri/Kurzbefehlen (KlangradarShortcuts): Tab bzw. KI öffnen.
     @Published var pendingTab: String?
     @Published var pendingCoach = false
@@ -48,6 +52,7 @@ final class DeepLinkRouter: ObservableObject {
         }
         if url.scheme == "de.klangradar.native", url.host == "friend", url.lastPathComponent.count >= 6 {
             pendingFriendCode = url.lastPathComponent.uppercased()
+            friendInviteTick += 1
             return true
         }
         if url.host?.hasSuffix("klangradar.com") == true {
@@ -62,6 +67,7 @@ final class DeepLinkRouter: ObservableObject {
         // Einladungslink https://klangradar.com/f/<CODE>
         if parts.count == 2, parts[0] == "f", parts[1].count >= 6 {
             pendingFriendCode = parts[1].uppercased()
+            friendInviteTick += 1
             return true
         }
         if parts.count == 1, parts[0] == "friends" { pendingFriendsTab = .friends; return true }
