@@ -9,11 +9,10 @@ name: TestFlight
 #   ASC_KEY_P8                 Inhalt der AuthKey_XXXX.p8
 #   SECRETS_PLIST_BASE64       base64 von ios-native/Config/Secrets.plist
 # Optional (Variables): BUILD_NUMBER_BASE, Standard 900 (Build = Basis + Laufnummer).
+# 06.11.2026: vorerst nur per Knopf – Uploads laufen über Xcode Cloud
+# (ios-native/ci_scripts). Ausweichlösung, falls Xcode Cloud nicht reicht:
+# den push-Auslöser wieder einschalten.
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'ios-native/**'
   workflow_dispatch:
 
 permissions:
