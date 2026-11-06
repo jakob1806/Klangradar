@@ -185,8 +185,10 @@ struct ConcertLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: ConcertActivityAttributes.self) { context in
             LockScreenConcertView(attributes: context.attributes, state: context.state)
-                .activityBackgroundTint(.white)
-                .activitySystemActionForegroundColor(accent)
+                // 06.11.2026: dunkel statt Weiß – vorher war weiße Schrift
+                // (Dunkelmodus) auf weißem Grund unlesbar.
+                .activityBackgroundTint(Color(red: 0.07, green: 0.09, blue: 0.13))
+                .activitySystemActionForegroundColor(.white)
                 .widgetURL(URL(string: "de.klangradar.native://event/\(context.attributes.slug)"))
         } dynamicIsland: { context in
             DynamicIsland {
@@ -237,47 +239,65 @@ private func primaryLabel(_ state: ConcertActivityAttributes.ContentState, start
     return "Läuft"
 }
 
+/// Konzertkarte mit Bild (06.11.2026): Konzertbild links, Titel und Ort,
+/// rechts der laufende Countdown zum jeweils nächsten Schritt. Vergangene
+/// Losgeh-Zeiten werden nicht mehr angezeigt.
 private struct LockScreenConcertView: View {
     let attributes: ConcertActivityAttributes
     let state: ConcertActivityAttributes.ContentState
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(attributes.title).font(.headline).foregroundStyle(ink).lineLimit(1)
-                Spacer()
-                Text(attributes.venue).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-            }
-            if let seat = SharedSeatStore.seat(forSlug: attributes.slug) {
-                Label(seat.summary, systemImage: "chair.fill").font(.caption.weight(.semibold)).foregroundStyle(accent).lineLimit(1)
-            }
-            HStack(spacing: 0) {
-                step("Losgehen", state.leaveAt, active: (state.leaveAt ?? .distantPast) > .now)
-                line
-                step("Beginn", attributes.start, active: (state.leaveAt ?? .distantPast) <= .now && attributes.start > .now)
-                if state.pauseAt != nil {
-                    line
-                    step("Pause", state.pauseAt, active: attributes.start <= .now)
+        HStack(spacing: 14) {
+            artwork
+            VStack(alignment: .leading, spacing: 3) {
+                Text(attributes.title).font(.headline).foregroundStyle(.white).lineLimit(2)
+                Text(attributes.venue).font(.caption).foregroundStyle(.white.opacity(0.7)).lineLimit(1)
+                if let seat = SharedSeatStore.seat(forSlug: attributes.slug) {
+                    Label(seat.summary, systemImage: "chair.fill").font(.caption.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.85)).lineLimit(1)
+                } else if let travel = state.travel, let leave = state.leaveAt, leave > .now {
+                    Label(travel, systemImage: "tram.fill").font(.caption).foregroundStyle(.white.opacity(0.7)).lineLimit(1)
                 }
             }
-            if let travel = state.travel, (state.leaveAt ?? .distantPast) > .now {
-                Text(travel).font(.caption).foregroundStyle(.secondary)
+            Spacer(minLength: 0)
+            countdown
+        }
+        .padding(14)
+    }
+
+    @ViewBuilder private var artwork: some View {
+        if let data = SharedActivityImageStore.data(forSlug: attributes.slug), let image = UIImage(data: data) {
+            Image(uiImage: image).resizable().scaledToFill()
+                .frame(width: 64, height: 64)
+                .clipShape(.rect(cornerRadius: 14, style: .continuous))
+        } else {
+            Image(systemName: "music.note").font(.title2.weight(.semibold)).foregroundStyle(.white)
+                .frame(width: 64, height: 64)
+                .background(accent, in: .rect(cornerRadius: 14, style: .continuous))
+        }
+    }
+
+    /// Nächster Schritt: Losgehen → Beginn → Pause → „Läuft“.
+    @ViewBuilder private var countdown: some View {
+        let now = Date.now
+        VStack(alignment: .trailing, spacing: 2) {
+            if let leave = state.leaveAt, leave > now {
+                Text("Losgehen in").font(.caption2).foregroundStyle(.white.opacity(0.7))
+                Text(timerInterval: now...leave, countsDown: true).font(.title2.weight(.bold).monospacedDigit())
+                    .foregroundStyle(.white).multilineTextAlignment(.trailing).frame(maxWidth: 96, alignment: .trailing)
+                Text("Beginn \(clock(attributes.start))").font(.caption2).foregroundStyle(.white.opacity(0.7))
+            } else if attributes.start > now {
+                Text("Beginn in").font(.caption2).foregroundStyle(.white.opacity(0.7))
+                Text(timerInterval: now...attributes.start, countsDown: true).font(.title2.weight(.bold).monospacedDigit())
+                    .foregroundStyle(.white).multilineTextAlignment(.trailing).frame(maxWidth: 96, alignment: .trailing)
+                Text(clock(attributes.start)).font(.caption2).foregroundStyle(.white.opacity(0.7))
+            } else if let pause = state.pauseAt, pause > now {
+                Text("Pause ca.").font(.caption2).foregroundStyle(.white.opacity(0.7))
+                Text(clock(pause)).font(.title2.weight(.bold).monospacedDigit()).foregroundStyle(.white)
+            } else {
+                Image(systemName: "music.note").font(.title3).foregroundStyle(.white)
+                Text("Läuft").font(.caption.weight(.semibold)).foregroundStyle(.white.opacity(0.8))
             }
         }
-        .padding(16)
-    }
-
-    private var line: some View {
-        Rectangle().fill(accent.opacity(0.25)).frame(height: 2).frame(maxWidth: .infinity).padding(.horizontal, 6).padding(.top, 8)
-            .frame(maxHeight: .infinity, alignment: .top)
-    }
-
-    private func step(_ label: String, _ time: Date?, active: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Circle().fill(active ? accent : accent.opacity(0.25)).frame(width: 10, height: 10).padding(.bottom, 4)
-            Text(label).font(.caption2).foregroundStyle(.secondary)
-            Text(time.map(clock) ?? "–").font(.title3.weight(.semibold).monospacedDigit()).foregroundStyle(active ? accent : ink)
-        }
-        .fixedSize()
     }
 }

@@ -15,6 +15,19 @@ struct SharedConcert: Codable, Hashable, Identifiable, Sendable {
     var deepLink: URL { URL(string: "de.klangradar.native://event/\(slug)")! }
 }
 
+/// Kleines Konzertbild für die Live-Aktivität (06.11.2026). Live-Aktivitäten
+/// dürfen nichts aus dem Netz laden; die App legt das Bild deshalb verkleinert
+/// in der App-Gruppe ab, die Widget-Erweiterung liest es von dort.
+enum SharedActivityImageStore {
+    static func url(forSlug slug: String) -> URL? {
+        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: SharedConcertStore.appGroup)?
+            .appendingPathComponent("activity-\(slug.replacingOccurrences(of: "/", with: "_")).jpg")
+    }
+    static func data(forSlug slug: String) -> Data? {
+        url(forSlug: slug).flatMap { try? Data(contentsOf: $0) }
+    }
+}
+
 enum SharedConcertStore {
     static let appGroup = "group.de.klangradar.native"
     private static let key = "upcomingFavoriteConcerts"

@@ -220,8 +220,6 @@ struct SeatCard: View {
     @State private var ticketImage: UIImage?
     @State private var seatingPlanURL: URL?
     @State private var isEditing = false
-    @State private var walletPass: WalletPassItem?
-    @State private var walletError: String?
 
     private var isUpcoming: Bool { (event.startDate ?? .distantPast).addingTimeInterval(3 * 3600) > .now }
 
@@ -234,20 +232,7 @@ struct SeatCard: View {
                     .sheet(isPresented: $isEditing, onDismiss: { SharedSeatStore.save(seat, forSlug: event.slug) }) {
                         TicketSeatEditor(event: event, seat: $seat, ticketImage: $ticketImage, seatingPlanURL: seatingPlanURL)
                     }
-                // Apple Wallet (02.11.2026): Karte mit Termin, Ort und Platz.
-                if PKAddPassesViewController.canAddPasses() {
-                    AddToWalletButton { Task { await loadWalletPass() } }
-                        .frame(height: 48)
-                        .padding(.top, 10)
-                        .accessibilityLabel("Zu Apple Wallet hinzufügen")
-                    if let walletError {
-                        Text(walletError).font(.footnote).foregroundStyle(.secondary).padding(.top, 4)
-                    }
-                }
             }
-        }
-        .sheet(item: $walletPass) { item in
-            AddPassSheet(pass: item.pass).ignoresSafeArea()
         }
         .task(id: event.id) {
             seat = SharedSeatStore.seat(forSlug: event.slug) ?? ConcertSeat()
@@ -261,40 +246,45 @@ struct SeatCard: View {
         }
     }
 
+    // Kompakte Zeile (06.11.2026): ein Symbol, Titel, eine Statuszeile.
+    // Apple Wallet liegt jetzt im geöffneten Blatt statt als großer Knopf hier.
     private var tile: some View {
-        HStack(spacing: 14) {
-            ZStack(alignment: .bottomTrailing) {
+        HStack(spacing: 12) {
+            Group {
                 if let ticketImage {
                     Image(uiImage: ticketImage).resizable().scaledToFill()
-                        .frame(width: 58, height: 58).clipShape(.rect(cornerRadius: 14, style: .continuous))
                 } else {
-                    Image(systemName: "ticket").font(.title2).foregroundStyle(KlangradarTheme.accent)
-                        .frame(width: 58, height: 58)
-                        .background(KlangradarTheme.accent.opacity(0.12), in: .rect(cornerRadius: 14, style: .continuous))
-                }
-                if ticketImage != nil {
-                    Image(systemName: "checkmark.circle.fill").font(.body).foregroundStyle(.white, .green)
-                        .background(Circle().fill(.white).padding(2)).offset(x: 6, y: 6)
+                    Image(systemName: "ticket").font(.body.weight(.semibold)).foregroundStyle(KlangradarTheme.accent)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(KlangradarTheme.accent.opacity(0.12))
                 }
             }
-            VStack(alignment: .leading, spacing: 5) {
-                Text("Ticket & Platz").font(.headline).foregroundStyle(.primary)
-                statusLine(ticketImage != nil ? "Ticket hinterlegt" : "Noch kein Ticket hinterlegt", symbol: "ticket.fill", done: ticketImage != nil)
-                statusLine(seat.isEmpty ? "Platz noch nicht eingetragen" : seat.summary, symbol: "chair.fill", done: !seat.isEmpty)
+            .frame(width: 40, height: 40)
+            .clipShape(.rect(cornerRadius: 10, style: .continuous))
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Ticket & Platz").font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+                Text(statusText).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer(minLength: 0)
-            Image(systemName: "chevron.right").font(.subheadline.weight(.semibold)).foregroundStyle(.tertiary)
+            if ticketImage != nil || !seat.isEmpty {
+                Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+            } else {
+                Text("Hinterlegen").font(.footnote.weight(.semibold)).foregroundStyle(KlangradarTheme.accent)
+            }
+            Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
         }
-        .padding(14)
-        .background(Color(uiColor: .secondarySystemBackground), in: .rect(cornerRadius: 20, style: .continuous))
-        .contentShape(.rect(cornerRadius: 20))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(Color(uiColor: .secondarySystemBackground), in: .rect(cornerRadius: 16, style: .continuous))
+        .contentShape(.rect(cornerRadius: 16))
     }
 
-    private func statusLine(_ text: String, symbol: String, done: Bool) -> some View {
-        Label {
-            Text(text).font(.subheadline.weight(done ? .semibold : .regular)).foregroundStyle(done ? .primary : .secondary).lineLimit(2)
-        } icon: {
-            Image(systemName: done ? "checkmark.circle.fill" : symbol).font(.caption).foregroundStyle(done ? .green : .secondary).frame(width: 18)
+    private var statusText: String {
+        switch (ticketImage != nil, seat.isEmpty) {
+        case (false, true): return "Noch nichts hinterlegt"
+        case (true, true): return "Ticket hinterlegt · Platz fehlt"
+        case (false, false): return seat.summary
+        case (true, false): return "Ticket · \(seat.summary)"
         }
     }
 }
@@ -310,6 +300,9 @@ private struct TicketSeatEditor: View {
     @State private var showsPhotoPicker = false
     @State private var showsFileImporter = false
     @State private var showsTicket = false
+    @State private var walletPass: WalletPassItem?
+    @State private var walletError: String?
+    @State private var isLoadingWallet = false
 
     var body: some View {
         NavigationStack {
@@ -345,6 +338,22 @@ private struct TicketSeatEditor: View {
                         Link(destination: seatingPlanURL) { Label("Saalplan ansehen", systemImage: "square.grid.3x3.topleft.filled") }
                     }
                 }
+
+                // Apple Wallet (06.11.2026): erst hier im Blatt, kleiner als
+                // vorher, und nur wenn Ticket oder Platz hinterlegt ist.
+                if PKAddPassesViewController.canAddPasses(), ticketImage != nil || !seat.isEmpty {
+                    Section {
+                        AddToWalletButton { Task { await loadWalletPass() } }
+                            .frame(height: 40)
+                            .frame(maxWidth: 260)
+                            .frame(maxWidth: .infinity)
+                            .opacity(isLoadingWallet ? 0.5 : 1)
+                            .accessibilityLabel("Zu Apple Wallet hinzufügen")
+                            .listRowBackground(Color.clear)
+                    } footer: {
+                        Text(walletError ?? "Karte mit Termin, Ort und Platz für den Sperrbildschirm.")
+                    }
+                }
             }
             .navigationTitle("Ticket & Platz")
             .navigationBarTitleDisplayMode(.inline)
@@ -370,6 +379,9 @@ private struct TicketSeatEditor: View {
                     if let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) { store(image) }
                     ticketPick = nil
                 }
+            }
+            .sheet(item: $walletPass) { item in
+                AddPassSheet(pass: item.pass).ignoresSafeArea()
             }
             .fullScreenCover(isPresented: $showsTicket) {
                 if let ticketImage {
@@ -401,9 +413,11 @@ private struct WalletPassItem: Identifiable {
     let pass: PKPass
 }
 
-extension SeatCard {
+extension TicketSeatEditor {
     @MainActor
     fileprivate func loadWalletPass() async {
+        isLoadingWallet = true
+        defer { isLoadingWallet = false }
         walletError = nil
         guard let client = SocialStore.shared.repository?.client else { walletError = "Wallet ist gerade nicht verfügbar."; return }
         let items = [URLQueryItem(name: "slug", value: event.slug),
