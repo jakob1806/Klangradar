@@ -49,7 +49,7 @@ struct SocialGroup: Identifiable, Sendable, Hashable {
     let emoji: String?
     let members: [SocialPerson]
     let upcoming: Int
-    var title: String { [emoji, name].compactMap { $0 }.joined(separator: " ") }
+    var title: String { [emoji.flatMap { $0.hasPrefix("sf:") ? nil : $0 }, name].compactMap { $0 }.joined(separator: " ") }
     /// Mitglieder ohne mich, nur eigene Freunde (für Einladungen).
     let invitableIDs: [UUID]
 }
@@ -583,7 +583,7 @@ struct GroupsSection: View {
 
     private func tile(_ group: SocialGroup) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(group.emoji ?? "🎻").font(.largeTitle)
+            GroupIcon(value: group.emoji, size: 40)
             Text(group.name).font(.headline).lineLimit(1)
             HStack(spacing: 6) {
                 AvatarStack(people: group.members, size: 20, limit: 4)
@@ -621,7 +621,7 @@ struct GroupDetailView: View {
         List {
             Section {
                 VStack(spacing: 10) {
-                    Text(group.emoji ?? "🎻").font(.scaled(56))
+                    GroupIcon(value: group.emoji, size: 72)
                     Text(group.name).font(.system(.title, design: .serif).weight(.semibold))
                     Text("\(group.members.count) \(group.members.count == 1 ? "Mitglied" : "Mitglieder")").font(.subheadline).foregroundStyle(.secondary)
                 }
@@ -717,13 +717,15 @@ struct GroupDetailView: View {
 struct GroupEditorView: View {
     let group: SocialGroup?
     @State private var name = ""
-    @State private var emoji = "🎻"
+    @State private var emoji = "sf:music.note"
     @State private var selection: Set<UUID> = []
     @State private var isSaving = false
     @State private var errorMessage: String?
     @Environment(\.dismiss) private var dismiss
 
-    private let emojis = ["🎻", "🎹", "🎺", "🎼", "🎭", "🎤", "🥂", "🎶", "🏛️", "❤️"]
+    // 07.11.2026: schlichte Symbole statt Emojis (gespeichert als "sf:<Name>").
+    private let emojis = ["sf:music.note", "sf:pianokeys", "sf:music.mic", "sf:theatermasks", "sf:music.quarternote.3",
+                          "sf:building.columns", "sf:person.3", "sf:wineglass", "sf:star", "sf:heart"]
 
     var body: some View {
         Form {
@@ -736,9 +738,10 @@ struct GroupEditorView: View {
                     HStack(spacing: 10) {
                         ForEach(emojis, id: \.self) { item in
                             Button { emoji = item } label: {
-                                Text(item).font(.title2)
-                                    .frame(width: 44, height: 44)
-                                    .background(emoji == item ? KlangradarTheme.accent.opacity(0.18) : Color.clear, in: .circle)
+                                GroupIcon(value: item, size: 44)
+                                    .padding(3)
+                                    .overlay(RoundedRectangle(cornerRadius: 15, style: .continuous)
+                                        .stroke(emoji == item ? KlangradarTheme.accent : .clear, lineWidth: 2))
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel("Symbol \(item)")
@@ -767,7 +770,7 @@ struct GroupEditorView: View {
             }
         }
         .onAppear {
-            if let group { name = group.name; emoji = group.emoji ?? "🎻" }
+            if let group { name = group.name; emoji = group.emoji ?? "sf:music.note" }
         }
     }
 
@@ -788,5 +791,28 @@ struct GroupEditorView: View {
         } catch {
             errorMessage = "Das hat nicht geklappt. Bitte versuch es noch einmal."
         }
+    }
+}
+
+/// Gruppensymbol: SF Symbol ("sf:<Name>") auf Farbfläche, ältere Gruppen mit
+/// Emoji zeigen weiterhin ihr Emoji (07.11.2026).
+struct GroupIcon: View {
+    let value: String?
+    var size: CGFloat = 40
+
+    var body: some View {
+        let raw = value ?? "sf:music.note"
+        Group {
+            if raw.hasPrefix("sf:") {
+                Image(systemName: String(raw.dropFirst(3)))
+                    .font(.system(size: size * 0.45, weight: .semibold))
+                    .foregroundStyle(.white)
+            } else {
+                Text(raw).font(.system(size: size * 0.55))
+            }
+        }
+        .frame(width: size, height: size)
+        .background(LinearGradient(colors: [KlangradarTheme.accent, KlangradarTheme.accent.opacity(0.7)], startPoint: .topLeading, endPoint: .bottomTrailing),
+                    in: .rect(cornerRadius: size * 0.28, style: .continuous))
     }
 }
