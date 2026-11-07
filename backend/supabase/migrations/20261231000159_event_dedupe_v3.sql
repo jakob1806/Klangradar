@@ -53,7 +53,7 @@ language sql stable set search_path = public as $$
     select a.id a_id, b.id b_id,
       a.source_id is not distinct from b.source_id same_source,
       abs(extract(epoch from b.start_datetime - a.start_datetime)) / 60 dmin,
-      (select count(*) from unnest(a.tokens) t where exists (select 1 from unnest(b.tokens) u where u = t or (least(length(t), length(u)) >= 6 and (u like t || '%' or t like u || '%'))))) shared,
+      (select count(*) from unnest(a.tokens) t where exists (select 1 from unnest(b.tokens) u where u = t or (least(length(t), length(u)) >= 6 and (u like t || '%' or t like u || '%')))) shared,
       least(cardinality(a.tokens), cardinality(b.tokens)) min_tokens,
       similarity(a.ctitle, b.ctitle) csim,
       (length(a.ctitle) >= 5 and length(b.ctitle) >= 5
