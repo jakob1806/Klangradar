@@ -8,6 +8,7 @@ import { updateVenue, getCityOptions } from "../actions";
 import { VenueDeleteControl } from "../venue-delete-control";
 import { VenueForm, type VenueFormValues } from "../venue-form";
 import { EntityConnections } from "@/components/entity-connections";
+import { SeatingPlanEditor } from "@/components/seating-plan/seating-plan-editor";
 
 export default async function EditVenuePage({
   params,
@@ -18,7 +19,7 @@ export default async function EditVenuePage({
   const supabase = await createClient();
   const [{ data, error }, { data: socialData }, { data: images }, cities, { data: affectedEventCount }] = await Promise.all([
     supabase.rpc("venue_with_latlng", { p_id: id }).maybeSingle<VenueFormValues>(),
-    supabase.from("venues").select("social_links").eq("id", id).maybeSingle<Pick<VenueFormValues, "social_links">>(),
+    supabase.from("venues").select("social_links, seating_plan_url").eq("id", id).maybeSingle<Pick<VenueFormValues, "social_links"> & { seating_plan_url: string | null }>(),
     // Nur freigegebene Bilder — siehe Kommentar in persons/[id]/page.tsx.
     supabase
       .from("images")
@@ -55,6 +56,9 @@ export default async function EditVenuePage({
       </div>
       <div className="mt-8 max-w-xl border-t border-neutral-200 pt-6">
         <GalleryEditor originType="venue" originId={id} path={`/venues/${id}`} images={images ?? []} />
+      </div>
+      <div className="mt-8 max-w-xl border-t border-neutral-200 pt-6">
+        <SeatingPlanEditor venueId={id} initialUrl={socialData?.seating_plan_url ?? null} />
       </div>
       <EntityConnections kind="venue" id={id} />
     </div>

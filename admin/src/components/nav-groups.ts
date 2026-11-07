@@ -77,6 +77,7 @@ export const NAV_GROUPS: NavGroupDef[] = [
         ],
       },
       { href: "/venues", label: "Venues" },
+      { href: "/saalplaene", label: "Saalpläne" },
       { href: "/organizers", label: "Veranstalter" },
       { href: "/knowledge-graph", label: "Knowledge Graph" },
     ],
