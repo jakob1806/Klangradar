@@ -404,3 +404,16 @@ final class SocialStore: ObservableObject {
         }
     }
 }
+
+
+extension SocialEvent {
+    /// Für die einheitliche Konzertzeile (ConcertRow).
+    var concertEvent: ConcertEvent? {
+        var json: JSONObject = ["id": .string(id.uuidString), "slug": .string(slug), "title": .string(title)]
+        guard let start else { return nil }
+        json["start_datetime"] = .string(ISO8601DateFormatter().string(from: start))
+        if let imageURL { json["image_urls"] = .array([.string(imageURL.absoluteString)]) }
+        if let venue { json["venues"] = .object(["id": .string(UUID().uuidString), "name": .string(venue)]) }
+        return ConcertEvent(json: json)
+    }
+}

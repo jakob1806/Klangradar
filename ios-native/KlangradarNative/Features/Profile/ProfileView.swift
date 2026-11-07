@@ -1680,11 +1680,12 @@ private struct ProfileOverview: View {
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 14)
         .padding(.vertical, 6)
-        .task(id: auth.userID) { await load() }
-        .onAppear { Task { await load() } }
         .task(id: auth.userID) {
-            guard let repository, let token = auth.accessToken else { return }
-            friendCount = (try? await repository.friends(token: token).count) ?? friendCount
+            // 07.11.2026: letzter Stand sofort, dann alles parallel nachladen.
+            if let cached = ProfileSummaryCache.shared.cached(userID: auth.userID) { socialSummary = cached }
+            if let id = auth.userID, let cached = Self.profileCache[id] { profile = cached }
+            if let id = auth.userID, let cached = Self.friendCountCache[id] { friendCount = cached }
+            await load()
         }
         .sheet(isPresented: $showsPlus) { PlusPaywallView() }
     }
@@ -1719,9 +1720,16 @@ private struct ProfileOverview: View {
             profile = nil
             return
         }
-        profile = try? await repository.profile(userID: userID, token: token)
-        socialSummary = await repository.socialProfileSummary(userID: userID, token: token)
+        async let profileValue = try? repository.profile(userID: userID, token: token)
+        async let summaryValue = repository.socialProfileSummary(userID: userID, token: token)
+        async let friendsValue = try? repository.friends(token: token).count
+        if let loaded = await profileValue { profile = loaded; Self.profileCache[userID] = loaded }
+        socialSummary = await summaryValue
+        if let count = await friendsValue { friendCount = count; Self.friendCountCache[userID] = count }
     }
+
+    @MainActor private static var profileCache: [UUID: KlangradarUserProfile] = [:]
+    @MainActor private static var friendCountCache: [UUID: Int] = [:]
 }
 
 private struct AccountProfileEditView: View {
@@ -1907,7 +1915,9 @@ struct FavoriteEventsView: View {
     let repository: UserRepository?
     let eventRepository: any EventRepository
     let contentRepository: any ContentRepository
+    var initial: [ConcertEvent] = []
     @State private var events: [ConcertEvent] = []
+    @State private var loaded = false
 
     var body: some View {
         List(events) { event in
@@ -1921,12 +1931,18 @@ struct FavoriteEventsView: View {
                 FavoriteEventRow(event: event)
             }
         }
-            .overlay { if events.isEmpty { ContentUnavailableView("Noch keine Favoriten", systemImage: "heart", description: Text("Markierte Veranstaltungen erscheinen hier.")) } }
-            .navigationTitle("Favoriten")
+            .overlay { if events.isEmpty && loaded { ContentUnavailableView("Noch keine Favoriten", systemImage: "heart", description: Text("Markierte Veranstaltungen erscheinen hier.")) } }
+            .overlay { if events.isEmpty && !loaded { ProgressView() } }
+            .navigationTitle("Gemerkt")
             .task {
+                // 07.11.2026: sofort die schon bekannten Einträge zeigen; ein
+                // Fehler beim Nachladen leert die Liste nicht.
+                if events.isEmpty { events = initial }
+                defer { loaded = true }
                 guard let repository, let id = auth.userID, let token = auth.accessToken else { return }
-                let loaded = (try? await repository.favoriteEvents(userID: id, token: token)) ?? []
-                events = (try? await eventRepository.enrichingImages(in: loaded)) ?? loaded
+                guard let fresh = try? await repository.favoriteEvents(userID: id, token: token), !Task.isCancelled else { return }
+                let merged = fresh.isEmpty && !initial.isEmpty ? initial : fresh
+                events = (try? await eventRepository.enrichingImages(in: merged)) ?? merged
             }
     }
 }
@@ -2524,7 +2540,7 @@ private struct ProfileContentSection: View {
                 Text(title).font(.headline)
                 Spacer()
                 NavigationLink("Alle") {
-                    FavoriteEventsView(auth: auth, repository: repository, eventRepository: eventRepository, contentRepository: contentRepository)
+                    FavoriteEventsView(auth: auth, repository: repository, eventRepository: eventRepository, contentRepository: contentRepository, initial: events)
                 }
                 .font(.subheadline)
             }
@@ -2717,15 +2733,23 @@ private struct ProfileContentSection: View {
     }
 
     private func load() async {
+        if let cached = ProfileSummaryCache.shared.cached(userID: auth.userID), summary.visits.isEmpty && summary.followed.isEmpty {
+            summary = cached
+        }
         guard let repository, let userID = auth.userID, let token = auth.accessToken else { isLoading = false; return }
         async let plannedRows = try? repository.plannedEvents(userID: userID, token: token)
         async let savedRows = try? repository.favoriteEvents(userID: userID, token: token)
         async let summaryValue = repository.socialProfileSummary(userID: userID, token: token)
         async let listRows = try? repository.eventLists(userID: userID, token: token)
-        planned = await plannedRows ?? []
-        saved = await savedRows ?? []
-        summary = await summaryValue
-        lists = await listRows ?? []
+        // 07.11.2026: abgebrochene/fehlgeschlagene Ladevorgänge (z. B. beim
+        // Zurückkehren aus „Alle“) leeren die Listen nicht mehr.
+        let p = await plannedRows, s = await savedRows, l = await listRows
+        let summaryLoaded = await summaryValue
+        if Task.isCancelled { return }
+        if let p { planned = p }
+        if let s { saved = s }
+        summary = summaryLoaded
+        if let l { lists = l }
         isLoading = false
     }
 }
@@ -2913,12 +2937,12 @@ struct CoachAmbientBackground: View {
 
 /// Miniaturbild eines erlebten Konzerts: Konzertbild, sonst eigenes Foto aus
 /// dem Tagebuch, sonst Notensymbol (07.11.2026).
-private struct VisitThumbnail: View {
+struct VisitThumbnail: View {
     let visit: VisitedConcert
     @State private var photoURL: URL?
 
     var body: some View {
-        CachedAsyncImage(url: visit.event?.primaryImageURL ?? photoURL, maxPixel: 160) { phase in
+        CachedAsyncImage(url: visit.event?.primaryImageURL ?? photoURL ?? visit.fallbackImageURL, maxPixel: 160) { phase in
             if let image = phase.image { image.resizable().scaledToFill() }
             else {
                 KlangradarTheme.accent.opacity(0.12)

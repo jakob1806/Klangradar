@@ -43,7 +43,7 @@ struct UserProfileView: View {
                                      events: profile.upcoming, joining: profile.isFriend ? profile.person : nil)
                             }
                             if profile.isFriend && !matches.isEmpty {
-                                card("Passt zu euch beiden", caption: "Aus euren gemeinsamen Interessen, gefolgten Künstler:innen und Merklisten.", events: matches)
+                                matchList(matches)
                             }
                             if profile.isFriend && !profile.sharedHistory.isEmpty {
                                 card("Ihr wart beide dort", caption: historyCaption(profile), events: profile.sharedHistory)
@@ -129,9 +129,10 @@ struct UserProfileView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(profile.person.name).font(.system(.title2, design: .serif).weight(.semibold)).lineLimit(2)
-                        if profile.isFriend {
+                        // 07.11.2026: „Befreundet“ entfernt; nur Sonderstatus zeigen.
+                        if profile.isFriend && (profile.isClose || profile.isMuted) {
                             HStack(spacing: 8) {
-                                Label(profile.isClose ? "Enge:r Freund:in" : "Befreundet", systemImage: profile.isClose ? "star.fill" : "checkmark.circle.fill")
+                                if profile.isClose { Label("Enge:r Freund:in", systemImage: "star.fill") }
                                 if profile.isMuted { Label("Stumm", systemImage: "bell.slash.fill").foregroundStyle(.secondary) }
                             }
                             .font(.caption.weight(.semibold)).foregroundStyle(KlangradarTheme.accent)
@@ -259,10 +260,27 @@ struct UserProfileView: View {
         }
     }
 
+    /// „Passt zu euch beiden“ im üblichen Listenformat (07.11.2026).
+    private func matchList(_ events: [SocialEvent]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Passt zu euch beiden").font(.system(.title3, design: .serif).weight(.semibold))
+                Text("Aus euren gemeinsamen Interessen, gefolgten Künstler:innen und Merklisten.").font(.caption).foregroundStyle(.secondary)
+            }
+            ConcertRowList(items: events.compactMap(\.concertEvent)) { event in
+                Button { DeepLinkRouter.shared.handle(route: "/event/\(event.slug)") } label: {
+                    ConcertRow(event: event)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, KlangradarTheme.pagePadding)
+    }
+
     private func stat(_ value: Int, _ label: String) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("\(value)").font(.headline).monospacedDigit()
-            Text(label).font(.caption).foregroundStyle(.secondary)
+            Text("\(value)").font(.title3.bold()).monospacedDigit()
+            Text(label).font(.subheadline).foregroundStyle(.secondary)
         }
     }
 

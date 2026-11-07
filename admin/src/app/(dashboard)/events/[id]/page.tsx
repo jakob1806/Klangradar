@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { DeleteButton } from "@/components/delete-button";
 import { GalleryEditor } from "@/components/entity-gallery/gallery-editor";
+import { removeImportImage } from "./import-image-actions";
 import { AiEnrichButton } from "@/components/ai-enrich-button";
 import { EntityAuditButton } from "@/components/entity-audit-button";
 import { EditorialAiAssistant } from "@/components/editorial-ai-assistant";
@@ -16,6 +17,7 @@ interface EventDetailRow {
   id: string;
   slug: string;
   title: string;
+  image_urls: string[] | null;
   subtitle: string | null;
   description_de: string | null;
   start_datetime: string;
@@ -56,7 +58,7 @@ export default async function EditEventPage({
     supabase
       .from("events")
       .select(
-        "id, slug, title, subtitle, description_de, start_datetime, duration_minutes, has_intermission, venue_id, venue_detail, organizer_id, ticket_url, price_min, price_max, is_free, remaining_tickets_status, doors_info, age_restriction, discount_info, presale_fee_info, status, program_id, event_genres(genre_id)",
+        "id, slug, title, subtitle, image_urls, description_de, start_datetime, duration_minutes, has_intermission, venue_id, venue_detail, organizer_id, ticket_url, price_min, price_max, is_free, remaining_tickets_status, doors_info, age_restriction, discount_info, presale_fee_info, status, program_id, event_genres(genre_id)",
       )
       .eq("id", id)
       .maybeSingle<EventDetailRow>(),
@@ -180,7 +182,14 @@ export default async function EditEventPage({
       </div>
 
       <div className="mt-8 max-w-xl border-t border-neutral-200 pt-6">
-        <GalleryEditor originType="event" originId={id} path={`/events/${id}`} images={images ?? []} />
+        <GalleryEditor
+          originType="event"
+          originId={id}
+          path={`/events/${id}`}
+          images={images ?? []}
+          importImageUrl={event.image_urls?.[0] ?? null}
+          removeImportAction={removeImportImage}
+        />
       </div>
     </div>
   );

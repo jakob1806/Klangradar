@@ -86,6 +86,9 @@ struct ConcertActivityAttributes: ActivityAttributes {
         /// „Die Veranstaltung wurde abgesagt.“ oder eine Umbesetzung.
         var startAt: Date? = nil
         var notice: String? = nil
+        /// 07.11.2026: Programm für „Jetzt läuft“ – Kurztitel und Dauer (Min.).
+        var programTitles: [String]? = nil
+        var programMinutes: [Int]? = nil
     }
     let slug: String
     let title: String

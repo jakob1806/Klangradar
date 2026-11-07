@@ -112,12 +112,37 @@ export function parseStaatsoperDetail(markdown: string): StaatsoperDetail {
 export function extractStaatsoperProductionImage(markdown: string): string | null {
   // Das echte Hero-Bild steht vor den Tabs/Stückdetails. Danach folgen
   // Handlungsgalerien und Empfehlungen, die nicht als Eventcover taugen.
-  const end = markdown.search(/\n(?:\*\s+\[Stück-Details|## Besetzung|\*\s+Programm Mehr laden)/i);
-  const header = end >= 0 ? markdown.slice(0, end) : markdown.slice(0, 20_000);
+  // 07.11.2026 (oft falsche Bilder): ohne erkennbares Ende nur den Seitenkopf
+  // nehmen statt 20.000 Zeichen (dort stehen Empfehlungen anderer Stücke),
+  // Navigations-/Werbebilder strenger ausschließen und Bilder bevorzugen,
+  // deren Alt-Text oder Dateiname zum Stücktitel passt.
+  const end = markdown.search(/\n(?:\*\s+\[Stück-Details|## Besetzung|\*\s+Programm Mehr laden|## (?:Das könnte|Empfehlung|Weitere))/i);
+  const titleIndex = markdown.search(/^#\s+/m);
+  const header = end >= 0 ? markdown.slice(0, end) : markdown.slice(0, Math.max(6_000, titleIndex + 3_000));
+  const title = markdown.match(/^#\s+(.+)$/m)?.[1]?.trim() ?? "";
+  const titleWords = normalizeWords(title).filter((w) => w.length >= 4);
   const candidates = [...header.matchAll(
-    /!\[Image\s+\d+(?::[^\]]*)?\]\((https:\/\/www\.staatsoper\.de\/(?:media|fileadmin)\/[^)]+)\)/gi,
-  )].map((match) => match[1]);
-  return candidates.find((url) => !/(?:bmw|logo|partner|unicredit|zeitstrahl|placeholder|dummy)/i.test(url)) ?? null;
+    /!\[(Image\s+\d+(?::[^\]]*)?)\]\((https:\/\/www\.staatsoper\.de\/(?:media|fileadmin)\/[^)]+)\)/gi,
+  )]
+    .map((match) => ({ alt: match[1], url: match[2] }))
+    .filter(({ url, alt }) =>
+      !/(?:bmw|logo|partner|unicredit|zeitstrahl|placeholder|dummy|icon|banner|newsletter|gutschein|abonnement|spielzeit|saison|magazin|teaser|social|header|footer|sponsor|freunde|foerder|förder|app-?store|google-?play)/i
+        .test(`${url} ${alt}`)
+    );
+  if (candidates.length === 0) return null;
+  if (titleWords.length > 0) {
+    const matching = candidates.find(({ url, alt }) => {
+      const words = normalizeWords(`${decodeURIComponent(url)} ${alt}`);
+      return titleWords.some((w) => words.some((x) => x.includes(w)));
+    });
+    if (matching) return matching.url;
+  }
+  return candidates[0].url;
+}
+
+function normalizeWords(text: string): string[] {
+  return text.toLocaleLowerCase("de").normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .split(/[^a-z0-9]+/).filter(Boolean);
 }
 
 function parseWorks(markdown: string, castStart: number) {

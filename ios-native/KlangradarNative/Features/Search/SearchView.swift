@@ -574,7 +574,7 @@ struct SearchView: View {
         // zeigen, die Serversuche ergänzt/ersetzt sie danach.
         let local = localHits(value)
         if !local.isEmpty || completedQuery.isEmpty || !value.hasPrefix(completedQuery) { hits = local }
-        try? await Task.sleep(for: .milliseconds(250))
+        try? await Task.sleep(for: .milliseconds(150))
         guard !Task.isCancelled else { return }
         do {
             let remote = try await contentRepository.search(query: value, limit: 40)

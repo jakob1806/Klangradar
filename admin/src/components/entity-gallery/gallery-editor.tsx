@@ -57,7 +57,13 @@ export function GalleryEditor({
   venues,
   showEventFallbackToggle = false,
   storagePrefix,
+  importImageUrl = null,
+  removeImportAction,
 }: {
+  /** Nur Events: Importbild aus der Quelle (events.image_urls[0]) – wird in
+   * der App vor der Galerie gezeigt und deshalb hier als erste Kachel. */
+  importImageUrl?: string | null;
+  removeImportAction?: (formData: FormData) => void | Promise<void>;
   originType: GalleryOriginType;
   originId: string;
   path: string;
@@ -306,6 +312,24 @@ export function GalleryEditor({
       </div>
 
       {error && <p className="text-xs text-red-600">{error}</p>}
+
+      {importImageUrl && (
+        <div className="flex max-w-[50%] flex-col gap-1.5 rounded-md border border-amber-300 bg-amber-50/40 p-2 sm:max-w-[33%]">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={importImageUrl} alt="" className="aspect-[3/2] w-full rounded object-cover" />
+          <span className="w-fit rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800">
+            Importbild · wird in der App gezeigt
+          </span>
+          {removeImportAction && (
+            <form action={removeImportAction}>
+              <input type="hidden" name="id" value={originId} />
+              <button type="submit" className="text-xs font-medium text-red-700 hover:underline">
+                Importbild entfernen
+              </button>
+            </form>
+          )}
+        </div>
+      )}
 
       {sorted.length === 0 ? (
         <div className="flex h-24 items-center justify-center rounded-md border border-dashed border-neutral-300 bg-neutral-50 text-xs text-neutral-400">

@@ -49,6 +49,26 @@ final class ConcertSync {
         }
     }
 
+    /// Programm mit Werkdauern (nur wenn alle Werke eine Dauer haben, sonst
+    /// wäre „Jetzt läuft“ geraten). Höchstens 8 Werke, Titel gekürzt.
+    static func loadProgram(eventID: String) async -> [(String, Int)]? {
+        guard let client = SocialStore.shared.repository?.client else { return nil }
+        let rows: [JSONObject]? = try? await client.get(table: "event_works", queryItems: [
+            URLQueryItem(name: "select", value: "position,works(title,duration_minutes,composer:persons!works_composer_id_fkey(full_name))"),
+            URLQueryItem(name: "event_id", value: "eq.\(eventID)"),
+            URLQueryItem(name: "order", value: "position.asc")
+        ])
+        guard let rows, !rows.isEmpty, rows.count <= 8 else { return nil }
+        var items: [(String, Int)] = []
+        for row in rows {
+            guard let work = row.object("works"), let minutes = work.integer("duration_minutes"), minutes > 0 else { return nil }
+            let composer = work.object("composer")?.string("full_name")?.split(separator: " ").last.map(String.init)
+            let title = String((work.string("title") ?? "Werk").prefix(40))
+            items.append(([composer, title].compactMap { $0 }.joined(separator: ": "), minutes))
+        }
+        return items
+    }
+
     /// Einlass/Pause/Ende für die Live-Aktivität aus der Event-Zeile.
     static func loadTimes(eventID: String, start: Date) async -> ConcertTimes? {
         guard let client = SocialStore.shared.repository?.client else { return nil }
@@ -95,6 +115,10 @@ final class ConcertSync {
             let attributes = ConcertActivityAttributes(slug: concert.slug, title: concert.title, venue: concert.venue, start: concert.start)
             var state = ConcertActivityAttributes.ContentState(phase: "upcoming")
             if let times = await Self.loadTimes(eventID: concert.id, start: concert.start) { state.apply(times) }
+            if let program = await Self.loadProgram(eventID: concert.id) {
+                state.programTitles = program.map(\.0)
+                state.programMinutes = program.map(\.1)
+            }
             let content = ActivityContent(state: state, staleDate: (state.endAt ?? concert.start.addingTimeInterval(3 * 3600)).addingTimeInterval(1800))
             // Mit Push-Token (06.11.2026): Server-Updates bei Absage,
             // Zeit- oder Besetzungsänderung.

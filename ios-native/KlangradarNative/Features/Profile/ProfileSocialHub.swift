@@ -71,6 +71,9 @@ struct VisitedConcert: Identifiable, Sendable {
     let event: ConcertEvent?
     /// Erstes eigenes Foto eines Tagebuch-Eintrags (07.11.2026).
     var photoPath: String? = nil
+    /// Ersatzbild für Tagebuch-Einträge: Foto der Spielstätte (07.11.2026).
+    var fallbackImageURL: URL? = nil
+    var isJournal: Bool { event == nil }
 }
 
 struct KlangAchievement: Identifiable, Sendable {
@@ -224,7 +227,16 @@ extension UserRepository {
         }
     }
 
+    /// 07.11.2026 (Profil lädt lange): Profilkopf und Profilinhalt fragten
+    /// dieselbe, teure Zusammenfassung getrennt und mehrfach ab. Jetzt teilen
+    /// sich gleichzeitige Aufrufe eine Anfrage, und ein Ergebnis gilt 30 s.
     func socialProfileSummary(userID: UUID, token: String) async -> ProfileSocialSummary {
+        await ProfileSummaryCache.shared.summary(userID: userID) {
+            await self.fetchSocialProfileSummary(userID: userID, token: token)
+        }
+    }
+
+    private func fetchSocialProfileSummary(userID: UUID, token: String) async -> ProfileSocialSummary {
         async let visitsResult = try? visitedConcerts(userID: userID, token: token)
         async let followsResult = followedProfiles(userID: userID, token: token)
         async let savedResult = try? savedEventCount(userID: userID, token: token)
@@ -262,7 +274,7 @@ extension UserRepository {
     /// Entstehungsjahr nachgeladen.
     private func journalVisits(userID: UUID, token: String) async throws -> [VisitedConcert] {
         let rows: [JSONObject] = try await client.get(table: "user_concert_entries", queryItems: [
-            URLQueryItem(name: "select", value: "id,title,starts_at,venue_name,program,photo_paths,venues(id,name,address_city)"),
+            URLQueryItem(name: "select", value: "id,title,starts_at,venue_name,program,photo_paths,venues(id,name,address_city,photo_url)"),
             URLQueryItem(name: "user_id", value: "eq.\(userID.uuidString)"),
             URLQueryItem(name: "starts_at", value: "lte.\(ISO8601DateFormatter().string(from: .now))")
         ], accessToken: token)
@@ -285,7 +297,7 @@ extension UserRepository {
             let venue = row.object("venues")
             let works = row.objects("program").compactMap { item in item.string("work_id").flatMap { worksByID[$0] } }
             let title = row.string("title") ?? row.objects("program").first?.string("title") ?? "Eigener Konzertabend"
-            return VisitedConcert(id: id, title: title, venueID: venue?.string("id").flatMap(UUID.init(uuidString:)), venue: venue?.string("name") ?? row.string("venue_name") ?? "Ort unbekannt", city: venue?.string("address_city"), attendedAt: row.string("starts_at").flatMap(FlexibleDateParser.date(from:)), genres: [], works: works, event: nil, photoPath: row.strings("photo_paths").first)
+            return VisitedConcert(id: id, title: title, venueID: venue?.string("id").flatMap(UUID.init(uuidString:)), venue: venue?.string("name") ?? row.string("venue_name") ?? "Ort unbekannt", city: venue?.string("address_city"), attendedAt: row.string("starts_at").flatMap(FlexibleDateParser.date(from:)), genres: [], works: works, event: nil, photoPath: row.strings("photo_paths").first, fallbackImageURL: venue?.string("photo_url").flatMap(URL.init(string:)))
         }
     }
 
@@ -412,6 +424,7 @@ struct VisitedConcertsView: View {
     let contentRepository: any ContentRepository
     @State private var concerts: [VisitedConcert] = []
     @State private var isLoading = true
+    @State private var journalEntry: ConcertJournalEntry?
 
     var body: some View {
         Group {
@@ -422,8 +435,17 @@ struct VisitedConcertsView: View {
                     NavigationLink {
                         EventDetailView(event: event, repository: eventRepository, contentRepository: contentRepository)
                     } label: { concertRow(concert) }
-                } else { concertRow(concert) }
+                } else {
+                    // 07.11.2026: Tagebuch-Einträge öffnen den Eintrag.
+                    Button { Task { await openJournal(concert.id) } } label: {
+                        HStack { concertRow(concert); Spacer(minLength: 0); Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary) }
+                    }
+                    .buttonStyle(.plain)
+                }
             } }
+        }
+        .sheet(item: $journalEntry) { entry in
+            NavigationStack { ConcertJournalEditor(existing: entry) { Task { await load() } } }
         }
         .navigationTitle("Besuchte Konzerte")
         .task { await load() }
@@ -437,8 +459,7 @@ struct VisitedConcertsView: View {
             if let event = concert.event {
                 EventArtwork(event: event).frame(width: 52, height: 52).clipped().clipShape(.rect(cornerRadius: 12))
             } else {
-                RoundedRectangle(cornerRadius: 12).fill(Color(uiColor: .tertiarySystemFill)).frame(width: 52, height: 52)
-                    .overlay { Image(systemName: "ticket.fill").foregroundStyle(.secondary) }
+                VisitThumbnail(visit: concert)
             }
             VStack(alignment: .leading, spacing: 5) {
                 Text(concert.title).font(.headline)
@@ -452,6 +473,10 @@ struct VisitedConcertsView: View {
         defer { isLoading = false }
         guard let repository, let userID = auth.userID, let token = auth.accessToken else { return }
         concerts = (try? await repository.visitedConcerts(userID: userID, token: token)) ?? []
+    }
+
+    private func openJournal(_ id: UUID) async {
+        journalEntry = await JournalAPI.entries().first { $0.id == id }
     }
 }
 
@@ -714,6 +739,8 @@ struct LevelDetailView: View {
     }
 
     private func load() async {
+        // 07.11.2026: sofort den schon geladenen Stand aus dem Profil zeigen.
+        if let cached = ProfileSummaryCache.shared.cached(userID: auth.userID) { summary = cached }
         guard let repository, let userID = auth.userID, let token = auth.accessToken else { return }
         summary = await repository.socialProfileSummary(userID: userID, token: token)
     }
@@ -908,5 +935,32 @@ struct AchievementBadge: View {
             }
         }
         .frame(width: size, height: size)
+    }
+}
+
+
+/// Gemeinsamer Zwischenspeicher für die Profil-Zusammenfassung: sofort
+/// anzeigbarer letzter Stand + Bündelung gleichzeitiger Ladevorgänge.
+@MainActor
+final class ProfileSummaryCache {
+    static let shared = ProfileSummaryCache()
+    private var values: [UUID: (ProfileSocialSummary, Date)] = [:]
+    private var inFlight: [UUID: Task<ProfileSocialSummary, Never>] = [:]
+
+    func cached(userID: UUID?) -> ProfileSocialSummary? {
+        userID.flatMap { values[$0]?.0 }
+    }
+
+    func invalidate() { values.removeAll() }
+
+    func summary(userID: UUID, fetch: @escaping @Sendable () async -> ProfileSocialSummary) async -> ProfileSocialSummary {
+        if let (value, at) = values[userID], Date().timeIntervalSince(at) < 30 { return value }
+        if let task = inFlight[userID] { return await task.value }
+        let task = Task { await fetch() }
+        inFlight[userID] = task
+        let value = await task.value
+        inFlight[userID] = nil
+        values[userID] = (value, Date())
+        return value
     }
 }
