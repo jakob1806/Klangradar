@@ -7,6 +7,17 @@ import { setSeatingPlan } from "@/lib/seating-plan-actions";
 const BUCKET = "entity-photos";
 const MAX_BYTES = 15 * 1024 * 1024;
 
+/** Nur echte https-Adressen anzeigen (kein javascript:/data: o. Ä.). */
+function safeHttpsUrl(raw: string | null): string | null {
+  if (!raw) return null;
+  try {
+    const parsed = new URL(raw);
+    return parsed.protocol === "https:" ? parsed.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Saalplan hochladen (Bild/PDF) oder per Link setzen. Erscheint in der App
  * auf der Spielstättenseite unter „Saalplan“ und im Ticket-Blatt. */
 export function SeatingPlanEditor({ venueId, initialUrl }: { venueId: string; initialUrl: string | null }) {
@@ -15,7 +26,8 @@ export function SeatingPlanEditor({ venueId, initialUrl }: { venueId: string; in
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [pending, startTransition] = useTransition();
-  const isPdf = url?.toLowerCase().split("?")[0].endsWith(".pdf");
+  const safeUrl = safeHttpsUrl(url);
+  const isImage = !!safeUrl && /\.(jpe?g|png|webp)$/i.test(new URL(safeUrl).pathname);
 
   function save(next: string | null) {
     setError(null);
@@ -54,13 +66,13 @@ export function SeatingPlanEditor({ venueId, initialUrl }: { venueId: string; in
             disabled={busy || pending} onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); e.target.value = ""; }} />
         </label>
       </div>
-      {url ? (
+      {safeUrl ? (
         <div className="rounded-md border border-neutral-200 p-2">
-          {isPdf ? (
-            <a href={url} target="_blank" rel="noreferrer" className="text-sm text-blue-700 underline">Saalplan (PDF) öffnen</a>
-          ) : (
+          {isImage ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={url} alt="Saalplan" className="max-h-80 w-full rounded object-contain" />
+            <img src={safeUrl} alt="Saalplan" className="max-h-80 w-full rounded object-contain" />
+          ) : (
+            <a href={safeUrl} target="_blank" rel="noreferrer" className="text-sm text-blue-700 underline">Saalplan öffnen</a>
           )}
           <button type="button" onClick={() => save(null)} disabled={pending}
             className="mt-2 text-xs font-medium text-red-700 hover:underline">Saalplan entfernen</button>
