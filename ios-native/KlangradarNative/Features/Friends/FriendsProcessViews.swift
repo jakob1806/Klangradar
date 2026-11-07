@@ -656,6 +656,8 @@ struct EventFriendsExtras: View {
     /// direkt auf der Konzertseite, sondern im "…"-Menü (eigenes Sheet).
     var showsFriendOffers = true
     var showsOwnControls = true
+    /// 07.11.2026: ohne eigenen Kasten, für Listen-Karten.
+    var embedded = false
     @EnvironmentObject private var favorites: FavoriteStore
     @State private var state: EventSocialState?
     @State private var showsOfferComposer = false
@@ -693,12 +695,12 @@ struct EventFriendsExtras: View {
                         }
                         .tint(KlangradarTheme.accent)
                     }
-                    .padding(14)
-                    .background(Color(uiColor: .secondarySystemBackground), in: .rect(cornerRadius: 18, style: .continuous))
+                    .padding(embedded ? 0 : 14)
+                    .background(embedded ? Color.clear : Color(uiColor: .secondarySystemBackground), in: .rect(cornerRadius: 18, style: .continuous))
                 }
             }
         }
-        .padding(.bottom, hasContent ? 20 : 0)
+        .padding(.bottom, hasContent && !embedded ? 20 : 0)
         .task(id: favorites.ids.contains(event.id)) { await load() }
         .sheet(isPresented: $showsOfferComposer) {
             NavigationStack { TicketOfferComposer(event: event) { await load() } }
@@ -744,7 +746,7 @@ struct MyConcertsTicketPrivacyView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 12) {
                 Text("Für jedes gemerkte Konzert kannst du ein übriges Ticket an Freunde weitergeben oder privat hingehen, dann sehen Freunde nicht, dass du es dir gemerkt hast.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -754,17 +756,33 @@ struct MyConcertsTicketPrivacyView: View {
                     ContentUnavailableView("Keine gemerkten Konzerte", systemImage: "heart",
                                            description: Text("Merke dir ein kommendes Konzert, dann erscheint es hier."))
                 } else {
+                    // 07.11.2026: eine Karte je Konzert mit Bild, Titel und
+                    // darunter Ticket/Privat – übersichtlicher als zuvor.
                     ForEach(events) { event in
-                        VStack(alignment: .leading, spacing: 10) {
+                        VStack(alignment: .leading, spacing: 12) {
                             NavigationLink(value: event) {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(event.title).font(.headline).foregroundStyle(.primary).multilineTextAlignment(.leading)
-                                    Text(event.dateLine).font(.subheadline).foregroundStyle(.secondary)
+                                HStack(spacing: 12) {
+                                    CachedAsyncImage(url: event.primaryImageURL, maxPixel: 200) { phase in
+                                        if let image = phase.image { image.resizable().scaledToFill() }
+                                        else { KlangradarTheme.accent.opacity(0.12) }
+                                    }
+                                    .frame(width: 60, height: 60)
+                                    .clipShape(.rect(cornerRadius: 12, style: .continuous))
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(event.title).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+                                            .lineLimit(2).multilineTextAlignment(.leading)
+                                        Text(event.dateLine).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                    }
+                                    Spacer(minLength: 0)
+                                    Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
                                 }
                             }
                             .buttonStyle(.plain)
-                            EventFriendsExtras(event: event, showsFriendOffers: false, showsOwnControls: true)
+                            Divider()
+                            EventFriendsExtras(event: event, showsFriendOffers: false, showsOwnControls: true, embedded: true)
                         }
+                        .padding(14)
+                        .background(Color(uiColor: .secondarySystemBackground), in: .rect(cornerRadius: 18, style: .continuous))
                     }
                 }
             }

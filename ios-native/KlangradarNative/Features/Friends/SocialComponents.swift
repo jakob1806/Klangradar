@@ -11,15 +11,35 @@ struct SocialAvatar: View {
             if let image = phase.image {
                 image.resizable().scaledToFill()
             } else {
+                // 07.11.2026: kräftiger Verlauf je Name mit weißer Initiale –
+                // die zarte Tönung war auf Bildern und Hintergründen kaum
+                // lesbar, und die meisten Nutzer hinterlegen kein Foto.
                 ZStack {
-                    Circle().fill(KlangradarTheme.accent.opacity(0.14))
-                    Text(initials).font(.scaled(size * 0.38, weight: .semibold, design: .rounded)).foregroundStyle(KlangradarTheme.accent)
+                    Circle().fill(LinearGradient(colors: palette, startPoint: .topLeading, endPoint: .bottomTrailing))
+                    Text(initials)
+                        .font(.scaled(size * 0.4, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .shadow(color: .black.opacity(0.15), radius: 1, y: 1)
                 }
             }
         }
         .frame(width: size, height: size)
         .clipShape(.circle)
         .accessibilityHidden(true)
+    }
+
+    private static let palettes: [[Color]] = [
+        [Color(red: 0.20, green: 0.42, blue: 0.75), Color(red: 0.12, green: 0.29, blue: 0.56)],
+        [Color(red: 0.55, green: 0.36, blue: 0.80), Color(red: 0.38, green: 0.22, blue: 0.62)],
+        [Color(red: 0.13, green: 0.60, blue: 0.55), Color(red: 0.07, green: 0.42, blue: 0.40)],
+        [Color(red: 0.90, green: 0.47, blue: 0.29), Color(red: 0.74, green: 0.30, blue: 0.20)],
+        [Color(red: 0.85, green: 0.33, blue: 0.47), Color(red: 0.64, green: 0.20, blue: 0.35)],
+        [Color(red: 0.30, green: 0.55, blue: 0.30), Color(red: 0.18, green: 0.40, blue: 0.20)]
+    ]
+
+    private var palette: [Color] {
+        let sum = name.unicodeScalars.reduce(0) { $0 &+ Int($1.value) }
+        return Self.palettes[abs(sum) % Self.palettes.count]
     }
 
     private var initials: String {

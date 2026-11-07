@@ -137,25 +137,74 @@ struct InterestsView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
+    // 07.11.2026: wie die anderen Onboarding-Schritte – Überschrift, Suche,
+    // Werk und Komponist getrennt, Ausgewähltes oben.
     private var workList: some View {
-        List {
-            Section("Werke · \(selected.count) ausgewählt") {
-                ForEach(filteredOptions) { option in
-                    Button { toggle(option.id) } label: {
-                        HStack(spacing: 12) {
-                            Text(option.label).foregroundStyle(.primary)
-                            Spacer()
-                            Image(systemName: selected.contains(option.id) ? "checkmark.circle.fill" : "circle")
-                                .font(.scaled(28, weight: .regular))
-                                .frame(width: 44, height: 44)
-                                .foregroundStyle(selected.contains(option.id) ? KlangradarTheme.accent : .secondary)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                VStack(spacing: 6) {
+                    Text("Werke, die du liebst").font(.title2.bold())
+                    Text("Wir zeigen dir, wenn sie in deiner Nähe gespielt werden.")
+                        .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                    TextField("Werk oder Komponist suchen", text: $searchText)
+                        .textInputAutocapitalization(.never)
+                }
+                .padding(.horizontal, 14).padding(.vertical, 12)
+                .background(Color(uiColor: .secondarySystemBackground), in: .rect(cornerRadius: 14, style: .continuous))
+                if !selected.isEmpty {
+                    Text("\(selected.count) ausgewählt").font(.footnote.weight(.semibold)).foregroundStyle(KlangradarTheme.accent)
+                }
+                LazyVStack(spacing: 8) {
+                    ForEach(sortedWorkOptions) { option in
+                        let isOn = selected.contains(option.id)
+                        let parts = Self.workParts(option.label)
+                        Button { toggle(option.id) } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "music.quarternote.3")
+                                    .font(.body.weight(.semibold))
+                                    .foregroundStyle(isOn ? .white : KlangradarTheme.accent)
+                                    .frame(width: 40, height: 40)
+                                    .background(isOn ? AnyShapeStyle(KlangradarTheme.accent) : AnyShapeStyle(KlangradarTheme.accent.opacity(0.12)), in: .rect(cornerRadius: 11, style: .continuous))
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(parts.title).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+                                        .lineLimit(2).multilineTextAlignment(.leading)
+                                    if let composer = parts.composer {
+                                        Text(composer).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                    }
+                                }
+                                Spacer(minLength: 0)
+                                Image(systemName: isOn ? "checkmark.circle.fill" : "plus.circle")
+                                    .font(.title3)
+                                    .foregroundStyle(isOn ? KlangradarTheme.accent : Color.secondary.opacity(0.6))
+                            }
+                            .padding(12)
+                            .background(Color(uiColor: .secondarySystemBackground), in: .rect(cornerRadius: 16, style: .continuous))
                         }
+                        .buttonStyle(.plain)
                     }
                 }
             }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 120)
         }
-        .searchable(text: $searchText, prompt: "Werke durchsuchen")
         .task { searchText = ""; await load() }
+    }
+
+    private var sortedWorkOptions: [InterestOption] {
+        let list = filteredOptions
+        return list.filter { selected.contains($0.id) } + list.filter { !selected.contains($0.id) }
+    }
+
+    /// "›Titel‹ für … — Komponist" → Titel ohne Zierzeichen, Komponist getrennt.
+    static func workParts(_ label: String) -> (title: String, composer: String?) {
+        let pieces = label.components(separatedBy: " — ")
+        let strip = CharacterSet(charactersIn: "›‹'\"„“ ")
+        let title = (pieces.first ?? label).trimmingCharacters(in: strip)
+        return (title.isEmpty ? label : title, pieces.count > 1 ? pieces.last : nil)
     }
 
     private func load() async {

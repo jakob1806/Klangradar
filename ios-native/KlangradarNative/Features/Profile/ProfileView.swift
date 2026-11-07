@@ -26,6 +26,7 @@ struct ProfileView: View {
     @EnvironmentObject private var cityStore: CityStore
     @EnvironmentObject private var follows: FollowStore
     @State private var showsLogin = false
+    @State private var showsWelcome = false
     @State private var showsSignUp = false
     @State private var showsOnboardingAfterSignIn = false
     @State private var showsPlus = false
@@ -199,6 +200,28 @@ struct ProfileView: View {
             // komplette Onboarding samt Willkommens-Bildschirm UND darüber das
             // Login-Sheet; nach "Abbrechen" blieb der Willkommens-Bildschirm
             // stehen. Jetzt nur das Login-Sheet; Registrierung erst auf Wunsch.
+            // 07.11.2026: Wer abgemeldet ist, sieht zuerst den Willkommens-
+            // Bildschirm mit Apple/Google, Anmelden und Konto erstellen.
+            .fullScreenCover(isPresented: $showsWelcome) {
+                NavigationStack {
+                    WelcomeStepView(
+                        auth: auth,
+                        onCreateAccount: {
+                            showsWelcome = false
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { showsSignUp = true }
+                        },
+                        onLogIn: {
+                            showsWelcome = false
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { showsLogin = true }
+                        },
+                        onContinueAsGuest: { showsWelcome = false },
+                        onAuthenticated: {
+                            showsWelcome = false
+                            Task { await continueOnboardingIfNeeded() }
+                        }
+                    )
+                }
+            }
             .sheet(isPresented: $showsLogin) {
                 PasswordLoginView(
                     auth: auth,
@@ -475,7 +498,7 @@ struct ProfileView: View {
             Text("Dein persönliches Klangradar").font(.title3.bold())
             Text("Melde dich an, um Konzerte zu merken, Freunden zu folgen und deine Konzertabende zu planen.")
                 .font(.subheadline).foregroundStyle(.secondary)
-            Button { showsLogin = true } label: {
+            Button { showsWelcome = true } label: {
                 Text("Anmelden").font(.headline).frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
@@ -2525,6 +2548,40 @@ private struct ProfileContentSection: View {
         if summary.visits.isEmpty {
             emptyState(symbol: "checkmark.seal", title: "Dein Konzerttagebuch", text: "Markiere besuchte Konzerte auf der Konzertseite. Daraus entstehen Abzeichen, dein Klanglevel und der Jahresrückblick.")
         } else {
+            // 07.11.2026: zuerst die Konzerte, dann Jahresrückblick, dann Abzeichen.
+            VStack(alignment: .leading, spacing: 0) {
+                HStack {
+                    Text("Zuletzt erlebt").font(.headline)
+                    Spacer()
+                    NavigationLink("Alle") {
+                        VisitedConcertsView(auth: auth, repository: repository, eventRepository: eventRepository, contentRepository: contentRepository)
+                    }
+                    .font(.subheadline)
+                }
+                .padding(.bottom, 6)
+                // 06.11.2026: neueste zuerst, mit Bild und vollem Datum.
+                let recent = Array(summary.visits.sorted { ($0.attendedAt ?? .distantPast) > ($1.attendedAt ?? .distantPast) }.prefix(5))
+                ForEach(recent) { visit in
+                    let row = HStack(spacing: 12) {
+                        VisitThumbnail(visit: visit)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(visit.title).font(.subheadline.weight(.semibold)).foregroundStyle(.primary).lineLimit(2)
+                            Text([visit.attendedAt.map { KlangradarDateTime.string($0, format: "EE, d. MMM yyyy") }, visit.venue].compactMap { $0 }.joined(separator: " · "))
+                                .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.vertical, 8)
+                    if let event = visit.event {
+                        NavigationLink(value: event) { row }.buttonStyle(.plain)
+                    } else {
+                        row
+                    }
+                    if visit.id != recent.last?.id { Divider() }
+                }
+            }
+            .padding(14)
+            .background(.regularMaterial, in: .rect(cornerRadius: 20, style: .continuous))
             if let year = YearRecap.years(in: summary.visits).first {
                 Button { recapYear = year } label: {
                     HStack(spacing: 14) {
@@ -2562,44 +2619,6 @@ private struct ProfileContentSection: View {
                 }
             }
 
-            VStack(alignment: .leading, spacing: 0) {
-                HStack {
-                    Text("Zuletzt erlebt").font(.headline)
-                    Spacer()
-                    NavigationLink("Alle") {
-                        VisitedConcertsView(auth: auth, repository: repository, eventRepository: eventRepository, contentRepository: contentRepository)
-                    }
-                    .font(.subheadline)
-                }
-                .padding(.bottom, 6)
-                // 06.11.2026: neueste zuerst, mit Bild und vollem Datum.
-                let recent = Array(summary.visits.sorted { ($0.attendedAt ?? .distantPast) > ($1.attendedAt ?? .distantPast) }.prefix(5))
-                ForEach(recent) { visit in
-                    let row = HStack(spacing: 12) {
-                        CachedAsyncImage(url: visit.event?.primaryImageURL, maxPixel: 160) { phase in
-                            if let image = phase.image { image.resizable().scaledToFill() }
-                            else { KlangradarTheme.accent.opacity(0.12) }
-                        }
-                        .frame(width: 52, height: 52)
-                        .clipShape(.rect(cornerRadius: 12, style: .continuous))
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(visit.title).font(.subheadline.weight(.semibold)).foregroundStyle(.primary).lineLimit(2)
-                            Text([visit.attendedAt.map { KlangradarDateTime.string($0, format: "EE, d. MMM yyyy") }, visit.venue].compactMap { $0 }.joined(separator: " · "))
-                                .font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                        }
-                        Spacer(minLength: 0)
-                    }
-                    .padding(.vertical, 8)
-                    if let event = visit.event {
-                        NavigationLink(value: event) { row }.buttonStyle(.plain)
-                    } else {
-                        row
-                    }
-                    if visit.id != recent.last?.id { Divider() }
-                }
-            }
-            .padding(14)
-            .background(.regularMaterial, in: .rect(cornerRadius: 20, style: .continuous))
         }
     }
 
@@ -2889,5 +2908,28 @@ struct CoachAmbientBackground: View {
         .animation(.easeInOut(duration: 1.2), value: isThinking)
         .onAppear { withAnimation(.easeInOut(duration: 9).repeatForever(autoreverses: true)) { drift = true } }
         .ignoresSafeArea()
+    }
+}
+
+/// Miniaturbild eines erlebten Konzerts: Konzertbild, sonst eigenes Foto aus
+/// dem Tagebuch, sonst Notensymbol (07.11.2026).
+private struct VisitThumbnail: View {
+    let visit: VisitedConcert
+    @State private var photoURL: URL?
+
+    var body: some View {
+        CachedAsyncImage(url: visit.event?.primaryImageURL ?? photoURL, maxPixel: 160) { phase in
+            if let image = phase.image { image.resizable().scaledToFill() }
+            else {
+                KlangradarTheme.accent.opacity(0.12)
+                    .overlay { Image(systemName: "music.note").foregroundStyle(KlangradarTheme.accent.opacity(0.6)) }
+            }
+        }
+        .frame(width: 52, height: 52)
+        .clipShape(.rect(cornerRadius: 12, style: .continuous))
+        .task(id: visit.id) {
+            guard visit.event == nil, let path = visit.photoPath else { return }
+            photoURL = await PlannerAPI.signedPhotoURL(path)
+        }
     }
 }

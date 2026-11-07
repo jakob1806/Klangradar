@@ -220,7 +220,7 @@ struct FriendsView: View {
                     .buttonStyle(.plain)
                     ForEach(circleFriends) { friend in
                         NavigationLink { UserProfileView(userID: friend.id) } label: {
-                            FriendCircleTile(title: friend.name.split(separator: " ").first.map(String.init) ?? friend.name, badge: friend.upcomingCount > 0 ? "\(friend.upcomingCount)" : nil, isClose: friend.isClose) {
+                            FriendCircleTile(title: friend.name.split(separator: " ").first.map(String.init) ?? friend.name, badge: nil, isClose: friend.isClose) {
                                 SocialAvatar(name: friend.name, url: friend.avatarURL, size: 68)
                             }
                         }
