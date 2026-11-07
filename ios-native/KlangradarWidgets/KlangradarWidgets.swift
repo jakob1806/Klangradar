@@ -286,6 +286,23 @@ private struct Evening {
         }
     }
 
+    /// „Jetzt läuft“: aus Beginn, Werkdauern und Pause errechnet.
+    var nowPlaying: (current: String, next: String?)? {
+        guard let titles = state.programTitles, let minutes = state.programMinutes,
+              titles.count == minutes.count, !titles.isEmpty, now >= start else { return nil }
+        if let pause = state.pauseAt, let pauseEnd = state.pauseEndAt, now >= pause, now < pauseEnd { return nil }
+        var elapsed = now.timeIntervalSince(start) / 60
+        if let pause = state.pauseAt, let pauseEnd = state.pauseEndAt, now >= pauseEnd {
+            elapsed -= pauseEnd.timeIntervalSince(pause) / 60
+        }
+        var sum = 0.0
+        for (index, length) in minutes.enumerated() {
+            sum += Double(length) + 1
+            if elapsed < sum { return (titles[index], index + 1 < titles.count ? titles[index + 1] : nil) }
+        }
+        return nil
+    }
+
     var nextLabel: String { next.map { $0.estimated ? "\($0.label) ca." : $0.label } ?? "Ende" }
     var nextClock: String { next.map { clock($0.time) } ?? (state.endAt.map(clock) ?? clock(start)) }
 
@@ -388,6 +405,14 @@ private struct LockScreenConcertView: View {
                     .tint(islandAccent)
             }
             StationRow(evening: evening, dim: islandDim, highlight: islandAccent)
+            if let playing = evening.nowPlaying {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Jetzt: \(playing.current)").font(.caption.weight(.semibold)).foregroundStyle(.white).lineLimit(1)
+                    if let next = playing.next {
+                        Text("Danach: \(next)").font(.caption2).foregroundStyle(islandDim).lineLimit(1)
+                    }
+                }
+            }
             if let notice = state.notice, !notice.isEmpty {
                 Text(notice).font(.caption.weight(.semibold))
                     .foregroundStyle(evening.isCancelled ? Color(red: 1, green: 0.55, blue: 0.5) : islandAccent)
