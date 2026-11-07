@@ -226,7 +226,7 @@ struct EntityDetailView: View {
         let label = Label("Saalplan", systemImage: "square.grid.3x3.topleft.filled")
             .font(.subheadline.weight(.medium))
             .foregroundStyle(KlangradarTheme.accent)
-        if url.pathExtension.lowercased() == "pdf" {
+        if !["jpg", "jpeg", "png", "webp"].contains(url.pathExtension.lowercased()) {
             Link(destination: url) { label }
         } else {
             Button { showImage(url, title: "Saalplan · \(title)") } label: { label }

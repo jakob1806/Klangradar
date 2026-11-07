@@ -321,7 +321,7 @@ private struct TicketSeatEditor: View {
                     ticketSection
                     seatSection
                     if let seatingPlanURL {
-                        if seatingPlanURL.pathExtension.lowercased() == "pdf" {
+                        if !["jpg", "jpeg", "png", "webp"].contains(seatingPlanURL.pathExtension.lowercased()) {
                             Link(destination: seatingPlanURL) { rowLabel("Mein Platz im Saalplan", systemImage: "square.grid.3x3.topleft.filled") }
                                 .buttonStyle(.plain)
                         } else {
