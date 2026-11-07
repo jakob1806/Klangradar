@@ -739,6 +739,8 @@ struct LevelDetailView: View {
     }
 
     private func load() async {
+        // 07.11.2026: sofort den schon geladenen Stand aus dem Profil zeigen.
+        if let cached = ProfileSummaryCache.shared.cached(userID: auth.userID) { summary = cached }
         guard let repository, let userID = auth.userID, let token = auth.accessToken else { return }
         summary = await repository.socialProfileSummary(userID: userID, token: token)
     }

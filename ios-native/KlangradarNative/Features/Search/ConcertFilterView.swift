@@ -60,28 +60,57 @@ struct ConcertFilterView: View {
 
     private var isFiltered: Bool { period != .all || price != .all || genre != nil || venue != nil || !text.isEmpty }
 
+    private func chipRow(_ items: [(String, Bool, () -> Void)]) -> some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: 8) {
+                ForEach(items.indices, id: \.self) { i in
+                    Button { withAnimation(.snappy) { items[i].2() } } label: { chip(items[i].0, selected: items[i].1) }
+                        .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 16)
+        }
+        .scrollIndicators(.hidden)
+    }
+
+    private func chip(_ title: String, selected: Bool, systemImage: String? = nil) -> some View {
+        HStack(spacing: 5) {
+            if let systemImage { Image(systemName: systemImage) }
+            Text(title).lineLimit(1)
+        }
+        .font(.subheadline.weight(.medium))
+        .padding(.horizontal, 12).padding(.vertical, 7)
+        .foregroundStyle(selected ? Color.white : Color.primary)
+        .background(selected ? AnyShapeStyle(KlangradarTheme.accent) : AnyShapeStyle(Color(uiColor: .tertiarySystemFill)), in: .capsule)
+    }
+
     var body: some View {
         List {
+            // 07.11.2026: Chips statt Auswahllisten – ein Tipp pro Filter.
             Section {
-                Picker("Zeitraum", selection: $period) {
-                    ForEach(Period.allCases) { Text($0.rawValue).tag($0) }
-                }
-                Picker("Preis", selection: $price) {
-                    ForEach(Price.allCases) { Text($0.rawValue).tag($0) }
-                }
-                Picker("Genre", selection: $genre) {
-                    Text("Alle Genres").tag(String?.none)
-                    ForEach(genres, id: \.self) { Text($0).tag(String?.some($0)) }
-                }
-                Picker("Spielstätte", selection: $venue) {
-                    Text("Alle Spielstätten").tag(String?.none)
-                    ForEach(venues, id: \.self) { Text($0).tag(String?.some($0)) }
-                }
-                if isFiltered {
-                    Button("Filter zurücksetzen", role: .destructive) {
-                        withAnimation { period = .all; price = .all; genre = nil; venue = nil; text = "" }
+                VStack(alignment: .leading, spacing: 10) {
+                    chipRow(Period.allCases.map { p in (p.rawValue, period == p, { period = p }) })
+                    chipRow(Price.allCases.map { p in (p.rawValue, price == p, { price = price == p ? .all : p }) })
+                    chipRow(genres.map { g in (g, genre == g, { genre = genre == g ? nil : g }) })
+                    HStack {
+                        Menu {
+                            Button("Alle Spielstätten") { venue = nil }
+                            ForEach(venues, id: \.self) { v in Button(v) { venue = v } }
+                        } label: {
+                            chip(venue ?? "Spielstätte", selected: venue != nil, systemImage: "building.columns")
+                        }
+                        Spacer()
+                        if isFiltered {
+                            Button("Zurücksetzen") {
+                                withAnimation { period = .all; price = .all; genre = nil; venue = nil; text = "" }
+                            }
+                            .font(.subheadline.weight(.semibold))
+                        }
                     }
+                    .padding(.horizontal, 16)
                 }
+                .padding(.vertical, 10)
+                .listRowInsets(EdgeInsets())
             }
 
             Section {
