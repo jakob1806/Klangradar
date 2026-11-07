@@ -29,6 +29,7 @@ returns text[] language sql immutable as $$
       'musik','klassik','festival','reihe','zyklus','matinee','soiree','gala','sonntagskonzert','familienkonzert',
       'akte','akten','aufzugen','aufzuegen','drei','vier','zwei','fuenf','funf','in','the','and','des','der','die',
       'das','dem','den','brso','mphil','sinfonie','symphonie','moll','nr','op','werk','programm','eine','einer','einem','fur','fuer','zum','zur','studierende','studienkonzert')
+$$;
 
 create or replace function public.event_duplicate_pairs(p_from timestamptz default now() - interval '1 day')
 returns table (a_id uuid, b_id uuid, score numeric, reasons text[], action text)
