@@ -145,14 +145,21 @@ export default async function EventsPage({
   const idsWithoutOwnImage = (data ?? []).filter((e) => (e.image_urls?.length ?? 0) === 0).map((e) => e.id);
   let galleryImageEventIds = new Set<string>();
   const galleryThumbByEventId = new Map<string, string>();
-  if (idsWithoutOwnImage.length > 0) {
+  // 07.11.2026: Miniaturbild wie auf der Detailseite – erstes freigegebenes
+  // Galeriebild (sort_order) für alle Treffer, nicht nur ohne eigenes Bild;
+  // sonst zeigte die Liste noch das alte Importbild, obwohl es geändert war.
+  const allIds = (data ?? []).map((e) => e.id);
+  if (allIds.length > 0) {
     const { data: galleryRows } = await supabase
       .from("images")
-      .select("origin_id, thumbnail_path, storage_path, source_url")
+      .select("origin_id, thumbnail_path, storage_path, source_url, sort_order")
       .eq("origin_type", "event")
-      .in("origin_id", idsWithoutOwnImage)
-      .in("license_status", ["confirmed_free", "confirmed_licensed"]);
-    galleryImageEventIds = new Set((galleryRows ?? []).map((r) => r.origin_id as string));
+      .in("origin_id", allIds)
+      .in("license_status", ["confirmed_free", "confirmed_licensed"])
+      .order("sort_order", { ascending: true });
+    galleryImageEventIds = new Set(
+      (galleryRows ?? []).map((r) => r.origin_id as string).filter((id) => idsWithoutOwnImage.includes(id)),
+    );
     for (const row of galleryRows ?? []) {
       if (galleryThumbByEventId.has(row.origin_id as string)) continue;
       const path = row.thumbnail_path ?? row.storage_path;
@@ -329,7 +336,7 @@ export default async function EventsPage({
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
                           <ListThumbnail
-                            src={event.image_urls?.[0] ?? galleryThumbByEventId.get(event.id) ?? null}
+                            src={galleryThumbByEventId.get(event.id) ?? event.image_urls?.[0] ?? null}
                             alt={event.title}
                           />
                           <span className="font-medium text-neutral-900">{event.title}</span>
