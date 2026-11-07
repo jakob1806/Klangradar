@@ -69,6 +69,8 @@ struct VisitedConcert: Identifiable, Sendable {
     let genres: [String]
     let works: [VisitedWork]
     let event: ConcertEvent?
+    /// Erstes eigenes Foto eines Tagebuch-Eintrags (07.11.2026).
+    var photoPath: String? = nil
 }
 
 struct KlangAchievement: Identifiable, Sendable {
@@ -260,7 +262,7 @@ extension UserRepository {
     /// Entstehungsjahr nachgeladen.
     private func journalVisits(userID: UUID, token: String) async throws -> [VisitedConcert] {
         let rows: [JSONObject] = try await client.get(table: "user_concert_entries", queryItems: [
-            URLQueryItem(name: "select", value: "id,title,starts_at,venue_name,program,venues(id,name,address_city)"),
+            URLQueryItem(name: "select", value: "id,title,starts_at,venue_name,program,photo_paths,venues(id,name,address_city)"),
             URLQueryItem(name: "user_id", value: "eq.\(userID.uuidString)"),
             URLQueryItem(name: "starts_at", value: "lte.\(ISO8601DateFormatter().string(from: .now))")
         ], accessToken: token)
@@ -283,7 +285,7 @@ extension UserRepository {
             let venue = row.object("venues")
             let works = row.objects("program").compactMap { item in item.string("work_id").flatMap { worksByID[$0] } }
             let title = row.string("title") ?? row.objects("program").first?.string("title") ?? "Eigener Konzertabend"
-            return VisitedConcert(id: id, title: title, venueID: venue?.string("id").flatMap(UUID.init(uuidString:)), venue: venue?.string("name") ?? row.string("venue_name") ?? "Ort unbekannt", city: venue?.string("address_city"), attendedAt: row.string("starts_at").flatMap(FlexibleDateParser.date(from:)), genres: [], works: works, event: nil)
+            return VisitedConcert(id: id, title: title, venueID: venue?.string("id").flatMap(UUID.init(uuidString:)), venue: venue?.string("name") ?? row.string("venue_name") ?? "Ort unbekannt", city: venue?.string("address_city"), attendedAt: row.string("starts_at").flatMap(FlexibleDateParser.date(from:)), genres: [], works: works, event: nil, photoPath: row.strings("photo_paths").first)
         }
     }
 

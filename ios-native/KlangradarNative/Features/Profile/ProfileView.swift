@@ -2525,6 +2525,40 @@ private struct ProfileContentSection: View {
         if summary.visits.isEmpty {
             emptyState(symbol: "checkmark.seal", title: "Dein Konzerttagebuch", text: "Markiere besuchte Konzerte auf der Konzertseite. Daraus entstehen Abzeichen, dein Klanglevel und der Jahresrückblick.")
         } else {
+            // 07.11.2026: zuerst die Konzerte, dann Jahresrückblick, dann Abzeichen.
+            VStack(alignment: .leading, spacing: 0) {
+                HStack {
+                    Text("Zuletzt erlebt").font(.headline)
+                    Spacer()
+                    NavigationLink("Alle") {
+                        VisitedConcertsView(auth: auth, repository: repository, eventRepository: eventRepository, contentRepository: contentRepository)
+                    }
+                    .font(.subheadline)
+                }
+                .padding(.bottom, 6)
+                // 06.11.2026: neueste zuerst, mit Bild und vollem Datum.
+                let recent = Array(summary.visits.sorted { ($0.attendedAt ?? .distantPast) > ($1.attendedAt ?? .distantPast) }.prefix(5))
+                ForEach(recent) { visit in
+                    let row = HStack(spacing: 12) {
+                        VisitThumbnail(visit: visit)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(visit.title).font(.subheadline.weight(.semibold)).foregroundStyle(.primary).lineLimit(2)
+                            Text([visit.attendedAt.map { KlangradarDateTime.string($0, format: "EE, d. MMM yyyy") }, visit.venue].compactMap { $0 }.joined(separator: " · "))
+                                .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.vertical, 8)
+                    if let event = visit.event {
+                        NavigationLink(value: event) { row }.buttonStyle(.plain)
+                    } else {
+                        row
+                    }
+                    if visit.id != recent.last?.id { Divider() }
+                }
+            }
+            .padding(14)
+            .background(.regularMaterial, in: .rect(cornerRadius: 20, style: .continuous))
             if let year = YearRecap.years(in: summary.visits).first {
                 Button { recapYear = year } label: {
                     HStack(spacing: 14) {
@@ -2562,44 +2596,6 @@ private struct ProfileContentSection: View {
                 }
             }
 
-            VStack(alignment: .leading, spacing: 0) {
-                HStack {
-                    Text("Zuletzt erlebt").font(.headline)
-                    Spacer()
-                    NavigationLink("Alle") {
-                        VisitedConcertsView(auth: auth, repository: repository, eventRepository: eventRepository, contentRepository: contentRepository)
-                    }
-                    .font(.subheadline)
-                }
-                .padding(.bottom, 6)
-                // 06.11.2026: neueste zuerst, mit Bild und vollem Datum.
-                let recent = Array(summary.visits.sorted { ($0.attendedAt ?? .distantPast) > ($1.attendedAt ?? .distantPast) }.prefix(5))
-                ForEach(recent) { visit in
-                    let row = HStack(spacing: 12) {
-                        CachedAsyncImage(url: visit.event?.primaryImageURL, maxPixel: 160) { phase in
-                            if let image = phase.image { image.resizable().scaledToFill() }
-                            else { KlangradarTheme.accent.opacity(0.12) }
-                        }
-                        .frame(width: 52, height: 52)
-                        .clipShape(.rect(cornerRadius: 12, style: .continuous))
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(visit.title).font(.subheadline.weight(.semibold)).foregroundStyle(.primary).lineLimit(2)
-                            Text([visit.attendedAt.map { KlangradarDateTime.string($0, format: "EE, d. MMM yyyy") }, visit.venue].compactMap { $0 }.joined(separator: " · "))
-                                .font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                        }
-                        Spacer(minLength: 0)
-                    }
-                    .padding(.vertical, 8)
-                    if let event = visit.event {
-                        NavigationLink(value: event) { row }.buttonStyle(.plain)
-                    } else {
-                        row
-                    }
-                    if visit.id != recent.last?.id { Divider() }
-                }
-            }
-            .padding(14)
-            .background(.regularMaterial, in: .rect(cornerRadius: 20, style: .continuous))
         }
     }
 
@@ -2889,5 +2885,28 @@ struct CoachAmbientBackground: View {
         .animation(.easeInOut(duration: 1.2), value: isThinking)
         .onAppear { withAnimation(.easeInOut(duration: 9).repeatForever(autoreverses: true)) { drift = true } }
         .ignoresSafeArea()
+    }
+}
+
+/// Miniaturbild eines erlebten Konzerts: Konzertbild, sonst eigenes Foto aus
+/// dem Tagebuch, sonst Notensymbol (07.11.2026).
+private struct VisitThumbnail: View {
+    let visit: VisitedConcert
+    @State private var photoURL: URL?
+
+    var body: some View {
+        CachedAsyncImage(url: visit.event?.primaryImageURL ?? photoURL, maxPixel: 160) { phase in
+            if let image = phase.image { image.resizable().scaledToFill() }
+            else {
+                KlangradarTheme.accent.opacity(0.12)
+                    .overlay { Image(systemName: "music.note").foregroundStyle(KlangradarTheme.accent.opacity(0.6)) }
+            }
+        }
+        .frame(width: 52, height: 52)
+        .clipShape(.rect(cornerRadius: 12, style: .continuous))
+        .task(id: visit.id) {
+            guard visit.event == nil, let path = visit.photoPath else { return }
+            photoURL = await PlannerAPI.signedPhotoURL(path)
+        }
     }
 }

@@ -399,8 +399,8 @@ private struct LockScreenConcertView: View {
                 if evening.next == nil || evening.isCancelled {
                     ActivityButton(title: "Konzert bewerten", url: "de.klangradar.native://event/\(attributes.slug)")
                 } else {
+                    // 07.11.2026: nur noch ein Knopf, damit es übersichtlich bleibt.
                     ActivityButton(title: "Ticket zeigen", url: "de.klangradar.native://ticket/\(attributes.slug)")
-                    ActivityButton(title: "Konzertseite", url: "de.klangradar.native://event/\(attributes.slug)")
                 }
             }
         }

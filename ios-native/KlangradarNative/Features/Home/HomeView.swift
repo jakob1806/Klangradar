@@ -5,6 +5,8 @@ enum HomeRecommendationCategory: String, CaseIterable, Codable, Identifiable {
     case opera, orchestra, chamber, choir, free, budget, upcoming, editorialCollections
     case favorites, taste, entitySpotlight, followed
     case followedPersons, followedEnsembles, followedVenues
+    // 07.11.2026: bisher fest eingebaut, jetzt auch in „Homepage anordnen“.
+    case friendsPopular, tryNew
 
     var id: String { rawValue }
 
@@ -40,6 +42,8 @@ enum HomeRecommendationCategory: String, CaseIterable, Codable, Identifiable {
         case .followedPersons: "Gefolgte Personen"
         case .followedEnsembles: "Gefolgte Ensembles"
         case .followedVenues: "Gefolgte Orte"
+        case .friendsPopular: "Beliebt bei Freunden"
+        case .tryNew: "Etwas Neues probieren"
         }
     }
 
@@ -66,6 +70,8 @@ enum HomeRecommendationCategory: String, CaseIterable, Codable, Identifiable {
         case .followedPersons: "person.crop.circle.badge.checkmark"
         case .followedEnsembles: "person.3.fill"
         case .followedVenues: "mappin.circle.fill"
+        case .friendsPopular: "person.2.fill"
+        case .tryNew: "shuffle"
         }
     }
 
@@ -75,8 +81,8 @@ enum HomeRecommendationCategory: String, CaseIterable, Codable, Identifiable {
     // Feed — deshalb Standardreihenfolge auf die granulare Variante, `.followed`
     // und `.entitySpotlight` bleiben über "Homepage anordnen" weiter wählbar.
     static let defaultOrder: [HomeRecommendationCategory] = [
-        .today, .favorites, .followedPersons, .followedEnsembles, .followedVenues,
-        .forYou, .taste, .discover,
+        .today, .friendsPopular, .favorites, .followedPersons, .followedEnsembles, .followedVenues,
+        .forYou, .tryNew, .taste, .discover,
         .nextSevenDays, .weekend, .popular, .editorialCollections,
         .opera, .orchestra, .chamber, .choir, .free, .budget, .upcoming
     ]
@@ -270,8 +276,6 @@ struct HomeView: View {
                         .padding(.horizontal, KlangradarTheme.pagePadding)
                     }
 
-                    FriendsPopularRail(events: social.friendsPopular, names: social.friendsPopularNames)
-
                     ForEach(categoryOrder) { category in
                         recommendationSection(category, events: events)
                     }
@@ -317,14 +321,15 @@ struct HomeView: View {
             // Kategorie „Für dich“ bleibt trotzdem sichtbar: persönliche
             // Treffer haben Vorrang, danach folgen die Server-Empfehlungen
             // und zuletzt kommende Events als sinnvoller Fallback.
-            VStack(alignment: .leading, spacing: 34) {
-                EventRail(title: category.title(cityName: cityStore.selectedCity?.name), events: forYouEvents(from: events), captions: model.reasons)
-                EventRail(
-                    title: "Etwas Neues probieren",
-                    events: Array(model.outsideTasteEvents.prefix(10)),
-                    subtitle: "Abseits deiner Gewohnheiten – beliebt bei anderen"
-                )
-            }
+            EventRail(title: category.title(cityName: cityStore.selectedCity?.name), events: forYouEvents(from: events), captions: model.reasons)
+        case .tryNew:
+            EventRail(
+                title: category.title,
+                events: Array(model.outsideTasteEvents.prefix(10)),
+                subtitle: "Abseits deiner Gewohnheiten – beliebt bei anderen"
+            )
+        case .friendsPopular:
+            FriendsPopularRail(events: social.friendsPopular, names: social.friendsPopularNames)
         case .favorites:
             VStack(alignment: .leading, spacing: 34) {
                 EventRail(title: category.title(cityName: cityStore.selectedCity?.name), events: Array(model.favoriteEvents.prefix(14)))
@@ -728,7 +733,7 @@ private struct FriendsPopularRail: View {
                 ScrollView(.horizontal) {
                     LazyHStack(alignment: .top, spacing: 16) {
                         ForEach(events) { event in
-                            VStack(alignment: .leading, spacing: 6) {
+                            VStack(alignment: .leading, spacing: 4) {
                                 NavigationLink(value: event) { EventCard(event: event) }
                                     .buttonStyle(.plain)
                                 if let friendNames = names[event.id], !friendNames.isEmpty {

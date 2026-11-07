@@ -274,8 +274,8 @@ struct EventDetailView: View {
     private func titleFont(for title: String) -> Font {
         switch title.count {
         case ..<50: return .title.bold()
-        case ..<90: return .title2.bold()
-        default: return .title3.bold()
+        case ..<90: return .system(size: 25, weight: .bold)
+        default: return .system(size: 23, weight: .bold)
         }
     }
 
