@@ -126,3 +126,11 @@ Harden and test the completed detail/navigation batch before adding scope:
 3. Run visual checks on an iPad simulator and with large Dynamic Type.
 4. Add an optional “Zu Liste hinzufügen” action directly to event detail after
    the Profile-based list workflow has received user feedback.
+
+## Release-Hinweise („Neu in dieser Version“)
+
+Neuerungen erscheinen ausschließlich über TestFlight („Was testen“), nicht als
+eigenes Popup in der App. Bei jeder Änderung, die in einen Build geht,
+`ios-native/TestFlight/WhatToTest.de-DE.txt` aktualisieren (max. 4.000 Zeichen,
+kurz, deutsch). Xcode Cloud übernimmt die Datei automatisch als Testhinweis.
+`KlangradarNative/Resources/WhatsNew.json` ist nur noch die Seite unter Profil.

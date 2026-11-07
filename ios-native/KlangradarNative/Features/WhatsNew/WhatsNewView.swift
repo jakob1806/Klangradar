@@ -135,5 +135,8 @@ private struct WhatsNewGate: ViewModifier {
 }
 
 extension View {
-    func whatsNewSheet(blocked: Bool) -> some View { modifier(WhatsNewGate(isBlocked: blocked)) }
+    /// 07.11.2026 (Nutzerwunsch): Neuerungen kommen nur noch über TestFlight
+    /// („Was testen“ aus TestFlight/WhatToTest.de-DE.txt, gesetzt von Xcode
+    /// Cloud) – kein eigenes Popup mehr. Unter Profil bleibt die Seite abrufbar.
+    func whatsNewSheet(blocked: Bool) -> some View { self }
 }
