@@ -1680,11 +1680,12 @@ private struct ProfileOverview: View {
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 14)
         .padding(.vertical, 6)
-        .task(id: auth.userID) { await load() }
-        .onAppear { Task { await load() } }
         .task(id: auth.userID) {
-            guard let repository, let token = auth.accessToken else { return }
-            friendCount = (try? await repository.friends(token: token).count) ?? friendCount
+            // 07.11.2026: letzter Stand sofort, dann alles parallel nachladen.
+            if let cached = ProfileSummaryCache.shared.cached(userID: auth.userID) { socialSummary = cached }
+            if let id = auth.userID, let cached = Self.profileCache[id] { profile = cached }
+            if let id = auth.userID, let cached = Self.friendCountCache[id] { friendCount = cached }
+            await load()
         }
         .sheet(isPresented: $showsPlus) { PlusPaywallView() }
     }
@@ -1719,9 +1720,16 @@ private struct ProfileOverview: View {
             profile = nil
             return
         }
-        profile = try? await repository.profile(userID: userID, token: token)
-        socialSummary = await repository.socialProfileSummary(userID: userID, token: token)
+        async let profileValue = try? repository.profile(userID: userID, token: token)
+        async let summaryValue = repository.socialProfileSummary(userID: userID, token: token)
+        async let friendsValue = try? repository.friends(token: token).count
+        if let loaded = await profileValue { profile = loaded; Self.profileCache[userID] = loaded }
+        socialSummary = await summaryValue
+        if let count = await friendsValue { friendCount = count; Self.friendCountCache[userID] = count }
     }
+
+    @MainActor private static var profileCache: [UUID: KlangradarUserProfile] = [:]
+    @MainActor private static var friendCountCache: [UUID: Int] = [:]
 }
 
 private struct AccountProfileEditView: View {
@@ -2725,6 +2733,9 @@ private struct ProfileContentSection: View {
     }
 
     private func load() async {
+        if let cached = ProfileSummaryCache.shared.cached(userID: auth.userID), summary.visits.isEmpty && summary.followed.isEmpty {
+            summary = cached
+        }
         guard let repository, let userID = auth.userID, let token = auth.accessToken else { isLoading = false; return }
         async let plannedRows = try? repository.plannedEvents(userID: userID, token: token)
         async let savedRows = try? repository.favoriteEvents(userID: userID, token: token)
@@ -2926,12 +2937,12 @@ struct CoachAmbientBackground: View {
 
 /// Miniaturbild eines erlebten Konzerts: Konzertbild, sonst eigenes Foto aus
 /// dem Tagebuch, sonst Notensymbol (07.11.2026).
-private struct VisitThumbnail: View {
+struct VisitThumbnail: View {
     let visit: VisitedConcert
     @State private var photoURL: URL?
 
     var body: some View {
-        CachedAsyncImage(url: visit.event?.primaryImageURL ?? photoURL, maxPixel: 160) { phase in
+        CachedAsyncImage(url: visit.event?.primaryImageURL ?? photoURL ?? visit.fallbackImageURL, maxPixel: 160) { phase in
             if let image = phase.image { image.resizable().scaledToFill() }
             else {
                 KlangradarTheme.accent.opacity(0.12)
