@@ -1,3 +1,4 @@
+import UniformTypeIdentifiers
 import SwiftUI
 import UIKit
 
@@ -22,6 +23,7 @@ struct ProfileAvatarEditor: View {
     @State private var source: ProfileImageSource?
     @State private var selectedImage: SelectedProfileImage?
     @State private var showsActions = false
+    @State private var showsFileImporter = false
     @State private var showsDeleteConfirmation = false
     @State private var isWorking = false
     @State private var errorMessage: String?
@@ -76,12 +78,24 @@ struct ProfileAvatarEditor: View {
                     source = .camera
                 }
             }
+            Button("Aus Dateien wählen", systemImage: "folder") {
+                showsFileImporter = true
+            }
             if avatarURL != nil {
                 Button("Profilbild löschen", systemImage: "trash", role: .destructive) {
                     showsDeleteConfirmation = true
                 }
             }
             Button("Abbrechen", role: .cancel) {}
+        }
+        // 07.11.2026: Profilbild auch aus der Dateien-App.
+        .fileImporter(isPresented: $showsFileImporter, allowedContentTypes: [.image]) { result in
+            guard case let .success(url) = result else { return }
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            if let data = try? Data(contentsOf: url), let image = UIImage(data: data) {
+                selectedImage = SelectedProfileImage(image: image.normalizedOrientation())
+            }
         }
         .alert("Profilbild löschen?", isPresented: $showsDeleteConfirmation) {
             Button("Löschen", role: .destructive) { Task { await deleteAvatar() } }

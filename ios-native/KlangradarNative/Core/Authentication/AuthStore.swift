@@ -44,7 +44,9 @@ final class AuthStore: ObservableObject {
         if case .failed = state { state = .loading }
         // Anbieter-Liste parallel und ohne den Start zu blockieren.
         Task { [weak self] in
-            let providers = (try? await service.enabledOAuthProviders()) ?? []
+            // 07.11.2026: Schlägt die Abfrage fehl (z. B. kurz offline),
+            // trotzdem Apple und Google anbieten statt die Knöpfe zu verstecken.
+            let providers = (try? await service.enabledOAuthProviders()) ?? ["apple", "google"]
             self?.enabledOAuthProviders = providers
         }
         // Sicherheitsnetz: nie länger als 20 s "Sitzung wird vorbereitet".

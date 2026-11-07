@@ -26,6 +26,7 @@ struct ProfileView: View {
     @EnvironmentObject private var cityStore: CityStore
     @EnvironmentObject private var follows: FollowStore
     @State private var showsLogin = false
+    @State private var showsWelcome = false
     @State private var showsSignUp = false
     @State private var showsOnboardingAfterSignIn = false
     @State private var showsPlus = false
@@ -199,6 +200,28 @@ struct ProfileView: View {
             // komplette Onboarding samt Willkommens-Bildschirm UND darüber das
             // Login-Sheet; nach "Abbrechen" blieb der Willkommens-Bildschirm
             // stehen. Jetzt nur das Login-Sheet; Registrierung erst auf Wunsch.
+            // 07.11.2026: Wer abgemeldet ist, sieht zuerst den Willkommens-
+            // Bildschirm mit Apple/Google, Anmelden und Konto erstellen.
+            .fullScreenCover(isPresented: $showsWelcome) {
+                NavigationStack {
+                    WelcomeStepView(
+                        auth: auth,
+                        onCreateAccount: {
+                            showsWelcome = false
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { showsSignUp = true }
+                        },
+                        onLogIn: {
+                            showsWelcome = false
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { showsLogin = true }
+                        },
+                        onContinueAsGuest: { showsWelcome = false },
+                        onAuthenticated: {
+                            showsWelcome = false
+                            Task { await continueOnboardingIfNeeded() }
+                        }
+                    )
+                }
+            }
             .sheet(isPresented: $showsLogin) {
                 PasswordLoginView(
                     auth: auth,
@@ -475,7 +498,7 @@ struct ProfileView: View {
             Text("Dein persönliches Klangradar").font(.title3.bold())
             Text("Melde dich an, um Konzerte zu merken, Freunden zu folgen und deine Konzertabende zu planen.")
                 .font(.subheadline).foregroundStyle(.secondary)
-            Button { showsLogin = true } label: {
+            Button { showsWelcome = true } label: {
                 Text("Anmelden").font(.headline).frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)

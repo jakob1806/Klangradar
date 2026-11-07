@@ -22,6 +22,16 @@ struct PersonalDataStepView: View {
 
     var body: some View {
         Form {
+            // 07.11.2026: Profilbild direkt im Onboarding (Mediathek, Dateien
+            // oder Kamera) – ohne Bild zeigt die App eine farbige Initiale.
+            Section {
+                VStack(spacing: 8) {
+                    ProfileAvatarEditor(auth: auth, repository: repository, size: 88)
+                    Text("Profilbild hinzufügen (optional)").font(.footnote).foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                .listRowBackground(Color.clear)
+            }
             Section {
                 TextField("Vorname", text: $firstName).textContentType(.givenName)
                 TextField("Nachname (optional)", text: $lastName).textContentType(.familyName)
@@ -32,7 +42,7 @@ struct PersonalDataStepView: View {
             } header: {
                 Text("Über dich")
             } footer: {
-                Text("Nachname und Geburtsdatum sind freiwillig. Profilbild, Telefonnummer und Adresse kannst du später im Profil ergänzen. Dein Geburtsdatum nutzen wir ausschließlich, um Altersfreigaben zu berücksichtigen und passendere Empfehlungen zu zeigen — es wird nirgends öffentlich angezeigt.")
+                Text("Nachname und Geburtsdatum sind freiwillig. Telefonnummer und Adresse kannst du später im Profil ergänzen. Dein Geburtsdatum nutzen wir ausschließlich, um Altersfreigaben zu berücksichtigen und passendere Empfehlungen zu zeigen — es wird nirgends öffentlich angezeigt.")
             }
             if let errorMessage {
                 Section { Label(errorMessage, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.red) }
