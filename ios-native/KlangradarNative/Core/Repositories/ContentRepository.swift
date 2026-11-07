@@ -197,7 +197,43 @@ struct LiveContentRepository: ContentRepository {
     }
 
     private func optionalLinkedEvents(kind: EntityKind, entityID: String) async -> [LinkedEvent] {
-        (try? await linkedEvents(kind: kind, entityID: entityID)) ?? []
+        let events = (try? await linkedEvents(kind: kind, entityID: entityID)) ?? []
+        return await withOwnGalleryImages(events)
+    }
+
+    /// 07.11.2026 (Nutzerfeedback: Konzertseite zeigt das ausgewählte Bild,
+    /// die Liste „Kommende Veranstaltungen“ der Spielstätte noch das alte):
+    /// eigene, freigegebene Galeriebilder des Termins stehen – wie auf der
+    /// Konzertseite (ConcertEvent.primaryImageURL) – vor dem Importbild.
+    private func withOwnGalleryImages(_ events: [LinkedEvent]) async -> [LinkedEvent] {
+        guard !events.isEmpty else { return events }
+        var byEvent: [String: [String]] = [:]
+        for start in stride(from: 0, to: events.count, by: 75) {
+            let chunk = events[start..<min(start + 75, events.count)].map(\.id)
+            let rows: [JSONObject] = (try? await client.get(table: "images", queryItems: [
+                URLQueryItem(name: "select", value: "origin_id,storage_path,source_url,sort_order"),
+                URLQueryItem(name: "origin_type", value: "eq.event"),
+                URLQueryItem(name: "origin_id", value: "in.(\(chunk.joined(separator: ",")))"),
+                URLQueryItem(name: "license_status", value: "in.(confirmed_free,confirmed_licensed,official_press_image)"),
+                URLQueryItem(name: "quality_status", value: "eq.valid"),
+                URLQueryItem(name: "order", value: "sort_order.asc")
+            ])) ?? []
+            for row in rows {
+                guard let origin = row.string("origin_id")?.lowercased() else { continue }
+                let url = row.string("storage_path").map { client.publicStorageURL(bucket: "ingested-images", path: $0).absoluteString }
+                    ?? row.string("source_url")
+                if let url { byEvent[origin, default: []].append(url) }
+            }
+        }
+        guard !byEvent.isEmpty else { return events }
+        return events.map { event in
+            guard let own = byEvent[event.id.lowercased()], !own.isEmpty else { return event }
+            return LinkedEvent(
+                id: event.id, slug: event.slug, title: event.title, startDate: event.startDate,
+                venueName: event.venueName, role: event.role, imageURLs: own + (event.imageURLs ?? []),
+                venueID: event.venueID, venuePhotoURL: event.venuePhotoURL, programWorks: event.programWorks
+            )
+        }
     }
 
     private func optionalSimilarItems(kind: EntityKind, row: JSONObject, entityID: String) async -> [DirectoryItem] {

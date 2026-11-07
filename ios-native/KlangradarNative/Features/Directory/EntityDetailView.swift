@@ -57,6 +57,10 @@ struct EntityDetailView: View {
                         }
                         if detail.kind != .work {
                             VStack(alignment: .leading, spacing: 8) {
+                                // 07.11.2026: Saalplan dezent unten im Eintrag.
+                                if detail.kind == .venue, let plan = detail.fields.string("seating_plan_url").flatMap(URL.init(string:)) {
+                                    seatingPlanLink(plan, title: detail.title)
+                                }
                                 if detail.primaryImageURL != nil || !detail.gallery.isEmpty {
                                     wrongImageLink(detail)
                                 }
@@ -215,6 +219,18 @@ struct EntityDetailView: View {
                 .accessibilityLabel(following ? "\(detail.title) wird gefolgt, zum Entfolgen antippen" : "\(detail.title) folgen")
                 if following { FollowBellButton(kind: detail.kind.rawValue, id: id, title: detail.title) }
             }
+        }
+    }
+
+    @ViewBuilder private func seatingPlanLink(_ url: URL, title: String) -> some View {
+        let label = Label("Saalplan", systemImage: "square.grid.3x3.topleft.filled")
+            .font(.subheadline.weight(.medium))
+            .foregroundStyle(KlangradarTheme.accent)
+        if !["jpg", "jpeg", "png", "webp"].contains(url.pathExtension.lowercased()) {
+            Link(destination: url) { label }
+        } else {
+            Button { showImage(url, title: "Saalplan · \(title)") } label: { label }
+                .buttonStyle(.plain)
         }
     }
 

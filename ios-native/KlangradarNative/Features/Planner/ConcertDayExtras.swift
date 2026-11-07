@@ -4,6 +4,7 @@
 import PhotosUI
 import SwiftUI
 import PassKit
+import VisionKit
 
 /// Wer steht auf der Bühne? Zwei Sätze aus der Biografie plus aktuelle Position.
 struct PerformerBriefs: View {
@@ -303,58 +304,50 @@ private struct TicketSeatEditor: View {
     @State private var walletPass: WalletPassItem?
     @State private var walletError: String?
     @State private var isLoadingWallet = false
+    @State private var ticketCode: TicketStore.TicketCode?
+    @State private var showsScanner = false
+    @State private var showsCodeEntry = false
+    @State private var manualCode = ""
+    @State private var showsSeatingPlan = false
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
-                    if let ticketImage {
-                        Button { showsTicket = true } label: {
-                            Image(uiImage: ticketImage).resizable().scaledToFit()
-                                .frame(maxWidth: .infinity, maxHeight: 220)
-                                .clipShape(.rect(cornerRadius: 12, style: .continuous))
+            // 07.11.2026 (Redesign): oben eine Vorschau im Stil der Wallet-
+            // Karte (Konzertbild, Termin, Platz, Code), darunter klar
+            // getrennte Bereiche Ticket, Platz, Saalplan, Wallet.
+            ScrollView {
+                VStack(alignment: .leading, spacing: 26) {
+                    passPreview
+                    ticketSection
+                    seatSection
+                    if let seatingPlanURL {
+                        if !["jpg", "jpeg", "png", "webp"].contains(seatingPlanURL.pathExtension.lowercased()) {
+                            Link(destination: seatingPlanURL) { rowLabel("Mein Platz im Saalplan", systemImage: "square.grid.3x3.topleft.filled") }
+                                .buttonStyle(.plain)
+                        } else {
+                            Button { showsSeatingPlan = true } label: { rowLabel("Mein Platz im Saalplan", systemImage: "square.grid.3x3.topleft.filled") }
+                                .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
-                        Button("Ticket öffnen (volle Helligkeit)", systemImage: "qrcode.viewfinder") { showsTicket = true }
-                            .fontWeight(.semibold)
-                        Menu { pickerButtons } label: { Label("Ticket ersetzen", systemImage: "arrow.triangle.2.circlepath") }
-                        Button("Ticket entfernen", systemImage: "trash", role: .destructive) {
-                            TicketStore.remove(for: event.id); self.ticketImage = nil
-                        }
-                    } else {
-                        pickerButtons
                     }
-                } header: { Text("Ticket") } footer: { Text("Foto, Screenshot oder PDF – bleibt nur auf deinem iPhone.") }
-
-                Section {
-                    TextField("Eingang", text: $seat.entrance)
-                    TextField("Block / Rang", text: $seat.block)
-                    TextField("Reihe", text: $seat.row)
-                    TextField("Platz", text: $seat.seat)
-                } header: { Text("Platz") } footer: { Text("Erscheint am Konzerttag auf dem Sperrbildschirm und in der Live-Aktivität.") }
-
-                if let seatingPlanURL {
-                    Section {
-                        Link(destination: seatingPlanURL) { Label("Saalplan ansehen", systemImage: "square.grid.3x3.topleft.filled") }
+                    if PKAddPassesViewController.canAddPasses() {
+                        VStack(spacing: 8) {
+                            AddToWalletButton { Task { await loadWalletPass() } }
+                                .frame(height: 46)
+                                .frame(maxWidth: .infinity)
+                                .opacity(isLoadingWallet ? 0.5 : 1)
+                                .accessibilityLabel("Zu Apple Wallet hinzufügen")
+                            Text(walletError ?? (ticketCode != nil
+                                 ? "Wallet-Karte mit Konzertbild, Platz und dem Code aus deinem Ticket."
+                                 : "Wallet-Karte mit Konzertbild, Termin und Platz für den Sperrbildschirm."))
+                                .font(.footnote).foregroundStyle(walletError == nil ? Color.secondary : Color.red)
+                                .multilineTextAlignment(.center)
+                        }
                     }
                 }
-
-                // Apple Wallet (06.11.2026): erst hier im Blatt, kleiner als
-                // vorher, und nur wenn Ticket oder Platz hinterlegt ist.
-                if PKAddPassesViewController.canAddPasses(), ticketImage != nil || !seat.isEmpty {
-                    Section {
-                        AddToWalletButton { Task { await loadWalletPass() } }
-                            .frame(height: 40)
-                            .frame(maxWidth: 260)
-                            .frame(maxWidth: .infinity)
-                            .opacity(isLoadingWallet ? 0.5 : 1)
-                            .accessibilityLabel("Zu Apple Wallet hinzufügen")
-                            .listRowBackground(Color.clear)
-                    } footer: {
-                        Text(walletError ?? "Karte mit Termin, Ort und Platz für den Sperrbildschirm.")
-                    }
-                }
+                .padding(KlangradarTheme.pagePadding)
+                .padding(.bottom, 30)
             }
+            .background(Color(uiColor: .systemGroupedBackground))
             .navigationTitle("Ticket & Platz")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -380,18 +373,44 @@ private struct TicketSeatEditor: View {
                     ticketPick = nil
                 }
             }
+            .sheet(isPresented: $showsScanner) {
+                TicketCodeScanner { code in
+                    TicketStore.saveCode(code, for: event.id); ticketCode = code; showsScanner = false; Haptics.confirm()
+                }
+                .ignoresSafeArea()
+            }
+            .sheet(isPresented: $showsSeatingPlan) {
+                if let seatingPlanURL { SeatingPlanSheet(url: seatingPlanURL, seat: seat, title: event.venueName) }
+            }
+            .alert("Code einfügen", isPresented: $showsCodeEntry) {
+                TextField("Inhalt des QR-Codes", text: $manualCode)
+                Button("Speichern") {
+                    let value = manualCode.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let code = value.isEmpty ? nil : TicketStore.TicketCode(payload: value, format: "qr")
+                    TicketStore.saveCode(code, for: event.id); ticketCode = code
+                }
+                Button("Abbrechen", role: .cancel) {}
+            } message: { Text("Zum Beispiel die Ticketnummer oder den Text hinter dem QR-Code aus der Bestätigungsmail.") }
             .sheet(item: $walletPass) { item in
                 AddPassSheet(pass: item.pass).ignoresSafeArea()
             }
             .fullScreenCover(isPresented: $showsTicket) {
-                if let ticketImage {
-                    TicketFullScreen(image: ticketImage) { showsTicket = false } onRemove: {
+                if let image = ticketCode.flatMap({ TicketStore.render($0) }) ?? ticketImage {
+                    TicketFullScreen(image: image) { showsTicket = false } onRemove: {
                         TicketStore.remove(for: event.id); self.ticketImage = nil; showsTicket = false
                     }
                 }
             }
         }
         .presentationDetents([.large])
+        .task {
+            ticketCode = TicketStore.code(for: event.id)
+            // Ältere Tickets ohne gespeicherten Code einmal nachträglich prüfen.
+            if ticketCode == nil, let ticketImage, let code = await TicketStore.detectCode(in: ticketImage) {
+                TicketStore.saveCode(code, for: event.id)
+                ticketCode = code
+            }
+        }
     }
 
     @ViewBuilder private var pickerButtons: some View {
@@ -403,6 +422,180 @@ private struct TicketSeatEditor: View {
         TicketStore.save(image, for: event.id)
         ticketImage = image
         Haptics.confirm()
+        Task {
+            let code = await TicketStore.detectCode(in: image)
+            TicketStore.saveCode(code, for: event.id)
+            ticketCode = code
+        }
+    }
+
+    // MARK: Bausteine (07.11.2026)
+
+    private var dateLine: String {
+        guard let start = event.startDate else { return "" }
+        return KlangradarDateTime.string(start, format: "EEEE, d. MMMM · HH:mm")
+    }
+
+    private var passPreview: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            CachedAsyncImage(url: event.primaryImageURL, maxPixel: 900) { phase in
+                if let image = phase.image { image.resizable().scaledToFill() }
+                else { LinearGradient(colors: [KlangradarTheme.accent, .black], startPoint: .topLeading, endPoint: .bottomTrailing) }
+            }
+            .frame(height: 130)
+            .frame(maxWidth: .infinity)
+            .clipped()
+            .overlay(alignment: .bottomLeading) {
+                LinearGradient(colors: [.clear, Color(red: 0.086, green: 0.078, blue: 0.118)], startPoint: .top, endPoint: .bottom)
+                    .frame(height: 60).frame(maxWidth: .infinity).allowsHitTesting(false)
+            }
+            VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(event.title).font(.system(.title3, design: .serif).weight(.semibold)).foregroundStyle(.white).lineLimit(3)
+                    Text(dateLine).font(.subheadline).foregroundStyle(.white.opacity(0.75))
+                    Text(event.venueName).font(.subheadline).foregroundStyle(.white.opacity(0.75)).lineLimit(1)
+                }
+                HStack(spacing: 0) {
+                    passField("EINGANG", seat.entrance)
+                    passField("BLOCK", seat.block)
+                    passField("REIHE", seat.row)
+                    passField("PLATZ", seat.seat)
+                }
+                // Perforation wie bei einer Eintrittskarte
+                PerforationLine().stroke(style: StrokeStyle(lineWidth: 1, dash: [4, 4])).foregroundStyle(.white.opacity(0.25)).frame(height: 1)
+                Button { if ticketImage != nil || ticketCode != nil { showsTicket = true } else { showsPhotoPicker = true } } label: {
+                    HStack(spacing: 14) {
+                        Group {
+                            if let code = ticketCode, let rendered = TicketStore.render(code, scale: 6) {
+                                Image(uiImage: rendered).interpolation(.none).resizable().scaledToFit().padding(6).background(.white)
+                            } else if let ticketImage {
+                                Image(uiImage: ticketImage).resizable().scaledToFill()
+                            } else {
+                                Image(systemName: "qrcode").font(.title2).foregroundStyle(.white.opacity(0.6))
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity).background(.white.opacity(0.08))
+                            }
+                        }
+                        .frame(width: 72, height: 72)
+                        .clipShape(.rect(cornerRadius: 10, style: .continuous))
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(ticketImage == nil && ticketCode == nil ? "Ticket hinzufügen" : "Ticket öffnen")
+                                .font(.headline).foregroundStyle(.white)
+                            Text(ticketStatus).font(.caption).foregroundStyle(.white.opacity(0.7))
+                        }
+                        Spacer(minLength: 0)
+                        Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.white.opacity(0.5))
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(18)
+        }
+        .background(Color(red: 0.086, green: 0.078, blue: 0.118))
+        .clipShape(.rect(cornerRadius: 24, style: .continuous))
+        .shadow(color: .black.opacity(0.18), radius: 16, y: 8)
+        .accessibilityElement(children: .contain)
+    }
+
+    private var ticketStatus: String {
+        if let code = ticketCode { return "\(code.format.uppercased())-Code erkannt · scharf für den Einlass" }
+        if ticketImage != nil { return "Foto hinterlegt · volle Helligkeit beim Öffnen" }
+        return "Foto, Screenshot oder PDF – bleibt auf deinem iPhone"
+    }
+
+    private func passField(_ label: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label).font(.caption2.weight(.semibold)).tracking(0.8)
+                .foregroundStyle(Color(red: 0.77, green: 0.67, blue: 0.47))
+            Text(value.isEmpty ? "–" : value).font(.headline).foregroundStyle(.white).lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder private var ticketSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            sectionTitle("Ticket")
+            if ticketImage == nil {
+                HStack(spacing: 10) {
+                    bigTile("Foto oder\nScreenshot", systemImage: "photo.on.rectangle") { showsPhotoPicker = true }
+                    bigTile("PDF oder\nDatei", systemImage: "doc.richtext") { showsFileImporter = true }
+                }
+            }
+            // Code direkt hinterlegen (07.11.2026): mit der Kamera vom Papier-
+            // oder Bildschirmticket scannen oder als Text einfügen.
+            VStack(spacing: 0) {
+                if DataScannerViewController.isSupported {
+                    Button { showsScanner = true } label: { rowLabel(ticketCode == nil ? "Code mit der Kamera scannen" : "Code neu scannen", systemImage: "qrcode.viewfinder") }
+                        .buttonStyle(.plain)
+                    Divider().padding(.leading, 48)
+                }
+                Button { manualCode = ticketCode?.payload ?? ""; showsCodeEntry = true } label: { rowLabel("Code als Text einfügen", systemImage: "text.cursor") }
+                    .buttonStyle(.plain)
+            }
+            .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 16, style: .continuous))
+            if ticketImage != nil || ticketCode != nil {
+                VStack(spacing: 0) {
+                    Menu { pickerButtons } label: { rowLabel("Ticket ersetzen", systemImage: "arrow.triangle.2.circlepath") }
+                    Divider().padding(.leading, 48)
+                    Button(role: .destructive) {
+                        TicketStore.remove(for: event.id); TicketStore.saveCode(nil, for: event.id); ticketImage = nil; ticketCode = nil
+                    } label: { rowLabel("Ticket entfernen", systemImage: "trash", tint: .red) }
+                }
+                .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 16, style: .continuous))
+            }
+        }
+    }
+
+    private var seatSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            sectionTitle("Platz")
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+                seatField("Eingang", text: $seat.entrance)
+                seatField("Block / Rang", text: $seat.block)
+                seatField("Reihe", text: $seat.row)
+                seatField("Platz", text: $seat.seat)
+            }
+            Text("Erscheint am Konzerttag auf dem Sperrbildschirm und in der Live-Aktivität.")
+                .font(.footnote).foregroundStyle(.secondary)
+        }
+    }
+
+    private func seatField(_ label: String, text: Binding<String>) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            TextField("–", text: text).font(.title3.weight(.semibold)).textInputAutocapitalization(.characters)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 14, style: .continuous))
+    }
+
+    private func sectionTitle(_ title: String) -> some View {
+        Text(title).font(.title3.weight(.semibold))
+    }
+
+    private func bigTile(_ title: String, systemImage: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 10) {
+                Image(systemName: systemImage).font(.title2).foregroundStyle(KlangradarTheme.accent)
+                Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(.primary).multilineTextAlignment(.leading)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, minHeight: 96, alignment: .topLeading)
+            .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 16, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func rowLabel(_ title: String, systemImage: String, tint: Color = KlangradarTheme.accent) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: systemImage).foregroundStyle(tint).frame(width: 22)
+            Text(title).foregroundStyle(tint == .red ? .red : .primary)
+            Spacer()
+            Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+        }
+        .padding(.horizontal, 14).padding(.vertical, 13)
+        .background(tint == .red ? Color.clear : Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 16, style: .continuous))
+        .contentShape(Rectangle())
     }
 }
 
@@ -423,6 +616,7 @@ extension TicketSeatEditor {
         let items = [URLQueryItem(name: "slug", value: event.slug),
                      URLQueryItem(name: "entrance", value: seat.entrance), URLQueryItem(name: "block", value: seat.block),
                      URLQueryItem(name: "row", value: seat.row), URLQueryItem(name: "seat", value: seat.seat)]
+            + (ticketCode.map { [URLQueryItem(name: "code", value: $0.payload), URLQueryItem(name: "format", value: $0.format)] } ?? [])
         do {
             let data = try await client.edgeFunctionData("wallet-pass", queryItems: items, accessToken: SocialStore.shared.token)
             walletPass = WalletPassItem(pass: try PKPass(data: data))
@@ -455,4 +649,97 @@ private struct AddPassSheet: UIViewControllerRepresentable {
         PKAddPassesViewController(pass: pass) ?? UIViewController()
     }
     func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}
+}
+
+
+/// Gestrichelte Trennlinie (Perforation) in der Ticket-Vorschau.
+private struct PerforationLine: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX, y: rect.midY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
+        return path
+    }
+}
+
+
+/// Kamera-Scanner für Ticket-Codes (VisionKit, iOS 16+).
+private struct TicketCodeScanner: UIViewControllerRepresentable {
+    let onFound: (TicketStore.TicketCode) -> Void
+
+    func makeUIViewController(context: Context) -> DataScannerViewController {
+        let controller = DataScannerViewController(
+            recognizedDataTypes: [.barcode(symbologies: [.qr, .aztec, .pdf417, .code128])],
+            qualityLevel: .accurate, recognizesMultipleItems: false, isHighFrameRateTrackingEnabled: false,
+            isHighlightingEnabled: true
+        )
+        controller.delegate = context.coordinator
+        try? controller.startScanning()
+        return controller
+    }
+
+    func updateUIViewController(_ uiViewController: DataScannerViewController, context: Context) {}
+    func makeCoordinator() -> Coordinator { Coordinator(onFound: onFound) }
+
+    final class Coordinator: NSObject, DataScannerViewControllerDelegate {
+        let onFound: (TicketStore.TicketCode) -> Void
+        private var done = false
+        init(onFound: @escaping (TicketStore.TicketCode) -> Void) { self.onFound = onFound }
+
+        func dataScanner(_ dataScanner: DataScannerViewController, didAdd addedItems: [RecognizedItem], allItems: [RecognizedItem]) {
+            guard !done else { return }
+            for item in addedItems {
+                guard case let .barcode(barcode) = item, let payload = barcode.payloadStringValue, !payload.isEmpty else { continue }
+                let format: String
+                switch barcode.observation.symbology {
+                case .aztec: format = "aztec"
+                case .pdf417: format = "pdf417"
+                case .code128: format = "code128"
+                default: format = "qr"
+                }
+                done = true
+                dataScanner.stopScanning()
+                onFound(TicketStore.TicketCode(payload: payload, format: format))
+                return
+            }
+        }
+    }
+}
+
+/// Saalplan mit Zoom und dem eigenen Platz als Hinweis (07.11.2026).
+/// Später: Platz direkt im Plan markieren, sobald Pläne Koordinaten haben.
+private struct SeatingPlanSheet: View {
+    let url: URL
+    let seat: ConcertSeat
+    let title: String
+    @Environment(\.dismiss) private var dismiss
+    @State private var scale: CGFloat = 1
+    @GestureState private var pinch: CGFloat = 1
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                if !seat.isEmpty {
+                    Label(seat.summary, systemImage: "mappin.and.ellipse")
+                        .font(.subheadline.weight(.semibold))
+                        .padding(.horizontal, 14).padding(.vertical, 10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(KlangradarTheme.accent.opacity(0.1))
+                }
+                ScrollView([.horizontal, .vertical]) {
+                    CachedAsyncImage(url: url, maxPixel: 2400) { phase in
+                        if let image = phase.image { image.resizable().scaledToFit() }
+                        else { ProgressView().frame(maxWidth: .infinity, minHeight: 300) }
+                    }
+                    .frame(width: UIScreen.main.bounds.width * scale * pinch)
+                    .gesture(MagnifyGesture().updating($pinch) { value, state, _ in state = value.magnification }
+                        .onEnded { value in scale = min(max(scale * value.magnification, 1), 5) })
+                    .onTapGesture(count: 2) { withAnimation { scale = scale > 1 ? 1 : 2.5 } }
+                }
+            }
+            .navigationTitle("Saalplan")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fertig") { dismiss() } } }
+        }
+    }
 }

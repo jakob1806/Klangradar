@@ -7,7 +7,7 @@
 import { splitPriceInfo } from "../_shared/priceInText.ts";
 import { upgradeImageUrl } from "../_shared/imageUrlUpgrade.ts";
 import { detectEventStatus } from "./cancellation.ts";
-import { findEventMatch, resolveVenue } from "./matching.ts";
+import { findEventMatch, findImportDuplicate, resolveVenue } from "./matching.ts";
 import type { RawEvent } from "./types.ts";
 import { detectEventCoverImage } from "../_shared/coverImageDetection.ts";
 import { ensureCoverImage } from "../_shared/imagePipeline.ts";
@@ -278,7 +278,16 @@ export async function upsertRawEvent(
       // at all) before we fall back to creating a brand-new event.
     }
 
-    const match = await findEventMatch(supabase, raw.title, venueId, raw.startDateTime, raw.castNames);
+    let match = await findEventMatch(supabase, raw.title, venueId, raw.startDateTime, raw.castNames);
+    // 07.11.2026 (Nutzerfeedback: Concerti/BR/Staatsoper legen dasselbe
+    // Konzert mehrfach an): Bevor ein neuer Termin entsteht, dieselben
+    // Regeln wie die Dubletten-Auflösung (Migration 159/161) prüfen –
+    // gleiche Zeit, gleicher Saal (auch doppelt angelegte Spielstätte),
+    // gemeinsames Titelwort/Besetzung. Treffer -> zusammenführen statt anlegen.
+    if (!match || match.similarity < 0.7) {
+      const duplicateId = await findImportDuplicate(supabase, raw.title, venueId, raw.startDateTime, raw.castNames);
+      if (duplicateId) match = { id: duplicateId, similarity: 0.7 };
+    }
 
     if (match && match.similarity >= 0.7) {
       const { data: existing, error } = await supabase

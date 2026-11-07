@@ -147,3 +147,27 @@ export async function findEventMatch(
   const best = (data ?? [])[0];
   return best ? { id: best.id, similarity: best.similarity } : null;
 }
+
+/** Vorab-Dublettenprüfung vor dem Anlegen eines neuen Termins (07.11.2026):
+ * nutzt dieselben Regeln wie die Dubletten-Auflösung in der Datenbank
+ * (RPC find_import_duplicate, Migration 161). Best-effort: Fehler -> null. */
+export async function findImportDuplicate(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  title: string,
+  venueId: string,
+  startDateTime: string,
+  castNames?: string[] | null,
+): Promise<string | null> {
+  const { data, error } = await supabase.rpc("find_import_duplicate", {
+    p_title: title,
+    p_venue_id: venueId,
+    p_start_datetime: startDateTime,
+    p_cast_names: castNames && castNames.length > 0 ? castNames : null,
+  });
+  if (error) {
+    console.error(`find_import_duplicate RPC failed: ${error.message}`);
+    return null;
+  }
+  return typeof data === "string" ? data : null;
+}

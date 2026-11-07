@@ -1,8 +1,10 @@
 // Erstellt von Claude Code (02.11.2026): Konzertkarte für Apple Wallet.
 // GET /wallet-pass?slug=<event-slug>&entrance=&block=&row=&seat=
 // Liefert eine signierte .pkpass-Datei (application/vnd.apple.pkpass).
-// Kein Eintrittsticket: kein Barcode – nur Datum, Ort und eigener Platz,
-// damit die Karte zur richtigen Zeit auf dem Sperrbildschirm erscheint.
+// 07.11.2026 (Redesign): dunkle Karte mit Konzertbild als Streifen, und –
+// wenn die App im hinterlegten Ticket einen Code erkannt hat – dessen
+// Inhalt als echter Barcode (&code=…&format=qr|aztec|pdf417|code128),
+// damit die Karte am Einlass gescannt werden kann.
 //
 // Secrets (in Supabase → Edge Functions → Secrets):
 //   WALLET_P12_BASE64    – Pass-Type-ID-Zertifikat samt Schlüssel (.p12, base64)
@@ -13,6 +15,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import forge from "npm:node-forge@1.3.1";
 import { strToU8, zipSync } from "npm:fflate@0.8.2";
 import { PASS_IMAGES } from "../_shared/walletPassImages.ts";
+import { Image } from "npm:imagescript@1.3.0";
 
 const WWDR_URL = "https://www.apple.com/certificateauthority/AppleWWDRCAG4.cer";
 let wwdrCache: forge.pki.Certificate | null = null;
@@ -56,11 +59,18 @@ Deno.serve(async (req) => {
 
   const db = createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "");
   const { data: event } = await db.from("events")
-    .select("id, slug, title, start_datetime, venues(name, address_street, address_city)")
+    .select("id, slug, title, start_datetime, image_urls, venues(name, address_street, address_city, photo_url)")
     .eq("slug", slug).neq("status", "draft").maybeSingle();
   if (!event) return new Response("Konzert nicht gefunden", { status: 404 });
   // deno-lint-ignore no-explicit-any
-  const venue = (event as any).venues as { name?: string; address_street?: string; address_city?: string } | null;
+  const venue = (event as any).venues as { name?: string; address_street?: string; address_city?: string; photo_url?: string } | null;
+  const code = (url.searchParams.get("code") ?? "").slice(0, 2000);
+  const formatMap: Record<string, string> = {
+    qr: "PKBarcodeFormatQR", aztec: "PKBarcodeFormatAztec", pdf417: "PKBarcodeFormatPDF417", code128: "PKBarcodeFormatCode128",
+  };
+  const barcodeFormat = formatMap[(url.searchParams.get("format") ?? "qr").toLowerCase()] ?? "PKBarcodeFormatQR";
+  // deno-lint-ignore no-explicit-any
+  const imageUrl = ((event as any).image_urls?.[0] as string | undefined) ?? venue?.photo_url ?? null;
 
   const seatParts = (["entrance", "block", "row", "seat"] as const)
     .map((k) => [k, (url.searchParams.get(k) ?? "").trim().slice(0, 30)] as const)
@@ -75,10 +85,20 @@ Deno.serve(async (req) => {
     organizationName: "Klangradar",
     description: `Konzert: ${event.title}`,
     logoText: "Klangradar",
-    backgroundColor: "rgb(20, 97, 148)",
+    backgroundColor: "rgb(22, 20, 30)",
     foregroundColor: "rgb(255, 255, 255)",
-    labelColor: "rgb(200, 225, 240)",
+    labelColor: "rgb(196, 170, 120)",
     relevantDate: event.start_datetime,
+    ...(code ? {
+      barcodes: [{ format: barcodeFormat, message: code, messageEncoding: "iso-8859-1" }],
+      barcode: { format: barcodeFormat, message: code, messageEncoding: "iso-8859-1" },
+    } : {}),
+    semantics: {
+      eventName: event.title,
+      eventStartDate: event.start_datetime,
+      ...(venue?.name ? { venueName: venue.name } : {}),
+      eventType: "PKEventTypeLivePerformance",
+    },
     eventTicket: {
       primaryFields: [{ key: "event", label: "KONZERT", value: event.title }],
       secondaryFields: [
@@ -89,13 +109,34 @@ Deno.serve(async (req) => {
       backFields: [
         ...(venue?.address_street ? [{ key: "address", label: "Adresse", value: [venue.address_street, venue.address_city].filter(Boolean).join(", ") }] : []),
         { key: "link", label: "Konzertseite", value: `https://klangradar.com/e/${event.slug}` },
-        { key: "hint", label: "Hinweis", value: "Diese Karte ersetzt nicht dein Ticket. Sie erinnert dich an Termin, Ort und Platz." },
+        { key: "hint", label: "Hinweis", value: code
+          ? "Der Code stammt aus deinem hinterlegten Ticket. Im Zweifel gilt das Originalticket des Veranstalters."
+          : "Diese Karte ersetzt nicht dein Ticket. Sie erinnert dich an Termin, Ort und Platz." },
       ],
     },
   };
 
   const files: Record<string, Uint8Array> = { "pass.json": strToU8(JSON.stringify(pass)) };
   for (const [name, b64] of Object.entries(PASS_IMAGES)) files[name] = base64ToBytes(b64);
+  // Konzertbild als Streifen (375×98 / 750×196). Best-effort: Bildformate,
+  // die imagescript nicht lesen kann (z. B. WebP), lassen die Karte ohne Bild.
+  if (imageUrl) {
+    try {
+      const res = await fetch(imageUrl, { signal: AbortSignal.timeout(6000) });
+      if (res.ok) {
+        const source = await Image.decode(new Uint8Array(await res.arrayBuffer()));
+        for (const [name, w, h] of [["strip.png", 375, 98], ["strip@2x.png", 750, 196]] as const) {
+          const scale = Math.max(w / source.width, h / source.height);
+          const resized = source.clone().resize(Math.ceil(source.width * scale), Math.ceil(source.height * scale));
+          const x = Math.max(0, Math.floor((resized.width - w) / 2));
+          const y = Math.max(0, Math.floor((resized.height - h) / 3));
+          files[name] = await resized.crop(x, y, w, h).encode();
+        }
+      }
+    } catch (err) {
+      console.warn("wallet-pass strip", err instanceof Error ? err.message : String(err));
+    }
+  }
   const manifest: Record<string, string> = {};
   for (const [name, bytes] of Object.entries(files)) manifest[name] = sha1Hex(bytes);
   const manifestBytes = strToU8(JSON.stringify(manifest));
