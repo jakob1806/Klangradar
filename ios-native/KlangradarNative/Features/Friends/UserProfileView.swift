@@ -118,52 +118,51 @@ struct UserProfileView: View {
         .refreshable { await load() }
     }
 
+    // 07.11.2026: kompakter Kopf wie bei Instagram – Bild links, rechts
+    // Name, Status und Zahlen in einer Reihe; Match und Bio darunter.
     private func header(_ profile: UserProfile) -> some View {
-        VStack(spacing: 14) {
-            SocialAvatar(name: profile.person.name, url: profile.person.avatarURL, size: 104)
-                .overlay { Circle().strokeBorder(.white.opacity(0.9), lineWidth: 3) }
-                .shadow(color: .black.opacity(0.18), radius: 14, y: 6)
-            VStack(spacing: 4) {
-                Text(profile.person.name).font(.system(.title, design: .serif).weight(.semibold))
-                if profile.isFriend {
-                    HStack(spacing: 10) {
-                        Label(profile.isClose ? "Enge:r Freund:in" : "Befreundet", systemImage: profile.isClose ? "star.fill" : "person.2.fill")
-                        if profile.isMuted { Label("Stumm", systemImage: "bell.slash.fill").foregroundStyle(.secondary) }
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .center, spacing: 18) {
+                SocialAvatar(name: profile.person.name, url: profile.person.avatarURL, size: 88)
+                    .overlay { Circle().strokeBorder(.white, lineWidth: 3) }
+                    .shadow(color: .black.opacity(0.15), radius: 10, y: 4)
+                VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(profile.person.name).font(.system(.title2, design: .serif).weight(.semibold)).lineLimit(2)
+                        if profile.isFriend {
+                            HStack(spacing: 8) {
+                                Label(profile.isClose ? "Enge:r Freund:in" : "Befreundet", systemImage: profile.isClose ? "star.fill" : "checkmark.circle.fill")
+                                if profile.isMuted { Label("Stumm", systemImage: "bell.slash.fill").foregroundStyle(.secondary) }
+                            }
+                            .font(.caption.weight(.semibold)).foregroundStyle(KlangradarTheme.accent)
+                        }
                     }
-                    .font(.caption.weight(.semibold)).foregroundStyle(KlangradarTheme.accent)
+                    if profile.visible {
+                        HStack(spacing: 18) {
+                            stat(profile.concerts, profile.concerts == 1 ? "Konzert" : "Konzerte")
+                            stat(profile.friends, "Freunde")
+                            stat(profile.mutualFriends, "gemeinsam")
+                        }
+                    }
                 }
+                Spacer(minLength: 0)
+            }
+            if let bio = profile.bio, !bio.isEmpty {
+                Text(bio).font(.subheadline).foregroundStyle(.secondary)
             }
             if let match = profile.tasteMatch {
                 tasteMatchBadge(match)
             }
-            if let bio = profile.bio, !bio.isEmpty {
-                Text(bio).font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
-            }
-            if profile.visible {
-                HStack(spacing: 0) {
-                    stat(profile.concerts, profile.concerts == 1 ? "Konzert" : "Konzerte")
-                    Divider().frame(height: 30)
-                    stat(profile.friends, "Freunde")
-                    Divider().frame(height: 30)
-                    stat(profile.mutualFriends, "Gemeinsam")
-                }
-                .padding(.vertical, 10)
-                .background(.thinMaterial, in: .rect(cornerRadius: 18, style: .continuous))
-            }
             if !profile.isFriend {
                 RelationButton(person: profile.person, source: "profile") { _ in Task { await load() } }
                     .controlSize(.large)
+                    .frame(maxWidth: .infinity)
             }
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, KlangradarTheme.pagePadding)
-        .padding(.top, 24)
-        .padding(.bottom, 20)
-        .background(alignment: .top) {
-            LinearGradient(colors: [KlangradarTheme.accent.opacity(0.28), KlangradarTheme.accent.opacity(0.0)], startPoint: .top, endPoint: .bottom)
-                .frame(height: 220)
-                .ignoresSafeArea(edges: .top)
-        }
+        .padding(.top, 20)
+        .padding(.bottom, 16)
     }
 
     /// Geschmacks-Match in Prozent (Kosinus über gefolgte Künstler:innen,
@@ -183,8 +182,9 @@ struct UserProfileView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
-        .padding(.horizontal, 14).padding(.vertical, 8)
-        .background(.thinMaterial, in: .capsule)
+        .padding(.horizontal, 14).padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(uiColor: .secondarySystemBackground), in: .rect(cornerRadius: 16, style: .continuous))
         .accessibilityElement(children: .combine)
     }
 
@@ -260,11 +260,10 @@ struct UserProfileView: View {
     }
 
     private func stat(_ value: Int, _ label: String) -> some View {
-        VStack(spacing: 2) {
-            Text("\(value)").font(.title3.bold()).monospacedDigit()
+        VStack(alignment: .leading, spacing: 0) {
+            Text("\(value)").font(.headline).monospacedDigit()
             Text(label).font(.caption).foregroundStyle(.secondary)
         }
-        .frame(maxWidth: .infinity)
     }
 
     private func load() async {

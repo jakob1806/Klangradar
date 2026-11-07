@@ -438,41 +438,45 @@ struct BuddySection: View {
         }
     }
 
+    // 07.11.2026: Konzertbild oben, Freund:in darauf, klare Textzeilen.
     private func card(_ item: BuddySuggestion) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: -10) {
-                CachedAsyncImage(url: item.event.imageURL, maxPixel: 240) { phase in
-                    if let image = phase.image { image.resizable().scaledToFill() }
-                    else { KlangradarTheme.accent.opacity(0.15).overlay { Image(systemName: "music.note").foregroundStyle(KlangradarTheme.accent) } }
-                }
-                .frame(width: 52, height: 52)
-                .clipShape(.rect(cornerRadius: 12, style: .continuous))
-                SocialAvatar(name: item.friend.name, url: item.friend.avatarURL, size: 40)
+        VStack(alignment: .leading, spacing: 0) {
+            CachedAsyncImage(url: item.event.imageURL, maxPixel: 480) { phase in
+                if let image = phase.image { image.resizable().scaledToFill() }
+                else { KlangradarTheme.accent.opacity(0.15).overlay { Image(systemName: "music.note").foregroundStyle(KlangradarTheme.accent) } }
+            }
+            .frame(width: 220, height: 110)
+            .clipped()
+            .overlay(alignment: .bottomLeading) {
+                SocialAvatar(name: item.friend.name, url: item.friend.avatarURL, size: 46)
                     .overlay { Circle().stroke(Color(uiColor: .secondarySystemBackground), lineWidth: 3) }
-                    .offset(y: 12)
+                    .offset(x: 14, y: 23)
             }
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(item.friend.name).font(.headline).lineLimit(1)
-                Text(item.reason).font(.caption).foregroundStyle(KlangradarTheme.accent).lineLimit(1)
-                Text(item.event.title).font(.caption).foregroundStyle(.secondary).lineLimit(2)
-                Text(item.event.start.map { KlangradarDateTime.string($0, format: "EE d. MMM") } ?? "").font(.caption2).foregroundStyle(.secondary)
+                Text(item.reason).font(.caption.weight(.semibold)).foregroundStyle(KlangradarTheme.accent).lineLimit(1)
+                Text(item.event.title).font(.caption).foregroundStyle(.primary).lineLimit(2)
+                Text(item.event.start.map { KlangradarDateTime.string($0, format: "EE, d. MMM") } ?? "").font(.caption2).foregroundStyle(.secondary)
+                Spacer(minLength: 8)
+                Button {
+                    Task { await ask(item) }
+                } label: {
+                    Label(asked.contains(item.id) ? "Gefragt" : "Mitnehmen", systemImage: asked.contains(item.id) ? "checkmark" : "paperplane.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity).frame(height: 34)
+                }
+                .buttonStyle(.borderedProminent)
+                .buttonBorderShape(.capsule)
+                .tint(KlangradarTheme.accent)
+                .disabled(asked.contains(item.id))
             }
-            Spacer(minLength: 0)
-            Button {
-                Task { await ask(item) }
-            } label: {
-                Label(asked.contains(item.id) ? "Gefragt" : "Fragen", systemImage: asked.contains(item.id) ? "checkmark" : "paperplane.fill")
-                    .font(.subheadline.weight(.semibold))
-                    .frame(maxWidth: .infinity).frame(height: 36)
-            }
-            .buttonStyle(.borderedProminent)
-            .buttonBorderShape(.capsule)
-            .tint(KlangradarTheme.accent)
-            .disabled(asked.contains(item.id))
+            .padding(.horizontal, 14)
+            .padding(.top, 30)
+            .padding(.bottom, 14)
         }
-        .padding(14)
-        .frame(width: 200, height: 250, alignment: .topLeading)
-        .background(Color(uiColor: .secondarySystemBackground), in: .rect(cornerRadius: 22, style: .continuous))
+        .frame(width: 220, height: 290, alignment: .topLeading)
+        .background(Color(uiColor: .secondarySystemBackground))
+        .clipShape(.rect(cornerRadius: 22, style: .continuous))
     }
 
     private func ask(_ item: BuddySuggestion) async {
