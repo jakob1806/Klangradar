@@ -627,7 +627,7 @@ private struct TicketSeatEditor: View {
                     if PKAddPassesViewController.canAddPasses() {
                         VStack(spacing: 8) {
                             AddToWalletButton { Task { await loadWalletPass() } }
-                                .frame(height: 46)
+                                .frame(width: 240, height: 44)
                                 .frame(maxWidth: .infinity)
                                 .opacity(isLoadingWallet ? 0.5 : 1)
                                 .accessibilityLabel("Zu Apple Wallet hinzufügen")
@@ -723,6 +723,13 @@ private struct TicketSeatEditor: View {
         detectionNote = "Suche nach Codes …"
         Task {
             let codes = await TicketStore.detectCodes(in: pages ?? [image])
+            // Platz aus dem Ticket übernehmen, nur leere Felder füllen.
+            let found = await TicketStore.detectSeat(in: pages ?? [image])
+            if seat.entrance.isEmpty { seat.entrance = found.entrance }
+            if seat.block.isEmpty { seat.block = found.block }
+            if seat.row.isEmpty { seat.row = found.row }
+            if seat.seat.isEmpty { seat.seat = found.seat }
+            if !found.isEmpty { SharedSeatStore.save(seat, forSlug: event.slug) }
             TicketStore.saveCodes(codes, for: event.id)
             ticketCodes = codes
             openCodeIndex = 0
@@ -742,64 +749,98 @@ private struct TicketSeatEditor: View {
         return KlangradarDateTime.string(start, format: "EEEE, d. MMMM · HH:mm")
     }
 
+    // 08.11.2026: Vorschau wie die echte Wallet-Karte (Nachtblau, Mint,
+    // Klangradar-K; Konzertfoto oder Plakat-Titel), nur ausgefüllte Felder.
     private var passPreview: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            CachedAsyncImage(url: event.primaryImageURL, maxPixel: 900) { phase in
-                if let image = phase.image { image.resizable().scaledToFill() }
-                else { LinearGradient(colors: [KlangradarTheme.accent, .black], startPoint: .topLeading, endPoint: .bottomTrailing) }
-            }
-            .frame(height: 130)
-            .frame(maxWidth: .infinity)
-            .clipped()
-            .overlay(alignment: .bottomLeading) {
-                LinearGradient(colors: [.clear, Color(red: 0.086, green: 0.078, blue: 0.118)], startPoint: .top, endPoint: .bottom)
-                    .frame(height: 60).frame(maxWidth: .infinity).allowsHitTesting(false)
-            }
-            VStack(alignment: .leading, spacing: 14) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(event.title).font(.system(.title3, design: .serif).weight(.semibold)).foregroundStyle(.white).lineLimit(3)
-                    Text(dateLine).font(.subheadline).foregroundStyle(.white.opacity(0.75))
-                    Text(event.venueName).font(.subheadline).foregroundStyle(.white.opacity(0.75)).lineLimit(1)
+        let ink = Color(red: 0.102, green: 0.106, blue: 0.180)
+        let mint = Color(red: 0.322, green: 0.804, blue: 0.737)
+        let hasTicket = ticketImage != nil || ticketCode != nil
+        let filled = [("EINGANG", seat.entrance), ("BLOCK", seat.block), ("REIHE", seat.row), ("PLATZ", seat.seat)]
+            .filter { !$0.1.trimmingCharacters(in: .whitespaces).isEmpty }
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                KlangradarMark(stem: .white).frame(width: 18, height: 22)
+                Text("Klangradar").font(.subheadline.weight(.semibold)).foregroundStyle(.white)
+                Spacer()
+                if let start = event.startDate {
+                    Text(KlangradarDateTime.string(start, format: "EEE · HH:mm")).font(.subheadline).foregroundStyle(.white.opacity(0.85))
                 }
-                HStack(spacing: 0) {
-                    passField("EINGANG", seat.entrance)
-                    passField("BLOCK", seat.block)
-                    passField("REIHE", seat.row)
-                    passField("PLATZ", seat.seat)
-                }
-                // Perforation wie bei einer Eintrittskarte
-                PerforationLine().stroke(style: StrokeStyle(lineWidth: 1, dash: [4, 4])).foregroundStyle(.white.opacity(0.25)).frame(height: 1)
-                Button { if ticketImage != nil || ticketCode != nil { showsTicket = true } else { showsPhotoPicker = true } } label: {
-                    HStack(spacing: 14) {
-                        Group {
-                            if let code = ticketCode, let rendered = TicketStore.render(code, scale: 6) {
-                                Image(uiImage: rendered).interpolation(.none).resizable().scaledToFit().padding(6).background(.white)
-                            } else if let ticketImage {
-                                Image(uiImage: ticketImage).resizable().scaledToFill()
-                            } else {
-                                Image(systemName: "qrcode").font(.title2).foregroundStyle(.white.opacity(0.6))
-                                    .frame(maxWidth: .infinity, maxHeight: .infinity).background(.white.opacity(0.08))
-                            }
-                        }
-                        .frame(width: 72, height: 72)
-                        .clipShape(.rect(cornerRadius: 10, style: .continuous))
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(ticketImage == nil && ticketCode == nil ? "Ticket hinzufügen" : "Ticket öffnen")
-                                .font(.headline).foregroundStyle(.white)
-                            Text(ticketStatus).font(.caption).foregroundStyle(.white.opacity(0.7))
-                        }
-                        Spacer(minLength: 0)
-                        Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.white.opacity(0.5))
+            }
+            .padding(.horizontal, 16).frame(height: 50)
+            ZStack(alignment: .bottomLeading) {
+                CachedAsyncImage(url: event.imageUrls?.first.flatMap(URL.init(string:)), maxPixel: 900) { phase in
+                    if let image = phase.image {
+                        image.resizable().scaledToFill()
+                            .overlay { LinearGradient(colors: [.clear, .black.opacity(0.55)], startPoint: .center, endPoint: .bottom) }
+                    } else {
+                        Color(red: 0.067, green: 0.067, blue: 0.067)
                     }
                 }
-                .buttonStyle(.plain)
+                .frame(height: 112).frame(maxWidth: .infinity).clipped()
+                Text(event.title)
+                    .font(.system(size: 30, weight: .semibold, design: .serif))
+                    .minimumScaleFactor(0.45).lineLimit(2)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16).padding(.bottom, 10)
             }
-            .padding(18)
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .top) {
+                    previewField("DATUM", event.startDate.map { KlangradarDateTime.string($0, format: "d. MMMM") } ?? "–", mint)
+                    Spacer()
+                    previewField("ORT", event.venues?.name ?? "–", mint, trailing: true)
+                }
+                if filled.isEmpty {
+                    Text("Platz unten eintragen – er erscheint dann hier und in Wallet.")
+                        .font(.footnote).foregroundStyle(.white.opacity(0.6))
+                } else {
+                    HStack(alignment: .top, spacing: 18) {
+                        ForEach(filled, id: \.0) { item in previewField(item.0, item.1, mint) }
+                        Spacer(minLength: 0)
+                    }
+                }
+                PerforationLine().stroke(style: StrokeStyle(lineWidth: 1, dash: [4, 5])).foregroundStyle(.white.opacity(0.22)).frame(height: 1)
+                if hasTicket {
+                    Button { showsTicket = true } label: {
+                        HStack(spacing: 14) {
+                            Group {
+                                if let code = ticketCode, let rendered = TicketStore.render(code, scale: 6) {
+                                    Image(uiImage: rendered).interpolation(.none).resizable().scaledToFit().padding(6).background(.white)
+                                } else if let ticketImage {
+                                    Image(uiImage: ticketImage).resizable().scaledToFill()
+                                }
+                            }
+                            .frame(width: 66, height: 66)
+                            .clipShape(.rect(cornerRadius: 10, style: .continuous))
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(ticketCodes.count > 1 ? "\(ticketCodes.count) Tickets öffnen" : "Ticket öffnen").font(.headline).foregroundStyle(.white)
+                                Text(ticketStatus).font(.caption).foregroundStyle(.white.opacity(0.7)).lineLimit(2)
+                            }
+                            Spacer(minLength: 0)
+                            Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.white.opacity(0.5))
+                        }
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    HStack(spacing: 10) {
+                        Image(systemName: "qrcode").font(.title3).foregroundStyle(.white.opacity(0.45))
+                        Text("Füge unten dein Ticket hinzu, dann erscheint hier der Code für den Einlass.")
+                            .font(.footnote).foregroundStyle(.white.opacity(0.65))
+                    }
+                }
+            }
+            .padding(16)
         }
-        .background(Color(red: 0.086, green: 0.078, blue: 0.118))
-        .clipShape(.rect(cornerRadius: 24, style: .continuous))
+        .background(ink)
+        .clipShape(.rect(cornerRadius: 20, style: .continuous))
         .shadow(color: .black.opacity(0.18), radius: 16, y: 8)
         .accessibilityElement(children: .contain)
+    }
+
+    private func previewField(_ label: String, _ value: String, _ tint: Color, trailing: Bool = false) -> some View {
+        VStack(alignment: trailing ? .trailing : .leading, spacing: 2) {
+            Text(label).font(.caption2.weight(.semibold)).tracking(0.8).foregroundStyle(tint)
+            Text(value).font(.headline).foregroundStyle(.white).lineLimit(1)
+        }
     }
 
     private var ticketStatus: String {
@@ -823,9 +864,21 @@ private struct TicketSeatEditor: View {
         VStack(alignment: .leading, spacing: 10) {
             sectionTitle("Ticket")
             if ticketImage == nil {
-                HStack(spacing: 10) {
-                    bigTile("Foto oder\nScreenshot", systemImage: "photo.on.rectangle") { showsPhotoPicker = true }
-                    bigTile("PDF oder\nDatei", systemImage: "doc.richtext") { showsFileImporter = true }
+                // 08.11.2026: ein Knopf, Auswahl Foto oder Datei im Menü.
+                Menu { pickerButtons } label: {
+                    HStack(spacing: 14) {
+                        Image(systemName: "ticket.fill").font(.title3).foregroundStyle(.white)
+                            .frame(width: 44, height: 44)
+                            .background(KlangradarTheme.accent, in: .rect(cornerRadius: 12, style: .continuous))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Ticket hinzufügen").font(.headline).foregroundStyle(.primary)
+                            Text("Foto, Screenshot, PDF oder Datei").font(.footnote).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "plus.circle.fill").font(.title2).foregroundStyle(KlangradarTheme.accent)
+                    }
+                    .padding(12)
+                    .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 16, style: .continuous))
                 }
             }
             // Code direkt hinterlegen (07.11.2026): mit der Kamera vom Papier-
@@ -948,8 +1001,12 @@ extension TicketSeatEditor {
                 passes.append(try PKPass(data: data))
             }
             walletPass = WalletPassItem(passes: passes)
+        } catch APIError.httpStatus(let status, let message) {
+            walletError = status == 503
+                ? "Apple Wallet ist auf dem Server noch nicht eingerichtet (Zertifikat fehlt)."
+                : "Die Wallet-Karte konnte nicht erstellt werden (\(status)): \(message.prefix(140))"
         } catch {
-            walletError = "Die Wallet-Karte konnte nicht erstellt werden."
+            walletError = "Die Wallet-Karte konnte nicht erstellt werden: \(error.localizedDescription)"
         }
     }
 }
@@ -960,6 +1017,9 @@ private struct AddToWalletButton: UIViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator(action: action) }
     func makeUIView(context: Context) -> PKAddPassButton {
         let button = PKAddPassButton(addPassButtonStyle: .black)
+        button.layer.cornerRadius = 12
+        button.layer.cornerCurve = .continuous
+        button.clipsToBounds = true
         button.addTarget(context.coordinator, action: #selector(Coordinator.tap), for: .touchUpInside)
         return button
     }

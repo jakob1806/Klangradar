@@ -140,6 +140,45 @@ enum TicketStore {
         }.value
     }
 
+    /// Platz aus dem Ticket-Text lesen (08.11.2026): Eingang, Block/Rang,
+    /// Reihe, Platz – per Texterkennung auf dem Gerät, alle Seiten.
+    static func detectSeat(in images: [UIImage]) async -> ConcertSeat {
+        var lines: [String] = []
+        for image in images.prefix(6) {
+            guard let cgImage = image.cgImage else { continue }
+            let found: [String] = await Task.detached(priority: .userInitiated) {
+                let request = VNRecognizeTextRequest()
+                request.recognitionLevel = .accurate
+                request.recognitionLanguages = ["de-DE", "en-US"]
+                request.usesLanguageCorrection = false
+                try? VNImageRequestHandler(cgImage: cgImage).perform([request])
+                return (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }
+            }.value
+            lines += found
+        }
+        return parseSeat(lines.joined(separator: "\n"))
+    }
+
+    /// Erkennt typische Angaben deutscher Tickets, z. B. „Eingang Nord“,
+    /// „2. Rang links“, „Parkett“, „Reihe 14“, „Platz 22“, „Sitz 7“.
+    static func parseSeat(_ text: String) -> ConcertSeat {
+        var seat = ConcertSeat()
+        func first(_ pattern: String) -> String? {
+            guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]),
+                  let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+                  match.numberOfRanges > 1, let range = Range(match.range(at: 1), in: text) else { return nil }
+            let value = text[range].trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
+            return value.isEmpty ? nil : String(value.prefix(24))
+        }
+        seat.entrance = first(#"(?:Eingang|Einlass|Tor|Gate|Entrance)\s*[:.]?\s*([A-Za-zÄÖÜäöü0-9][\wÄÖÜäöü\-]{0,14})"#) ?? ""
+        seat.block = first(#"((?:\d\.\s*)?(?:Rang|Balkon|Galerie)(?:\s+(?:links|rechts|Mitte|li\.?|re\.?))?)"#)
+            ?? first(#"(?:Block|Bereich|Sektor)\s*[:.]?\s*([A-Za-z0-9][\w\-]{0,10})"#)
+            ?? first(#"((?:Parkett|Loge|Empore)(?:\s+(?:links|rechts|Mitte|\d+))?)"#) ?? ""
+        seat.row = first(#"(?:Reihe|Row|Rh\.)\s*[:.]?\s*([A-Za-z0-9]{1,4})\b"#) ?? ""
+        seat.seat = first(#"(?:Platz|Sitz|Seat|Pl\.)\s*[:.]?\s*(\d{1,4}[a-z]?)\b"#) ?? ""
+        return seat
+    }
+
     /// Code neu erzeugt (scharf, ohne Fotorauschen) für die Vollbildanzeige.
     static func render(_ code: TicketCode, scale: CGFloat = 12) -> UIImage? {
         let context = CIContext()
