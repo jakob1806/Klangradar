@@ -115,6 +115,8 @@ struct EventDetailView: View {
         .background { KlangradarBackground().ignoresSafeArea() }
         .background { SwipeBackEnabler().allowsHitTesting(false) }
         .edgeSwipeBack { dismiss() }
+        .coachContext(CoachContext(kind: .event, title: event.title,
+                                   detail: [event.startDate.map { KlangradarDateTime.string($0, format: "d. MMMM yyyy, HH:mm") }, event.venues?.name].compactMap { $0 }.joined(separator: ", ")))
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if let detail { ticketBar(detail) }
         }

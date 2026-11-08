@@ -1,0 +1,26 @@
+Neu in dieser Version
+
+Ticket & Platz
+• Neu gestaltet: Vorschau wie eine Eintrittskarte mit Konzertbild, Termin und Platz.
+• Der Code im Ticket wird erkannt und am Einlass gestochen scharf angezeigt. Alternativ mit der Kamera scannen oder als Text einfügen.
+• Wallet-Karte im neuen Design mit Konzertbild und – falls erkannt – scannbarem Code.
+• „Mein Platz im Saalplan“ im Ticket-Blatt, Saalplan auch unten auf der Spielstättenseite.
+
+Klangradar KI
+• Passt sich der Seite an, auf der du gerade bist: Auf Konzert-, Personen-, Ensemble-, Spielstätten- und Werkseiten schlägt sie passende Fragen vor und bezieht ihre Antwort darauf.
+
+Konzerte & Suche
+• Neue Suche: schneller, findet auch Großbuchstaben, Umlaute und kleine Tippfehler, sinnvollere Reihenfolge.
+• Doppelte Konzerte werden schon beim Import zusammengeführt.
+• Live-Aktivität: zeigt „Jetzt“ und „Danach“, sobald Werkdauern bekannt sind.
+• Filter in der Suche mit Chips statt Auswahllisten.
+
+Profil & Freunde
+• Profil lädt deutlich schneller, Klanglevel sofort.
+• „Gemerkt → Alle“ zeigt wieder alle Einträge.
+• Tagebucheinträge unter „Besuchte Konzerte“ lassen sich öffnen, mit Bild.
+• Freundesprofil aufgeräumt, „Passt zu euch beiden“ als Liste.
+
+Bitte testen
+• Ticket hinterlegen, Code erkennen lassen und zur Wallet hinzufügen.
+• Suche nach Konzerten, Personen und Werken.

@@ -283,7 +283,8 @@ struct RootTabView: View {
                             eventRepository: environment.events,
                             contentRepository: environment.content,
                             startsInChat: true,
-                            showsDismissButton: false
+                            showsDismissButton: false,
+                            context: CoachContextStore.shared.current
                         )
                         .contentNavigationDestinations(events: environment.events, content: environment.content)
                         .modifier(ClearNavigationContainerBackground())
