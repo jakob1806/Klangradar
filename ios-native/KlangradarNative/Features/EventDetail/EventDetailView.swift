@@ -59,6 +59,10 @@ struct EventDetailView: View {
                             // sonst klafft zwischen Kategorie und Ort eine
                             // große Lücke (Nutzermeldung 27.10.2026).
                             CollapsingVStack(spacing: 14) {
+                                // 08.11.2026: Am Konzerttag steht das Ticket ganz oben.
+                                if SeatCard.isConcertDay(event) {
+                                    SeatCard(event: event, detail: detail, placement: .concertDay)
+                                }
                                 VStack(alignment: .leading, spacing: 0) {
                                     FriendsAttendingRow(event: event, shareURL: (detail.string("ticket_url") ?? detail.string("website_url")).flatMap(URL.init(string:)))
                                     EventRatingSection(event: event)

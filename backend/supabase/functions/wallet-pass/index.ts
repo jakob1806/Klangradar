@@ -177,6 +177,9 @@ Deno.serve(async (req) => {
   // deno-lint-ignore no-explicit-any
   const venue = (event as any).venues as { name?: string; address_street?: string; address_city?: string; photo_url?: string } | null;
   const code = (url.searchParams.get("code") ?? "").slice(0, 2000);
+  // Mehrere Tickets aus einem PDF: je Ticket eine Karte (08.11.2026).
+  const ticketNo = Number(url.searchParams.get("ticket") ?? "") || 0;
+  const ticketOf = Number(url.searchParams.get("of") ?? "") || 0;
   const formatMap: Record<string, string> = {
     qr: "PKBarcodeFormatQR", aztec: "PKBarcodeFormatAztec", pdf417: "PKBarcodeFormatPDF417", code128: "PKBarcodeFormatCode128",
   };
@@ -192,7 +195,7 @@ Deno.serve(async (req) => {
     formatVersion: 1,
     passTypeIdentifier,
     teamIdentifier,
-    serialNumber: `${event.id}-${seatParts.map(([, v]) => v).join("-") || "karte"}`,
+    serialNumber: `${event.id}-${seatParts.map(([, v]) => v).join("-") || "karte"}${ticketNo ? `-t${ticketNo}` : ""}`,
     organizationName: "Klangradar",
     description: `Konzert: ${event.title}`,
     logoText: "Klangradar",
@@ -216,7 +219,10 @@ Deno.serve(async (req) => {
         { key: "date", label: "BEGINN", value: event.start_datetime, dateStyle: "PKDateStyleMedium", timeStyle: "PKDateStyleShort" },
         ...(venue?.name ? [{ key: "venue", label: "ORT", value: venue.name }] : []),
       ],
-      auxiliaryFields: seatParts.map(([k, v]) => ({ key: k, label: seatLabels[k], value: v })),
+      auxiliaryFields: [
+        ...seatParts.map(([k, v]) => ({ key: k, label: seatLabels[k], value: v })),
+        ...(ticketNo && ticketOf > 1 ? [{ key: "ticket", label: "TICKET", value: `${ticketNo} von ${ticketOf}` }] : []),
+      ],
       backFields: [
         ...(venue?.address_street ? [{ key: "address", label: "Adresse", value: [venue.address_street, venue.address_city].filter(Boolean).join(", ") }] : []),
         { key: "link", label: "Konzertseite", value: `https://klangradar.com/e/${event.slug}` },

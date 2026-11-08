@@ -5,6 +5,10 @@ Chat mit Freunden
 • Konzertseite → „…“ → „An Freunde senden“: Konzert als Karte oder als Einladung verschicken.
 • Auf dem Freundesprofil direkt „Nachricht“.
 
+Ticket auf der Konzertseite
+• Neu als kleine Eintrittskarte mit Platz, Code und Wallet-Status. Am Konzerttag steht sie ganz oben mit Einlass und „Ticket öffnen“, danach als Erinnerung mit Weg ins Tagebuch.
+• PDFs werden auf allen Seiten nach Codes durchsucht; mehrere Tickets ergeben mehrere Wallet-Karten. Jeder Code wird vor dem Anzeigen geprüft.
+
 Wallet-Karte
 • Mit Klangradar-Logo. Mit gutem Konzertfoto als Bild, sonst als Plakat mit großem Titel.
 

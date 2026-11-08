@@ -51,34 +51,92 @@ enum TicketStore {
         folder?.appendingPathComponent("\(eventID.uuidString.lowercased()).code.json")
     }
 
-    static func code(for eventID: UUID) -> TicketCode? {
-        guard let url = codeURL(for: eventID), let data = try? Data(contentsOf: url) else { return nil }
-        return try? JSONDecoder().decode(TicketCode.self, from: data)
+    /// Alle erkannten Codes (mehrere Tickets in einem PDF → mehrere Codes).
+    static func codes(for eventID: UUID) -> [TicketCode] {
+        guard let url = codeURL(for: eventID), let data = try? Data(contentsOf: url) else { return [] }
+        if let list = try? JSONDecoder().decode([TicketCode].self, from: data) { return list }
+        if let single = try? JSONDecoder().decode(TicketCode.self, from: data) { return [single] }
+        return []
     }
 
-    static func saveCode(_ code: TicketCode?, for eventID: UUID) {
+    static func code(for eventID: UUID) -> TicketCode? { codes(for: eventID).first }
+
+    static func saveCodes(_ codes: [TicketCode], for eventID: UUID) {
         guard let url = codeURL(for: eventID) else { return }
-        guard let code, let data = try? JSONEncoder().encode(code) else { try? FileManager.default.removeItem(at: url); return }
+        guard !codes.isEmpty, let data = try? JSONEncoder().encode(codes) else { try? FileManager.default.removeItem(at: url); return }
         try? data.write(to: url, options: [.atomic, .completeFileProtection])
     }
 
-    /// Sucht QR/Aztec/PDF417/Code128 im Ticketbild (Vision, auf dem Gerät).
+    static func saveCode(_ code: TicketCode?, for eventID: UUID) {
+        saveCodes(code.map { [$0] } ?? [], for: eventID)
+    }
+
+    /// Alle Seiten eines PDFs (oder das eine Bild) in hoher Auflösung.
+    static func pages(from url: URL) -> [UIImage] {
+        if url.pathExtension.lowercased() == "pdf" || UTType(filenameExtension: url.pathExtension)?.conforms(to: .pdf) == true {
+            guard let document = PDFDocument(url: url) else { return [] }
+            return (0..<min(document.pageCount, 12)).compactMap { index in
+                guard let page = document.page(at: index) else { return nil }
+                let bounds = page.bounds(for: .mediaBox)
+                let scale = 2400 / max(bounds.width, bounds.height)
+                return page.thumbnail(of: CGSize(width: bounds.width * scale, height: bounds.height * scale), for: .mediaBox)
+            }
+        }
+        return image(from: url).map { [$0] } ?? []
+    }
+
+    /// Sucht in allen Bildern nach Codes, entfernt Doppelte und behält nur
+    /// Codes, die die Probe gegen das Original bestehen.
+    static func detectCodes(in images: [UIImage]) async -> [TicketCode] {
+        var found: [TicketCode] = []
+        for image in images {
+            for code in await detectAll(in: image) where !found.contains(where: { $0.payload == code.payload }) {
+                if await verify(code) { found.append(code) }
+            }
+        }
+        return found
+    }
+
     static func detectCode(in image: UIImage) async -> TicketCode? {
-        guard let cgImage = image.cgImage else { return nil }
-        return await Task.detached(priority: .userInitiated) { () -> TicketCode? in
+        await detectCodes(in: [image]).first
+    }
+
+    private static func detectAll(in image: UIImage) async -> [TicketCode] {
+        guard let cgImage = image.cgImage else { return [] }
+        return await Task.detached(priority: .userInitiated) { () -> [TicketCode] in
             let request = VNDetectBarcodesRequest()
             request.symbologies = [.qr, .aztec, .pdf417, .code128]
             try? VNImageRequestHandler(cgImage: cgImage).perform([request])
-            guard let best = request.results?.max(by: { $0.boundingBox.width * $0.boundingBox.height < $1.boundingBox.width * $1.boundingBox.height }),
-                  let payload = best.payloadStringValue, !payload.isEmpty else { return nil }
-            let format: String
-            switch best.symbology {
-            case .aztec: format = "aztec"
-            case .pdf417: format = "pdf417"
-            case .code128: format = "code128"
-            default: format = "qr"
-            }
-            return TicketCode(payload: payload, format: format)
+            return (request.results ?? [])
+                .sorted { $0.boundingBox.minY > $1.boundingBox.minY }
+                .compactMap { result -> TicketCode? in
+                    guard let payload = result.payloadStringValue, !payload.isEmpty else { return nil }
+                    let format: String
+                    switch result.symbology {
+                    case .aztec: format = "aztec"
+                    case .pdf417: format = "pdf417"
+                    case .code128: format = "code128"
+                    default: format = "qr"
+                    }
+                    return TicketCode(payload: payload, format: format)
+                }
+        }.value
+    }
+
+    /// Probe: den neu gezeichneten Code wieder einlesen – nur wenn derselbe
+    /// Inhalt herauskommt, wird er statt des Originals angezeigt.
+    private static func verify(_ code: TicketCode) async -> Bool {
+        guard let rendered = render(code, scale: 8) else { return false }
+        let padded = UIGraphicsImageRenderer(size: CGSize(width: rendered.size.width + 80, height: rendered.size.height + 80)).image { context in
+            UIColor.white.setFill()
+            context.fill(CGRect(origin: .zero, size: CGSize(width: rendered.size.width + 80, height: rendered.size.height + 80)))
+            rendered.draw(at: CGPoint(x: 40, y: 40))
+        }
+        guard let cgImage = padded.cgImage else { return false }
+        return await Task.detached(priority: .userInitiated) { () -> Bool in
+            let request = VNDetectBarcodesRequest()
+            try? VNImageRequestHandler(cgImage: cgImage).perform([request])
+            return request.results?.contains { $0.payloadStringValue == code.payload } ?? false
         }.value
     }
 
