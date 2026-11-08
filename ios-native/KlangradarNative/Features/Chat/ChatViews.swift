@@ -159,7 +159,7 @@ enum ChatFormat {
     }
 }
 
-// MARK: - Verlauf
+// MARK: - Verlauf (Redesign 08.11.2026)
 
 struct ChatThreadView: View {
     let conversationID: UUID
@@ -172,50 +172,77 @@ struct ChatThreadView: View {
     @State private var members: [ChatMember] = []
     @State private var showsMembers = false
     @State private var error: String?
+    @State private var focused: ChatMessage?
+    @State private var didLoad = false
     @FocusState private var inputFocused: Bool
     @Environment(\.dismiss) private var dismiss
 
     private var myID: UUID? { SocialStore.shared.auth?.userID }
+    private var others: [ChatMember] { members.filter { $0.id != myID } }
 
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: 6) {
+                LazyVStack(spacing: 0) {
+                    if didLoad && messages.isEmpty { emptyState }
                     ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
-                        if index == 0 || !KlangradarDateTime.calendar.isDate(message.createdAt, inSameDayAs: messages[index - 1].createdAt) {
+                        let previous = index > 0 ? messages[index - 1] : nil
+                        let next = index + 1 < messages.count ? messages[index + 1] : nil
+                        if previous == nil || !KlangradarDateTime.calendar.isDate(message.createdAt, inSameDayAs: previous!.createdAt) {
                             Text(ChatFormat.dayHeader(message.createdAt))
                                 .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                                .padding(.horizontal, 10).padding(.vertical, 4)
-                                .background(.thinMaterial, in: .capsule)
-                                .padding(.vertical, 8)
+                                .padding(.top, 18).padding(.bottom, 10)
                         }
-                        let showsName = isGroup && message.senderID != myID
-                            && (index == 0 || messages[index - 1].senderID != message.senderID)
-                        ChatBubble(message: message, isMine: message.senderID == myID, showsName: showsName, myID: myID,
-                                   onReact: { emoji in Task { await react(message, emoji) } },
-                                   onDelete: { Task { await delete(message) } })
-                            .id(message.id)
+                        let startsGroup = !Self.sameGroup(previous, message)
+                        let endsGroup = !Self.sameGroup(message, next)
+                        ChatBubble(
+                            message: message,
+                            isMine: message.senderID == myID,
+                            isGroupChat: isGroup,
+                            startsGroup: startsGroup,
+                            endsGroup: endsGroup,
+                            myID: myID,
+                            onLongPress: { withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { focused = message }; Haptics.light() },
+                            onDoubleTap: { Task { await react(message, myReaction(message) == "👏" ? nil : "👏") } }
+                        )
+                        .padding(.top, startsGroup ? 8 : 2)
+                        .id(message.id)
+                        if message.id == lastMineID, let status = readStatus(for: message) {
+                            Text(status).font(.caption2).foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .trailing)
+                                .padding(.top, 3).padding(.trailing, 4)
+                        }
                     }
                     Color.clear.frame(height: 1).id("bottom")
                 }
                 .padding(.horizontal, 12)
-                .padding(.vertical, 10)
+                .padding(.bottom, 8)
             }
             .scrollDismissesKeyboard(.interactively)
             .defaultScrollAnchor(.bottom)
+            .background(Color(uiColor: .systemGroupedBackground))
             .onChange(of: messages.last?.id) { _, _ in
                 withAnimation(.snappy) { proxy.scrollTo("bottom", anchor: .bottom) }
             }
             .safeAreaInset(edge: .bottom) { composer }
         }
-        .navigationTitle(title)
+        .overlay { if let focused { reactionOverlay(focused) } }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if isGroup {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { showsMembers = true } label: { Image(systemName: "person.2") }
-                        .accessibilityLabel("Mitglieder")
+            ToolbarItem(placement: .principal) {
+                Button { if isGroup { showsMembers = true } } label: {
+                    HStack(spacing: 8) {
+                        ChatAvatar(title: title, url: others.first?.avatarURL, isGroup: isGroup, size: 30)
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(.primary).lineLimit(1)
+                            if isGroup {
+                                Text("\(members.count) Mitglieder").font(.caption2).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel(isGroup ? "\(title), Mitglieder anzeigen" : title)
             }
         }
         .sheet(isPresented: $showsMembers) {
@@ -229,6 +256,49 @@ struct ChatThreadView: View {
         }
     }
 
+    // MARK: Bausteine
+
+    private static func sameGroup(_ a: ChatMessage?, _ b: ChatMessage?) -> Bool {
+        guard let a, let b, a.kind != "system", b.kind != "system", a.senderID == b.senderID else { return false }
+        return abs(b.createdAt.timeIntervalSince(a.createdAt)) < 180
+    }
+
+    private var lastMineID: UUID? { messages.last(where: { $0.senderID == myID && !$0.deleted })?.id }
+
+    private func readStatus(for message: ChatMessage) -> String? {
+        guard !others.isEmpty else { return nil }
+        let seen = others.filter { ($0.lastReadAt ?? .distantPast) >= message.createdAt }
+        if seen.count == others.count { return isGroup ? "Von allen gesehen" : "Gesehen" }
+        if isGroup && !seen.isEmpty { return "Gesehen von \(seen.count)" }
+        return "Zugestellt"
+    }
+
+    private func myReaction(_ message: ChatMessage) -> String? {
+        message.reactions.first { $0.userID == myID }?.emoji
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 14) {
+            ChatAvatar(title: title, url: others.first?.avatarURL, isGroup: isGroup, size: 72)
+            Text(title).font(.system(.title3, design: .serif).weight(.semibold))
+            Text(isGroup ? "Plant hier eure nächsten Konzertabende." : "Schreib die erste Nachricht – oder teil ein Konzert von seiner Seite aus.")
+                .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+            VStack(spacing: 8) {
+                ForEach(["Hast du Lust auf ein Konzert?", "Was hörst du gerade?", "Gehst du dieses Wochenende irgendwo hin?"], id: \.self) { suggestion in
+                    Button { draft = suggestion; inputFocused = true } label: {
+                        Text(suggestion).font(.subheadline).foregroundStyle(.primary)
+                            .padding(.horizontal, 14).padding(.vertical, 9)
+                            .background(Color(uiColor: .secondarySystemGroupedBackground), in: .capsule)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.top, 6)
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 60)
+    }
+
     private var composer: some View {
         VStack(spacing: 6) {
             if let error { Text(error).font(.caption).foregroundStyle(.red) }
@@ -236,14 +306,18 @@ struct ChatThreadView: View {
                 TextField("Nachricht", text: $draft, axis: .vertical)
                     .lineLimit(1...6)
                     .focused($inputFocused)
-                    .padding(.horizontal, 14).padding(.vertical, 10)
-                    .background(Color(uiColor: .secondarySystemBackground), in: .rect(cornerRadius: 20, style: .continuous))
+                    .padding(.horizontal, 16).padding(.vertical, 10)
+                    .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 21, style: .continuous))
+                    .overlay { RoundedRectangle(cornerRadius: 21, style: .continuous).stroke(Color.primary.opacity(0.08)) }
                 Button { Task { await send() } } label: {
                     Image(systemName: "arrow.up").font(.body.weight(.bold)).foregroundStyle(.white)
                         .frame(width: 40, height: 40)
-                        .background(canSend ? KlangradarTheme.accent : Color.gray.opacity(0.4), in: .circle)
+                        .background(KlangradarTheme.accent, in: .circle)
+                        .scaleEffect(canSend ? 1 : 0.6)
+                        .opacity(canSend ? 1 : 0)
                 }
                 .disabled(!canSend)
+                .animation(.spring(response: 0.25, dampingFraction: 0.7), value: canSend)
                 .accessibilityLabel("Senden")
             }
         }
@@ -251,14 +325,86 @@ struct ChatThreadView: View {
         .background(.bar)
     }
 
+    /// Reaktionen: Emoji-Leiste über einem Aktionsmenü, Hintergrund abgedunkelt.
+    private func reactionOverlay(_ message: ChatMessage) -> some View {
+        let isMine = message.senderID == myID
+        let current = myReaction(message)
+        return ZStack(alignment: isMine ? .bottomTrailing : .bottomLeading) {
+            Color.black.opacity(0.28).ignoresSafeArea()
+                .onTapGesture { withAnimation(.easeOut(duration: 0.2)) { focused = nil } }
+            VStack(alignment: isMine ? .trailing : .leading, spacing: 10) {
+                HStack(spacing: 4) {
+                    ForEach(ChatReactions.all, id: \.self) { emoji in
+                        Button {
+                            Task { await react(message, current == emoji ? nil : emoji) }
+                            withAnimation(.easeOut(duration: 0.2)) { focused = nil }
+                        } label: {
+                            Text(emoji).font(.system(size: 28))
+                                .frame(width: 44, height: 44)
+                                .background(current == emoji ? KlangradarTheme.accent.opacity(0.18) : .clear, in: .circle)
+                        }
+                        .buttonStyle(ReactionButtonStyle())
+                        .accessibilityLabel("Mit \(emoji) reagieren")
+                    }
+                }
+                .padding(.horizontal, 8).padding(.vertical, 6)
+                .background(.regularMaterial, in: .capsule)
+                .shadow(color: .black.opacity(0.15), radius: 14, y: 6)
+
+                Text(message.body ?? message.event?.title ?? "")
+                    .font(.body).lineLimit(4)
+                    .foregroundStyle(isMine ? .white : .primary)
+                    .padding(.horizontal, 14).padding(.vertical, 10)
+                    .background(isMine ? AnyShapeStyle(KlangradarTheme.accent) : AnyShapeStyle(Color(uiColor: .secondarySystemGroupedBackground)), in: .rect(cornerRadius: 18, style: .continuous))
+                    .frame(maxWidth: 280, alignment: isMine ? .trailing : .leading)
+
+                VStack(spacing: 0) {
+                    if let body = message.body {
+                        overlayAction("Kopieren", "doc.on.doc") { UIPasteboard.general.string = body }
+                    }
+                    if isMine {
+                        Divider()
+                        overlayAction("Löschen", "trash", role: .destructive) { Task { await delete(message) } }
+                    }
+                }
+                .frame(width: 220)
+                .background(.regularMaterial, in: .rect(cornerRadius: 14, style: .continuous))
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 120)
+            .transition(.scale(scale: 0.9, anchor: isMine ? .bottomTrailing : .bottomLeading).combined(with: .opacity))
+        }
+    }
+
+    private func overlayAction(_ title: String, _ symbol: String, role: ButtonRole? = nil, action: @escaping () -> Void) -> some View {
+        Button(role: role) {
+            action()
+            withAnimation(.easeOut(duration: 0.2)) { focused = nil }
+        } label: {
+            HStack {
+                Text(title)
+                Spacer()
+                Image(systemName: symbol)
+            }
+            .foregroundStyle(role == .destructive ? Color.red : Color.primary)
+            .padding(.horizontal, 14).padding(.vertical, 12)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
     private var canSend: Bool { !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isSending }
 
     private func load() async {
         guard let repository = SocialStore.shared.repository, let token = SocialStore.shared.token else { return }
-        if let loaded = try? await repository.chatThread(conversationID, token: token), loaded != messages {
-            messages = loaded
+        async let loadedMessages = try? repository.chatThread(conversationID, token: token)
+        async let loadedMembers = try? repository.chatMembers(conversationID, token: token)
+        if let loaded = await loadedMessages, loaded != messages {
+            withAnimation(.snappy) { messages = loaded }
             await repository.chatMarkRead(conversationID, token: token)
         }
+        if let loaded = await loadedMembers { members = loaded }
+        didLoad = true
     }
 
     private func send() async {
@@ -291,56 +437,71 @@ struct ChatThreadView: View {
     }
 }
 
+private struct ReactionButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label.scaleEffect(configuration.isPressed ? 1.35 : 1)
+            .animation(.spring(response: 0.2, dampingFraction: 0.6), value: configuration.isPressed)
+    }
+}
+
 private struct ChatBubble: View {
     let message: ChatMessage
     let isMine: Bool
-    let showsName: Bool
+    let isGroupChat: Bool
+    let startsGroup: Bool
+    let endsGroup: Bool
     let myID: UUID?
-    let onReact: (String?) -> Void
-    let onDelete: () -> Void
+    let onLongPress: () -> Void
+    let onDoubleTap: () -> Void
 
     var body: some View {
         if message.kind == "system" {
             Text("\(message.senderName) \(message.body ?? "")")
-                .font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity).padding(.vertical, 4)
+                .font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity).padding(.vertical, 6)
         } else {
             HStack(alignment: .bottom, spacing: 6) {
-                if isMine { Spacer(minLength: 52) }
+                if isMine { Spacer(minLength: 56) }
+                if isGroupChat && !isMine {
+                    Group {
+                        if endsGroup { SocialAvatar(name: message.senderName, url: message.senderAvatar, size: 28) }
+                        else { Color.clear }
+                    }
+                    .frame(width: 28, height: 28)
+                }
                 VStack(alignment: isMine ? .trailing : .leading, spacing: 3) {
-                    if showsName {
-                        Text(message.senderName).font(.caption.weight(.semibold)).foregroundStyle(KlangradarTheme.accent).padding(.horizontal, 6)
+                    if isGroupChat && !isMine && startsGroup {
+                        Text(message.senderName.split(separator: " ").first.map(String.init) ?? message.senderName)
+                            .font(.caption.weight(.semibold)).foregroundStyle(.secondary).padding(.leading, 12)
                     }
                     content
-                        .contextMenu {
-                            if !message.deleted {
-                                ControlGroup {
-                                    ForEach(ChatReactions.all, id: \.self) { emoji in
-                                        Button(emoji) { onReact(myReaction == emoji ? nil : emoji) }
-                                    }
-                                }
-                                if let body = message.body { Button("Kopieren", systemImage: "doc.on.doc") { UIPasteboard.general.string = body } }
-                                if isMine { Button("Löschen", systemImage: "trash", role: .destructive, action: onDelete) }
-                            }
-                        }
-                    if !message.reactions.isEmpty {
-                        HStack(spacing: 2) {
-                            ForEach(groupedReactions, id: \.emoji) { item in
-                                Text(item.count > 1 ? "\(item.emoji) \(item.count)" : item.emoji).font(.caption)
-                            }
-                        }
-                        .padding(.horizontal, 7).padding(.vertical, 3)
-                        .background(Color(uiColor: .secondarySystemBackground), in: .capsule)
-                        .overlay { Capsule().stroke(Color(uiColor: .systemBackground), lineWidth: 2) }
-                        .offset(y: -8)
-                        .padding(.bottom, -8)
-                    }
+                        .contentShape(bubbleShape)
+                        .onTapGesture(count: 2, perform: onDoubleTap)
+                        .onLongPressGesture(minimumDuration: 0.35, perform: onLongPress)
+                        .overlay(alignment: isMine ? .bottomLeading : .bottomTrailing) { reactionChips }
+                        .padding(.bottom, message.reactions.isEmpty ? 0 : 12)
                 }
-                if !isMine { Spacer(minLength: 52) }
+                if !isMine { Spacer(minLength: 56) }
             }
+            .accessibilityElement(children: .combine)
+            .accessibilityAction(named: "Reagieren", onLongPress)
         }
     }
 
-    private var myReaction: String? { message.reactions.first { $0.userID == myID }?.emoji }
+    @ViewBuilder private var reactionChips: some View {
+        if !message.reactions.isEmpty {
+            HStack(spacing: 2) {
+                ForEach(groupedReactions, id: \.emoji) { item in
+                    Text(item.emoji).font(.system(size: 13))
+                    if item.count > 1 { Text("\(item.count)").font(.caption2.weight(.semibold)).foregroundStyle(.secondary) }
+                }
+            }
+            .padding(.horizontal, 6).padding(.vertical, 3)
+            .background(Color(uiColor: .secondarySystemGroupedBackground), in: .capsule)
+            .overlay { Capsule().stroke(Color(uiColor: .systemGroupedBackground), lineWidth: 2) }
+            .shadow(color: .black.opacity(0.08), radius: 3, y: 1)
+            .offset(x: isMine ? -8 : 8, y: 14)
+        }
+    }
 
     private var groupedReactions: [(emoji: String, count: Int)] {
         var counts: [String: Int] = [:]
@@ -348,45 +509,57 @@ private struct ChatBubble: View {
         return counts.map { ($0.key, $0.value) }.sorted { $0.count > $1.count }
     }
 
+    private var fill: AnyShapeStyle {
+        isMine ? AnyShapeStyle(KlangradarTheme.accent) : AnyShapeStyle(Color(uiColor: .secondarySystemGroupedBackground))
+    }
+
     @ViewBuilder private var content: some View {
         if message.deleted {
             Label("Nachricht gelöscht", systemImage: "nosign")
                 .font(.subheadline.italic()).foregroundStyle(.secondary)
-                .padding(.horizontal, 12).padding(.vertical, 8)
-                .background(Color(uiColor: .secondarySystemBackground), in: bubbleShape)
+                .padding(.horizontal, 13).padding(.vertical, 8)
+                .background(Color(uiColor: .secondarySystemGroupedBackground).opacity(0.6), in: bubbleShape)
         } else if let event = message.event {
             VStack(alignment: .leading, spacing: 0) {
                 ChatEventCard(event: event, isInvite: message.kind == "invite")
                 if let body = message.body {
-                    Text(body).font(.body).padding(.horizontal, 12).padding(.vertical, 9)
+                    Text(body).font(.body).padding(.horizontal, 12).padding(.top, 9)
                         .foregroundStyle(isMine ? .white : .primary)
                 }
-                timestamp.padding(.horizontal, 12).padding(.bottom, 7)
+                if endsGroup { timestamp.frame(maxWidth: .infinity, alignment: .trailing).padding(.horizontal, 12).padding(.top, 4) }
+                Color.clear.frame(height: 8)
             }
-            .frame(width: 260, alignment: .leading)
-            .background(isMine ? AnyShapeStyle(KlangradarTheme.accent) : AnyShapeStyle(Color(uiColor: .secondarySystemBackground)), in: bubbleShape)
+            .frame(width: 264, alignment: .leading)
+            .background(fill, in: bubbleShape)
             .clipShape(bubbleShape)
+            .shadow(color: .black.opacity(isMine ? 0 : 0.05), radius: 2, y: 1)
         } else {
-            VStack(alignment: .trailing, spacing: 2) {
+            HStack(alignment: .lastTextBaseline, spacing: 8) {
                 Text(message.body ?? "").font(.body).foregroundStyle(isMine ? .white : .primary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                timestamp
+                if endsGroup { timestamp }
             }
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(.horizontal, 12).padding(.vertical, 8)
-            .background(isMine ? AnyShapeStyle(KlangradarTheme.accent) : AnyShapeStyle(Color(uiColor: .secondarySystemBackground)), in: bubbleShape)
-            .frame(maxWidth: 290, alignment: isMine ? .trailing : .leading)
+            .padding(.horizontal, 13).padding(.vertical, 8)
+            .background(fill, in: bubbleShape)
+            .shadow(color: .black.opacity(isMine ? 0 : 0.05), radius: 2, y: 1)
+            .frame(maxWidth: 300, alignment: isMine ? .trailing : .leading)
         }
     }
 
     private var timestamp: some View {
         Text(KlangradarDateTime.string(message.createdAt, format: "HH:mm"))
-            .font(.caption2).foregroundStyle(isMine ? Color.white.opacity(0.75) : Color.secondary)
+            .font(.caption2).monospacedDigit()
+            .foregroundStyle(isMine ? Color.white.opacity(0.7) : Color.secondary)
     }
 
+    /// Spitze nur an der letzten Blase einer Gruppe; dazwischen engere Ecken.
     private var bubbleShape: UnevenRoundedRectangle {
-        UnevenRoundedRectangle(topLeadingRadius: 18, bottomLeadingRadius: isMine ? 18 : 5,
-                               bottomTrailingRadius: isMine ? 5 : 18, topTrailingRadius: 18, style: .continuous)
+        let big: CGFloat = 19, small: CGFloat = 6
+        return UnevenRoundedRectangle(
+            topLeadingRadius: !isMine && !startsGroup ? small : big,
+            bottomLeadingRadius: !isMine ? (endsGroup ? 4 : small) : big,
+            bottomTrailingRadius: isMine ? (endsGroup ? 4 : small) : big,
+            topTrailingRadius: isMine && !startsGroup ? small : big,
+            style: .continuous)
     }
 }
 

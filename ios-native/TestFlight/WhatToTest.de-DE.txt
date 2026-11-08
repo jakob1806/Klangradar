@@ -1,6 +1,7 @@
 Neu in dieser Version
 
 Chat mit Freunden
+• Neu gestaltet: Nachrichten werden gruppiert, Reaktionen per langem Druck als Leiste über der Nachricht, Doppeltippen = Applaus, „Gesehen“ unter der letzten eigenen Nachricht.
 • Unter Freunde → Sprechblasen-Symbol: Einzel- und Gruppenchats, Reaktionen per langem Druck, Nachrichten löschen.
 • Konzertseite → „…“ → „An Freunde senden“: Konzert als Karte oder als Einladung verschicken.
 • Auf dem Freundesprofil direkt „Nachricht“.
