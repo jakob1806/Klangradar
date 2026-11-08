@@ -346,7 +346,7 @@ struct SeatCard: View {
                 tearLine
                 footer
             }
-            .background(Self.ink, in: TicketShape(tearFromBottom: 52))
+            .background(Self.ink, in: EntryTicketShape(tearFromBottom: 52))
             .shadow(color: .black.opacity(0.18), radius: 14, y: 6)
         }
         .buttonStyle(.plain)
@@ -493,7 +493,7 @@ struct SeatCard: View {
             }
             .padding(14)
         }
-        .background(Self.ink, in: TicketShape(tearFromBottom: 78))
+        .background(Self.ink, in: EntryTicketShape(tearFromBottom: 78))
         .shadow(color: .black.opacity(0.2), radius: 16, y: 8)
     }
 
@@ -534,7 +534,7 @@ struct SeatCard: View {
 }
 
 /// Eintrittskarten-Umriss: abgerundet, seitliche Aussparungen am Abriss.
-struct TicketShape: Shape {
+struct EntryTicketShape: Shape {
     /// Abstand des Abrisses vom unteren Rand.
     var tearFromBottom: CGFloat = 52
     func path(in rect: CGRect) -> Path {
