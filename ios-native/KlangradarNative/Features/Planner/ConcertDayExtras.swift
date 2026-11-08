@@ -767,22 +767,17 @@ private struct TicketSeatEditor: View {
                 }
             }
             .padding(.horizontal, 16).frame(height: 50)
-            ZStack(alignment: .bottomLeading) {
-                CachedAsyncImage(url: event.imageUrls?.first.flatMap(URL.init(string:)), maxPixel: 900) { phase in
-                    if let image = phase.image {
-                        image.resizable().scaledToFill()
-                            .overlay { LinearGradient(colors: [.clear, .black.opacity(0.55)], startPoint: .center, endPoint: .bottom) }
-                    } else {
-                        Color(red: 0.067, green: 0.067, blue: 0.067)
-                    }
+            // 08.11.2026: Bild in voller Größe ohne Zuschnitt, Titel darunter.
+            CachedAsyncImage(url: event.imageUrls?.first.flatMap(URL.init(string:)) ?? event.primaryImageURL, maxPixel: 1200) { phase in
+                if let image = phase.image {
+                    image.resizable().scaledToFit().frame(maxWidth: .infinity)
                 }
-                .frame(height: 112).frame(maxWidth: .infinity).clipped()
-                Text(event.title)
-                    .font(.system(size: 30, weight: .semibold, design: .serif))
-                    .minimumScaleFactor(0.45).lineLimit(2)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 16).padding(.bottom, 10)
             }
+            Text(event.title)
+                .font(.system(size: 26, weight: .semibold, design: .serif))
+                .minimumScaleFactor(0.6).lineLimit(3)
+                .foregroundStyle(.white)
+                .padding(.horizontal, 16).padding(.top, 14)
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .top) {
                     previewField("DATUM", event.startDate.map { KlangradarDateTime.string($0, format: "d. MMMM") } ?? "–", mint)
@@ -881,18 +876,20 @@ private struct TicketSeatEditor: View {
                     .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 16, style: .continuous))
                 }
             }
-            // Code direkt hinterlegen (07.11.2026): mit der Kamera vom Papier-
-            // oder Bildschirmticket scannen oder als Text einfügen.
-            VStack(spacing: 0) {
+            // 08.11.2026: Aktionen als Kacheln statt Liste.
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
                 if DataScannerViewController.isSupported {
-                    Button { showsScanner = true } label: { rowLabel(ticketCode == nil ? "Code mit der Kamera scannen" : "Code neu scannen", systemImage: "qrcode.viewfinder") }
-                        .buttonStyle(.plain)
-                    Divider().padding(.leading, 48)
+                    actionTile(ticketCode == nil ? "Code scannen" : "Neu scannen", "qrcode.viewfinder", tint: KlangradarTheme.accent) { showsScanner = true }
                 }
-                Button { manualCode = ticketCode?.payload ?? ""; showsCodeEntry = true } label: { rowLabel("Code als Text einfügen", systemImage: "text.cursor") }
-                    .buttonStyle(.plain)
+                actionTile("Als Text", "character.cursor.ibeam", tint: .indigo) { manualCode = ticketCode?.payload ?? ""; showsCodeEntry = true }
+                if ticketImage != nil || ticketCode != nil {
+                    Menu { pickerButtons } label: { actionTileLabel("Ersetzen", "arrow.triangle.2.circlepath", tint: .teal) }
+                        .buttonStyle(.plain)
+                    actionTile("Entfernen", "trash", tint: .red) {
+                        TicketStore.remove(for: event.id); TicketStore.saveCodes([], for: event.id); ticketImage = nil; ticketCodes = []; detectionNote = nil
+                    }
+                }
             }
-            .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 16, style: .continuous))
             if ticketCodes.count > 1 {
                 VStack(spacing: 0) {
                     ForEach(Array(ticketCodes.enumerated()), id: \.offset) { index, _ in
@@ -902,16 +899,6 @@ private struct TicketSeatEditor: View {
                         .buttonStyle(.plain)
                         if index < ticketCodes.count - 1 { Divider().padding(.leading, 48) }
                     }
-                }
-                .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 16, style: .continuous))
-            }
-            if ticketImage != nil || ticketCode != nil {
-                VStack(spacing: 0) {
-                    Menu { pickerButtons } label: { rowLabel("Ticket ersetzen", systemImage: "arrow.triangle.2.circlepath") }
-                    Divider().padding(.leading, 48)
-                    Button(role: .destructive) {
-                        TicketStore.remove(for: event.id); TicketStore.saveCodes([], for: event.id); ticketImage = nil; ticketCodes = []; detectionNote = nil
-                    } label: { rowLabel("Ticket entfernen", systemImage: "trash", tint: .red) }
                 }
                 .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 16, style: .continuous))
             }
@@ -930,6 +917,26 @@ private struct TicketSeatEditor: View {
             Text("Erscheint am Konzerttag auf dem Sperrbildschirm und in der Live-Aktivität.")
                 .font(.footnote).foregroundStyle(.secondary)
         }
+    }
+
+    private func actionTile(_ title: String, _ symbol: String, tint: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) { actionTileLabel(title, symbol, tint: tint) }
+            .buttonStyle(.plain)
+    }
+
+    private func actionTileLabel(_ title: String, _ symbol: String, tint: Color) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: symbol).font(.body.weight(.semibold)).foregroundStyle(tint)
+                .frame(width: 36, height: 36)
+                .background(tint.opacity(0.13), in: .rect(cornerRadius: 10, style: .continuous))
+            Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(tint == .red ? .red : .primary)
+                .lineLimit(1).minimumScaleFactor(0.8)
+            Spacer(minLength: 0)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, minHeight: 58)
+        .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 14, style: .continuous))
+        .contentShape(.rect(cornerRadius: 14))
     }
 
     private func seatField(_ label: String, text: Binding<String>) -> some View {

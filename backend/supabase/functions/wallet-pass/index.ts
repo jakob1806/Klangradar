@@ -15,7 +15,20 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import forge from "npm:node-forge@1.3.1";
 import { strToU8, zipSync } from "npm:fflate@0.8.2";
 import { PASS_IMAGES } from "../_shared/walletPassImages.ts";
-import { Image } from "npm:imagescript@1.3.0";
+// Bildbibliothek erst bei Bedarf laden (08.11.2026): scheitert sie, wird
+// die Karte trotzdem erstellt – nur ohne Streifenbild.
+// deno-lint-ignore no-explicit-any
+let Image: any = null;
+async function loadImageLib(): Promise<boolean> {
+  if (Image) return true;
+  try {
+    Image = (await import("npm:imagescript@1.3.0")).Image;
+    return true;
+  } catch (err) {
+    console.error("wallet-pass imagescript", err instanceof Error ? err.message : String(err));
+    return false;
+  }
+}
 
 const WWDR_URL = "https://www.apple.com/certificateauthority/AppleWWDRCAG4.cer";
 let wwdrCache: forge.pki.Certificate | null = null;
@@ -39,7 +52,8 @@ function signerFromP12(): { cert: forge.pki.Certificate; key: forge.pki.PrivateK
 
 /** Streifenbild: Kartenfarbe + zwei Bänder (Violettblau oben, Mint unten),
  * die von einem Punkt rechts der Mitte schräg nach außen laufen. */
-async function logoBandStrip(w: number, h: number): Promise<Uint8Array> {
+// deno-lint-ignore no-explicit-any
+function logoBandStrip(w: number, h: number): any {
   const ox = w * 0.62, oy = h / 2;
   const half = h * 0.15;
   const stemW = half * 2.1;
@@ -63,7 +77,7 @@ async function logoBandStrip(w: number, h: number): Promise<Uint8Array> {
     }
     return Image.rgbaToColor(26, 27, 46, 255);
   });
-  return await image.encode();
+  return image;
 }
 
 function hashString(value: string): number {
@@ -74,36 +88,39 @@ function hashString(value: string): number {
 
 /** Konzertbild laden und prüfen: dekodierbar (JPEG/PNG), groß genug,
  * querformatig genug. Sonst null → Plakat oder Logo-Bänder. */
-async function loadPhoto(url: string | null): Promise<Image | null> {
+async function loadPhoto(url: string | null): Promise<any> {
   if (!url || !/^https:\/\//.test(url)) return null;
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
     if (!res.ok) return null;
-    const image = await Image.decode(new Uint8Array(await res.arrayBuffer()));
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    if (bytes.length > 4_000_000) return null; // zu groß für die Rechenzeit
+    const image = await Image.decode(bytes);
     if (image.width < 700 || image.height < 260) return null;
     if (image.width / image.height < 1.1) return null;
-    return image;
+    // Früh verkleinern spart Rechenzeit bei allen weiteren Schritten.
+    return image.width > 1000 ? image.resize(1000, Image.RESIZE_AUTO) : image;
   } catch {
     return null;
   }
 }
 
 /** B: Foto randlos, unten abgedunkelt, damit der Titel lesbar bleibt. */
-async function photoStrip(source: Image, w: number, h: number): Promise<Uint8Array> {
+// deno-lint-ignore no-explicit-any
+function photoStrip(source: any, w: number, h: number): any {
   const scale = Math.max(w / source.width, h / source.height);
-  const resized = source.clone().resize(Math.ceil(source.width * scale), Math.ceil(source.height * scale));
+  const resized = source.resize(Math.ceil(source.width * scale), Math.ceil(source.height * scale));
   const x = Math.max(0, Math.floor((resized.width - w) / 2));
   const y = Math.max(0, Math.floor((resized.height - h) / 3));
   const strip = resized.crop(x, y, w, h);
-  for (let py = 1; py <= h; py++) {
-    const t = py / h;
-    const dim = t < 0.35 ? 0.9 : 0.9 - (t - 0.35) * 0.9;
-    for (let px = 1; px <= w; px++) {
-      const [r, g, b] = Image.colorToRGBA(strip.getPixelAt(px, py));
-      strip.setPixelAt(px, py, Image.rgbaToColor(Math.round(r * dim), Math.round(g * dim), Math.round(b * dim), 255));
-    }
+  // Abdunkeln über eine halbtransparente schwarze Fläche je Zeile (schnell).
+  for (let py = Math.floor(h * 0.4); py <= h; py += 4) {
+    const alpha = Math.round(((py - h * 0.4) / (h * 0.6)) * 150);
+    const band = new Image(w, 4);
+    band.fill(Image.rgbaToColor(0, 0, 0, Math.min(255, Math.max(0, alpha))));
+    strip.composite(band, 0, py);
   }
-  return await strip.encode();
+  return strip;
 }
 
 let posterFont: Uint8Array | null = null;
@@ -120,33 +137,42 @@ async function loadPosterFont(): Promise<Uint8Array | null> {
 }
 
 /** A: Titel groß in Serifenschrift auf Schwarz. Wörter werden nie getrennt;
- * kurze Titel stehen in einer Zeile, lange werden kleiner und umbrechen. */
-async function posterStrip(title: string, w: number, h: number): Promise<Uint8Array | null> {
+ * kurze Titel stehen in einer Zeile, lange werden kleiner und umbrechen.
+ * Gemessen wird einmal bei Referenzgröße, dann proportional skaliert. */
+async function posterStrip(title: string, w: number, h: number): Promise<any> {
   const font = await loadPosterFont();
   if (!font) return null;
   const pad = Math.round(w * 0.045);
   const words = title.replace(/\s+/g, " ").trim().split(" ");
-  for (let size = Math.round(h * 0.62); size >= Math.round(h * 0.16); size -= Math.max(1, Math.round(h / 98))) {
-    for (const lineCount of [1, 2, 3]) {
-      if (lineCount > words.length) break;
-      const per = Math.ceil(words.length / lineCount);
-      const rows: string[] = [];
-      for (let i = 0; i < words.length; i += per) rows.push(words.slice(i, i + per).join(" "));
-      const rendered = await Promise.all(rows.map((row) => Image.renderText(font, size, row, 0xffffffff)));
-      const lineH = Math.round(size * 0.98);
-      if (rendered.every((r) => r.width <= w - 2 * pad) && lineH * rows.length <= h - pad) {
-        const image = new Image(w, h);
-        image.fill(Image.rgbaToColor(17, 17, 17, 255));
-        let y = h - pad * 0.6 - lineH * rows.length;
-        for (const r of rendered) {
-          image.composite(r, pad, Math.round(y + (lineH - r.height)));
-          y += lineH;
-        }
-        return await image.encode();
-      }
-    }
+  const ref = 100;
+  const widthAt = new Map<string, number>();
+  const measure = async (text: string) => {
+    if (!widthAt.has(text)) widthAt.set(text, (await Image.renderText(font, ref, text, 0xffffffff)).width);
+    return widthAt.get(text)!;
+  };
+  let best: { rows: string[]; size: number } | null = null;
+  for (const lineCount of [1, 2, 3]) {
+    if (lineCount > words.length) break;
+    const per = Math.ceil(words.length / lineCount);
+    const rows: string[] = [];
+    for (let i = 0; i < words.length; i += per) rows.push(words.slice(i, i + per).join(" "));
+    const widest = Math.max(...await Promise.all(rows.map(measure)));
+    const byWidth = ((w - 2 * pad) / widest) * ref;
+    const byHeight = (h - pad) / (rows.length * 0.98);
+    const size = Math.floor(Math.min(byWidth, byHeight, h * 0.62));
+    if (!best || size > best.size) best = { rows, size };
   }
-  return null;
+  if (!best || best.size < h * 0.14) return null;
+  const image = new Image(w, h);
+  image.fill(Image.rgbaToColor(17, 17, 17, 255));
+  const lineH = Math.round(best.size * 0.98);
+  let y = h - pad * 0.6 - lineH * best.rows.length;
+  for (const row of best.rows) {
+    const r = await Image.renderText(font, best.size, row, 0xffffffff);
+    image.composite(r, pad, Math.round(y + (lineH - r.height)));
+    y += lineH;
+  }
+  return image;
 }
 
 function sha1Hex(bytes: Uint8Array): string {
@@ -239,20 +265,33 @@ Deno.serve(async (req) => {
   //  B „Foto“: echtes Konzertbild, wenn es scharf/groß genug und lesbar ist,
   //  A „Plakat“: sonst der Titel groß in Serifenschrift (ohne Trennung),
   //  C „Logo-Bänder“: gelegentlich statt A und als Rückfall.
+  const hasImageLib = await loadImageLib();
   // deno-lint-ignore no-explicit-any
-  const photo = await loadPhoto(((event as any).image_urls ?? [])[0] ?? null);
+  const photo = hasImageLib ? await loadPhoto(((event as any).image_urls ?? [])[0] ?? null) : null;
   const variant: "photo" | "poster" | "bands" = photo ? "photo"
     : (hashString(event.id) % 3 === 0 ? "bands" : "poster");
   let usedPoster = false;
-  for (const [suffix, scale] of [["", 1], ["@2x", 2], ["@3x", 3]] as const) {
-    const w = 375 * scale, h = 98 * scale;
-    let strip: Uint8Array | null = null;
-    if (variant === "photo" && photo) strip = await photoStrip(photo, w, h);
-    if (variant === "poster") {
-      strip = await posterStrip(event.title, w, h);
-      if (strip) usedPoster = true;
+  // 08.11.2026 (Absturz „worker_error“ = Rechenzeit-Limit): nur EIN Streifen
+  // in 750×196 rechnen, die kleine Fassung daraus verkleinern; kein @3x.
+  // deno-lint-ignore no-explicit-any
+  let strip2x: any = null;
+  try {
+    if (hasImageLib && variant === "photo" && photo) strip2x = photoStrip(photo, 750, 196);
+    if (hasImageLib && variant === "poster") {
+      strip2x = await posterStrip(event.title, 750, 196);
+      if (strip2x) usedPoster = true;
     }
-    files[`strip${suffix}.png`] = strip ?? await logoBandStrip(w, h);
+  } catch (err) {
+    console.warn("wallet-pass strip", err instanceof Error ? err.message : String(err));
+  }
+  try {
+    if (hasImageLib) {
+      if (!strip2x) strip2x = logoBandStrip(750, 196);
+      files["strip@2x.png"] = await strip2x.encode();
+      files["strip.png"] = await strip2x.clone().resize(375, 98).encode();
+    }
+  } catch (err) {
+    console.warn("wallet-pass strip encode", err instanceof Error ? err.message : String(err));
   }
   // Beim Plakat steht der Titel schon im Bild – nicht doppelt darüberlegen.
   if (usedPoster) {
