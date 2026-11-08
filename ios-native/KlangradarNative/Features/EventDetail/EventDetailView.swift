@@ -8,6 +8,7 @@ struct EventDetailView: View {
     let contentRepository: any ContentRepository
 
     @State private var detail: JSONObject?
+    @State private var showsShareToFriends = false
     @State private var isLoading = true
     @State private var loadError: String?
     @State private var fullScreenImage: FullScreenImageReference?
@@ -58,6 +59,10 @@ struct EventDetailView: View {
                             // sonst klafft zwischen Kategorie und Ort eine
                             // große Lücke (Nutzermeldung 27.10.2026).
                             CollapsingVStack(spacing: 14) {
+                                // 08.11.2026: Am Konzerttag steht das Ticket ganz oben.
+                                if SeatCard.isConcertDay(event) {
+                                    SeatCard(event: event, detail: detail, placement: .concertDay)
+                                }
                                 VStack(alignment: .leading, spacing: 0) {
                                     FriendsAttendingRow(event: event, shareURL: (detail.string("ticket_url") ?? detail.string("website_url")).flatMap(URL.init(string:)))
                                     EventRatingSection(event: event)
@@ -115,6 +120,9 @@ struct EventDetailView: View {
         .background { KlangradarBackground().ignoresSafeArea() }
         .background { SwipeBackEnabler().allowsHitTesting(false) }
         .edgeSwipeBack { dismiss() }
+        .sheet(isPresented: $showsShareToFriends) {
+            ShareEventToFriendsSheet(eventID: event.id, eventTitle: event.title)
+        }
         .coachContext(CoachContext(kind: .event, title: event.title,
                                    detail: [event.startDate.map { KlangradarDateTime.string($0, format: "d. MMMM yyyy, HH:mm") }, event.venues?.name].compactMap { $0 }.joined(separator: ", ")))
         .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -214,6 +222,7 @@ struct EventDetailView: View {
                         Menu {
                             if (event.startDate ?? .distantPast) > .now && reportStore.auth.userID != nil {
                                 Section("Mit Freunden") {
+                                    Button("An Freunde senden", systemImage: "paperplane") { showsShareToFriends = true }
                                     Button("Konzertabend planen", systemImage: "person.2") { planComposer = .plan }
                                     Button("Wer kommt mit?", systemImage: "questionmark.bubble") { planComposer = .ask }
                                 }

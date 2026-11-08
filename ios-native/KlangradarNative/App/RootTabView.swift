@@ -633,6 +633,12 @@ private struct DeepLinkRoutingModifier: ViewModifier {
             .onChange(of: isReadyForInvite) { _, ready in
                 if ready && deepLinks.pendingFriendCode != nil { friendsSheetTab = .friends; showsFriends = true }
             }
+            .sheet(item: Binding(get: { deepLinks.pendingChatID.map(ChatSheetID.init) }, set: { if $0 == nil { deepLinks.pendingChatID = nil } })) { item in
+                NavigationStack {
+                    ChatThreadView(conversationID: item.id, title: "Chat", isGroup: false)
+                        .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fertig") { deepLinks.pendingChatID = nil } } }
+                }
+            }
             .onChange(of: deepLinks.pendingFriendsTab) { _, tab in
                 guard let tab else { return }
                 friendsSheetTab = tab
@@ -704,3 +710,7 @@ private struct TicketDeepLinkPresenter: ViewModifier {
             }
     }
 }
+
+
+/// Chat-Sheet aus Push-Mitteilungen (08.11.2026).
+struct ChatSheetID: Identifiable { let id: UUID }

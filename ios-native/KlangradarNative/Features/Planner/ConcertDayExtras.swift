@@ -210,34 +210,80 @@ struct CastChangeBanner: View {
     }
 }
 
-/// "Ticket & Platz" (Nutzerwunsch 27.10.2026): eine einzige Kachel. Sie
-/// zeigt, ob ein Ticket hinterlegt und ein Platz eingetragen ist; ein Tipp
-/// öffnet alles zusammen (Ticket ablegen/öffnen, Platz, Saalplan). Beides
-/// bleibt nur auf dem Gerät.
+/// Ticketbereich auf der Konzertseite (Redesign 08.11.2026):
+/// 1. ohne Ticket eine schmale Einladung, mit Ticket eine kleine Eintrittskarte
+///    im Stil der Wallet-Karte (Platz groß, Abriss, Mini-Code),
+/// 2. am Konzerttag ganz oben mit „Ticket öffnen“, Einlass und Eingang,
+/// 3. Wallet-Status direkt auf der Karte,
+/// 4. mehrere Tickets: Anzahl und „Ticket weitergeben“,
+/// 5. nach dem Konzert eine Erinnerung mit Weg ins Konzerttagebuch.
 struct SeatCard: View {
+    enum Placement { case inline, concertDay }
+
     let event: ConcertEvent
     let detail: JSONObject
+    var placement: Placement = .inline
     @State private var seat = ConcertSeat()
     @State private var ticketImage: UIImage?
+    @State private var codes: [TicketStore.TicketCode] = []
     @State private var seatingPlanURL: URL?
     @State private var isEditing = false
+    @State private var showsTicket = false
+    @State private var showsJournal = false
+    @State private var inWallet = false
 
-    private var isUpcoming: Bool { (event.startDate ?? .distantPast).addingTimeInterval(3 * 3600) > .now }
+    private static let ink = Color(red: 0.102, green: 0.106, blue: 0.180)
+    private static let mint = Color(red: 0.322, green: 0.804, blue: 0.737)
+    private static let periwinkle = Color(red: 0.443, green: 0.502, blue: 0.984)
+
+    private var start: Date? { event.startDate }
+    private var isPast: Bool { (start ?? .distantFuture).addingTimeInterval(3 * 3600) < .now }
+    private var hasTicket: Bool { ticketImage != nil || !codes.isEmpty }
+
+    static func isConcertDay(_ event: ConcertEvent) -> Bool {
+        guard let start = event.startDate else { return false }
+        return KlangradarDateTime.calendar.isDateInToday(start) && start.addingTimeInterval(3 * 3600) > .now
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if isUpcoming {
-                Button { isEditing = true } label: { tile }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Ticket und Platz: \(ticketImage == nil ? "kein Ticket" : "Ticket hinterlegt"), \(seat.isEmpty ? "kein Platz" : seat.summary)")
-                    .sheet(isPresented: $isEditing, onDismiss: { SharedSeatStore.save(seat, forSlug: event.slug) }) {
-                        TicketSeatEditor(event: event, seat: $seat, ticketImage: $ticketImage, seatingPlanURL: seatingPlanURL)
+        Group {
+            if isPast {
+                if hasTicket || !seat.isEmpty { memoryCard }
+            } else if placement == .concertDay {
+                concertDayCard
+            } else if Self.isConcertDay(event) {
+                EmptyView() // steht am Konzerttag oben
+            } else if hasTicket || !seat.isEmpty {
+                ticketCard
+            } else {
+                inviteRow
+            }
+        }
+        .sheet(isPresented: $isEditing, onDismiss: reload) {
+            TicketSeatEditor(event: event, seat: $seat, ticketImage: $ticketImage, seatingPlanURL: seatingPlanURL)
+        }
+        .fullScreenCover(isPresented: $showsTicket) {
+            let images = codes.compactMap { TicketStore.render($0) }
+            let all = images.isEmpty ? [ticketImage].compactMap { $0 } : images
+            // Mehrere Tickets: seitlich wischen.
+            TabView {
+                ForEach(Array(all.enumerated()), id: \.offset) { _, image in
+                    TicketFullScreen(image: image) { showsTicket = false } onRemove: {
+                        TicketStore.remove(for: event.id); TicketStore.saveCodes([], for: event.id); showsTicket = false; reload()
                     }
+                }
+            }
+            .tabViewStyle(.page(indexDisplayMode: all.count > 1 ? .always : .never))
+            .ignoresSafeArea()
+        }
+        .sheet(isPresented: $showsJournal) {
+            NavigationStack {
+                ConcertJournalEditor(existing: ConcertJournalEntry(title: event.title, startsAt: start ?? .now,
+                                                                   note: seat.isEmpty ? "" : "Platz: \(seat.summary)"))
             }
         }
         .task(id: event.id) {
-            seat = SharedSeatStore.seat(forSlug: event.slug) ?? ConcertSeat()
-            ticketImage = TicketStore.image(for: event.id)
+            reload()
             guard let venueID = detail.object("venues")?.string("id"), let client = SocialStore.shared.repository?.client else { return }
             let rows: [JSONObject]? = try? await client.get(table: "venues", queryItems: [
                 URLQueryItem(name: "select", value: "seating_plan_url"),
@@ -247,46 +293,292 @@ struct SeatCard: View {
         }
     }
 
-    // Kompakte Zeile (06.11.2026): ein Symbol, Titel, eine Statuszeile.
-    // Apple Wallet liegt jetzt im geöffneten Blatt statt als großer Knopf hier.
-    private var tile: some View {
-        HStack(spacing: 12) {
-            Group {
-                if let ticketImage {
-                    Image(uiImage: ticketImage).resizable().scaledToFill()
-                } else {
-                    Image(systemName: "ticket").font(.body.weight(.semibold)).foregroundStyle(KlangradarTheme.accent)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(KlangradarTheme.accent.opacity(0.12))
-                }
-            }
-            .frame(width: 40, height: 40)
-            .clipShape(.rect(cornerRadius: 10, style: .continuous))
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Ticket & Platz").font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
-                Text(statusText).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
-            }
-            Spacer(minLength: 0)
-            if ticketImage != nil || !seat.isEmpty {
-                Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-            } else {
-                Text("Hinterlegen").font(.footnote.weight(.semibold)).foregroundStyle(KlangradarTheme.accent)
-            }
-            Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(Color(uiColor: .secondarySystemBackground), in: .rect(cornerRadius: 16, style: .continuous))
-        .contentShape(.rect(cornerRadius: 16))
+    private func reload() {
+        seat = SharedSeatStore.seat(forSlug: event.slug) ?? ConcertSeat()
+        ticketImage = TicketStore.image(for: event.id)
+        codes = TicketStore.codes(for: event.id)
+        inWallet = WalletStatus.isAdded(eventID: event.id)
+        SharedSeatStore.save(seat, forSlug: event.slug)
     }
 
-    private var statusText: String {
-        switch (ticketImage != nil, seat.isEmpty) {
-        case (false, true): return "Noch nichts hinterlegt"
-        case (true, true): return "Ticket hinterlegt · Platz fehlt"
-        case (false, false): return seat.summary
-        case (true, false): return "Ticket · \(seat.summary)"
+    // MARK: 1a – Einladung ohne Ticket
+
+    private var inviteRow: some View {
+        Button { isEditing = true } label: {
+            HStack(spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Self.ink)
+                    Image(systemName: "ticket").font(.body.weight(.semibold)).foregroundStyle(Self.mint)
+                }
+                .frame(width: 44, height: 44)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Ticket hinterlegen").font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+                    Text("Am Abend mit einem Tipp am Einlass").font(.footnote).foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "plus.circle.fill").font(.title3).foregroundStyle(KlangradarTheme.accent)
+            }
+            .padding(12)
+            .background(Color(uiColor: .secondarySystemBackground), in: .rect(cornerRadius: 18, style: .continuous))
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Ticket hinterlegen")
+    }
+
+    // MARK: 1b – Mini-Eintrittskarte
+
+    private var ticketCard: some View {
+        Button { isEditing = true } label: {
+            VStack(spacing: 0) {
+                HStack(alignment: .center, spacing: 8) {
+                    KlangradarMark(stem: .white).frame(width: 16, height: 19)
+                    Text("Dein Ticket").font(.footnote.weight(.semibold)).foregroundStyle(.white.opacity(0.85))
+                    Spacer()
+                    walletBadge
+                }
+                .padding(.horizontal, 16).padding(.top, 14)
+                HStack(alignment: .bottom, spacing: 0) {
+                    seatColumns
+                    Spacer(minLength: 12)
+                    miniCode
+                }
+                .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 14)
+                tearLine
+                footer
+            }
+            .background(Self.ink, in: EntryTicketShape(tearFromBottom: 52))
+            .shadow(color: .black.opacity(0.18), radius: 14, y: 6)
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Dein Ticket, \(seat.isEmpty ? "kein Platz eingetragen" : seat.summary). Zum Bearbeiten tippen.")
+    }
+
+    private var seatColumns: some View {
+        HStack(alignment: .top, spacing: 18) {
+            if seat.isEmpty {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("PLATZ").font(.caption2.weight(.semibold)).tracking(1).foregroundStyle(Self.mint)
+                    Text("Platz eintragen").font(.headline).foregroundStyle(.white.opacity(0.7))
+                }
+            } else {
+                ForEach(seatParts, id: \.0) { label, value in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(label).font(.caption2.weight(.semibold)).tracking(1).foregroundStyle(Self.mint)
+                        Text(value).font(.system(.title2, design: .serif).weight(.semibold)).foregroundStyle(.white)
+                            .lineLimit(1).minimumScaleFactor(0.6)
+                    }
+                }
+            }
+        }
+    }
+
+    private var seatParts: [(String, String)] {
+        [("EINGANG", seat.entrance), ("BLOCK", seat.block), ("REIHE", seat.row), ("PLATZ", seat.seat)]
+            .filter { !$0.1.trimmingCharacters(in: .whitespaces).isEmpty }
+    }
+
+    @ViewBuilder private var miniCode: some View {
+        if let code = codes.first, let rendered = TicketStore.render(code, scale: 4) {
+            Image(uiImage: rendered).interpolation(.none).resizable().scaledToFit()
+                .padding(5).frame(width: 58, height: 58)
+                .background(.white, in: .rect(cornerRadius: 8, style: .continuous))
+                .accessibilityHidden(true)
+        } else if let ticketImage {
+            Image(uiImage: ticketImage).resizable().scaledToFill()
+                .frame(width: 58, height: 58).clipShape(.rect(cornerRadius: 8, style: .continuous))
+                .accessibilityHidden(true)
+        }
+    }
+
+    private var tearLine: some View {
+        PerforationLine()
+            .stroke(style: StrokeStyle(lineWidth: 1, dash: [4, 5]))
+            .foregroundStyle(.white.opacity(0.22))
+            .frame(height: 1)
+            .padding(.horizontal, 14)
+    }
+
+    private var footer: some View {
+        HStack(spacing: 10) {
+            if codes.count > 1 {
+                Label("\(codes.count) Tickets", systemImage: "person.2.fill").font(.footnote.weight(.medium))
+                    .foregroundStyle(.white.opacity(0.85))
+                if let second = codes.dropFirst().first, let image = TicketStore.render(second, scale: 10) {
+                    ShareLink(item: Image(uiImage: image), preview: SharePreview("Ticket für \(event.title)", image: Image(uiImage: image))) {
+                        Text("Weitergeben").font(.footnote.weight(.semibold)).foregroundStyle(Self.mint)
+                    }
+                }
+            } else {
+                Text(hasTicket ? "Am Einlass: Karte antippen" : "Ticket fehlt noch").font(.footnote).foregroundStyle(.white.opacity(0.7))
+            }
+            Spacer()
+            if hasTicket {
+                Button { showsTicket = true } label: {
+                    Text("Öffnen").font(.footnote.weight(.semibold)).foregroundStyle(Self.ink)
+                        .padding(.horizontal, 14).padding(.vertical, 7)
+                        .background(.white, in: .capsule)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 16).padding(.vertical, 12)
+    }
+
+    @ViewBuilder private var walletBadge: some View {
+        if inWallet {
+            Label("In Wallet", systemImage: "checkmark.circle.fill").font(.caption.weight(.semibold))
+                .foregroundStyle(Self.mint)
+        } else if hasTicket || !seat.isEmpty {
+            Label("Zu Wallet", systemImage: "wallet.pass").font(.caption.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.75))
+        }
+    }
+
+    // MARK: 2 – Konzerttag
+
+    private var concertDayCard: some View {
+        let times = start.map { ConcertTimes.compute(start: $0, detail: detail) }
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                KlangradarMark(stem: .white).frame(width: 16, height: 19)
+                Text("HEUTE ABEND").font(.caption.weight(.bold)).tracking(1.4).foregroundStyle(Self.mint)
+                Spacer()
+                walletBadge
+            }
+            .padding(.horizontal, 18).padding(.top, 16)
+            HStack(alignment: .firstTextBaseline, spacing: 22) {
+                if let doors = times?.doorsAt {
+                    timeColumn("EINLASS", doors, estimated: times?.doorsEstimated ?? true)
+                }
+                if let start { timeColumn("BEGINN", start, estimated: false) }
+                if !seat.entrance.isEmpty {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("EINGANG").font(.caption2.weight(.semibold)).tracking(1).foregroundStyle(Self.mint)
+                        Text(seat.entrance).font(.system(.title2, design: .serif).weight(.semibold)).foregroundStyle(.white)
+                    }
+                }
+            }
+            .padding(.horizontal, 18).padding(.top, 14)
+            if !seatParts.filter({ $0.0 != "EINGANG" }).isEmpty {
+                Text(seatParts.filter { $0.0 != "EINGANG" }.map { "\($0.0.capitalized) \($0.1)" }.joined(separator: " · "))
+                    .font(.subheadline).foregroundStyle(.white.opacity(0.8))
+                    .padding(.horizontal, 18).padding(.top, 8)
+            }
+            tearLine.padding(.top, 16)
+            HStack(spacing: 10) {
+                if hasTicket {
+                    Button { showsTicket = true } label: {
+                        Label(codes.count > 1 ? "Tickets öffnen" : "Ticket öffnen", systemImage: "qrcode")
+                            .font(.headline).foregroundStyle(Self.ink)
+                            .frame(maxWidth: .infinity, minHeight: 50)
+                            .background(.white, in: .rect(cornerRadius: 14, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    Button { isEditing = true } label: {
+                        Label("Ticket hinterlegen", systemImage: "plus").font(.headline).foregroundStyle(Self.ink)
+                            .frame(maxWidth: .infinity, minHeight: 50)
+                            .background(.white, in: .rect(cornerRadius: 14, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                }
+                Button { isEditing = true } label: {
+                    Image(systemName: "slider.horizontal.3").font(.headline).foregroundStyle(.white)
+                        .frame(width: 50, height: 50)
+                        .background(.white.opacity(0.12), in: .rect(cornerRadius: 14, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Ticket und Platz bearbeiten")
+            }
+            .padding(14)
+        }
+        .background(Self.ink, in: EntryTicketShape(tearFromBottom: 78))
+        .shadow(color: .black.opacity(0.2), radius: 16, y: 8)
+    }
+
+    private func timeColumn(_ label: String, _ date: Date, estimated: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label).font(.caption2.weight(.semibold)).tracking(1).foregroundStyle(Self.mint)
+            Text((estimated ? "ca. " : "") + KlangradarDateTime.string(date, format: "HH:mm"))
+                .font(.system(.title2, design: .serif).weight(.semibold)).foregroundStyle(.white)
+                .monospacedDigit()
+        }
+    }
+
+    // MARK: 5 – Erinnerung
+
+    private var memoryCard: some View {
+        HStack(spacing: 14) {
+            ZStack {
+                Circle().fill(Self.periwinkle.opacity(0.15))
+                Image(systemName: "checkmark.seal.fill").font(.title3).foregroundStyle(Self.periwinkle)
+            }
+            .frame(width: 46, height: 46)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Du warst hier").font(.subheadline.weight(.semibold))
+                Text(seat.isEmpty ? (start.map { KlangradarDateTime.string($0, format: "d. MMMM yyyy") } ?? "") : seat.summary)
+                    .font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+            }
+            Spacer(minLength: 0)
+            Button { showsJournal = true } label: {
+                Text("Ins Tagebuch").font(.footnote.weight(.semibold))
+                    .padding(.horizontal, 12).padding(.vertical, 7)
+                    .background(KlangradarTheme.accent.opacity(0.12), in: .capsule)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(12)
+        .background(Color(uiColor: .secondarySystemBackground), in: .rect(cornerRadius: 18, style: .continuous))
+    }
+}
+
+/// Eintrittskarten-Umriss: abgerundet, seitliche Aussparungen am Abriss.
+struct EntryTicketShape: Shape {
+    /// Abstand des Abrisses vom unteren Rand.
+    var tearFromBottom: CGFloat = 52
+    func path(in rect: CGRect) -> Path {
+        let notch: CGFloat = 9
+        let y = rect.maxY - tearFromBottom
+        let base = Path(roundedRect: rect, cornerRadius: 20, style: .continuous)
+        var notches = Path()
+        notches.addEllipse(in: CGRect(x: rect.minX - notch, y: y - notch, width: notch * 2, height: notch * 2))
+        notches.addEllipse(in: CGRect(x: rect.maxX - notch, y: y - notch, width: notch * 2, height: notch * 2))
+        return base.subtracting(notches)
+    }
+}
+
+/// Das Klangradar-K aus dem App-Icon als Vektor.
+struct KlangradarMark: View {
+    var stem: Color = .primary
+    var body: some View {
+        Canvas { context, size in
+            let s = min(size.width / 630, size.height / 765)
+            func p(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: (x - 200) * s, y: (y - 130) * s) }
+            var upper = Path()
+            upper.move(to: p(366, 392)); upper.addLine(to: p(696, 160)); upper.addLine(to: p(782, 280))
+            upper.addLine(to: p(452, 512)); upper.addLine(to: p(366, 512)); upper.closeSubpath()
+            upper.addEllipse(in: CGRect(origin: p(665, 145), size: CGSize(width: 148 * s, height: 148 * s)))
+            context.fill(upper, with: .color(Color(red: 0.443, green: 0.502, blue: 0.984)))
+            var lower = Path()
+            lower.move(to: p(366, 632)); lower.addLine(to: p(696, 864)); lower.addLine(to: p(782, 744))
+            lower.addLine(to: p(452, 512)); lower.addLine(to: p(366, 512)); lower.closeSubpath()
+            lower.addEllipse(in: CGRect(origin: p(665, 731), size: CGSize(width: 148 * s, height: 148 * s)))
+            context.fill(lower, with: .color(Color(red: 0.322, green: 0.804, blue: 0.737)))
+            context.fill(Path(roundedRect: CGRect(origin: p(218, 192), size: CGSize(width: 148 * s, height: 640 * s)), cornerRadius: 74 * s), with: .color(stem))
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+/// Merkt sich, ob die Wallet-Karte eines Konzerts hinzugefügt wurde.
+enum WalletStatus {
+    private static func key(_ id: UUID) -> String { "walletAdded.\(id.uuidString.lowercased())" }
+    static func isAdded(eventID: UUID) -> Bool { UserDefaults.standard.bool(forKey: key(eventID)) }
+    static func refresh(eventID: UUID) {
+        let prefix = eventID.uuidString.lowercased()
+        let found = PKPassLibrary().passes().contains { $0.serialNumber.lowercased().hasPrefix(prefix) }
+        UserDefaults.standard.set(found, forKey: key(eventID))
     }
 }
 
@@ -304,7 +596,10 @@ private struct TicketSeatEditor: View {
     @State private var walletPass: WalletPassItem?
     @State private var walletError: String?
     @State private var isLoadingWallet = false
-    @State private var ticketCode: TicketStore.TicketCode?
+    @State private var ticketCodes: [TicketStore.TicketCode] = []
+    @State private var openCodeIndex = 0
+    @State private var detectionNote: String?
+    private var ticketCode: TicketStore.TicketCode? { ticketCodes.first }
     @State private var showsScanner = false
     @State private var showsCodeEntry = false
     @State private var manualCode = ""
@@ -364,7 +659,9 @@ private struct TicketSeatEditor: View {
                 guard case let .success(url) = result else { return }
                 let scoped = url.startAccessingSecurityScopedResource()
                 defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-                if let image = TicketStore.image(from: url) { store(image) }
+                // 08.11.2026: alle Seiten durchsuchen, nicht nur die erste.
+                let pages = TicketStore.pages(from: url)
+                if let first = pages.first { store(first, pages: pages) }
             }
             .onChange(of: ticketPick) { _, item in
                 guard let item else { return }
@@ -375,7 +672,8 @@ private struct TicketSeatEditor: View {
             }
             .sheet(isPresented: $showsScanner) {
                 TicketCodeScanner { code in
-                    TicketStore.saveCode(code, for: event.id); ticketCode = code; showsScanner = false; Haptics.confirm()
+                    if !ticketCodes.contains(where: { $0.payload == code.payload }) { ticketCodes.append(code) }
+                    TicketStore.saveCodes(ticketCodes, for: event.id); showsScanner = false; Haptics.confirm()
                 }
                 .ignoresSafeArea()
             }
@@ -387,15 +685,16 @@ private struct TicketSeatEditor: View {
                 Button("Speichern") {
                     let value = manualCode.trimmingCharacters(in: .whitespacesAndNewlines)
                     let code = value.isEmpty ? nil : TicketStore.TicketCode(payload: value, format: "qr")
-                    TicketStore.saveCode(code, for: event.id); ticketCode = code
+                    ticketCodes = code.map { [$0] } ?? []
+                    TicketStore.saveCodes(ticketCodes, for: event.id)
                 }
                 Button("Abbrechen", role: .cancel) {}
             } message: { Text("Zum Beispiel die Ticketnummer oder den Text hinter dem QR-Code aus der Bestätigungsmail.") }
-            .sheet(item: $walletPass) { item in
-                AddPassSheet(pass: item.pass).ignoresSafeArea()
+            .sheet(item: $walletPass, onDismiss: { WalletStatus.refresh(eventID: event.id) }) { item in
+                AddPassSheet(passes: item.passes).ignoresSafeArea()
             }
             .fullScreenCover(isPresented: $showsTicket) {
-                if let image = ticketCode.flatMap({ TicketStore.render($0) }) ?? ticketImage {
+                if let image = (ticketCodes.indices.contains(openCodeIndex) ? TicketStore.render(ticketCodes[openCodeIndex]) : nil) ?? ticketImage {
                     TicketFullScreen(image: image) { showsTicket = false } onRemove: {
                         TicketStore.remove(for: event.id); self.ticketImage = nil; showsTicket = false
                     }
@@ -404,11 +703,11 @@ private struct TicketSeatEditor: View {
         }
         .presentationDetents([.large])
         .task {
-            ticketCode = TicketStore.code(for: event.id)
+            ticketCodes = TicketStore.codes(for: event.id)
             // Ältere Tickets ohne gespeicherten Code einmal nachträglich prüfen.
-            if ticketCode == nil, let ticketImage, let code = await TicketStore.detectCode(in: ticketImage) {
-                TicketStore.saveCode(code, for: event.id)
-                ticketCode = code
+            if ticketCodes.isEmpty, let ticketImage {
+                ticketCodes = await TicketStore.detectCodes(in: [ticketImage])
+                TicketStore.saveCodes(ticketCodes, for: event.id)
             }
         }
     }
@@ -418,14 +717,21 @@ private struct TicketSeatEditor: View {
         Button("PDF oder Datei wählen", systemImage: "doc") { showsFileImporter = true }
     }
 
-    private func store(_ image: UIImage) {
+    private func store(_ image: UIImage, pages: [UIImage]? = nil) {
         TicketStore.save(image, for: event.id)
         ticketImage = image
-        Haptics.confirm()
+        detectionNote = "Suche nach Codes …"
         Task {
-            let code = await TicketStore.detectCode(in: image)
-            TicketStore.saveCode(code, for: event.id)
-            ticketCode = code
+            let codes = await TicketStore.detectCodes(in: pages ?? [image])
+            TicketStore.saveCodes(codes, for: event.id)
+            ticketCodes = codes
+            openCodeIndex = 0
+            switch codes.count {
+            case 0: detectionNote = "Kein Code erkannt – am Einlass wird dein Ticket als Bild gezeigt."
+            case 1: detectionNote = "\(codes[0].format.uppercased())-Code erkannt und geprüft."
+            default: detectionNote = "\(codes.count) Tickets erkannt – für jedes gibt es eine eigene Wallet-Karte."
+            }
+            Haptics.confirm()
         }
     }
 
@@ -497,6 +803,8 @@ private struct TicketSeatEditor: View {
     }
 
     private var ticketStatus: String {
+        if let detectionNote { return detectionNote }
+        if ticketCodes.count > 1 { return "\(ticketCodes.count) Tickets · Codes geprüft" }
         if let code = ticketCode { return "\(code.format.uppercased())-Code erkannt · scharf für den Einlass" }
         if ticketImage != nil { return "Foto hinterlegt · volle Helligkeit beim Öffnen" }
         return "Foto, Screenshot oder PDF – bleibt auf deinem iPhone"
@@ -532,12 +840,24 @@ private struct TicketSeatEditor: View {
                     .buttonStyle(.plain)
             }
             .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 16, style: .continuous))
+            if ticketCodes.count > 1 {
+                VStack(spacing: 0) {
+                    ForEach(Array(ticketCodes.enumerated()), id: \.offset) { index, _ in
+                        Button { openCodeIndex = index; showsTicket = true } label: {
+                            rowLabel("Ticket \(index + 1) öffnen", systemImage: "qrcode")
+                        }
+                        .buttonStyle(.plain)
+                        if index < ticketCodes.count - 1 { Divider().padding(.leading, 48) }
+                    }
+                }
+                .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 16, style: .continuous))
+            }
             if ticketImage != nil || ticketCode != nil {
                 VStack(spacing: 0) {
                     Menu { pickerButtons } label: { rowLabel("Ticket ersetzen", systemImage: "arrow.triangle.2.circlepath") }
                     Divider().padding(.leading, 48)
                     Button(role: .destructive) {
-                        TicketStore.remove(for: event.id); TicketStore.saveCode(nil, for: event.id); ticketImage = nil; ticketCode = nil
+                        TicketStore.remove(for: event.id); TicketStore.saveCodes([], for: event.id); ticketImage = nil; ticketCodes = []; detectionNote = nil
                     } label: { rowLabel("Ticket entfernen", systemImage: "trash", tint: .red) }
                 }
                 .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 16, style: .continuous))
@@ -603,7 +923,7 @@ private struct TicketSeatEditor: View {
 
 private struct WalletPassItem: Identifiable {
     let id = UUID()
-    let pass: PKPass
+    let passes: [PKPass]
 }
 
 extension TicketSeatEditor {
@@ -613,13 +933,21 @@ extension TicketSeatEditor {
         defer { isLoadingWallet = false }
         walletError = nil
         guard let client = SocialStore.shared.repository?.client else { walletError = "Wallet ist gerade nicht verfügbar."; return }
-        let items = [URLQueryItem(name: "slug", value: event.slug),
-                     URLQueryItem(name: "entrance", value: seat.entrance), URLQueryItem(name: "block", value: seat.block),
-                     URLQueryItem(name: "row", value: seat.row), URLQueryItem(name: "seat", value: seat.seat)]
-            + (ticketCode.map { [URLQueryItem(name: "code", value: $0.payload), URLQueryItem(name: "format", value: $0.format)] } ?? [])
+        let base = [URLQueryItem(name: "slug", value: event.slug),
+                    URLQueryItem(name: "entrance", value: seat.entrance), URLQueryItem(name: "block", value: seat.block),
+                    URLQueryItem(name: "row", value: seat.row), URLQueryItem(name: "seat", value: seat.seat)]
+        // 08.11.2026: eine Wallet-Karte pro erkanntem Ticket.
+        let variants: [[URLQueryItem]] = ticketCodes.isEmpty ? [base] : ticketCodes.enumerated().map { index, code in
+            base + [URLQueryItem(name: "code", value: code.payload), URLQueryItem(name: "format", value: code.format)]
+                 + (ticketCodes.count > 1 ? [URLQueryItem(name: "ticket", value: "\(index + 1)"), URLQueryItem(name: "of", value: "\(ticketCodes.count)")] : [])
+        }
         do {
-            let data = try await client.edgeFunctionData("wallet-pass", queryItems: items, accessToken: SocialStore.shared.token)
-            walletPass = WalletPassItem(pass: try PKPass(data: data))
+            var passes: [PKPass] = []
+            for items in variants {
+                let data = try await client.edgeFunctionData("wallet-pass", queryItems: items, accessToken: SocialStore.shared.token)
+                passes.append(try PKPass(data: data))
+            }
+            walletPass = WalletPassItem(passes: passes)
         } catch {
             walletError = "Die Wallet-Karte konnte nicht erstellt werden."
         }
@@ -644,9 +972,9 @@ private struct AddToWalletButton: UIViewRepresentable {
 }
 
 private struct AddPassSheet: UIViewControllerRepresentable {
-    let pass: PKPass
+    let passes: [PKPass]
     func makeUIViewController(context: Context) -> UIViewController {
-        PKAddPassesViewController(pass: pass) ?? UIViewController()
+        PKAddPassesViewController(passes: passes) ?? UIViewController()
     }
     func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}
 }

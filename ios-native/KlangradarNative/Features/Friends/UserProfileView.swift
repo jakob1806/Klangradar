@@ -8,6 +8,7 @@ struct UserProfileView: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var profile: UserProfile?
+    @State private var chatRoute: ChatRoute?
     @State private var matches: [SocialEvent] = []
     @State private var isLoading = true
     @State private var confirmsRemove = false
@@ -112,6 +113,12 @@ struct UserProfileView: View {
                 ContentUnavailableView("Profil nicht verfügbar", systemImage: "person.crop.circle.badge.questionmark")
             }
         }
+        .sheet(item: $chatRoute) { route in
+            NavigationStack {
+                ChatThreadView(conversationID: route.id, title: route.title, isGroup: false)
+                    .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fertig") { chatRoute = nil } } }
+            }
+        }
         .navigationTitle(profile?.person.name ?? "Profil")
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
@@ -158,6 +165,13 @@ struct UserProfileView: View {
                 RelationButton(person: profile.person, source: "profile") { _ in Task { await load() } }
                     .controlSize(.large)
                     .frame(maxWidth: .infinity)
+            } else {
+                // 08.11.2026: direkt in den Chat.
+                Button { Task { await openChat(profile.person) } } label: {
+                    Label("Nachricht", systemImage: "bubble.left.fill").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -282,6 +296,12 @@ struct UserProfileView: View {
             Text("\(value)").font(.title3.bold()).monospacedDigit()
             Text(label).font(.subheadline).foregroundStyle(.secondary)
         }
+    }
+
+    private func openChat(_ person: SocialPerson) async {
+        guard let repository = SocialStore.shared.repository, let token = SocialStore.shared.token,
+              let id = try? await repository.chatOpenDirect(with: person.id, token: token) else { return }
+        chatRoute = ChatRoute(id: id, title: person.name, isGroup: false)
     }
 
     private func load() async {

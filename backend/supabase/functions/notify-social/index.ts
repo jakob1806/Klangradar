@@ -38,7 +38,23 @@ Deno.serve(async (req) => {
       row.kind === "list_shared" && row.ref_id ? db.from("favorite_lists").select("name").eq("id", row.ref_id).maybeSingle() : Promise.resolve({ data: null }),
       db.from("push_tokens").select("token").eq("user_id", row.recipient),
     ]);
+    // Chat: Vorschau und Gruppenname zur Nachricht laden.
+    let chat: { preview: string; group: string | null; conversation: string } | null = null;
+    if (row.kind === "chat_message" && row.ref_id) {
+      const { data: msg } = await db.from("chat_messages")
+        .select("kind, body, conversation_id, chat_conversations(is_group, title)")
+        .eq("id", row.ref_id).maybeSingle();
+      if (msg) {
+        // deno-lint-ignore no-explicit-any
+        const conv = (msg as any).chat_conversations as { is_group?: boolean; title?: string } | null;
+        const preview = msg.kind === "event" ? `Hat ein Konzert geteilt: ${(event as { title?: string } | null)?.title ?? ""}`
+          : msg.kind === "invite" ? `Lädt dich ein: ${(event as { title?: string } | null)?.title ?? ""}`
+          : (msg.body ?? "").slice(0, 140);
+        chat = { preview, group: conv?.is_group ? conv.title ?? "Gruppe" : null, conversation: msg.conversation_id };
+      }
+    }
     const message = socialMessage({
+      chatPreview: chat?.preview, chatGroupTitle: chat?.group, chatConversationId: chat?.conversation,
       kind: row.kind,
       actorName: (actor as { display_name?: string } | null)?.display_name ?? "Ein:e Freund:in",
       eventTitle: (event as { title?: string } | null)?.title,
@@ -52,7 +68,7 @@ Deno.serve(async (req) => {
       body: message.body,
       data: socialPushData(row.kind, message.route, row.actor),
       category: message.category,
-      threadId: "social",
+      threadId: chat ? `chat-${chat.conversation}` : "social",
     });
     const invalid = results.filter((r) => r.invalidToken).map((r) => r.token);
     if (invalid.length) await db.from("push_tokens").delete().in("token", invalid);
