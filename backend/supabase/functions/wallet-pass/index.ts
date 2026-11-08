@@ -66,6 +66,89 @@ async function logoBandStrip(w: number, h: number): Promise<Uint8Array> {
   return await image.encode();
 }
 
+function hashString(value: string): number {
+  let h = 0;
+  for (let i = 0; i < value.length; i++) h = (h * 31 + value.charCodeAt(i)) >>> 0;
+  return h;
+}
+
+/** Konzertbild laden und prüfen: dekodierbar (JPEG/PNG), groß genug,
+ * querformatig genug. Sonst null → Plakat oder Logo-Bänder. */
+async function loadPhoto(url: string | null): Promise<Image | null> {
+  if (!url || !/^https:\/\//.test(url)) return null;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+    if (!res.ok) return null;
+    const image = await Image.decode(new Uint8Array(await res.arrayBuffer()));
+    if (image.width < 700 || image.height < 260) return null;
+    if (image.width / image.height < 1.1) return null;
+    return image;
+  } catch {
+    return null;
+  }
+}
+
+/** B: Foto randlos, unten abgedunkelt, damit der Titel lesbar bleibt. */
+async function photoStrip(source: Image, w: number, h: number): Promise<Uint8Array> {
+  const scale = Math.max(w / source.width, h / source.height);
+  const resized = source.clone().resize(Math.ceil(source.width * scale), Math.ceil(source.height * scale));
+  const x = Math.max(0, Math.floor((resized.width - w) / 2));
+  const y = Math.max(0, Math.floor((resized.height - h) / 3));
+  const strip = resized.crop(x, y, w, h);
+  for (let py = 1; py <= h; py++) {
+    const t = py / h;
+    const dim = t < 0.35 ? 0.9 : 0.9 - (t - 0.35) * 0.9;
+    for (let px = 1; px <= w; px++) {
+      const [r, g, b] = Image.colorToRGBA(strip.getPixelAt(px, py));
+      strip.setPixelAt(px, py, Image.rgbaToColor(Math.round(r * dim), Math.round(g * dim), Math.round(b * dim), 255));
+    }
+  }
+  return await strip.encode();
+}
+
+let posterFont: Uint8Array | null = null;
+async function loadPosterFont(): Promise<Uint8Array | null> {
+  if (posterFont) return posterFont;
+  try {
+    const res = await fetch("https://raw.githubusercontent.com/google/fonts/main/ofl/dmserifdisplay/DMSerifDisplay-Regular.ttf", { signal: AbortSignal.timeout(6000) });
+    if (!res.ok) return null;
+    posterFont = new Uint8Array(await res.arrayBuffer());
+    return posterFont;
+  } catch {
+    return null;
+  }
+}
+
+/** A: Titel groß in Serifenschrift auf Schwarz. Wörter werden nie getrennt;
+ * kurze Titel stehen in einer Zeile, lange werden kleiner und umbrechen. */
+async function posterStrip(title: string, w: number, h: number): Promise<Uint8Array | null> {
+  const font = await loadPosterFont();
+  if (!font) return null;
+  const pad = Math.round(w * 0.045);
+  const words = title.replace(/\s+/g, " ").trim().split(" ");
+  for (let size = Math.round(h * 0.62); size >= Math.round(h * 0.16); size -= Math.max(1, Math.round(h / 98))) {
+    for (const lineCount of [1, 2, 3]) {
+      if (lineCount > words.length) break;
+      const per = Math.ceil(words.length / lineCount);
+      const rows: string[] = [];
+      for (let i = 0; i < words.length; i += per) rows.push(words.slice(i, i + per).join(" "));
+      const rendered = await Promise.all(rows.map((row) => Image.renderText(font, size, row, 0xffffffff)));
+      const lineH = Math.round(size * 0.98);
+      if (rendered.every((r) => r.width <= w - 2 * pad) && lineH * rows.length <= h - pad) {
+        const image = new Image(w, h);
+        image.fill(Image.rgbaToColor(17, 17, 17, 255));
+        let y = h - pad * 0.6 - lineH * rows.length;
+        for (const r of rendered) {
+          image.composite(r, pad, Math.round(y + (lineH - r.height)));
+          y += lineH;
+        }
+        return await image.encode();
+      }
+    }
+  }
+  return null;
+}
+
 function sha1Hex(bytes: Uint8Array): string {
   const md = forge.md.sha1.create();
   md.update(forge.util.binary.raw.encode(bytes));
@@ -88,7 +171,7 @@ Deno.serve(async (req) => {
 
   const db = createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "");
   const { data: event } = await db.from("events")
-    .select("id, slug, title, start_datetime, image_urls, venues(name, address_street, address_city, photo_url)")
+    .select("id, slug, title, start_datetime, image_urls, venues(name, address_street, address_city)")
     .eq("slug", slug).neq("status", "draft").maybeSingle();
   if (!event) return new Response("Konzert nicht gefunden", { status: 404 });
   // deno-lint-ignore no-explicit-any
@@ -146,10 +229,31 @@ Deno.serve(async (req) => {
 
   const files: Record<string, Uint8Array> = { "pass.json": strToU8(JSON.stringify(pass)) };
   for (const [name, b64] of Object.entries(PASS_IMAGES)) files[name] = base64ToBytes(b64);
-  // 08.11.2026 (Design „Logo-Bänder“): Streifen in Kartenfarbe, die zwei
-  // Arme des Klangradar-K laufen als Farbbänder nach rechts heraus.
-  for (const [name, w, h] of [["strip.png", 375, 98], ["strip@2x.png", 750, 196], ["strip@3x.png", 1125, 294]] as const) {
-    files[name] = await logoBandStrip(w, h);
+  // 08.11.2026: Streifen-Design je nach Bildlage –
+  //  B „Foto“: echtes Konzertbild, wenn es scharf/groß genug und lesbar ist,
+  //  A „Plakat“: sonst der Titel groß in Serifenschrift (ohne Trennung),
+  //  C „Logo-Bänder“: gelegentlich statt A und als Rückfall.
+  // deno-lint-ignore no-explicit-any
+  const photo = await loadPhoto(((event as any).image_urls ?? [])[0] ?? null);
+  const variant: "photo" | "poster" | "bands" = photo ? "photo"
+    : (hashString(event.id) % 3 === 0 ? "bands" : "poster");
+  let usedPoster = false;
+  for (const [suffix, scale] of [["", 1], ["@2x", 2], ["@3x", 3]] as const) {
+    const w = 375 * scale, h = 98 * scale;
+    let strip: Uint8Array | null = null;
+    if (variant === "photo" && photo) strip = await photoStrip(photo, w, h);
+    if (variant === "poster") {
+      strip = await posterStrip(event.title, w, h);
+      if (strip) usedPoster = true;
+    }
+    files[`strip${suffix}.png`] = strip ?? await logoBandStrip(w, h);
+  }
+  // Beim Plakat steht der Titel schon im Bild – nicht doppelt darüberlegen.
+  if (usedPoster) {
+    pass.eventTicket.primaryFields = [];
+    // Plakat: schwarze Karte, Beschriftungen im Violettblau des Logos.
+    (pass as Record<string, unknown>).backgroundColor = "rgb(17, 17, 17)";
+    (pass as Record<string, unknown>).labelColor = "rgb(155, 166, 255)";
   }
   const manifest: Record<string, string> = {};
   for (const [name, bytes] of Object.entries(files)) manifest[name] = sha1Hex(bytes);

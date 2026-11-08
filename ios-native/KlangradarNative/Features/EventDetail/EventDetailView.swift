@@ -8,6 +8,7 @@ struct EventDetailView: View {
     let contentRepository: any ContentRepository
 
     @State private var detail: JSONObject?
+    @State private var showsShareToFriends = false
     @State private var isLoading = true
     @State private var loadError: String?
     @State private var fullScreenImage: FullScreenImageReference?
@@ -115,6 +116,9 @@ struct EventDetailView: View {
         .background { KlangradarBackground().ignoresSafeArea() }
         .background { SwipeBackEnabler().allowsHitTesting(false) }
         .edgeSwipeBack { dismiss() }
+        .sheet(isPresented: $showsShareToFriends) {
+            ShareEventToFriendsSheet(eventID: event.id, eventTitle: event.title)
+        }
         .coachContext(CoachContext(kind: .event, title: event.title,
                                    detail: [event.startDate.map { KlangradarDateTime.string($0, format: "d. MMMM yyyy, HH:mm") }, event.venues?.name].compactMap { $0 }.joined(separator: ", ")))
         .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -214,6 +218,7 @@ struct EventDetailView: View {
                         Menu {
                             if (event.startDate ?? .distantPast) > .now && reportStore.auth.userID != nil {
                                 Section("Mit Freunden") {
+                                    Button("An Freunde senden", systemImage: "paperplane") { showsShareToFriends = true }
                                     Button("Konzertabend planen", systemImage: "person.2") { planComposer = .plan }
                                     Button("Wer kommt mit?", systemImage: "questionmark.bubble") { planComposer = .ask }
                                 }

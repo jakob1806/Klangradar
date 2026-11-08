@@ -1,5 +1,13 @@
 Neu in dieser Version
 
+Chat mit Freunden
+• Unter Freunde → Sprechblasen-Symbol: Einzel- und Gruppenchats, Reaktionen per langem Druck, Nachrichten löschen.
+• Konzertseite → „…“ → „An Freunde senden“: Konzert als Karte oder als Einladung verschicken.
+• Auf dem Freundesprofil direkt „Nachricht“.
+
+Wallet-Karte
+• Mit Klangradar-Logo. Mit gutem Konzertfoto als Bild, sonst als Plakat mit großem Titel.
+
 Ticket & Platz
 • Neu gestaltet: Vorschau wie eine Eintrittskarte mit Konzertbild, Termin und Platz.
 • Der Code im Ticket wird erkannt und am Einlass gestochen scharf angezeigt. Alternativ mit der Kamera scannen oder als Text einfügen.

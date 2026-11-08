@@ -28,6 +28,8 @@ final class DeepLinkRouter: ObservableObject {
     @Published var pendingPlanForSlug: String?
     /// Freunde-Bereich öffnen (Push "/friends" bzw. "/plans").
     @Published var pendingFriendsTab: FriendsHubTab?
+    /// Chat aus einer Push-Mitteilung öffnen (/chat/<uuid>).
+    @Published var pendingChatID: UUID?
     /// Live-Aktivität „Ticket“ (06.11.2026): de.klangradar.native://ticket/<slug>.
     @Published var pendingTicketSlug: String?
 
@@ -71,6 +73,7 @@ final class DeepLinkRouter: ObservableObject {
             return true
         }
         if parts.count == 1, parts[0] == "friends" { pendingFriendsTab = .friends; return true }
+        if parts.count == 2, parts[0] == "chat", let id = UUID(uuidString: String(parts[1])) { pendingChatID = id; return true }
         // Kontrollzentrum/Aktionstaste (02.11.2026).
         if parts.count == 1, parts[0] == "coach" { pendingCoach = true; return true }
         if parts.count == 1, ["calendar", "search", "map"].contains(String(parts[0])) { pendingTab = String(parts[0]); return true }

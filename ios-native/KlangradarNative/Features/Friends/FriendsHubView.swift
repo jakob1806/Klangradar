@@ -48,7 +48,14 @@ struct FriendsView: View {
     @State private var showsScanner = false
     @State private var showsQRCode = false
     @State private var withdrawing: UUID?
+    @State private var showsChats = false
+    @State private var unreadChats = 0
     @AppStorage("didCompleteOnboarding") private var didCompleteOnboarding = false
+
+    private func loadUnreadChats() async {
+        guard let repository, let token = auth.accessToken else { return }
+        unreadChats = await repository.chatUnreadTotal(token: token)
+    }
 
     var body: some View {
         Group {
@@ -66,6 +73,20 @@ struct FriendsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if auth.userID != nil {
+                // 08.11.2026: Chat zwischen Freunden.
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { showsChats = true } label: {
+                        Image(systemName: "bubble.left.and.bubble.right")
+                            .overlay(alignment: .topTrailing) {
+                                if unreadChats > 0 {
+                                    Text("\(min(unreadChats, 99))").font(.caption2.weight(.bold)).foregroundStyle(.white)
+                                        .padding(.horizontal, 4).frame(minWidth: 16, minHeight: 16)
+                                        .background(.red, in: .capsule).offset(x: 9, y: -7)
+                                }
+                            }
+                    }
+                    .accessibilityLabel(unreadChats > 0 ? "Nachrichten, \(unreadChats) ungelesen" : "Nachrichten")
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Button("Freunde finden", systemImage: "person.badge.plus") { showsFindFriends = true }
@@ -77,6 +98,10 @@ struct FriendsView: View {
                 }
             }
         }
+        .sheet(isPresented: $showsChats, onDismiss: { Task { await loadUnreadChats() } }) {
+            ChatInboxView()
+        }
+        .task { await loadUnreadChats() }
         .sheet(isPresented: $showsFindFriends, onDismiss: { Task { await load() } }) {
             NavigationStack { FindFriendsView(code: code) }
         }

@@ -5,6 +5,10 @@ export interface SocialItem {
   eventTitle?: string | null;
   eventSlug?: string | null;
   listName?: string | null;
+  /** Chat (08.11.2026): Vorschau, Gruppenname und Unterhaltung. */
+  chatPreview?: string | null;
+  chatGroupTitle?: string | null;
+  chatConversationId?: string | null;
 }
 
 export interface SocialMessage {
@@ -21,6 +25,12 @@ export function socialMessage(item: SocialItem): SocialMessage | null {
   const who = item.actorName || "Jemand";
   const eventRoute = item.eventSlug ? `/event/${item.eventSlug}` : "/friends";
   switch (item.kind) {
+    case "chat_message":
+      return {
+        title: item.chatGroupTitle ? `${who} · ${item.chatGroupTitle}` : who,
+        body: item.chatPreview || "Neue Nachricht",
+        route: item.chatConversationId ? `/chat/${item.chatConversationId}` : "/friends",
+      };
     case "friend_request":
       return { title: "Neue Freundschaftsanfrage", body: `${who} möchte sich mit dir auf Klangradar vernetzen.`, route: "/friends", category: "FRIEND_REQUEST" };
     case "friend_accepted":
@@ -69,7 +79,7 @@ export function socialPushData(kind: string, route: string, actorId?: string | n
 // und dann immer in der Tages-Sammlung. Alles bleibt in der App sichtbar.
 const DIRECT_KINDS = new Set([
   "friend_request", "friend_accepted", "plan_invite", "plan_going", "plan_declined",
-  "joins_you", "ticket_offered", "ticket_claimed", "invite_accepted",
+  "joins_you", "ticket_offered", "ticket_claimed", "invite_accepted", "chat_message",
 ]);
 
 export type SocialPushMode = "send" | "defer" | "skip";
