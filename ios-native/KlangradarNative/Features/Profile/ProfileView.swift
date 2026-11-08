@@ -2462,6 +2462,7 @@ private struct ProfileContentSection: View {
     @State private var summary = ProfileSocialSummary.empty
     @State private var lists: [UserEventList] = []
     @State private var isLoading = true
+    @State private var journalEntry: ConcertJournalEntry?
     @State private var recapYear: Int?
 
     var body: some View {
@@ -2508,6 +2509,9 @@ private struct ProfileContentSection: View {
             .transition(.opacity)
         }
         .task(id: auth.userID) { await load() }
+        .sheet(item: $journalEntry) { entry in
+            NavigationStack { ConcertJournalEditor(existing: entry) { Task { await load() } } }
+        }
         .fullScreenCover(item: Binding(get: { recapYear.map(RecapSelection.init) }, set: { recapYear = $0?.id })) { selection in
             YearRecapView(visits: summary.visits, year: selection.id)
         }
@@ -2597,7 +2601,9 @@ private struct ProfileContentSection: View {
                     if let event = visit.event {
                         NavigationLink(value: event) { row }.buttonStyle(.plain)
                     } else {
-                        row
+                        // 08.11.2026: Tagebuch-Einträge öffnen den Eintrag.
+                        Button { Task { journalEntry = await JournalAPI.entries().first { $0.id == visit.id } } } label: { row }
+                            .buttonStyle(.plain)
                     }
                     if visit.id != recent.last?.id { Divider() }
                 }
