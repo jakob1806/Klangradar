@@ -1099,7 +1099,7 @@ struct KlangradarCoachView: View {
                 LazyVStack(alignment: .leading, spacing: 13) {
                     // Redesign: Willkommensbildschirm statt Starttext-Blase.
                     if messages.count <= 1 && !isSending {
-                        CoachWelcome(prompts: suggestedPrompts, headline: context.headline) { prompt in sendTask = Task { await send(prompt) } }
+                        CoachWelcome(prompts: suggestedPrompts, context: context) { prompt in sendTask = Task { await send(prompt) } }
                             .transition(.opacity.combined(with: .scale(scale: 0.97)))
                     } else {
                         ForEach(messages.dropFirst()) { message in
@@ -2791,48 +2791,65 @@ struct CoachOrb: View {
 /// Willkommensbildschirm: Orb, Begrüßung, große Vorschlagskarten.
 struct CoachWelcome: View {
     let prompts: [String]
-    var headline: String? = nil
+    var context: CoachContext = .home
     let onSelect: (String) -> Void
 
-    private let icons = ["calendar.badge.clock", "person.crop.circle.badge.questionmark", "eurosign.circle", "music.quarternote.3"]
-
+    // 08.11.2026 (Redesign „Konzertführer“): Kontextkarte, persönliche
+    // Serifen-Überschrift, Vorschläge als Karten mit Rubrik, kein Orb.
     var body: some View {
-        VStack(spacing: 22) {
-            CoachOrb(size: 92)
-                .padding(.top, 28)
-            VStack(spacing: 8) {
-                if let headline {
-                    Text(headline).font(.subheadline.weight(.semibold)).foregroundStyle(KlangradarTheme.accent)
-                        .multilineTextAlignment(.center).lineLimit(2)
+        VStack(alignment: .leading, spacing: 24) {
+            if let title = context.title, context.kind != .home {
+                HStack(spacing: 12) {
+                    Image(systemName: context.symbol)
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(Color(red: 0.91, green: 0.77, blue: 0.42))
+                        .frame(width: 48, height: 48)
+                        .background(Color(red: 0.17, green: 0.16, blue: 0.2), in: .rect(cornerRadius: 11, style: .continuous))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("DU SCHAUST GERADE").font(.caption2.weight(.semibold)).tracking(1.2).foregroundStyle(KlangradarTheme.accent)
+                        Text(title).font(.system(.headline, design: .serif)).lineLimit(2)
+                        if let detail = context.detail, !detail.isEmpty {
+                            Text(detail).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+                        }
+                    }
+                    Spacer(minLength: 0)
                 }
-                Text("Was möchtest du erleben?").font(.title2.bold())
-                Text("Frag nach Konzerten, deinem Geschmack oder einem ganzen Abend. Ich suche in echten Spielplänen.")
-                    .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                .padding(10)
+                .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 16, style: .continuous))
+                .accessibilityElement(children: .combine)
             }
-            .padding(.horizontal, 12)
+            VStack(alignment: .leading, spacing: 10) {
+                Text(context.greeting)
+                    .font(.system(.largeTitle, design: .serif).weight(.medium))
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("Ich antworte aus echten Spielplänen und deinem Konzerttagebuch – und sage dir, wenn ich etwas nicht weiß.")
+                    .font(.subheadline).foregroundStyle(.secondary)
+            }
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
-                ForEach(Array((prompts + ["Was läuft heute Abend?"]).prefix(4).enumerated()), id: \.offset) { index, prompt in
+                ForEach(Array(prompts.prefix(4).enumerated()), id: \.offset) { index, prompt in
                     Button {
                         Haptics.light()
                         onSelect(prompt)
                     } label: {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Image(systemName: icons[index % icons.count])
-                                .font(.title3.weight(.semibold))
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(context.rubric(at: index).uppercased())
+                                .font(.caption2.weight(.semibold)).tracking(1.2)
                                 .foregroundStyle(KlangradarTheme.accent)
-                            Text(prompt).font(.subheadline.weight(.semibold)).foregroundStyle(.primary).multilineTextAlignment(.leading).lineLimit(3)
+                            Text(prompt).font(.subheadline.weight(.medium)).foregroundStyle(.primary)
+                                .multilineTextAlignment(.leading).lineLimit(3)
                             Spacer(minLength: 0)
                         }
                         .padding(14)
-                        .frame(maxWidth: .infinity, minHeight: 108, alignment: .topLeading)
-                        .background(.regularMaterial, in: .rect(cornerRadius: 20, style: .continuous))
-                        .overlay { RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(Color.primary.opacity(0.06)) }
+                        .frame(maxWidth: .infinity, minHeight: 104, alignment: .topLeading)
+                        .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 14, style: .continuous))
+                        .overlay { RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.primary.opacity(0.07)) }
                     }
                     .buttonStyle(.plain)
                 }
             }
         }
-        .frame(maxWidth: .infinity)
+        .padding(.top, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -2843,27 +2860,26 @@ struct CoachMessageRow<Attachment: View>: View {
     var animate = false
     @ViewBuilder var attachment: () -> Attachment
 
+    // 08.11.2026: Frage dunkel rechts, Antwort als ruhiger Text über die
+    // ganze Breite – wie ein Gespräch, nicht wie ein Chatbot.
     var body: some View {
         if isUser {
             HStack {
-                Spacer(minLength: 48)
+                Spacer(minLength: 56)
                 Text(text)
-                    .padding(.horizontal, 15).padding(.vertical, 11)
-                    .foregroundStyle(.white)
-                    .background(LinearGradient(colors: [KlangradarTheme.accent, .purple.opacity(0.85)], startPoint: .topLeading, endPoint: .bottomTrailing),
-                                in: UnevenRoundedRectangle(topLeadingRadius: 20, bottomLeadingRadius: 20, bottomTrailingRadius: 6, topTrailingRadius: 20, style: .continuous))
+                    .padding(.horizontal, 14).padding(.vertical, 11)
+                    .foregroundStyle(Color(uiColor: .systemBackground))
+                    .background(Color.primary, in: UnevenRoundedRectangle(topLeadingRadius: 18, bottomLeadingRadius: 18, bottomTrailingRadius: 4, topTrailingRadius: 18, style: .continuous))
             }
         } else {
-            HStack(alignment: .top, spacing: 10) {
-                CoachOrb(size: 30)
-                VStack(alignment: .leading, spacing: 10) {
-                    TypewriterText(text: text, animate: animate)
-                        .padding(.horizontal, 15).padding(.vertical, 12)
-                        .background(.regularMaterial, in: UnevenRoundedRectangle(topLeadingRadius: 6, bottomLeadingRadius: 20, bottomTrailingRadius: 20, topTrailingRadius: 20, style: .continuous))
-                    attachment()
-                }
-                Spacer(minLength: 24)
+            VStack(alignment: .leading, spacing: 12) {
+                TypewriterText(text: text, animate: animate)
+                    .font(.body)
+                    .lineSpacing(3)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                attachment()
             }
+            .padding(.vertical, 4)
         }
     }
 }
