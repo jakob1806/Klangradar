@@ -53,6 +53,7 @@ struct ChatMember: Identifiable, Hashable, Sendable {
     let id: UUID
     let name: String
     let avatarURL: URL?
+    var lastReadAt: Date? = nil
 }
 
 enum ChatReactions {
@@ -101,7 +102,7 @@ extension UserRepository {
         let rows: [JSONObject] = try await client.rpc("chat_members_of", parameters: ["p_conversation": .string(conversationID.uuidString)], accessToken: token)
         return rows.compactMap { row in
             guard let id = row.uuid("user_id") else { return nil }
-            return ChatMember(id: id, name: row.string("display_name") ?? "Klangradar-Freund:in", avatarURL: row.url("avatar_url"))
+            return ChatMember(id: id, name: row.string("display_name") ?? "Klangradar-Freund:in", avatarURL: row.url("avatar_url"), lastReadAt: row.date("last_read_at"))
         }
     }
 
