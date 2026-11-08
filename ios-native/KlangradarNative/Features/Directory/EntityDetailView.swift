@@ -81,6 +81,15 @@ struct EntityDetailView: View {
         }
         .edgeSwipeBack { dismiss() }
         .fullScreenCover(item: $fullScreenImage) { FullScreenImageViewer(image: $0) }
+        .coachContext(detail.map { detail in
+            let kind: CoachContext.Kind = switch detail.kind {
+            case .person: .person
+            case .ensemble: .ensemble
+            case .venue: .venue
+            case .work: .work
+            }
+            return CoachContext(kind: kind, title: detail.kind == .work ? detail.title.cleanedWorkTitle : detail.title, detail: detail.subtitle)
+        })
         .task { await load() }
         .refreshable { await load() }
     }

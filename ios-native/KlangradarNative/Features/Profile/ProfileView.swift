@@ -936,6 +936,7 @@ struct KlangradarCoachView: View {
     @State private var sendTask: Task<Void, Never>?
     @State private var errorMessage: String?
     @State private var showsCheckin = false
+    private let context: CoachContext
 
     init(
         auth: AuthStore,
@@ -943,8 +944,11 @@ struct KlangradarCoachView: View {
         eventRepository: any EventRepository,
         contentRepository: any ContentRepository,
         startsInChat: Bool = false,
-        showsDismissButton: Bool = false
+        showsDismissButton: Bool = false,
+        context: CoachContext = .home
     ) {
+        self.context = context
+        _suggestedPrompts = State(initialValue: context.suggestedPrompts)
         self.auth = auth
         self.repository = repository
         self.eventRepository = eventRepository
@@ -1095,7 +1099,7 @@ struct KlangradarCoachView: View {
                 LazyVStack(alignment: .leading, spacing: 13) {
                     // Redesign: Willkommensbildschirm statt Starttext-Blase.
                     if messages.count <= 1 && !isSending {
-                        CoachWelcome(prompts: suggestedPrompts) { prompt in sendTask = Task { await send(prompt) } }
+                        CoachWelcome(prompts: suggestedPrompts, headline: context.headline) { prompt in sendTask = Task { await send(prompt) } }
                             .transition(.opacity.combined(with: .scale(scale: 0.97)))
                     } else {
                         ForEach(messages.dropFirst()) { message in
@@ -1316,7 +1320,9 @@ struct KlangradarCoachView: View {
         draft = ""; retryDraft = text; isSending = true; errorMessage = nil; messages.append(.init(text: text, user: true)); memoryProposal = nil; goalProposal = nil
         defer { isSending = false }
         do {
-            let reply = try await repository.askCoach(message: text, conversationID: conversationID, cityName: cityStore.selectedCity?.name, token: token)
+            // Bereichs-Hinweis nur bei der ersten Frage eines Gesprächs.
+            let outgoing = conversationID == nil ? [text, context.promptHint].compactMap { $0 }.joined(separator: "\n\n") : text
+            let reply = try await repository.askCoach(message: outgoing, conversationID: conversationID, cityName: cityStore.selectedCity?.name, token: token)
             guard !Task.isCancelled else { return }
             conversationID = reply.conversationID
             messages.append(ChatMessage(text: reply.answer, user: false, events: reply.events, eventsAreAlternatives: reply.eventsAreAlternatives))
@@ -2785,6 +2791,7 @@ struct CoachOrb: View {
 /// Willkommensbildschirm: Orb, Begrüßung, große Vorschlagskarten.
 struct CoachWelcome: View {
     let prompts: [String]
+    var headline: String? = nil
     let onSelect: (String) -> Void
 
     private let icons = ["calendar.badge.clock", "person.crop.circle.badge.questionmark", "eurosign.circle", "music.quarternote.3"]
@@ -2794,6 +2801,10 @@ struct CoachWelcome: View {
             CoachOrb(size: 92)
                 .padding(.top, 28)
             VStack(spacing: 8) {
+                if let headline {
+                    Text(headline).font(.subheadline.weight(.semibold)).foregroundStyle(KlangradarTheme.accent)
+                        .multilineTextAlignment(.center).lineLimit(2)
+                }
                 Text("Was möchtest du erleben?").font(.title2.bold())
                 Text("Frag nach Konzerten, deinem Geschmack oder einem ganzen Abend. Ich suche in echten Spielplänen.")
                     .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
