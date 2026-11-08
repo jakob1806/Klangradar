@@ -7,6 +7,7 @@ Ticket & Platz
 • „Mein Platz im Saalplan“ im Ticket-Blatt, Saalplan auch unten auf der Spielstättenseite.
 
 Klangradar KI
+• Neues Design: Karte „Du schaust gerade“, persönliche Begrüßung, Vorschläge als Karten. Antworten klingen natürlicher und kommen ohne Sprechblase.
 • Passt sich der Seite an, auf der du gerade bist: Auf Konzert-, Personen-, Ensemble-, Spielstätten- und Werkseiten schlägt sie passende Fragen vor und bezieht ihre Antwort darauf.
 
 Konzerte & Suche

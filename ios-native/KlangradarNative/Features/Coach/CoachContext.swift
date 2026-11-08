@@ -31,7 +31,7 @@ struct CoachContext: Equatable, Sendable {
         let name = title ?? ""
         switch kind {
         case .event:
-            return ["Lohnt sich „\(name)“ für mich?", "Was wird gespielt und worauf achte ich?", "Ähnliche Konzerte in den nächsten Wochen"]
+            return ["Lohnt sich „\(name)“ für mich?", "Was wird gespielt und worauf achte ich?", "Ähnliche Konzerte in den nächsten Wochen", "Wann ist Pause, wann Schluss?"]
         case .person:
             return ["Wann tritt \(name) als Nächstes auf?", "Wofür ist \(name) bekannt?", "Wer klingt ähnlich wie \(name)?"]
         case .ensemble:
@@ -47,8 +47,44 @@ struct CoachContext: Equatable, Sendable {
         case .profile:
             return ["Erkläre mein Geschmacksprofil", "Was habe ich dieses Jahr gehört?", "Setz mir ein Hörziel"]
         case .home:
-            return ["Was passt dieses Wochenende zu mir?", "Erkläre mein Geschmacksprofil", "Plane einen Abend unter 50 €"]
+            return ["Was passt dieses Wochenende zu mir?", "Erkläre mein Geschmacksprofil", "Plane einen Abend unter 50 €", "Was läuft heute Abend?"]
         }
+    }
+
+    /// Persönliche Überschrift im Startbildschirm.
+    var greeting: String {
+        switch kind {
+        case .event: return "Was willst du vor dem Abend wissen?"
+        case .person: return "Was interessiert dich an \(title ?? "dieser Person")?"
+        case .ensemble: return "Was möchtest du über \(title ?? "das Ensemble") wissen?"
+        case .venue: return "Ein Abend im \(title ?? "Saal")?"
+        case .work: return "Lass uns über dieses Werk reden."
+        default: return "Worauf hast du Lust?"
+        }
+    }
+
+    var symbol: String {
+        switch kind {
+        case .event: return "music.note"
+        case .person: return "person.fill"
+        case .ensemble: return "person.3.fill"
+        case .venue: return "building.columns.fill"
+        case .work: return "music.quarternote.3"
+        default: return "sparkles"
+        }
+    }
+
+    /// Rubrik über der Vorschlagskarte an Position `index`.
+    func rubric(at index: Int) -> String {
+        let rubrics: [String]
+        switch kind {
+        case .event: rubrics = ["Lohnt es sich?", "Vorbereiten", "Danach", "Der Abend"]
+        case .person, .ensemble: rubrics = ["Live", "Hintergrund", "Entdecken", "Mehr"]
+        case .venue: rubrics = ["Spielplan", "Der Abend", "Plätze", "Mehr"]
+        case .work: rubrics = ["Kurz erklärt", "Live hören", "Vorhören", "Mehr"]
+        default: rubrics = ["Für dich", "Geschmack", "Planen", "Heute"]
+        }
+        return rubrics[index % rubrics.count]
     }
 
     /// Unsichtbarer Hinweis für die KI (wird der Frage angehängt).
