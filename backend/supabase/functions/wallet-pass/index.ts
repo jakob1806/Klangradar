@@ -1,7 +1,7 @@
 // Erstellt von Claude Code (02.11.2026): Konzertkarte für Apple Wallet.
 // GET /wallet-pass?slug=<event-slug>&entrance=&block=&row=&seat=
 // Liefert eine signierte .pkpass-Datei (application/vnd.apple.pkpass).
-// 07.11.2026 (Redesign): dunkle Karte mit Konzertbild als Streifen, und –
+// 08.11.2026: dunkle Karte mit Klangradar-Logo und Logo-Bändern im Streifen, und –
 // wenn die App im hinterlegten Ticket einen Code erkannt hat – dessen
 // Inhalt als echter Barcode (&code=…&format=qr|aztec|pdf417|code128),
 // damit die Karte am Einlass gescannt werden kann.
@@ -37,6 +37,35 @@ function signerFromP12(): { cert: forge.pki.Certificate; key: forge.pki.PrivateK
   return { cert, key };
 }
 
+/** Streifenbild: Kartenfarbe + zwei Bänder (Violettblau oben, Mint unten),
+ * die von einem Punkt rechts der Mitte schräg nach außen laufen. */
+async function logoBandStrip(w: number, h: number): Promise<Uint8Array> {
+  const ox = w * 0.62, oy = h / 2;
+  const half = h * 0.15;
+  const stemW = half * 2.1;
+  const len = Math.hypot(1, 0.7);
+  const dirs: Array<[number, number, number[]]> = [[1 / len, -0.7 / len, [113, 128, 251]], [1 / len, 0.7 / len, [82, 205, 188]]];
+  const mix = (c: number, a: number, b: number) => Math.round(c * a + b * (1 - a));
+  const image = new Image(w, h);
+  image.fill((x: number, y: number) => {
+    const px = x - ox, py = y - oy;
+    if (px >= 0) {
+      for (const [dx, dy, c] of dirs) {
+        const edge = half - Math.abs(px * dy - py * dx);
+        if (edge > 0) {
+          const a = Math.min(1, edge);
+          return Image.rgbaToColor(mix(c[0], a, 26), mix(c[1], a, 27), mix(c[2], a, 46), 255);
+        }
+      }
+    } else if (px > -stemW) {
+      // Stamm des K, dezent
+      return Image.rgbaToColor(mix(255, 0.12, 26), mix(255, 0.12, 27), mix(255, 0.12, 46), 255);
+    }
+    return Image.rgbaToColor(26, 27, 46, 255);
+  });
+  return await image.encode();
+}
+
 function sha1Hex(bytes: Uint8Array): string {
   const md = forge.md.sha1.create();
   md.update(forge.util.binary.raw.encode(bytes));
@@ -69,8 +98,7 @@ Deno.serve(async (req) => {
     qr: "PKBarcodeFormatQR", aztec: "PKBarcodeFormatAztec", pdf417: "PKBarcodeFormatPDF417", code128: "PKBarcodeFormatCode128",
   };
   const barcodeFormat = formatMap[(url.searchParams.get("format") ?? "qr").toLowerCase()] ?? "PKBarcodeFormatQR";
-  // deno-lint-ignore no-explicit-any
-  const imageUrl = ((event as any).image_urls?.[0] as string | undefined) ?? venue?.photo_url ?? null;
+
 
   const seatParts = (["entrance", "block", "row", "seat"] as const)
     .map((k) => [k, (url.searchParams.get(k) ?? "").trim().slice(0, 30)] as const)
@@ -85,9 +113,9 @@ Deno.serve(async (req) => {
     organizationName: "Klangradar",
     description: `Konzert: ${event.title}`,
     logoText: "Klangradar",
-    backgroundColor: "rgb(22, 20, 30)",
+    backgroundColor: "rgb(26, 27, 46)",
     foregroundColor: "rgb(255, 255, 255)",
-    labelColor: "rgb(196, 170, 120)",
+    labelColor: "rgb(82, 205, 188)",
     relevantDate: event.start_datetime,
     ...(code ? {
       barcodes: [{ format: barcodeFormat, message: code, messageEncoding: "iso-8859-1" }],
@@ -118,24 +146,10 @@ Deno.serve(async (req) => {
 
   const files: Record<string, Uint8Array> = { "pass.json": strToU8(JSON.stringify(pass)) };
   for (const [name, b64] of Object.entries(PASS_IMAGES)) files[name] = base64ToBytes(b64);
-  // Konzertbild als Streifen (375×98 / 750×196). Best-effort: Bildformate,
-  // die imagescript nicht lesen kann (z. B. WebP), lassen die Karte ohne Bild.
-  if (imageUrl) {
-    try {
-      const res = await fetch(imageUrl, { signal: AbortSignal.timeout(6000) });
-      if (res.ok) {
-        const source = await Image.decode(new Uint8Array(await res.arrayBuffer()));
-        for (const [name, w, h] of [["strip.png", 375, 98], ["strip@2x.png", 750, 196]] as const) {
-          const scale = Math.max(w / source.width, h / source.height);
-          const resized = source.clone().resize(Math.ceil(source.width * scale), Math.ceil(source.height * scale));
-          const x = Math.max(0, Math.floor((resized.width - w) / 2));
-          const y = Math.max(0, Math.floor((resized.height - h) / 3));
-          files[name] = await resized.crop(x, y, w, h).encode();
-        }
-      }
-    } catch (err) {
-      console.warn("wallet-pass strip", err instanceof Error ? err.message : String(err));
-    }
+  // 08.11.2026 (Design „Logo-Bänder“): Streifen in Kartenfarbe, die zwei
+  // Arme des Klangradar-K laufen als Farbbänder nach rechts heraus.
+  for (const [name, w, h] of [["strip.png", 375, 98], ["strip@2x.png", 750, 196], ["strip@3x.png", 1125, 294]] as const) {
+    files[name] = await logoBandStrip(w, h);
   }
   const manifest: Record<string, string> = {};
   for (const [name, bytes] of Object.entries(files)) manifest[name] = sha1Hex(bytes);
