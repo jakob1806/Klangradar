@@ -994,6 +994,27 @@ private struct TicketSeatEditor: View {
         stripImage = image
     }
 
+    /// Bildstreifen wie in der Vorschau (Motiv-Ausschnitt) in 1x/2x/3x als
+    /// PNG für die Wallet-Karte; leer, wenn noch kein Bild geladen ist.
+    private var stripPayload: [String: String] {
+        guard let image = stripImage else { return [:] }
+        var payload: [String: String] = [:]
+        for (key, scale) in [("strip1x", 1.0), ("strip2x", 2.0), ("strip3x", 3.0)] {
+            let size = CGSize(width: 375 * scale, height: 98 * scale)
+            let fill = max(size.width / image.size.width, size.height / image.size.height)
+            let drawn = CGSize(width: image.size.width * fill, height: image.size.height * fill)
+            let x = min(max(0, drawn.width * stripFocus.x - size.width / 2), drawn.width - size.width)
+            let y = min(max(0, drawn.height * stripFocus.y - size.height / 2), drawn.height - size.height)
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = 1
+            let rendered = UIGraphicsImageRenderer(size: size, format: format).image { _ in
+                image.draw(in: CGRect(x: -x, y: -y, width: drawn.width, height: drawn.height))
+            }
+            if let png = rendered.pngData() { payload[key] = png.base64EncodedString() }
+        }
+        return payload
+    }
+
     private var walletImageURL: URL? {
         event.primaryImageURL ?? event.imageUrls?.first.flatMap(URL.init(string:))
     }
@@ -1100,7 +1121,7 @@ extension TicketSeatEditor {
         do {
             var passes: [PKPass] = []
             for items in variants {
-                let data = try await client.edgeFunctionData("wallet-pass", queryItems: items, accessToken: SocialStore.shared.token)
+                let data = try await client.edgeFunctionData("wallet-pass", queryItems: items, body: stripPayload, accessToken: SocialStore.shared.token)
                 passes.append(try PKPass(data: data))
             }
             walletPass = WalletPassItem(passes: passes)

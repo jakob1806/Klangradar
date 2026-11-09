@@ -149,6 +149,17 @@ struct SupabaseRESTClient: Sendable {
         return try await perform(request)
     }
 
+    /// Rohdaten per POST mit JSON-Body, Parameter in der URL (09.11.2026).
+    func edgeFunctionData(_ function: String, queryItems: [URLQueryItem], body: [String: String], accessToken: String?) async throws -> Data {
+        var components = URLComponents(url: configuration.supabaseURL.appendingPathComponent("functions/v1").appendingPathComponent(function), resolvingAgainstBaseURL: false)!
+        components.queryItems = queryItems
+        var request = authorizedRequest(url: components.url!, accessToken: accessToken)
+        request.httpMethod = "POST"
+        request.httpBody = try JSONEncoder().encode(body)
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        return try await perform(request)
+    }
+
     func insert(
         table: String,
         values: JSONObject,
