@@ -245,6 +245,8 @@ struct CityCompactMenu: View {
                 }
             }
         } label: { chipLabel }
+        // 09.11.2026: Menü-Label sonst in Akzentblau – im Dunkelmodus kaum lesbar.
+        .tint(.primary)
     }
 
     // Nutzerfeedback (zweiter Anlauf): Auf iOS 26 den eigenen Hintergrund

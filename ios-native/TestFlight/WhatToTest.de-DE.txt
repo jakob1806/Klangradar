@@ -18,6 +18,7 @@ Rechtliches
 • Neu unter Einstellungen: „Problem melden“. Konto löschen entfernt jetzt auch Chat- und Tagebuchfotos.
 
 Allgemein
+• Karte im Dunkelmodus: Stadt-Auswahl und Standort-Pfeil gut lesbar. Startbildschirm immer hell.
 • Profil lädt schneller, Listen scrollen flüssiger.
 • Mehr Texte auf Englisch.
 
