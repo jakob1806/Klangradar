@@ -137,7 +137,7 @@ struct LinkedEvent: Identifiable, Hashable, Sendable {
             slug: slug,
             title: title,
             subtitle: nil,
-            startDatetime: ISO8601DateFormatter().string(from: startDate),
+            startDatetime: FormatterCache.isoString(startDate),
             imageUrls: imageURLs,
             status: "scheduled",
             venues: venueID.map { VenueSummary(id: $0, name: venueName ?? "Ort folgt", photoUrl: venuePhotoURL) }

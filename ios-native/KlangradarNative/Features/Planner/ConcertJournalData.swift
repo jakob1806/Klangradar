@@ -133,7 +133,7 @@ enum JournalAPI {
         case .work:
             let rows: [JSONObject] = (try? await client.get(table: "event_works", queryItems: [
                 URLQueryItem(name: "select", value: "work:works(id,title,catalog_number,composer:persons(full_name)),event:events!inner(start_datetime)"),
-                URLQueryItem(name: "event.start_datetime", value: "gt.\(ISO8601DateFormatter().string(from: .now))"),
+                URLQueryItem(name: "event.start_datetime", value: "gt.\(FormatterCache.isoString(.now))"),
                 URLQueryItem(name: "limit", value: "400")
             ])) ?? []
             var counts: [String: (pick: JournalPick, n: Int)] = [:]
@@ -204,7 +204,7 @@ enum JournalAPI {
             "id": .string(entry.id.uuidString),
             "user_id": .string(userID.uuidString),
             "title": text(entry.title),
-            "starts_at": .string(ISO8601DateFormatter().string(from: entry.startsAt)),
+            "starts_at": .string(FormatterCache.isoString(entry.startsAt)),
             "duration_minutes": entry.durationMinutes.map { .number(Double($0)) } ?? .null,
             "venue_id": entry.venue?.entityID.map { .string($0.uuidString) } ?? .null,
             "venue_name": entry.venue.map { .string($0.name) } ?? .null,
@@ -217,7 +217,7 @@ enum JournalAPI {
             }),
             "note": text(entry.note),
             "photo_paths": .array(entry.photoPaths.map { .string($0) }),
-            "updated_at": .string(ISO8601DateFormatter().string(from: .now))
+            "updated_at": .string(FormatterCache.isoString(.now))
         ], accessToken: token, conflictColumns: "id")
     }
 

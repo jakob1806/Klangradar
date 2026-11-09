@@ -1065,7 +1065,7 @@ struct EditorialRepository: Sendable {
     }
 
     fileprivate static func isoString(from date: Date) -> String {
-        ISO8601DateFormatter().string(from: date)
+        FormatterCache.isoString(date)
     }
 }
 

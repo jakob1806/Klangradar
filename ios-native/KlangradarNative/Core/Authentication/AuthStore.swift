@@ -107,6 +107,7 @@ final class AuthStore: ObservableObject {
     func signOut() async throws {
         guard let service else { throw AuthStoreError.unavailable }
         try await service.signOut()
+        ChatCache.clear()
         state = .loading
         // Bug (Nutzerfeedback 23.10.2026): Schlug die neue anonyme Sitzung
         // fehl (Supabase-Limit für anonyme Anmeldungen, kein Netz), blieb

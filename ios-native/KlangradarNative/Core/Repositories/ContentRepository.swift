@@ -396,7 +396,7 @@ struct LiveContentRepository: ContentRepository {
             URLQueryItem(name: "select", value: "id,slug,title,subtitle,start_datetime,image_urls,status,venues(id,name,photo_url)"),
             URLQueryItem(name: "venue_id", value: "eq.\(venueID.uuidString)"),
             URLQueryItem(name: "status", value: "neq.draft"),
-            URLQueryItem(name: "start_datetime", value: "gte.\(ISO8601DateFormatter().string(from: .now))"),
+            URLQueryItem(name: "start_datetime", value: "gte.\(FormatterCache.isoString(.now))"),
             URLQueryItem(name: "order", value: "start_datetime.asc"),
             URLQueryItem(name: "limit", value: String(limit))
         ])

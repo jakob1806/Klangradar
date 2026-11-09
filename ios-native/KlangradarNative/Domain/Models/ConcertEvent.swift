@@ -10,13 +10,39 @@ enum KlangradarDateTime {
     }
 
     static func string(_ date: Date, format: String) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "de_DE")
-        formatter.calendar = calendar
-        formatter.timeZone = timeZone
-        formatter.dateFormat = format
-        return formatter.string(from: date)
+        FormatterCache.date(format: format, locale: "de_DE").string(from: date)
     }
+}
+
+/// 09.11.2026: Formatierer einmal anlegen statt bei jedem Aufruf (in langen
+/// Listen spürbar teuer). DateFormatter ist threadsicher; der Zugriff auf das
+/// Wörterbuch ist per Sperre geschützt.
+enum FormatterCache {
+    private static let lock = NSLock()
+    nonisolated(unsafe) private static var formatters: [String: DateFormatter] = [:]
+    nonisolated(unsafe) private static let isoFractional: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter(); f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]; return f
+    }()
+    nonisolated(unsafe) private static let isoPlain = ISO8601DateFormatter()
+
+    static func date(format: String, locale: String) -> DateFormatter {
+        let key = locale + "|" + format
+        lock.lock(); defer { lock.unlock() }
+        if let cached = formatters[key] { return cached }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: locale)
+        formatter.calendar = KlangradarDateTime.calendar
+        formatter.timeZone = KlangradarDateTime.timeZone
+        formatter.dateFormat = format
+        formatters[key] = formatter
+        return formatter
+    }
+
+    static func isoDate(_ value: String) -> Date? {
+        isoFractional.date(from: value) ?? isoPlain.date(from: value)
+    }
+
+    static func isoString(_ date: Date) -> String { isoPlain.string(from: date) }
 }
 
 struct ConcertEvent: Codable, Identifiable, Hashable, Sendable {
@@ -288,22 +314,11 @@ enum FlexibleDateParser {
         // Uhrzeit als "yyyy-MM-dd". ISO8601DateFormatter akzeptiert dieses
         // Format nicht und ließ deshalb einen korrekt gespeicherten
         // Geburtstag beim nächsten Laden wieder wie `nil` aussehen.
-        if value.count == 10 {
-            let formatter = DateFormatter()
-            formatter.locale = Locale(identifier: "en_US_POSIX")
-            formatter.calendar = KlangradarDateTime.calendar
-            formatter.timeZone = KlangradarDateTime.timeZone
-            formatter.dateFormat = "yyyy-MM-dd"
-            if let date = formatter.date(from: value) { return date }
-        }
-
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: value) {
+        if value.count == 10,
+           let date = FormatterCache.date(format: "yyyy-MM-dd", locale: "en_US_POSIX").date(from: value) {
             return date
         }
-
-        return ISO8601DateFormatter().date(from: value)
+        return FormatterCache.isoDate(value)
     }
 }
 

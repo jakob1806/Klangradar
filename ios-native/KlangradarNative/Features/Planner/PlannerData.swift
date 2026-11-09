@@ -367,7 +367,7 @@ enum PlannerAPI {
             "restaurant": text(entry.restaurant),
             "other_places": text(entry.otherPlaces),
             "photo_paths": .array(entry.photoPaths.map { .string($0) }),
-            "updated_at": .string(ISO8601DateFormatter().string(from: .now))
+            "updated_at": .string(FormatterCache.isoString(.now))
         ], accessToken: token, conflictColumns: "user_id,event_id")
     }
 
