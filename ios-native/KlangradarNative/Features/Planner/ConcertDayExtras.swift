@@ -374,8 +374,11 @@ struct SeatCard: View {
     }
 
     private var seatParts: [(String, String)] {
-        [("EINGANG", seat.entrance), ("BLOCK", seat.block), ("REIHE", seat.row), ("PLATZ", seat.seat)]
-            .filter { !$0.1.trimmingCharacters(in: .whitespaces).isEmpty }
+        seat.parts.map { ($0.label.uppercased(), $0.value) }
+    }
+
+    private var entranceTitle: String {
+        (seat.entranceLabel.isEmpty ? ConcertSeat.defaultLabels.entrance : seat.entranceLabel).uppercased()
     }
 
     @ViewBuilder private var miniCode: some View {
@@ -429,9 +432,6 @@ struct SeatCard: View {
         if inWallet {
             Label("In Wallet", systemImage: "checkmark.circle.fill").font(.caption.weight(.semibold))
                 .foregroundStyle(Self.mint)
-        } else if hasTicket || !seat.isEmpty {
-            Label("Zu Wallet", systemImage: "wallet.pass").font(.caption.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.75))
         }
     }
 
@@ -454,14 +454,14 @@ struct SeatCard: View {
                 if let start { timeColumn("BEGINN", start, estimated: false) }
                 if !seat.entrance.isEmpty {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("EINGANG").font(.caption2.weight(.semibold)).tracking(1).foregroundStyle(Self.mint)
+                        Text(entranceTitle).font(.caption2.weight(.semibold)).tracking(1).foregroundStyle(Self.mint)
                         Text(seat.entrance).font(.system(.title2, design: .serif).weight(.semibold)).foregroundStyle(.white)
                     }
                 }
             }
             .padding(.horizontal, 18).padding(.top, 14)
-            if !seatParts.filter({ $0.0 != "EINGANG" }).isEmpty {
-                Text(seatParts.filter { $0.0 != "EINGANG" }.map { "\($0.0.capitalized) \($0.1)" }.joined(separator: " · "))
+            if !seatParts.filter({ $0.0 != entranceTitle }).isEmpty {
+                Text(seatParts.filter { $0.0 != entranceTitle }.map { $0.0 == "BEREICH" ? $0.1 : "\($0.0.capitalized) \($0.1)" }.joined(separator: " · "))
                     .font(.subheadline).foregroundStyle(.white.opacity(0.8))
                     .padding(.horizontal, 18).padding(.top, 8)
             }
@@ -558,13 +558,17 @@ struct KlangradarMark: View {
             var upper = Path()
             upper.move(to: p(366, 392)); upper.addLine(to: p(696, 160)); upper.addLine(to: p(782, 280))
             upper.addLine(to: p(452, 512)); upper.addLine(to: p(366, 512)); upper.closeSubpath()
-            upper.addEllipse(in: CGRect(origin: p(665, 145), size: CGSize(width: 148 * s, height: 148 * s)))
-            context.fill(upper, with: .color(Color(red: 0.443, green: 0.502, blue: 0.984)))
+            // Kreise einzeln füllen: im selben Pfad heben sich gegenläufige
+            // Umläufe auf und hinterlassen ein Loch (schwarzer Fleck).
+            let blue = Color(red: 0.443, green: 0.502, blue: 0.984)
+            context.fill(upper, with: .color(blue))
+            context.fill(Path(ellipseIn: CGRect(origin: p(665, 145), size: CGSize(width: 148 * s, height: 148 * s))), with: .color(blue))
             var lower = Path()
             lower.move(to: p(366, 632)); lower.addLine(to: p(696, 864)); lower.addLine(to: p(782, 744))
             lower.addLine(to: p(452, 512)); lower.addLine(to: p(366, 512)); lower.closeSubpath()
-            lower.addEllipse(in: CGRect(origin: p(665, 731), size: CGSize(width: 148 * s, height: 148 * s)))
-            context.fill(lower, with: .color(Color(red: 0.322, green: 0.804, blue: 0.737)))
+            let mint = Color(red: 0.322, green: 0.804, blue: 0.737)
+            context.fill(lower, with: .color(mint))
+            context.fill(Path(ellipseIn: CGRect(origin: p(665, 731), size: CGSize(width: 148 * s, height: 148 * s))), with: .color(mint))
             context.fill(Path(roundedRect: CGRect(origin: p(218, 192), size: CGSize(width: 148 * s, height: 640 * s)), cornerRadius: 74 * s), with: .color(stem))
         }
         .accessibilityHidden(true)
@@ -725,10 +729,12 @@ private struct TicketSeatEditor: View {
             let codes = await TicketStore.detectCodes(in: pages ?? [image])
             // Platz aus dem Ticket übernehmen, nur leere Felder füllen.
             let found = await TicketStore.detectSeat(in: pages ?? [image])
-            if seat.entrance.isEmpty { seat.entrance = found.entrance }
-            if seat.block.isEmpty { seat.block = found.block }
-            if seat.row.isEmpty { seat.row = found.row }
-            if seat.seat.isEmpty { seat.seat = found.seat }
+            // Nur leere Felder füllen, Bezeichnungen vom Ticket übernehmen.
+            if seat.entrance.isEmpty, !found.entrance.isEmpty { seat.entrance = found.entrance; seat.entranceLabel = found.entranceLabel }
+            if seat.block.isEmpty, !found.block.isEmpty { seat.block = found.block; seat.blockLabel = found.blockLabel }
+            if seat.row.isEmpty, !found.row.isEmpty { seat.row = found.row; seat.rowLabel = found.rowLabel }
+            if seat.seat.isEmpty, !found.seat.isEmpty { seat.seat = found.seat; seat.seatLabel = found.seatLabel }
+            for extra in found.extras where !seat.extras.contains(where: { $0.label == extra.label }) { seat.extras.append(extra) }
             if !found.isEmpty { SharedSeatStore.save(seat, forSlug: event.slug) }
             TicketStore.saveCodes(codes, for: event.id)
             ticketCodes = codes
@@ -755,8 +761,7 @@ private struct TicketSeatEditor: View {
         let ink = Color(red: 0.102, green: 0.106, blue: 0.180)
         let mint = Color(red: 0.322, green: 0.804, blue: 0.737)
         let hasTicket = ticketImage != nil || ticketCode != nil
-        let filled = [("EINGANG", seat.entrance), ("BLOCK", seat.block), ("REIHE", seat.row), ("PLATZ", seat.seat)]
-            .filter { !$0.1.trimmingCharacters(in: .whitespaces).isEmpty }
+        let filled = seat.parts.map { ($0.label.uppercased(), $0.value) }
         return VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
                 KlangradarMark(stem: .white).frame(width: 18, height: 22)
@@ -768,16 +773,20 @@ private struct TicketSeatEditor: View {
             }
             .padding(.horizontal, 16).frame(height: 50)
             // 08.11.2026: Bild in voller Größe ohne Zuschnitt, Titel darunter.
-            // 09.11.2026: Platzhalter-Höhe bis zum Laden, dann ganzes Bild.
-            CachedAsyncImage(url: event.primaryImageURL ?? event.imageUrls?.first.flatMap(URL.init(string:)), maxPixel: 1400) { phase in
-                if let image = phase.image {
-                    image.resizable().aspectRatio(contentMode: .fit).frame(maxWidth: .infinity)
-                } else {
-                    Color.white.opacity(0.06).frame(maxWidth: .infinity).frame(height: 180)
-                        .overlay { ProgressView().tint(.white.opacity(0.6)) }
+            // 09.11.2026 (Variante A): flacher Bildstreifen wie in Wallet
+            // (375×98 pt-Verhältnis), Ausschnitt eher oben (Gesichter).
+            Color.white.opacity(0.06)
+                .frame(maxWidth: .infinity).aspectRatio(375.0 / 110.0, contentMode: .fit)
+                .overlay {
+                    CachedAsyncImage(url: walletImageURL, maxPixel: 1400) { phase in
+                        if let image = phase.image {
+                            image.resizable().scaledToFill()
+                        } else {
+                            ProgressView().tint(.white.opacity(0.6))
+                        }
+                    }
                 }
-            }
-            .frame(maxWidth: .infinity)
+                .clipped()
             Text(event.title)
                 .font(.system(size: 26, weight: .semibold, design: .serif))
                 .minimumScaleFactor(0.6).lineLimit(3)
@@ -914,10 +923,20 @@ private struct TicketSeatEditor: View {
         VStack(alignment: .leading, spacing: 10) {
             sectionTitle("Platz")
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
-                seatField("Eingang", text: $seat.entrance)
-                seatField("Block / Rang", text: $seat.block)
-                seatField("Reihe", text: $seat.row)
-                seatField("Platz", text: $seat.seat)
+                labeledSeatField($seat.blockLabel, ConcertSeat.defaultLabels.block, ["Block", "Bereich", "Rang", "Parkett", "Loge", "Balkon", "Galerie"], text: $seat.block)
+                labeledSeatField($seat.rowLabel, ConcertSeat.defaultLabels.row, ["Reihe"], text: $seat.row)
+                labeledSeatField($seat.seatLabel, ConcertSeat.defaultLabels.seat, ["Platz", "Sitz"], text: $seat.seat)
+                labeledSeatField($seat.entranceLabel, ConcertSeat.defaultLabels.entrance, ["Eingang", "Tür", "Aufgang", "Tor", "Portal"], text: $seat.entrance)
+                ForEach($seat.extras) { $extra in
+                    extraSeatField($extra)
+                }
+            }
+            Menu {
+                ForEach(["Etage", "Kategorie", "Loge", "Tisch", "Ebene"], id: \.self) { label in
+                    Button(label) { seat.extras.append(.init(label: label, value: "")) }
+                }
+            } label: {
+                Label("Angabe hinzufügen", systemImage: "plus.circle").font(.subheadline.weight(.semibold))
             }
             Text("Erscheint am Konzerttag auf dem Sperrbildschirm und in der Live-Aktivität.")
                 .font(.footnote).foregroundStyle(.secondary)
@@ -944,10 +963,42 @@ private struct TicketSeatEditor: View {
         .contentShape(.rect(cornerRadius: 14))
     }
 
-    private func seatField(_ label: String, text: Binding<String>) -> some View {
+    private var walletImageURL: URL? {
+        event.primaryImageURL ?? event.imageUrls?.first.flatMap(URL.init(string:))
+    }
+
+    /// 09.11.2026: Bezeichnung wie auf dem Ticket wählbar („Sitz“, „Tür“, „Rang“).
+    private func labeledSeatField(_ label: Binding<String>, _ fallback: String, _ options: [String], text: Binding<String>) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(label).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            Menu {
+                ForEach(options, id: \.self) { option in
+                    Button(option) { label.wrappedValue = option == fallback ? "" : option }
+                }
+            } label: {
+                HStack(spacing: 3) {
+                    Text(label.wrappedValue.isEmpty ? fallback : label.wrappedValue)
+                    if options.count > 1 { Image(systemName: "chevron.up.chevron.down").imageScale(.small) }
+                }
+                .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            }
+            .disabled(options.count < 2)
             TextField("–", text: text).font(.title3.weight(.semibold)).textInputAutocapitalization(.characters)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 14, style: .continuous))
+    }
+
+    private func extraSeatField(_ extra: Binding<ConcertSeat.SeatExtra>) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                TextField("Angabe", text: extra.label).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                Button {
+                    seat.extras.removeAll { $0.id == extra.wrappedValue.id }
+                } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary) }
+                .buttonStyle(.plain).accessibilityLabel("Angabe entfernen")
+            }
+            TextField("–", text: extra.value).font(.title3.weight(.semibold))
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -998,9 +1049,16 @@ extension TicketSeatEditor {
         defer { isLoadingWallet = false }
         walletError = nil
         guard let client = SocialStore.shared.repository?.client else { walletError = "Wallet ist gerade nicht verfügbar."; return }
-        let base = [URLQueryItem(name: "slug", value: event.slug),
+        var base = [URLQueryItem(name: "slug", value: event.slug),
                     URLQueryItem(name: "entrance", value: seat.entrance), URLQueryItem(name: "block", value: seat.block),
-                    URLQueryItem(name: "row", value: seat.row), URLQueryItem(name: "seat", value: seat.seat)]
+                    URLQueryItem(name: "row", value: seat.row), URLQueryItem(name: "seat", value: seat.seat),
+                    URLQueryItem(name: "entrance_label", value: seat.entranceLabel), URLQueryItem(name: "block_label", value: seat.blockLabel),
+                    URLQueryItem(name: "row_label", value: seat.rowLabel), URLQueryItem(name: "seat_label", value: seat.seatLabel)]
+        base += seat.extras.filter { !$0.value.trimmingCharacters(in: .whitespaces).isEmpty }
+            .map { URLQueryItem(name: "extra", value: "\($0.label)|\($0.value)") }
+        // 09.11.2026: dasselbe Bild wie in der App mitgeben (der Server erreicht
+        // nicht jede Bildquelle direkt).
+        if let image = walletImageURL, image.scheme == "https" { base.append(URLQueryItem(name: "image", value: image.absoluteString)) }
         // 08.11.2026: eine Wallet-Karte pro erkanntem Ticket.
         let variants: [[URLQueryItem]] = ticketCodes.isEmpty ? [base] : ticketCodes.enumerated().map { index, code in
             base + [URLQueryItem(name: "code", value: code.payload), URLQueryItem(name: "format", value: code.format)]

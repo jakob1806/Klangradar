@@ -90,20 +90,25 @@ function hashString(value: string): number {
  * querformatig genug. Sonst null → Plakat oder Logo-Bänder. */
 async function loadPhoto(url: string | null): Promise<any> {
   if (!url || !/^https:\/\//.test(url)) return null;
-  try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
-    if (!res.ok) return null;
-    const bytes = new Uint8Array(await res.arrayBuffer());
-    if (bytes.length > 6_000_000) return null; // zu groß für die Rechenzeit
-    // WebP (RIFF…WEBP) kann die Bibliothek nicht lesen → nächste Quelle.
-    if (bytes[0] === 0x52 && bytes[8] === 0x57 && bytes[9] === 0x45) return null;
-    const image = await Image.decode(bytes);
-    if (image.width < 300 || image.height < 160) return null;
-    // Früh verkleinern spart Rechenzeit bei allen weiteren Schritten.
-    return image.width > 1000 ? image.resize(1000, Image.RESIZE_AUTO) : image;
-  } catch {
-    return null;
+  // 09.11.2026: direkt, sonst über einen Bild-Proxy als JPEG – manche Hosts
+  // (mphil.de, gaertnerplatztheater.de) sind aus Supabase nicht erreichbar,
+  // und WebP kann die Bildbibliothek nicht lesen.
+  const proxied = `https://wsrv.nl/?url=${encodeURIComponent(url)}&output=jpg&w=1000&q=85`;
+  for (const target of [url, proxied]) {
+    try {
+      const res = await fetch(target, { signal: AbortSignal.timeout(target === url ? 3500 : 6000) });
+      if (!res.ok) continue;
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      if (bytes.length > 6_000_000) continue; // zu groß für die Rechenzeit
+      if (bytes[0] === 0x52 && bytes[8] === 0x57 && bytes[9] === 0x45) continue; // WebP
+      const image = await Image.decode(bytes);
+      if (image.width < 300 || image.height < 160) return null;
+      return image.width > 1000 ? image.resize(1000, Image.RESIZE_AUTO) : image;
+    } catch {
+      // nächster Weg
+    }
   }
+  return null;
 }
 
 /** B: Foto vollständig (ohne Zuschnitt) eingepasst; dahinter dieselbe
@@ -211,10 +216,18 @@ Deno.serve(async (req) => {
   const barcodeFormat = formatMap[(url.searchParams.get("format") ?? "qr").toLowerCase()] ?? "PKBarcodeFormatQR";
 
 
-  const seatParts = (["entrance", "block", "row", "seat"] as const)
+  // 09.11.2026: Reihenfolge wie auf dem Ticket, Bezeichnungen frei
+  // („Rang“, „Sitz“, „Tür“), dazu weitere Angaben als extra=Bezeichnung|Wert.
+  const seatDefaults: Record<string, string> = { block: "BLOCK", row: "REIHE", seat: "PLATZ", entrance: "EINGANG" };
+  const seatParts = (["block", "row", "seat", "entrance"] as const)
     .map((k) => [k, (url.searchParams.get(k) ?? "").trim().slice(0, 30)] as const)
     .filter(([, v]) => v);
-  const seatLabels: Record<string, string> = { entrance: "EINGANG", block: "BLOCK", row: "REIHE", seat: "PLATZ" };
+  const seatLabels: Record<string, string> = Object.fromEntries(Object.entries(seatDefaults).map(([k, d]) =>
+    [k, ((url.searchParams.get(`${k}_label`) ?? "").trim().slice(0, 16).toUpperCase() || d)]));
+  const seatExtras = url.searchParams.getAll("extra").slice(0, 4).map((raw, i) => {
+    const [label, ...rest] = raw.split("|");
+    return { key: `extra${i}`, label: (label ?? "").trim().slice(0, 16).toUpperCase(), value: rest.join("|").trim().slice(0, 30) };
+  }).filter((e) => e.value);
 
   const pass = {
     formatVersion: 1,
@@ -246,9 +259,12 @@ Deno.serve(async (req) => {
       ],
       auxiliaryFields: [
         ...seatParts.map(([k, v]) => ({ key: k, label: seatLabels[k], value: v })),
+        // Apple zeigt höchstens vier Zusatzfelder vorn – der Rest steht hinten.
+        ...seatExtras.slice(0, Math.max(0, 4 - seatParts.length)),
         ...(ticketNo && ticketOf > 1 ? [{ key: "ticket", label: "TICKET", value: `${ticketNo} von ${ticketOf}` }] : []),
       ],
       backFields: [
+        ...seatExtras.slice(Math.max(0, 4 - seatParts.length)).map((e) => ({ ...e, key: `back_${e.key}` })),
         ...(venue?.address_street ? [{ key: "address", label: "Adresse", value: [venue.address_street, venue.address_city].filter(Boolean).join(", ") }] : []),
         { key: "link", label: "Konzertseite", value: `https://klangradar.com/e/${event.slug}` },
         { key: "hint", label: "Hinweis", value: code
@@ -274,7 +290,9 @@ Deno.serve(async (req) => {
     .eq("origin_type", "event").eq("origin_id", event.id)
     .in("license_status", ["confirmed_free", "confirmed_licensed", "official_press_image"])
     .order("sort_order", { ascending: true }).limit(5);
+  const appImage = (url.searchParams.get("image") ?? "").slice(0, 1000);
   const candidates = [
+    appImage,
     ...((imageRows ?? []) as Array<{ source_url: string | null }>).map((r) => r.source_url),
     // deno-lint-ignore no-explicit-any
     ...(((event as any).image_urls ?? []) as string[]),

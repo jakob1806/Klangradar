@@ -6,6 +6,11 @@ Chat mit Freunden
 • Konzertseite → „…“ → „An Freunde senden“: Konzert als Karte oder als Einladung verschicken.
 • Auf dem Freundesprofil direkt „Nachricht“.
 
+Platzerkennung (neu)
+• Liest jetzt auch „Sitz“, „Tür“, „Aufgang“, Etagen („2. OG“) und Bereiche ohne Beschriftung („Rang Mitte“). Preis, Kategorie, Adresse und Ticketnummer werden ignoriert.
+• Bezeichnungen wie auf dem Ticket: „Block“ kann „Rang“, „Bereich“ oder „Parkett“ sein, „Platz“ auch „Sitz“. Weitere Angaben (Etage, Kategorie …) per „Angabe hinzufügen“.
+• Bitte testen: Ticket von München Ticket, Eventim, Staatsoper hinzufügen und prüfen, ob alles richtig erkannt wird.
+
 Ticket auf der Konzertseite
 • Ein Knopf „Ticket hinzufügen“ für Foto, Screenshot, PDF oder Datei. Eingang, Block/Rang, Reihe und Platz werden aus dem Ticket gelesen.
 • Neu als kleine Eintrittskarte mit Platz, Code und Wallet-Status. Am Konzerttag steht sie ganz oben mit Einlass und „Ticket öffnen“, danach als Erinnerung mit Weg ins Tagebuch.
@@ -13,6 +18,8 @@ Ticket auf der Konzertseite
 
 Wallet-Karte
 • Mit Klangradar-Logo. Mit gutem Konzertfoto als Bild, sonst als Plakat mit großem Titel.
+• Konzertbild kommt jetzt auch bei Bildern von mphil.de an; Bild in der Ticket-Vorschau als flacher Streifen.
+• Platzangaben mit den Bezeichnungen vom Ticket (z. B. Sitz, Tür, Etage).
 
 Ticket & Platz
 • Neu gestaltet: Vorschau wie eine Eintrittskarte mit Konzertbild, Termin und Platz.
