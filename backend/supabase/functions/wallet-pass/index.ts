@@ -111,20 +111,17 @@ async function loadPhoto(url: string | null): Promise<any> {
   return null;
 }
 
-/** B: Foto vollständig (ohne Zuschnitt) eingepasst; dahinter dieselbe
- * Aufnahme flächig und stark abgedunkelt, damit kein leerer Rand bleibt. */
+/** A (09.11.2026): Foto füllt den Streifen; der Ausschnitt folgt dem
+ * Motiv (focus 0…1 = senkrechte Bildmitte des Motivs, von der App per
+ * Gesichts-/Motiverkennung bestimmt oder vom Nutzer verschoben). */
 // deno-lint-ignore no-explicit-any
-function photoStrip(source: any, w: number, h: number): any {
+function photoStrip(source: any, w: number, h: number, focusX = 0.5, focusY = 0.35): any {
   const cover = Math.max(w / source.width, h / source.height);
-  const bg = source.clone().resize(Math.ceil(source.width * cover), Math.ceil(source.height * cover));
-  const strip = bg.crop(Math.max(0, Math.floor((bg.width - w) / 2)), Math.max(0, Math.floor((bg.height - h) / 2)), w, h);
-  const dim = new Image(w, h);
-  dim.fill(Image.rgbaToColor(10, 10, 16, 190));
-  strip.composite(dim, 0, 0);
-  const fit = Math.min(w / source.width, h / source.height);
-  const fg = source.clone().resize(Math.max(1, Math.round(source.width * fit)), Math.max(1, Math.round(source.height * fit)));
-  strip.composite(fg, Math.round((w - fg.width) / 2), Math.round((h - fg.height) / 2));
-  return strip;
+  const scaled = source.clone().resize(Math.ceil(source.width * cover), Math.ceil(source.height * cover));
+  const clamp = (v: number, max: number) => Math.max(0, Math.min(max, Math.round(v)));
+  const x = clamp(scaled.width * focusX - w / 2, scaled.width - w);
+  const y = clamp(scaled.height * focusY - h / 2, scaled.height - h);
+  return scaled.crop(x, y, w, h);
 }
 
 let posterFont: Uint8Array | null = null;
@@ -312,7 +309,13 @@ Deno.serve(async (req) => {
   // deno-lint-ignore no-explicit-any
   let strip2x: any = null;
   try {
-    if (hasImageLib && variant === "photo" && photo) strip2x = photoStrip(photo, 750, 196);
+    if (hasImageLib && variant === "photo" && photo) {
+      const f = (k: string, d: number) => {
+        const v = Number(url.searchParams.get(k));
+        return Number.isFinite(v) && url.searchParams.has(k) ? Math.max(0, Math.min(1, v)) : d;
+      };
+      strip2x = photoStrip(photo, 750, 196, f("focus_x", 0.5), f("focus_y", 0.35));
+    }
     if (hasImageLib && variant === "poster") {
       strip2x = await posterStrip(event.title, 750, 196);
       if (strip2x) usedPoster = true;

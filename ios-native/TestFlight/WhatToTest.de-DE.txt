@@ -18,7 +18,9 @@ Ticket auf der Konzertseite
 
 Wallet-Karte
 • Mit Klangradar-Logo. Mit gutem Konzertfoto als Bild, sonst als Plakat mit großem Titel.
-• Konzertbild kommt jetzt auch bei Bildern von mphil.de an; Bild in der Ticket-Vorschau als flacher Streifen.
+• Konzertbild kommt jetzt auch bei Bildern von mphil.de an.
+• Bildstreifen mit Motiverkennung: Gesichter/Motiv stehen automatisch im Ausschnitt. Im Ticket-Blatt lässt sich der Ausschnitt mit dem Finger verschieben – die Wallet-Karte übernimmt ihn.
+• Neues Ticket ersetzt früher falsch erkannte Platzangaben; „am Einlass vor“ wird nicht mehr als Eingang gelesen.
 • Platzangaben mit den Bezeichnungen vom Ticket (z. B. Sitz, Tür, Etage).
 
 Ticket & Platz
