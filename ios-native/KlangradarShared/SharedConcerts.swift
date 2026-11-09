@@ -38,14 +38,58 @@ struct ConcertSeat: Codable, Hashable, Sendable {
     var block = ""
     var row = ""
     var seat = ""
+    /// 09.11.2026: Bezeichnungen wie auf dem Ticket („Tür“, „Rang“, „Sitz“)
+    /// und weitere Angaben (Etage, Kategorie …). Leer = Standardbezeichnung.
+    var entranceLabel = ""
+    var blockLabel = ""
+    var rowLabel = ""
+    var seatLabel = ""
+    var extras: [SeatExtra] = []
 
-    var isEmpty: Bool { [entrance, block, row, seat].allSatisfy { $0.trimmingCharacters(in: .whitespaces).isEmpty } }
+    struct SeatExtra: Codable, Hashable, Sendable, Identifiable {
+        var id = UUID()
+        var label: String
+        var value: String
+    }
 
-    /// z. B. "Block A · Reihe 5 · Platz 12"
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        entrance = try c.decodeIfPresent(String.self, forKey: .entrance) ?? ""
+        block = try c.decodeIfPresent(String.self, forKey: .block) ?? ""
+        row = try c.decodeIfPresent(String.self, forKey: .row) ?? ""
+        seat = try c.decodeIfPresent(String.self, forKey: .seat) ?? ""
+        entranceLabel = try c.decodeIfPresent(String.self, forKey: .entranceLabel) ?? ""
+        blockLabel = try c.decodeIfPresent(String.self, forKey: .blockLabel) ?? ""
+        rowLabel = try c.decodeIfPresent(String.self, forKey: .rowLabel) ?? ""
+        seatLabel = try c.decodeIfPresent(String.self, forKey: .seatLabel) ?? ""
+        extras = try c.decodeIfPresent([SeatExtra].self, forKey: .extras) ?? []
+    }
+
+    static let defaultLabels = (entrance: "Eingang", block: "Block", row: "Reihe", seat: "Platz")
+
+    /// Alle ausgefüllten Angaben in Ticket-Reihenfolge: (Bezeichnung, Wert).
+    var parts: [(label: String, value: String)] {
+        func lbl(_ custom: String, _ fallback: String) -> String {
+            let t = custom.trimmingCharacters(in: .whitespaces); return t.isEmpty ? fallback : t
+        }
+        let core: [(String, String)] = [
+            (lbl(blockLabel, Self.defaultLabels.block), block), (lbl(rowLabel, Self.defaultLabels.row), row),
+            (lbl(seatLabel, Self.defaultLabels.seat), seat), (lbl(entranceLabel, Self.defaultLabels.entrance), entrance)
+        ]
+        return (core + extras.map { ($0.label, $0.value) })
+            .map { ($0.0, $0.1.trimmingCharacters(in: .whitespaces)) }
+            .filter { !$0.1.isEmpty }
+            .map { (label: $0.0, value: $0.1) }
+    }
+
+    var isEmpty: Bool { parts.isEmpty }
+
+    /// z. B. "Rang Mitte · Reihe 1 · Sitz 7 · Tür M · 2. OG"
     var summary: String {
-        [entrance.isEmpty ? nil : "Eingang \(entrance)", block.isEmpty ? nil : "Block \(block)",
-         row.isEmpty ? nil : "Reihe \(row)", seat.isEmpty ? nil : "Platz \(seat)"]
-            .compactMap { $0 }.joined(separator: " · ")
+        parts.map { $0.label == "Bereich" || $0.label.isEmpty ? $0.value : "\($0.label) \($0.value)" }
+            .joined(separator: " · ")
     }
 }
 
