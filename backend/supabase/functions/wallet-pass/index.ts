@@ -18,17 +18,16 @@ import { PASS_IMAGES } from "../_shared/walletPassImages.ts";
 import { walletAuthToken } from "../_shared/walletToken.ts";
 // Bildbibliothek erst bei Bedarf laden (08.11.2026): scheitert sie, wird
 // die Karte trotzdem erstellt – nur ohne Streifenbild.
+// 09.11.2026: statisch importiert – der dynamische Import wurde beim Deploy
+// nicht mitgebündelt und schlug zur Laufzeit immer fehl (Karten ohne Bild).
+import { Image as ImageLib } from "npm:imagescript@1.3.0";
 // deno-lint-ignore no-explicit-any
-let Image: any = null;
+const Image: any = ImageLib;
+let stripNote = "";
 async function loadImageLib(): Promise<boolean> {
   if (Image) return true;
-  try {
-    Image = (await import("npm:imagescript@1.3.0")).Image;
-    return true;
-  } catch (err) {
-    console.error("wallet-pass imagescript", err instanceof Error ? err.message : String(err));
-    return false;
-  }
+  stripNote = "imagelib-missing";
+  return false;
 }
 
 const WWDR_URL = "https://www.apple.com/certificateauthority/AppleWWDRCAG4.cer";
@@ -319,6 +318,7 @@ Deno.serve(async (req) => {
       photo = await loadPhoto(url);
       if (photo) break;
     }
+    if (!photo) stripNote = `no-photo(${candidates.length})`;
   }
   const variant: "photo" | "poster" | "bands" = photo ? "photo"
     : (hashString(event.id) % 3 === 0 ? "bands" : "poster");
@@ -341,6 +341,7 @@ Deno.serve(async (req) => {
     }
   } catch (err) {
     console.warn("wallet-pass strip", err instanceof Error ? err.message : String(err));
+    stripNote = `strip-error:${err instanceof Error ? err.message.slice(0, 80) : "?"}`;
   }
   try {
     if (hasImageLib) {
@@ -350,6 +351,7 @@ Deno.serve(async (req) => {
     }
   } catch (err) {
     console.warn("wallet-pass strip encode", err instanceof Error ? err.message : String(err));
+    stripNote = `encode-error:${err instanceof Error ? err.message.slice(0, 80) : "?"}`;
   }
   // Fotokarte: Titel unter den Streifen, damit das Bild frei bleibt.
   if (variant === "photo" && files["strip@2x.png"]) {
@@ -400,6 +402,8 @@ Deno.serve(async (req) => {
         "Content-Type": "application/vnd.apple.pkpass",
         "Content-Disposition": `attachment; filename="${event.slug}.pkpass"`,
         "Cache-Control": "no-store",
+        // Diagnose ohne Log-Zugriff: welches Streifen-Design, ggf. warum keins.
+        "X-Klangradar-Strip": (files["strip.png"] ? (usedPoster ? "poster" : (photo ? "photo" : "bands")) : "none") + (stripNote ? `;${stripNote}` : "").replace(/[^\x20-\x7e]/g, ""),
       },
     });
   } catch (err) {
