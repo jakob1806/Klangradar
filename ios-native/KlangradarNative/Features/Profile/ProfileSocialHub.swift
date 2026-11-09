@@ -147,7 +147,7 @@ extension UserRepository {
     func archivedEvents(limit: Int = 500) async throws -> [ArchivedConcert] {
         let rows: [JSONObject] = try await client.get(table: "events", queryItems: [
             URLQueryItem(name: "select", value: "id,slug,title,subtitle,start_datetime,image_urls,status,category,is_free,venues(id,name,address_city,photo_url),event_genres(genres(id,slug,label_de)),event_participants(persons(id,full_name,photo_url),ensembles(id,name,photo_url)),event_works(works(title,composer:persons(full_name)))"),
-            URLQueryItem(name: "start_datetime", value: "lt.\(ISO8601DateFormatter().string(from: .now))"),
+            URLQueryItem(name: "start_datetime", value: "lt.\(FormatterCache.isoString(.now))"),
             URLQueryItem(name: "order", value: "start_datetime.desc"),
             URLQueryItem(name: "limit", value: String(limit))
         ])
@@ -215,9 +215,9 @@ extension UserRepository {
                 "event_id": .string(eventID.uuidString),
                 "status": .string("attended"),
                 "verification_type": .string(verificationType),
-                "updated_at": .string(ISO8601DateFormatter().string(from: .now))
+                "updated_at": .string(FormatterCache.isoString(.now))
             ]
-            values["attended_at"] = .string(ISO8601DateFormatter().string(from: attendedAt ?? .now))
+            values["attended_at"] = .string(FormatterCache.isoString(attendedAt ?? .now))
             try await client.upsert(table: "event_attendance", values: values, accessToken: token, conflictColumns: "user_id,event_id")
         } else {
             try await client.delete(table: "event_attendance", filters: [
@@ -276,7 +276,7 @@ extension UserRepository {
         let rows: [JSONObject] = try await client.get(table: "user_concert_entries", queryItems: [
             URLQueryItem(name: "select", value: "id,title,starts_at,venue_name,program,photo_paths,venues(id,name,address_city,photo_url)"),
             URLQueryItem(name: "user_id", value: "eq.\(userID.uuidString)"),
-            URLQueryItem(name: "starts_at", value: "lte.\(ISO8601DateFormatter().string(from: .now))")
+            URLQueryItem(name: "starts_at", value: "lte.\(FormatterCache.isoString(.now))")
         ], accessToken: token)
         guard !rows.isEmpty else { return [] }
         let workIDs = Set(rows.flatMap { $0.objects("program").compactMap { $0.string("work_id") } })

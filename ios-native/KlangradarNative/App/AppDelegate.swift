@@ -42,6 +42,14 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
+        // 09.11.2026: Chat-Nachricht im Vordergrund → offenen Chat sofort neu
+        // laden statt im Sekundentakt abzufragen; im geöffneten Chat kein Banner.
+        let kind = notification.request.content.userInfo["kind"] as? String
+        if kind == "chat_message" {
+            let route = notification.request.content.userInfo["route"] as? String ?? ""
+            Task { @MainActor in ChatSignal.shared.fire() }
+            if ChatPresence.isOpen(route: route) { completionHandler([]); return }
+        }
         completionHandler([.banner, .sound])
     }
 

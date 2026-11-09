@@ -1,6 +1,7 @@
 // Erstellt von Claude Code (08.11.2026): Chat zwischen Freunden,
 // aufgebaut wie ein vertrauter Messenger – Übersicht, Verlauf mit Blasen,
 // geteilte Konzerte als Karten, Reaktionen per langem Druck, Gruppen.
+import PhotosUI
 import SwiftUI
 
 // MARK: - Übersicht
@@ -59,9 +60,14 @@ struct ChatInboxView: View {
                 }
             }
             .task {
+                // 09.11.2026: sofort aus dem Zwischenspeicher, dann Server;
+                // weiter nur bei Chat-Mitteilung oder alle 30 Sekunden.
+                if conversations.isEmpty, let cached = SocialStore.shared.repository?.cachedChatInbox(), !cached.isEmpty {
+                    conversations = cached; isLoading = false
+                }
                 while !Task.isCancelled {
                     await load()
-                    try? await Task.sleep(for: .seconds(8))
+                    await ChatSignal.shared.wait(seconds: 30)
                 }
             }
             .refreshable { await load() }
@@ -174,6 +180,12 @@ struct ChatThreadView: View {
     @State private var error: String?
     @State private var focused: ChatMessage?
     @State private var didLoad = false
+    @State private var replyingTo: ChatMessage?
+    @State private var photoItem: PhotosPickerItem?
+    @State private var isUploading = false
+    @State private var lastTypingPing = Date.distantPast
+    @State private var idleRounds = 0
+    @State private var meetingFor: SocialEvent?
     @FocusState private var inputFocused: Bool
     @Environment(\.dismiss) private var dismiss
 
@@ -203,6 +215,7 @@ struct ChatThreadView: View {
                             endsGroup: endsGroup,
                             myID: myID,
                             onLongPress: { withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { focused = message }; Haptics.light() },
+                            onReply: { replyingTo = message; inputFocused = true },
                             onDoubleTap: { Task { await react(message, myReaction(message) == "👏" ? nil : "👏") } }
                         )
                         .padding(.top, startsGroup ? 8 : 2)
@@ -212,6 +225,12 @@ struct ChatThreadView: View {
                                 .frame(maxWidth: .infinity, alignment: .trailing)
                                 .padding(.top, 3).padding(.trailing, 4)
                         }
+                    }
+                    if !typingNames.isEmpty {
+                        TypingBubble(names: typingNames)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.top, 8)
+                            .transition(.opacity)
                     }
                     Color.clear.frame(height: 1).id("bottom")
                 }
@@ -249,11 +268,41 @@ struct ChatThreadView: View {
             NavigationStack { ChatMembersView(conversationID: conversationID, title: title) { dismiss() } }
         }
         .task {
+            // 09.11.2026: Verlauf sofort aus dem Zwischenspeicher; danach
+            // schnell, solange etwas passiert, sonst immer seltener (3 → 20 s),
+            // und sofort bei einer Chat-Mitteilung.
+            ChatPresence.openConversation = conversationID
+            if messages.isEmpty, let cached = SocialStore.shared.repository?.cachedChatThread(conversationID), !cached.isEmpty {
+                messages = cached
+            }
             while !Task.isCancelled {
-                await load()
-                try? await Task.sleep(for: .seconds(3))
+                let changed = await load()
+                idleRounds = changed || !typingNames.isEmpty ? 0 : idleRounds + 1
+                await ChatSignal.shared.wait(seconds: min(20, 3 + Double(idleRounds) * 3))
             }
         }
+        .onDisappear { if ChatPresence.openConversation == conversationID { ChatPresence.openConversation = nil } }
+        .confirmationDialog("Treffpunkt vorschlagen", isPresented: Binding(get: { meetingFor != nil }, set: { if !$0 { meetingFor = nil } }), titleVisibility: .visible) {
+            if let event = meetingFor {
+                ForEach(Self.meetingOptions(for: event), id: \.self) { option in
+                    Button(option) { Task { await sendText("📍 Treffpunkt für „\(event.title)“: \(option)") } }
+                }
+            }
+        }
+        .onChange(of: draft) { _, value in
+            guard !value.isEmpty, Date.now.timeIntervalSince(lastTypingPing) > 4,
+                  let repository = SocialStore.shared.repository, let token = SocialStore.shared.token else { return }
+            lastTypingPing = .now
+            Task { await repository.chatTyping(conversationID, token: token) }
+        }
+        .onChange(of: photoItem) { _, item in
+            guard let item else { return }
+            Task { await sendPhoto(item); photoItem = nil }
+        }
+    }
+
+    private var typingNames: [String] {
+        others.filter(\.typing).map { $0.name.split(separator: " ").first.map(String.init) ?? $0.name }
     }
 
     // MARK: Bausteine
@@ -302,7 +351,29 @@ struct ChatThreadView: View {
     private var composer: some View {
         VStack(spacing: 6) {
             if let error { Text(error).font(.caption).foregroundStyle(.red) }
+            if let replyingTo {
+                HStack(spacing: 10) {
+                    Capsule().fill(KlangradarTheme.accent).frame(width: 3, height: 32)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(replyingTo.senderID == myID ? "Antwort an dich" : "Antwort an \(replyingTo.senderName)")
+                            .font(.caption.weight(.semibold)).foregroundStyle(KlangradarTheme.accent)
+                        Text(Self.previewText(replyingTo)).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                    Spacer()
+                    Button { self.replyingTo = nil } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
+                        .accessibilityLabel("Antwort abbrechen")
+                }
+                .padding(.horizontal, 6)
+            }
             HStack(alignment: .bottom, spacing: 8) {
+                PhotosPicker(selection: $photoItem, matching: .images) {
+                    Group {
+                        if isUploading { ProgressView() } else { Image(systemName: "photo.on.rectangle.angled").font(.title3) }
+                    }
+                    .frame(width: 36, height: 40)
+                }
+                .disabled(isUploading)
+                .accessibilityLabel("Foto senden")
                 TextField("Nachricht", text: $draft, axis: .vertical)
                     .lineLimit(1...6)
                     .focused($inputFocused)
@@ -359,6 +430,21 @@ struct ChatThreadView: View {
                     .frame(maxWidth: 280, alignment: isMine ? .trailing : .leading)
 
                 VStack(spacing: 0) {
+                    if !message.deleted {
+                        overlayAction("Antworten", "arrowshape.turn.up.left") { replyingTo = message; inputFocused = true }
+                        Divider()
+                    }
+                    if let event = message.event, !message.deleted {
+                        // 09.11.2026: gemeinsam hingehen – Platz teilen, Treffpunkt vorschlagen.
+                        if let summary = SharedSeatStore.seat(forSlug: event.slug)?.summary, !summary.isEmpty {
+                            overlayAction("Meinen Platz teilen", "ticket") {
+                                Task { await sendText("🎟️ Mein Platz bei „\(event.title)“: \(summary)", replyTo: message.id) }
+                            }
+                            Divider()
+                        }
+                        overlayAction("Treffpunkt vorschlagen", "mappin.and.ellipse") { meetingFor = event }
+                        Divider()
+                    }
                     if let body = message.body {
                         overlayAction("Kopieren", "doc.on.doc") { UIPasteboard.general.string = body }
                     }
@@ -395,16 +481,76 @@ struct ChatThreadView: View {
 
     private var canSend: Bool { !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isSending }
 
-    private func load() async {
-        guard let repository = SocialStore.shared.repository, let token = SocialStore.shared.token else { return }
+    @discardableResult
+    private func load() async -> Bool {
+        guard let repository = SocialStore.shared.repository, let token = SocialStore.shared.token else { return false }
         async let loadedMessages = try? repository.chatThread(conversationID, token: token)
         async let loadedMembers = try? repository.chatMembers(conversationID, token: token)
+        var changed = false
         if let loaded = await loadedMessages, loaded != messages {
             withAnimation(.snappy) { messages = loaded }
+            changed = true
             await repository.chatMarkRead(conversationID, token: token)
         }
-        if let loaded = await loadedMembers { members = loaded }
+        if let loaded = await loadedMembers, loaded != members { withAnimation { members = loaded } }
         didLoad = true
+        return changed
+    }
+
+    /// Vorschläge mit Uhrzeit aus dem Konzertbeginn.
+    static func meetingOptions(for event: SocialEvent) -> [String] {
+        func time(_ minutes: Double) -> String {
+            guard let start = event.start else { return "" }
+            return " um " + KlangradarDateTime.string(start.addingTimeInterval(-minutes * 60), format: "HH:mm")
+        }
+        let venue = event.venue ?? "der Spielstätte"
+        return [
+            "Im Foyer\(time(30))",
+            "Am Haupteingang von \(venue)\(time(25))",
+            "Vorher etwas essen\(time(100))",
+            "In der Pause an der Bar",
+            "Nach dem Konzert am Ausgang"
+        ]
+    }
+
+    private func sendText(_ text: String, replyTo: UUID? = nil) async {
+        guard let repository = SocialStore.shared.repository, let token = SocialStore.shared.token else { return }
+        do {
+            try await repository.chatSend(conversationID, body: text, replyTo: replyTo, token: token)
+            Haptics.light()
+            await load()
+        } catch {
+            self.error = "Nachricht konnte nicht gesendet werden."
+        }
+    }
+
+    static func previewText(_ message: ChatMessage) -> String {
+        if message.deleted { return "Nachricht gelöscht" }
+        if message.imagePath != nil { return "📷 " + (message.body ?? "Foto") }
+        return message.body ?? message.event?.title ?? ""
+    }
+
+    private func sendPhoto(_ item: PhotosPickerItem) async {
+        guard let repository = SocialStore.shared.repository, let token = SocialStore.shared.token,
+              let raw = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: raw) else { return }
+        isUploading = true; error = nil
+        defer { isUploading = false }
+        // Auf 1600 px verkleinern, JPEG – schont Datenvolumen und Speicher.
+        let scale = min(1, 1600 / max(image.size.width, image.size.height))
+        let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        let resized = UIGraphicsImageRenderer(size: size).image { _ in image.draw(in: CGRect(origin: .zero, size: size)) }
+        guard let data = resized.jpegData(compressionQuality: 0.8) else { return }
+        do {
+            let path = try await repository.chatUploadImage(data, conversationID: conversationID, token: token)
+            let caption = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+            try await repository.chatSend(conversationID, kind: "image", body: caption.isEmpty ? nil : caption,
+                                          replyTo: replyingTo?.id, imagePath: path, token: token)
+            draft = ""; replyingTo = nil
+            Haptics.light()
+            await load()
+        } catch {
+            self.error = "Foto konnte nicht gesendet werden."
+        }
     }
 
     private func send() async {
@@ -413,12 +559,15 @@ struct ChatThreadView: View {
         isSending = true; error = nil
         defer { isSending = false }
         draft = ""
+        let reply = replyingTo
+        replyingTo = nil
         do {
-            try await repository.chatSend(conversationID, body: text, token: token)
+            try await repository.chatSend(conversationID, body: text, replyTo: reply?.id, token: token)
             Haptics.light()
             await load()
         } catch {
             draft = text
+            replyingTo = reply
             self.error = "Nachricht konnte nicht gesendet werden."
         }
     }
@@ -452,7 +601,9 @@ private struct ChatBubble: View {
     let endsGroup: Bool
     let myID: UUID?
     let onLongPress: () -> Void
+    var onReply: () -> Void = {}
     let onDoubleTap: () -> Void
+    @State private var swipe: CGFloat = 0
 
     var body: some View {
         if message.kind == "system" {
@@ -473,8 +624,28 @@ private struct ChatBubble: View {
                         Text(message.senderName.split(separator: " ").first.map(String.init) ?? message.senderName)
                             .font(.caption.weight(.semibold)).foregroundStyle(.secondary).padding(.leading, 12)
                     }
+                    if let replyBody = message.replyBody, !message.deleted {
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(message.replySender ?? "Antwort").font(.caption2.weight(.semibold)).foregroundStyle(KlangradarTheme.accent)
+                            Text(replyBody).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                        }
+                        .padding(.leading, 13).padding(.trailing, 10).padding(.vertical, 6)
+                        .overlay(alignment: .leading) { Capsule().fill(KlangradarTheme.accent).frame(width: 3).padding(.vertical, 4) }
+                        .background(Color(uiColor: .tertiarySystemGroupedBackground), in: .rect(cornerRadius: 12, style: .continuous))
+                        .frame(maxWidth: 260, alignment: isMine ? .trailing : .leading)
+                    }
                     content
                         .contentShape(bubbleShape)
+                        .offset(x: swipe)
+                        .simultaneousGesture(DragGesture(minimumDistance: 20)
+                            .onChanged { value in
+                                guard !message.deleted, abs(value.translation.height) < 30 else { return }
+                                swipe = max(0, min(70, value.translation.width))
+                            }
+                            .onEnded { _ in
+                                if swipe > 55 { Haptics.light(); onReply() }
+                                withAnimation(.spring(response: 0.3)) { swipe = 0 }
+                            })
                         .onTapGesture(count: 2, perform: onDoubleTap)
                         .onLongPressGesture(minimumDuration: 0.35, perform: onLongPress)
                         .overlay(alignment: isMine ? .bottomLeading : .bottomTrailing) { reactionChips }
@@ -484,6 +655,7 @@ private struct ChatBubble: View {
             }
             .accessibilityElement(children: .combine)
             .accessibilityAction(named: "Reagieren", onLongPress)
+            .accessibilityAction(named: "Antworten", onReply)
         }
     }
 
@@ -519,6 +691,19 @@ private struct ChatBubble: View {
                 .font(.subheadline.italic()).foregroundStyle(.secondary)
                 .padding(.horizontal, 13).padding(.vertical, 8)
                 .background(Color(uiColor: .secondarySystemGroupedBackground).opacity(0.6), in: bubbleShape)
+        } else if let path = message.imagePath {
+            VStack(alignment: isMine ? .trailing : .leading, spacing: 0) {
+                ChatPhoto(path: path)
+                if let body = message.body {
+                    Text(body).font(.body).foregroundStyle(isMine ? .white : .primary)
+                        .padding(.horizontal, 12).padding(.top, 8)
+                }
+                if endsGroup { timestamp.padding(.horizontal, 12).padding(.top, 4) }
+                Color.clear.frame(height: 6)
+            }
+            .frame(width: 240)
+            .background(fill, in: bubbleShape)
+            .clipShape(bubbleShape)
         } else if let event = message.event {
             VStack(alignment: .leading, spacing: 0) {
                 ChatEventCard(event: event, isInvite: message.kind == "invite")
@@ -886,5 +1071,78 @@ struct ShareEventToFriendsSheet: View {
         sent = true
         try? await Task.sleep(for: .milliseconds(600))
         dismiss()
+    }
+}
+
+/// Foto im Verlauf (privater Speicher, signierter Link); Tippen = Vollbild.
+private struct ChatPhoto: View {
+    let path: String
+    @State private var url: URL?
+    @State private var showsFull = false
+
+    var body: some View {
+        Group {
+            if let url {
+                CachedAsyncImage(url: url, maxPixel: 1200) { phase in
+                    if let image = phase.image { image.resizable().scaledToFill() }
+                    else { Color(uiColor: .tertiarySystemFill).overlay { ProgressView() } }
+                }
+            } else {
+                Color(uiColor: .tertiarySystemFill).overlay { ProgressView() }
+            }
+        }
+        .frame(width: 240, height: 240)
+        .clipped()
+        .contentShape(Rectangle())
+        .onTapGesture { if url != nil { showsFull = true } }
+        .accessibilityLabel("Foto")
+        .task {
+            guard let repository = SocialStore.shared.repository, let token = SocialStore.shared.token else { return }
+            url = await repository.chatImageURL(path, token: token)
+        }
+        .fullScreenCover(isPresented: $showsFull) {
+            ZStack(alignment: .topTrailing) {
+                Color.black.ignoresSafeArea()
+                if let url {
+                    CachedAsyncImage(url: url, maxPixel: 2400) { phase in
+                        if let image = phase.image { image.resizable().scaledToFit() } else { ProgressView().tint(.white) }
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                Button { showsFull = false } label: {
+                    Image(systemName: "xmark.circle.fill").font(.title).foregroundStyle(.white.opacity(0.85))
+                }
+                .padding()
+                .accessibilityLabel("Schließen")
+            }
+        }
+    }
+}
+
+/// „Anna schreibt …“ mit drei pulsierenden Punkten.
+private struct TypingBubble: View {
+    let names: [String]
+    @State private var phase = 0
+
+    var body: some View {
+        HStack(spacing: 8) {
+            HStack(spacing: 4) {
+                ForEach(0..<3, id: \.self) { index in
+                    Circle().fill(Color.secondary).frame(width: 7, height: 7)
+                        .opacity(phase == index ? 1 : 0.35)
+                }
+            }
+            .padding(.horizontal, 12).padding(.vertical, 10)
+            .background(Color(uiColor: .secondarySystemGroupedBackground), in: .capsule)
+            Text(names.count == 1 ? "\(names[0]) schreibt …" : "\(names.joined(separator: ", ")) schreiben …")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+        .accessibilityElement(children: .combine)
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(380))
+                phase = (phase + 1) % 3
+            }
+        }
     }
 }

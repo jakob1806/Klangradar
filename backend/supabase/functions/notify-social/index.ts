@@ -49,6 +49,7 @@ Deno.serve(async (req) => {
         const conv = (msg as any).chat_conversations as { is_group?: boolean; title?: string } | null;
         const preview = msg.kind === "event" ? `Hat ein Konzert geteilt: ${(event as { title?: string } | null)?.title ?? ""}`
           : msg.kind === "invite" ? `Lädt dich ein: ${(event as { title?: string } | null)?.title ?? ""}`
+          : msg.kind === "image" ? `📷 Foto${msg.body ? `: ${msg.body.slice(0, 120)}` : ""}`
           : (msg.body ?? "").slice(0, 140);
         chat = { preview, group: conv?.is_group ? conv.title ?? "Gruppe" : null, conversation: msg.conversation_id };
       }

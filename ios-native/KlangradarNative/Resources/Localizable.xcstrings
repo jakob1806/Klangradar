@@ -11,6 +11,36 @@
         }
       }
     },
+    "%@ schreiben …": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ are typing …"
+          }
+        }
+      }
+    },
+    "%@ schreibt …": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ is typing …"
+          }
+        }
+      }
+    },
+    "%lld Mitglieder": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld members"
+          }
+        }
+      }
+    },
     ". Bis dahin kommt die Sammlung einmal täglich.": {
       "localizations": {
         "en": {
@@ -551,6 +581,26 @@
         }
       }
     },
+    "Als \"Geplant\" markierte Veranstaltungen erscheinen hier.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Events marked as \"Planned\" appear here."
+          }
+        }
+      }
+    },
+    "Als Einladung senden": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send as invitation"
+          }
+        }
+      }
+    },
     "Als Nächstes": {
       "localizations": {
         "en": {
@@ -591,12 +641,32 @@
         }
       }
     },
+    "Am Abend mit einem Tipp am Einlass": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On the night, one tap at the entrance"
+          }
+        }
+      }
+    },
     "Am Konzerttag erinnern": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Remind on Concert Day"
+          }
+        }
+      }
+    },
+    "An Freunde senden": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send to friends"
           }
         }
       }
@@ -657,6 +727,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "Requests & Invitations"
+          }
+        }
+      }
+    },
+    "Angabe": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Detail"
+          }
+        }
+      }
+    },
+    "Angabe entfernen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove detail"
+          }
+        }
+      }
+    },
+    "Angabe hinzufügen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add detail"
           }
         }
       }
@@ -727,6 +827,46 @@
           "stringUnit": {
             "state": "translated",
             "value": "Accept"
+          }
+        }
+      }
+    },
+    "Antwort abbrechen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel reply"
+          }
+        }
+      }
+    },
+    "Antwort an %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reply to %@"
+          }
+        }
+      }
+    },
+    "Antwort an dich": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reply to you"
+          }
+        }
+      }
+    },
+    "Antworten": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reply"
           }
         }
       }
@@ -841,6 +981,16 @@
         }
       }
     },
+    "Aus Dateien wählen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose from Files"
+          }
+        }
+      }
+    },
     "Aus Fotos wählen": {
       "localizations": {
         "en": {
@@ -867,6 +1017,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "From Your Contacts"
+          }
+        }
+      }
+    },
+    "Aus euren gemeinsamen Interessen, gefolgten Künstler:innen und Merklisten.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Based on your shared interests, followed artists and saved lists."
           }
         }
       }
@@ -907,6 +1067,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Car"
+          }
+        }
+      }
+    },
+    "Bald mehr Vorteile": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "More benefits soon"
           }
         }
       }
@@ -1171,6 +1341,16 @@
         }
       }
     },
+    "Chats": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chats"
+          }
+        }
+      }
+    },
     "Code": {
       "localizations": {
         "en": {
@@ -1247,6 +1427,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "YOUR SEASON"
+          }
+        }
+      }
+    },
+    "DU SCHAUST GERADE": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "YOU'RE LOOKING AT"
           }
         }
       }
@@ -1471,6 +1661,16 @@
         }
       }
     },
+    "Dein Ticket": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your ticket"
+          }
+        }
+      }
+    },
     "Dein persönliches Klangradar": {
       "localizations": {
         "en": {
@@ -1667,6 +1867,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Details (optional)"
+          }
+        }
+      }
+    },
+    "Details nicht verfügbar": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Details unavailable"
           }
         }
       }
@@ -1941,6 +2151,16 @@
         }
       }
     },
+    "Du warst hier": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You were here"
+          }
+        }
+      }
+    },
     "Dunkel": {
       "localizations": {
         "en": {
@@ -2101,6 +2321,16 @@
         }
       }
     },
+    "Einladung": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Invitation"
+          }
+        }
+      }
+    },
     "Einladung teilen": {
       "localizations": {
         "en": {
@@ -2197,6 +2427,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Entries from concerts you attended appear here."
+          }
+        }
+      }
+    },
+    "Einzelchat": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Direct chat"
+          }
+        }
+      }
+    },
+    "Einzeln anpassen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Customize individually"
           }
         }
       }
@@ -2397,6 +2647,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Appearance"
+          }
+        }
+      }
+    },
+    "Ersetzen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Replace"
           }
         }
       }
@@ -2611,6 +2871,16 @@
         }
       }
     },
+    "Foto": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photo"
+          }
+        }
+      }
+    },
     "Foto aufnehmen": {
       "localizations": {
         "en": {
@@ -2641,12 +2911,32 @@
         }
       }
     },
+    "Foto senden": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send photo"
+          }
+        }
+      }
+    },
     "Foto, Screenshot oder PDF – bleibt nur auf deinem iPhone.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Photo, screenshot or PDF – stays only on your iPhone."
+          }
+        }
+      }
+    },
+    "Foto, Screenshot, PDF oder Datei": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photo, screenshot, PDF or file"
           }
         }
       }
@@ -2807,6 +3097,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Add friends in your profile under “Friends”."
+          }
+        }
+      }
+    },
+    "Füge unten dein Ticket hinzu, dann erscheint hier der Code für den Einlass.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add your ticket below and the entry code will appear here."
+          }
+        }
+      }
+    },
+    "Füge zuerst Freunde hinzu, um zu chatten.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add friends first to start chatting."
           }
         }
       }
@@ -2991,6 +3301,16 @@
         }
       }
     },
+    "Gemerkt": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saved"
+          }
+        }
+      }
+    },
     "Genau eine Erinnerung pro Konzert – auch für Abo-Konzerte.": {
       "localizations": {
         "en": {
@@ -3091,6 +3411,16 @@
         }
       }
     },
+    "Gruppe": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Group"
+          }
+        }
+      }
+    },
     "Gruppe bearbeiten": {
       "localizations": {
         "en": {
@@ -3107,6 +3437,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Leave Group"
+          }
+        }
+      }
+    },
+    "Gruppe verlassen?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leave group?"
           }
         }
       }
@@ -3137,6 +3477,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Good to Know"
+          }
+        }
+      }
+    },
+    "HEUTE ABEND": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TONIGHT"
           }
         }
       }
@@ -3331,6 +3681,16 @@
         }
       }
     },
+    "Ich antworte aus echten Spielplänen und deinem Konzerttagebuch – und sage dir, wenn ich etwas nicht weiß.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I answer from real schedules and your concert diary – and tell you when I don't know something."
+          }
+        }
+      }
+    },
     "Ich habe die Datenschutzerklärung gelesen.": {
       "localizations": {
         "en": {
@@ -3441,6 +3801,16 @@
         }
       }
     },
+    "In Wallet": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In Wallet"
+          }
+        }
+      }
+    },
     "In deinem Profil": {
       "localizations": {
         "en": {
@@ -3457,6 +3827,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "No events are available this week."
+          }
+        }
+      }
+    },
+    "Inhalt des QR-Codes": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "QR code content"
+          }
+        }
+      }
+    },
+    "Ins Tagebuch": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add to diary"
           }
         }
       }
@@ -3731,6 +4121,16 @@
         }
       }
     },
+    "Keine Treffer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No results"
+          }
+        }
+      }
+    },
     "Keine Veranstaltungen": {
       "localizations": {
         "en": {
@@ -3757,6 +4157,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "No Saved Concerts"
+          }
+        }
+      }
+    },
+    "Keine kommenden Events geladen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No upcoming events loaded"
           }
         }
       }
@@ -3951,6 +4361,16 @@
         }
       }
     },
+    "Konto endgültig löschen?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete account permanently?"
+          }
+        }
+      }
+    },
     "Konto erstellen": {
       "localizations": {
         "en": {
@@ -4107,6 +4527,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Concert Diary"
+          }
+        }
+      }
+    },
+    "Kopieren": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy"
           }
         }
       }
@@ -4381,6 +4811,26 @@
         }
       }
     },
+    "Markierung entfernen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove marker"
+          }
+        }
+      }
+    },
+    "Markierung versetzen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move marker"
+          }
+        }
+      }
+    },
     "Medien": {
       "localizations": {
         "en": {
@@ -4446,7 +4896,17 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "My Seat"
+            "value": "My seat"
+          }
+        }
+      }
+    },
+    "Mein Platz im Saalplan": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "My seat on the seating plan"
           }
         }
       }
@@ -4487,6 +4947,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "My Music Landscape"
+          }
+        }
+      }
+    },
+    "Meinen Platz teilen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Share my seat"
           }
         }
       }
@@ -4597,6 +5067,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Save a few concerts, follow artists or rate what you've heard – and your profile will take shape here."
+          }
+        }
+      }
+    },
+    "Mit %@ reagieren": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "React with %@"
           }
         }
       }
@@ -4756,7 +5236,37 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Allow Notifications"
+            "value": "Allow notifications"
+          }
+        }
+      }
+    },
+    "Mitteilungen in iOS erlaubt": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notifications allowed in iOS"
+          }
+        }
+      }
+    },
+    "Mitteilungen noch nicht erlaubt": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notifications not allowed yet"
+          }
+        }
+      }
+    },
+    "Mitteilungen sind in iOS ausgeschaltet": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notifications are turned off in iOS"
           }
         }
       }
@@ -4861,6 +5371,26 @@
         }
       }
     },
+    "Nachname und Geburtsdatum sind freiwillig. Telefonnummer und Adresse kannst du später im Profil ergänzen. Dein Geburtsdatum nutzen wir ausschließlich, um Altersfreigaben zu berücksichtigen und passendere Empfehlungen zu zeigen — es wird nirgends öffentlich angezeigt.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last name and date of birth are optional. You can add phone number and address later in your profile. We only use your date of birth to respect age ratings and show better recommendations — it is never shown publicly."
+          }
+        }
+      }
+    },
+    "Nachricht": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Message"
+          }
+        }
+      }
+    },
     "Nachricht (optional)": {
       "localizations": {
         "en": {
@@ -4881,12 +5411,42 @@
         }
       }
     },
+    "Nachricht gelöscht": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Message deleted"
+          }
+        }
+      }
+    },
+    "Nachrichten": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Messages"
+          }
+        }
+      }
+    },
     "Name": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Name"
+          }
+        }
+      }
+    },
+    "Name der Gruppe": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Group name"
           }
         }
       }
@@ -5021,6 +5581,16 @@
         }
       }
     },
+    "Neuer Chat": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New chat"
+          }
+        }
+      }
+    },
     "Neuer Eintrag": {
       "localizations": {
         "en": {
@@ -5151,6 +5721,16 @@
         }
       }
     },
+    "Noch keine Chats": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No chats yet"
+          }
+        }
+      }
+    },
     "Noch keine Einträge": {
       "localizations": {
         "en": {
@@ -5187,6 +5767,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "No gallery images yet."
+          }
+        }
+      }
+    },
+    "Noch keine Genres gewählt": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No genres selected yet"
           }
         }
       }
@@ -5331,6 +5921,16 @@
         }
       }
     },
+    "Nutzerberichte-Inbox folgt": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "User reports inbox coming soon"
+          }
+        }
+      }
+    },
     "Nächste Woche": {
       "localizations": {
         "en": {
@@ -5441,6 +6041,16 @@
         }
       }
     },
+    "PLATZ": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SEAT"
+          }
+        }
+      }
+    },
     "PLUS": {
       "localizations": {
         "en": {
@@ -5477,6 +6087,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Partner Perks"
+          }
+        }
+      }
+    },
+    "Passt zu euch beiden": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A match for both of you"
           }
         }
       }
@@ -5601,12 +6221,72 @@
         }
       }
     },
+    "Plant hier eure nächsten Konzertabende.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plan your next concert nights here."
+          }
+        }
+      }
+    },
     "Platz": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Seat"
+          }
+        }
+      }
+    },
+    "Platz eintragen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter seat"
+          }
+        }
+      }
+    },
+    "Platz im Plan markieren": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mark seat on plan"
+          }
+        }
+      }
+    },
+    "Platz markieren": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mark seat"
+          }
+        }
+      }
+    },
+    "Platz unten eintragen – er erscheint dann hier und in Wallet.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter your seat below – it will appear here and in Wallet."
+          }
+        }
+      }
+    },
+    "Playlist\nzum Konzert": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Concert\nplaylist"
           }
         }
       }
@@ -5681,6 +6361,16 @@
         }
       }
     },
+    "Preview-Daten – Supabase noch nicht konfiguriert": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preview data – Supabase not configured yet"
+          }
+        }
+      }
+    },
     "Privat hingehen": {
       "localizations": {
         "en": {
@@ -5751,6 +6441,16 @@
         }
       }
     },
+    "Profilbild": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Profile picture"
+          }
+        }
+      }
+    },
     "Profilbild anpassen": {
       "localizations": {
         "en": {
@@ -5767,6 +6467,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Edit Profile Picture"
+          }
+        }
+      }
+    },
+    "Profilbild hinzufügen (optional)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add profile picture (optional)"
           }
         }
       }
@@ -5797,6 +6507,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Programme"
+          }
+        }
+      }
+    },
+    "Programm noch nicht veröffentlicht": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Programme not yet published"
+          }
+        }
+      }
+    },
+    "Programm wird geprüft": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Programme under review"
           }
         }
       }
@@ -6061,6 +6791,16 @@
         }
       }
     },
+    "Saalplan": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seating plan"
+          }
+        }
+      }
+    },
     "Saalplan ansehen": {
       "localizations": {
         "en": {
@@ -6107,6 +6847,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Quick fixes apply immediately to all Klangradar surfaces."
+          }
+        }
+      }
+    },
+    "Schreib Freunden, teile Konzerte oder lade zu einem Abend ein.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Message friends, share concerts or invite them to an evening."
           }
         }
       }
@@ -6177,6 +6927,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Immediately"
+          }
+        }
+      }
+    },
+    "Solange iOS Mitteilungen blockiert, kommen keine Erinnerungen an – egal, was unten eingestellt ist.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "As long as iOS blocks notifications, no reminders arrive – regardless of the settings below."
           }
         }
       }
@@ -6311,6 +7071,16 @@
         }
       }
     },
+    "Standort stimmt mit der Spielstätte überein": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Location matches the venue"
+          }
+        }
+      }
+    },
     "Standortfreigabe und Push-Benachrichtigungen können jederzeit in den Geräte- bzw. App-Einstellungen widerrufen werden.": {
       "localizations": {
         "en": {
@@ -6337,6 +7107,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Create New Instead"
+          }
+        }
+      }
+    },
+    "Stattdessen vorhandenen Eintrag wählen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose existing entry instead"
           }
         }
       }
@@ -6591,6 +7371,16 @@
         }
       }
     },
+    "Teil von %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Part of %@"
+          }
+        }
+      }
+    },
     "Teilen": {
       "localizations": {
         "en": {
@@ -6631,12 +7421,32 @@
         }
       }
     },
+    "Testmitteilung senden": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send test notification"
+          }
+        }
+      }
+    },
     "Ticket": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Ticket"
+          }
+        }
+      }
+    },
+    "Ticket %lld öffnen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open ticket %lld"
           }
         }
       }
@@ -6687,6 +7497,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "Replace Ticket"
+          }
+        }
+      }
+    },
+    "Ticket hinterlegen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add ticket"
+          }
+        }
+      }
+    },
+    "Ticket hinzufügen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add ticket"
+          }
+        }
+      }
+    },
+    "Ticket und Platz bearbeiten": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edit ticket and seat"
           }
         }
       }
@@ -6771,6 +7611,16 @@
         }
       }
     },
+    "Tippe auf deinen Platz im Plan": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap your seat on the plan"
+          }
+        }
+      }
+    },
     "Titel": {
       "localizations": {
         "en": {
@@ -6827,6 +7677,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Arrange Meeting Point"
+          }
+        }
+      }
+    },
+    "Treffpunkt vorschlagen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suggest meeting point"
           }
         }
       }
@@ -7381,6 +8241,16 @@
         }
       }
     },
+    "Weitergeben": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pass on"
+          }
+        }
+      }
+    },
     "Wen möchtest du mitnehmen?": {
       "localizations": {
         "en": {
@@ -7491,6 +8361,16 @@
         }
       }
     },
+    "Werk oder Komponist suchen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search work or composer"
+          }
+        }
+      }
+    },
     "Werk, Komponist:in oder Titel": {
       "localizations": {
         "en": {
@@ -7517,6 +8397,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Works from concerts you attended appear here."
+          }
+        }
+      }
+    },
+    "Werke, die du liebst": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Works you love"
           }
         }
       }
@@ -7601,6 +8491,16 @@
         }
       }
     },
+    "Wie viel möchtest du hören?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "How much would you like to hear?"
+          }
+        }
+      }
+    },
     "Wie viel?": {
       "localizations": {
         "en": {
@@ -7667,6 +8567,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "We don't sell tickets ourselves. Any purchase contract is made solely between the user and the respective organizer/ticket provider."
+          }
+        }
+      }
+    },
+    "Wir zeigen dir, wenn sie in deiner Nähe gespielt werden.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "We'll let you know when they're performed near you."
           }
         }
       }
@@ -7811,6 +8721,26 @@
         }
       }
     },
+    "Ziehen zum Verschieben": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drag to reposition"
+          }
+        }
+      }
+    },
+    "Zu Apple Wallet hinzufügen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add to Apple Wallet"
+          }
+        }
+      }
+    },
     "Zu Fuß": {
       "localizations": {
         "en": {
@@ -7867,6 +8797,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Recently Experienced"
+          }
+        }
+      }
+    },
+    "Zum Beispiel die Ticketnummer oder den Text hinter dem QR-Code aus der Bestätigungsmail.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "For example the ticket number or the text behind the QR code from the confirmation email."
           }
         }
       }
@@ -7947,6 +8887,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "cancel anytime"
+          }
+        }
+      }
+    },
+    "iOS-Einstellungen öffnen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open iOS Settings"
           }
         }
       }
@@ -8087,6 +9037,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Open the link from the email on this device. Check your spam folder too."
+          }
+        }
+      }
+    },
+    "Öffnen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open"
           }
         }
       }

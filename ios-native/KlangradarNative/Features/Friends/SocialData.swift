@@ -245,7 +245,7 @@ extension UserRepository {
             "p_event_id": .string(eventID.uuidString),
             "p_friend_ids": .array(friendIDs.map { .string($0.uuidString) }),
             "p_meeting_point": meetingPoint.map(JSONValue.string) ?? .null,
-            "p_meeting_time": meetingTime.map { .string(ISO8601DateFormatter().string(from: $0)) } ?? .null,
+            "p_meeting_time": meetingTime.map { .string(FormatterCache.isoString($0)) } ?? .null,
             "p_note": note.map(JSONValue.string) ?? .null
         ], accessToken: token)
         if case let .string(id) = value { return UUID(uuidString: id) }
@@ -259,7 +259,7 @@ extension UserRepository {
     func updateConcertPlan(_ id: UUID, meetingPoint: String?, meetingTime: Date?, note: String?, token: String) async throws {
         try await call("update_concert_plan", [
             "p_plan_id": .string(id.uuidString), "p_meeting_point": meetingPoint.map(JSONValue.string) ?? .null,
-            "p_meeting_time": meetingTime.map { .string(ISO8601DateFormatter().string(from: $0)) } ?? .null, "p_note": note.map(JSONValue.string) ?? .null
+            "p_meeting_time": meetingTime.map { .string(FormatterCache.isoString($0)) } ?? .null, "p_note": note.map(JSONValue.string) ?? .null
         ], token: token)
     }
 
@@ -411,7 +411,7 @@ extension SocialEvent {
     var concertEvent: ConcertEvent? {
         var json: JSONObject = ["id": .string(id.uuidString), "slug": .string(slug), "title": .string(title)]
         guard let start else { return nil }
-        json["start_datetime"] = .string(ISO8601DateFormatter().string(from: start))
+        json["start_datetime"] = .string(FormatterCache.isoString(start))
         if let imageURL { json["image_urls"] = .array([.string(imageURL.absoluteString)]) }
         if let venue { json["venues"] = .object(["id": .string(UUID().uuidString), "name": .string(venue)]) }
         return ConcertEvent(json: json)

@@ -1,4 +1,5 @@
 import SwiftUI
+import UserNotifications
 
 /// Aus ProfileView.swift extrahiert — siehe Kommentar in InterestsView.swift,
 /// gleicher Grund: wird jetzt auch als Onboarding-Schritt eingebettet.
@@ -17,6 +18,10 @@ struct NotificationSettingsView: View {
     @State private var newsletter = false
     @State private var showsPlusPaywall = false
     @State private var showsDetails = false
+    @State private var systemStatus: UNAuthorizationStatus?
+    @State private var testResult: String?
+    @State private var isTesting = false
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         Form {
@@ -36,6 +41,7 @@ struct NotificationSettingsView: View {
                     .listRowBackground(Color.clear)
                 }
             }
+            systemSection
             // 06.11.2026 (Nutzerwunsch: „zu unübersichtlich“): erst eine von
             // drei Stufen wählen; Einzelheiten nur auf Wunsch.
             Section {
@@ -154,10 +160,84 @@ struct NotificationSettingsView: View {
         }
         .navigationTitle("Benachrichtigungen")
         .sheet(isPresented: $showsPlusPaywall) { PlusPaywallView(feature: .instantAlerts) }
+        .task { await refreshSystemStatus() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await refreshSystemStatus() } }
+        }
         .task {
             guard let repository, let id = auth.userID, let token = auth.accessToken else { return }
             preferences = (try? await repository.preferences(userID: id, token: token)) ?? NotificationPreferences()
             newsletter = (try? await repository.newsletterOptIn(userID: id, token: token)) ?? false
+        }
+    }
+
+    // MARK: iOS-Erlaubnis und Testmitteilung (09.11.2026)
+
+    @ViewBuilder private var systemSection: some View {
+        if let systemStatus, introTitle == nil {
+            Section {
+                switch systemStatus {
+                case .denied:
+                    Label("Mitteilungen sind in iOS ausgeschaltet", systemImage: "bell.slash.fill")
+                        .foregroundStyle(.red)
+                    Button("iOS-Einstellungen öffnen") {
+                        if let url = URL(string: UIApplication.openNotificationSettingsURLString) { UIApplication.shared.open(url) }
+                    }
+                case .notDetermined:
+                    Label("Mitteilungen noch nicht erlaubt", systemImage: "bell.badge")
+                    Button("Mitteilungen erlauben") {
+                        Task {
+                            _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound])
+                            await PushRegistration.shared.registerIfAuthorized()
+                            await refreshSystemStatus()
+                        }
+                    }
+                default:
+                    Label("Mitteilungen in iOS erlaubt", systemImage: "checkmark.seal.fill")
+                        .foregroundStyle(.green)
+                    Button {
+                        Task { await sendTest() }
+                    } label: {
+                        HStack {
+                            Text("Testmitteilung senden")
+                            if isTesting { Spacer(); ProgressView() }
+                        }
+                    }
+                    .disabled(isTesting || auth.accessToken == nil)
+                    if let testResult {
+                        Text(testResult).font(.footnote).foregroundStyle(.secondary)
+                    }
+                }
+            } footer: {
+                if systemStatus == .denied {
+                    Text("Solange iOS Mitteilungen blockiert, kommen keine Erinnerungen an – egal, was unten eingestellt ist.")
+                }
+            }
+        }
+    }
+
+    private func refreshSystemStatus() async {
+        systemStatus = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+    }
+
+    private func sendTest() async {
+        guard let client = repository?.client, let token = auth.accessToken else { return }
+        isTesting = true
+        defer { isTesting = false }
+        await PushRegistration.shared.registerIfAuthorized()
+        do {
+            let result: JSONObject = try await client.edgeFunction("push-test", body: [:], accessToken: token)
+            let devices = result.integer("devices") ?? 0
+            let delivered = result.integer("delivered") ?? 0
+            if devices == 0 {
+                testResult = "Dieses Gerät ist noch nicht für Mitteilungen registriert. App einmal schließen und neu öffnen, dann erneut testen."
+            } else if delivered == 0 {
+                testResult = "Apple hat die Mitteilung abgelehnt (\(devices) Gerät(e)). Ungültige Geräte wurden entfernt – App neu öffnen und erneut testen."
+            } else {
+                testResult = "Gesendet an \(delivered) von \(devices) Gerät(en). Sie sollte in wenigen Sekunden erscheinen."
+            }
+        } catch {
+            testResult = "Testmitteilung fehlgeschlagen: \(error.localizedDescription)"
         }
     }
 

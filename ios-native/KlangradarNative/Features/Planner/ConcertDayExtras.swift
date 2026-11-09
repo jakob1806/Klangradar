@@ -684,7 +684,7 @@ private struct TicketSeatEditor: View {
                 .ignoresSafeArea()
             }
             .sheet(isPresented: $showsSeatingPlan) {
-                if let seatingPlanURL { SeatingPlanSheet(url: seatingPlanURL, seat: seat, title: event.venueName) }
+                if let seatingPlanURL { SeatingPlanSheet(url: seatingPlanURL, seat: seat, title: event.venueName, eventID: event.id) }
             }
             .alert("Code einfügen", isPresented: $showsCodeEntry) {
                 TextField("Inhalt des QR-Codes", text: $manualCode)
@@ -1203,15 +1203,22 @@ private struct SeatingPlanSheet: View {
     let url: URL
     let seat: ConcertSeat
     let title: String
+    let eventID: UUID
     @Environment(\.dismiss) private var dismiss
     @State private var scale: CGFloat = 1
     @GestureState private var pinch: CGFloat = 1
+    /// 09.11.2026: eigener Platz als Markierung im Plan (je Konzert gespeichert).
+    @State private var marker: CGPoint?
+    @State private var isPlacing = false
+
+    private var markerKey: String { "seatMarker.\(eventID.uuidString.lowercased())" }
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                if !seat.isEmpty {
-                    Label(seat.summary, systemImage: "mappin.and.ellipse")
+                if !seat.isEmpty || isPlacing {
+                    Label(isPlacing ? "Tippe auf deinen Platz im Plan" : seat.summary,
+                          systemImage: isPlacing ? "hand.tap" : "mappin.and.ellipse")
                         .font(.subheadline.weight(.semibold))
                         .padding(.horizontal, 14).padding(.vertical, 10)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1219,8 +1226,34 @@ private struct SeatingPlanSheet: View {
                 }
                 ScrollView([.horizontal, .vertical]) {
                     CachedAsyncImage(url: url, maxPixel: 2400) { phase in
-                        if let image = phase.image { image.resizable().scaledToFit() }
-                        else { ProgressView().frame(maxWidth: .infinity, minHeight: 300) }
+                        if let image = phase.image {
+                            image.resizable().scaledToFit()
+                                .overlay {
+                                    GeometryReader { proxy in
+                                        ZStack(alignment: .topLeading) {
+                                            Color.clear.contentShape(Rectangle())
+                                                .onTapGesture { location in
+                                                    guard isPlacing else { return }
+                                                    let point = CGPoint(x: location.x / proxy.size.width, y: location.y / proxy.size.height)
+                                                    marker = point
+                                                    UserDefaults.standard.set([Double(point.x), Double(point.y)], forKey: markerKey)
+                                                    isPlacing = false
+                                                    Haptics.confirm()
+                                                }
+                                            if let marker {
+                                                Image(systemName: "mappin.circle.fill")
+                                                    .font(.system(size: 30)).symbolRenderingMode(.palette)
+                                                    .foregroundStyle(.white, KlangradarTheme.accent)
+                                                    .shadow(radius: 3)
+                                                    .position(x: marker.x * proxy.size.width, y: marker.y * proxy.size.height - 12)
+                                                    .accessibilityLabel("Mein Platz")
+                                            }
+                                        }
+                                    }
+                                }
+                        } else {
+                            ProgressView().frame(maxWidth: .infinity, minHeight: 300)
+                        }
                     }
                     .frame(width: UIScreen.main.bounds.width * scale * pinch)
                     .gesture(MagnifyGesture().updating($pinch) { value, state, _ in state = value.magnification }
@@ -1230,7 +1263,26 @@ private struct SeatingPlanSheet: View {
             }
             .navigationTitle("Saalplan")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fertig") { dismiss() } } }
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Menu {
+                        Button { isPlacing = true } label: { Label(marker == nil ? "Platz markieren" : "Markierung versetzen", systemImage: "mappin.and.ellipse") }
+                        if marker != nil {
+                            Button(role: .destructive) {
+                                marker = nil
+                                UserDefaults.standard.removeObject(forKey: markerKey)
+                            } label: { Label("Markierung entfernen", systemImage: "trash") }
+                        }
+                    } label: { Image(systemName: "mappin.and.ellipse") }
+                    .accessibilityLabel("Platz im Plan markieren")
+                }
+                ToolbarItem(placement: .confirmationAction) { Button("Fertig") { dismiss() } }
+            }
+            .onAppear {
+                if let values = UserDefaults.standard.array(forKey: markerKey) as? [Double], values.count == 2 {
+                    marker = CGPoint(x: values[0], y: values[1])
+                }
+            }
         }
     }
 }

@@ -15,6 +15,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import forge from "npm:node-forge@1.3.1";
 import { strToU8, zipSync } from "npm:fflate@0.8.2";
 import { PASS_IMAGES } from "../_shared/walletPassImages.ts";
+import { walletAuthToken } from "../_shared/walletToken.ts";
 // Bildbibliothek erst bei Bedarf laden (08.11.2026): scheitert sie, wird
 // die Karte trotzdem erstellt – nur ohne Streifenbild.
 // deno-lint-ignore no-explicit-any
@@ -198,7 +199,7 @@ Deno.serve(async (req) => {
 
   const db = createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "");
   const { data: event } = await db.from("events")
-    .select("id, slug, title, start_datetime, image_urls, venues(name, address_street, address_city)")
+    .select("id, slug, title, start_datetime, status, venue_id, image_urls, venues(name, address_street, address_city)")
     .eq("slug", slug).neq("status", "draft").maybeSingle();
   if (!event) return new Response("Konzert nicht gefunden", { status: 404 });
   // deno-lint-ignore no-explicit-any
@@ -226,11 +227,28 @@ Deno.serve(async (req) => {
     return { key: `extra${i}`, label: (label ?? "").trim().slice(0, 16).toUpperCase(), value: rest.join("|").trim().slice(0, 30) };
   }).filter((e) => e.value);
 
+  const serial = `${event.id}-${seatParts.map(([, v]) => v).join("-") || "karte"}${ticketNo ? `-t${ticketNo}` : ""}`.slice(0, 200);
+  // deno-lint-ignore no-explicit-any
+  const venueID = (event as any).venue_id as string | null;
+  const { data: latlng } = venueID ? await db.rpc("venue_latlng", { p_venue: venueID }) : { data: null };
+  const location = (latlng as Array<{ lat: number; lng: number }> | null)?.[0] ?? null;
+  // Parameter merken, damit wallet-service die Karte später neu erzeugen kann.
+  const keep = new URLSearchParams(url.searchParams);
+  await db.from("wallet_passes").upsert({ serial, event_id: event.id, params: keep.toString() }, { onConflict: "serial" })
+    .then(() => {}, () => {});
+  const cancelled = (event as { status?: string }).status === "cancelled";
+
   const pass = {
     formatVersion: 1,
     passTypeIdentifier,
     teamIdentifier,
-    serialNumber: `${event.id}-${seatParts.map(([, v]) => v).join("-") || "karte"}${ticketNo ? `-t${ticketNo}` : ""}`,
+    serialNumber: serial,
+    // 09.11.2026: Apple-Wallet-Webdienst – Karte aktualisiert sich, wenn sich
+    // das Konzert ändert (wallet-service).
+    webServiceURL: `${Deno.env.get("SUPABASE_URL")}/functions/v1/wallet-service/`,
+    authenticationToken: await walletAuthToken(serial),
+    // Am Konzertabend in der Nähe der Spielstätte auf dem Sperrbildschirm.
+    ...(location ? { locations: [{ latitude: location.lat, longitude: location.lng, relevantText: `${event.title} – Viel Freude!` }] } : {}),
     organizationName: "Klangradar",
     description: `Konzert: ${event.title}`,
     logoText: "Klangradar",
@@ -255,6 +273,7 @@ Deno.serve(async (req) => {
         ...(venue?.name ? [{ key: "venue", label: "ORT", value: venue.name }] : []),
       ],
       auxiliaryFields: [
+        ...(cancelled ? [{ key: "status", label: "STATUS", value: "ABGESAGT" }] : []),
         ...seatParts.map(([k, v]) => ({ key: k, label: seatLabels[k], value: v })),
         // Apple zeigt höchstens vier Zusatzfelder vorn – der Rest steht hinten.
         ...seatExtras.slice(0, Math.max(0, 4 - seatParts.length)),

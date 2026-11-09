@@ -110,7 +110,7 @@ struct PersonalConciergeEvent: Identifiable, Hashable, Sendable {
     var concertEvent: ConcertEvent {
         ConcertEvent(
             id: id, slug: slug, title: title, subtitle: subtitle,
-            startDatetime: startDate.map { ISO8601DateFormatter().string(from: $0) } ?? ISO8601DateFormatter().string(from: .now),
+            startDatetime: startDate.map { FormatterCache.isoString($0) } ?? FormatterCache.isoString(.now),
             imageUrls: nil, status: "scheduled",
             venues: venueID.map { VenueSummary(id: $0, name: venueName) },
             isFree: isFree
@@ -176,7 +176,7 @@ struct CoachEvent: Identifiable, Hashable, Sendable {
     var concertEvent: ConcertEvent {
         ConcertEvent(
             id: id, slug: slug, title: title, subtitle: subtitle,
-            startDatetime: startDate.map { ISO8601DateFormatter().string(from: $0) } ?? ISO8601DateFormatter().string(from: .now),
+            startDatetime: startDate.map { FormatterCache.isoString($0) } ?? FormatterCache.isoString(.now),
             imageUrls: imageURL.map { [$0.absoluteString] }, status: "scheduled",
             venues: venueID.map { VenueSummary(id: $0, name: venueName) },
             isFree: isFree
@@ -376,7 +376,7 @@ struct UserRepository: Sendable {
         try await client.update(
             table: "profiles",
             values: [
-                "terms_accepted_at": .string(ISO8601DateFormatter().string(from: .now)),
+                "terms_accepted_at": .string(FormatterCache.isoString(.now)),
                 "terms_version": .string(version),
                 "marketing_email_opt_in": .bool(marketingEmailOptIn)
             ],

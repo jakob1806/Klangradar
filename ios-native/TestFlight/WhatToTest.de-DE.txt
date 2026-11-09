@@ -1,5 +1,22 @@
 Neu in dieser Version
 
+Chat
+• Antworten auf Nachrichten (nach rechts wischen oder langer Druck → „Antworten“), Fotos senden, „… schreibt“-Anzeige.
+• Chats erscheinen sofort (lokal gespeichert) und aktualisieren sich bei neuer Nachricht – kein ständiges Nachladen mehr.
+• Bei geteilten Konzerten: „Meinen Platz teilen“ und „Treffpunkt vorschlagen“ (langer Druck auf die Konzertkarte).
+
+Mitteilungen
+• Einstellungen zeigen, ob iOS Mitteilungen erlaubt, mit Knopf zu den iOS-Einstellungen.
+• Neu: „Testmitteilung senden“ – prüft, ob Mitteilungen bei dir ankommen.
+
+Wallet & Saalplan
+• Wallet-Karten aktualisieren sich, wenn sich Zeit, Titel oder Ort ändern; Absagen werden angezeigt. Am Abend erscheint die Karte in der Nähe der Spielstätte auf dem Sperrbildschirm.
+• Saalplan: eigenen Platz per Pin markieren.
+
+Allgemein
+• Profil lädt schneller, Listen scrollen flüssiger.
+• Mehr Texte auf Englisch.
+
 Chat mit Freunden
 • Neu gestaltet: Nachrichten werden gruppiert, Reaktionen per langem Druck als Leiste über der Nachricht, Doppeltippen = Applaus, „Gesehen“ unter der letzten eigenen Nachricht.
 • Unter Freunde → Sprechblasen-Symbol: Einzel- und Gruppenchats, Reaktionen per langem Druck, Nachrichten löschen.
@@ -22,16 +39,6 @@ Wallet-Karte
 • Bildstreifen mit Motiverkennung: Gesichter/Motiv stehen automatisch im Ausschnitt. Im Ticket-Blatt lässt sich der Ausschnitt mit dem Finger verschieben – die Wallet-Karte übernimmt ihn.
 • Neues Ticket ersetzt früher falsch erkannte Platzangaben; „am Einlass vor“ wird nicht mehr als Eingang gelesen.
 • Platzangaben mit den Bezeichnungen vom Ticket (z. B. Sitz, Tür, Etage).
-
-Ticket & Platz
-• Neu gestaltet: Vorschau wie eine Eintrittskarte mit Konzertbild, Termin und Platz.
-• Der Code im Ticket wird erkannt und am Einlass gestochen scharf angezeigt. Alternativ mit der Kamera scannen oder als Text einfügen.
-• Wallet-Karte im neuen Design mit Konzertbild und – falls erkannt – scannbarem Code.
-• „Mein Platz im Saalplan“ im Ticket-Blatt, Saalplan auch unten auf der Spielstättenseite.
-
-Klangradar KI
-• Neues Design: Karte „Du schaust gerade“, persönliche Begrüßung, Vorschläge als Karten. Antworten klingen natürlicher und kommen ohne Sprechblase.
-• Passt sich der Seite an, auf der du gerade bist: Auf Konzert-, Personen-, Ensemble-, Spielstätten- und Werkseiten schlägt sie passende Fragen vor und bezieht ihre Antwort darauf.
 
 Konzerte & Suche
 • Neue Suche: schneller, findet auch Großbuchstaben, Umlaute und kleine Tippfehler, sinnvollere Reihenfolge.

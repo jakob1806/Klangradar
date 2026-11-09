@@ -142,7 +142,7 @@ struct LiveEventRepository: EventRepository {
             ),
             URLQueryItem(name: "id", value: "in.(\(ids.map(\.uuidString).joined(separator: ",")))"),
             URLQueryItem(name: "status", value: "eq.scheduled"),
-            URLQueryItem(name: "start_datetime", value: "gte.\(ISO8601DateFormatter().string(from: .now))")
+            URLQueryItem(name: "start_datetime", value: "gte.\(FormatterCache.isoString(.now))")
         ])
     }
 
@@ -166,14 +166,14 @@ struct LiveEventRepository: EventRepository {
             URLQueryItem(name: "status", value: "eq.scheduled"),
             URLQueryItem(
                 name: "start_datetime",
-                value: "gte.\(ISO8601DateFormatter().string(from: from))"
+                value: "gte.\(FormatterCache.isoString(from))"
             ),
             URLQueryItem(name: "order", value: "start_datetime.asc"),
             URLQueryItem(name: "limit", value: String(limit)),
             URLQueryItem(name: "offset", value: String(offset))
         ]
         if let to {
-            queryItems.append(URLQueryItem(name: "start_datetime", value: "lt.\(ISO8601DateFormatter().string(from: to))"))
+            queryItems.append(URLQueryItem(name: "start_datetime", value: "lt.\(FormatterCache.isoString(to))"))
         }
         if let regionID {
             queryItems.append(URLQueryItem(name: "venues.city_id", value: "eq.\(regionID.uuidString)"))
@@ -309,7 +309,7 @@ struct LiveEventRepository: EventRepository {
                 URLQueryItem(name: "event_genres.genre_id", value: "eq.\(genreID.uuidString)"),
                 URLQueryItem(
                     name: "start_datetime",
-                    value: "gte.\(ISO8601DateFormatter().string(from: .now))"
+                    value: "gte.\(FormatterCache.isoString(.now))"
                 ),
                 URLQueryItem(name: "order", value: "start_datetime.asc"),
                 URLQueryItem(name: "limit", value: String(limit))
