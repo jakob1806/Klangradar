@@ -20,9 +20,11 @@ import { walletAuthToken } from "../_shared/walletToken.ts";
 // die Karte trotzdem erstellt – nur ohne Streifenbild.
 // 09.11.2026: statisch importiert – der dynamische Import wurde beim Deploy
 // nicht mitgebündelt und schlug zur Laufzeit immer fehl (Karten ohne Bild).
-import { Image as ImageLib } from "npm:imagescript@1.3.0";
+// 09.11.2026 (2): Auch der statische Import ließ die Funktion beim Start
+// abstürzen (WORKER_ERROR). Bildbearbeitung auf dem Server ist deshalb aus;
+// den Bildstreifen erzeugt die App und schickt ihn mit (POST).
 // deno-lint-ignore no-explicit-any
-const Image: any = ImageLib;
+const Image: any = null;
 let stripNote = "";
 async function loadImageLib(): Promise<boolean> {
   if (Image) return true;
