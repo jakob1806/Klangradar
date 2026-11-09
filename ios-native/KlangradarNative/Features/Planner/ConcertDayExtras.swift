@@ -768,11 +768,16 @@ private struct TicketSeatEditor: View {
             }
             .padding(.horizontal, 16).frame(height: 50)
             // 08.11.2026: Bild in voller Größe ohne Zuschnitt, Titel darunter.
-            CachedAsyncImage(url: event.imageUrls?.first.flatMap(URL.init(string:)) ?? event.primaryImageURL, maxPixel: 1200) { phase in
+            // 09.11.2026: Platzhalter-Höhe bis zum Laden, dann ganzes Bild.
+            CachedAsyncImage(url: event.primaryImageURL ?? event.imageUrls?.first.flatMap(URL.init(string:)), maxPixel: 1400) { phase in
                 if let image = phase.image {
-                    image.resizable().scaledToFit().frame(maxWidth: .infinity)
+                    image.resizable().aspectRatio(contentMode: .fit).frame(maxWidth: .infinity)
+                } else {
+                    Color.white.opacity(0.06).frame(maxWidth: .infinity).frame(height: 180)
+                        .overlay { ProgressView().tint(.white.opacity(0.6)) }
                 }
             }
+            .frame(maxWidth: .infinity)
             Text(event.title)
                 .font(.system(size: 26, weight: .semibold, design: .serif))
                 .minimumScaleFactor(0.6).lineLimit(3)

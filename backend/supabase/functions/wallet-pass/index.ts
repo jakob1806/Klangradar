@@ -94,10 +94,11 @@ async function loadPhoto(url: string | null): Promise<any> {
     const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
     if (!res.ok) return null;
     const bytes = new Uint8Array(await res.arrayBuffer());
-    if (bytes.length > 4_000_000) return null; // zu groß für die Rechenzeit
+    if (bytes.length > 6_000_000) return null; // zu groß für die Rechenzeit
+    // WebP (RIFF…WEBP) kann die Bibliothek nicht lesen → nächste Quelle.
+    if (bytes[0] === 0x52 && bytes[8] === 0x57 && bytes[9] === 0x45) return null;
     const image = await Image.decode(bytes);
-    if (image.width < 700 || image.height < 260) return null;
-    if (image.width / image.height < 1.1) return null;
+    if (image.width < 300 || image.height < 160) return null;
     // Früh verkleinern spart Rechenzeit bei allen weiteren Schritten.
     return image.width > 1000 ? image.resize(1000, Image.RESIZE_AUTO) : image;
   } catch {
@@ -105,21 +106,19 @@ async function loadPhoto(url: string | null): Promise<any> {
   }
 }
 
-/** B: Foto randlos, unten abgedunkelt, damit der Titel lesbar bleibt. */
+/** B: Foto vollständig (ohne Zuschnitt) eingepasst; dahinter dieselbe
+ * Aufnahme flächig und stark abgedunkelt, damit kein leerer Rand bleibt. */
 // deno-lint-ignore no-explicit-any
 function photoStrip(source: any, w: number, h: number): any {
-  const scale = Math.max(w / source.width, h / source.height);
-  const resized = source.resize(Math.ceil(source.width * scale), Math.ceil(source.height * scale));
-  const x = Math.max(0, Math.floor((resized.width - w) / 2));
-  const y = Math.max(0, Math.floor((resized.height - h) / 3));
-  const strip = resized.crop(x, y, w, h);
-  // Abdunkeln über eine halbtransparente schwarze Fläche je Zeile (schnell).
-  for (let py = Math.floor(h * 0.4); py <= h; py += 4) {
-    const alpha = Math.round(((py - h * 0.4) / (h * 0.6)) * 150);
-    const band = new Image(w, 4);
-    band.fill(Image.rgbaToColor(0, 0, 0, Math.min(255, Math.max(0, alpha))));
-    strip.composite(band, 0, py);
-  }
+  const cover = Math.max(w / source.width, h / source.height);
+  const bg = source.clone().resize(Math.ceil(source.width * cover), Math.ceil(source.height * cover));
+  const strip = bg.crop(Math.max(0, Math.floor((bg.width - w) / 2)), Math.max(0, Math.floor((bg.height - h) / 2)), w, h);
+  const dim = new Image(w, h);
+  dim.fill(Image.rgbaToColor(10, 10, 16, 190));
+  strip.composite(dim, 0, 0);
+  const fit = Math.min(w / source.width, h / source.height);
+  const fg = source.clone().resize(Math.max(1, Math.round(source.width * fit)), Math.max(1, Math.round(source.height * fit)));
+  strip.composite(fg, Math.round((w - fg.width) / 2), Math.round((h - fg.height) / 2));
   return strip;
 }
 
@@ -267,7 +266,26 @@ Deno.serve(async (req) => {
   //  C „Logo-Bänder“: gelegentlich statt A und als Rückfall.
   const hasImageLib = await loadImageLib();
   // deno-lint-ignore no-explicit-any
-  const photo = hasImageLib ? await loadPhoto(((event as any).image_urls ?? [])[0] ?? null) : null;
+  // 09.11.2026: mehrere Bildquellen probieren – Originale (JPEG/PNG) aus der
+  // Bildtabelle zuerst, die gespeicherten WebP-Kopien kann die Bibliothek
+  // nicht lesen.
+  const { data: imageRows } = await db.from("images")
+    .select("source_url, sort_order")
+    .eq("origin_type", "event").eq("origin_id", event.id)
+    .in("license_status", ["confirmed_free", "confirmed_licensed", "official_press_image"])
+    .order("sort_order", { ascending: true }).limit(5);
+  const candidates = [
+    ...((imageRows ?? []) as Array<{ source_url: string | null }>).map((r) => r.source_url),
+    // deno-lint-ignore no-explicit-any
+    ...(((event as any).image_urls ?? []) as string[]),
+  ].filter((u): u is string => !!u && /^https:\/\//.test(u));
+  let photo = null;
+  if (hasImageLib) {
+    for (const url of [...new Set(candidates)].slice(0, 5)) {
+      photo = await loadPhoto(url);
+      if (photo) break;
+    }
+  }
   const variant: "photo" | "poster" | "bands" = photo ? "photo"
     : (hashString(event.id) % 3 === 0 ? "bands" : "poster");
   let usedPoster = false;
@@ -292,6 +310,12 @@ Deno.serve(async (req) => {
     }
   } catch (err) {
     console.warn("wallet-pass strip encode", err instanceof Error ? err.message : String(err));
+  }
+  // Fotokarte: Titel unter den Streifen, damit das Bild frei bleibt.
+  if (variant === "photo" && files["strip@2x.png"]) {
+    pass.eventTicket.primaryFields = [];
+    // deno-lint-ignore no-explicit-any
+    (pass.eventTicket.secondaryFields as any[]).unshift({ key: "event", label: "KONZERT", value: event.title });
   }
   // Beim Plakat steht der Titel schon im Bild – nicht doppelt darüberlegen.
   if (usedPoster) {
