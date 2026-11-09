@@ -192,7 +192,7 @@ struct MusicTasteView: View {
             }
             if !taste.genres.isEmpty {
                 Text("GENRES").font(.caption2.weight(.semibold)).tracking(1.1).foregroundStyle(.secondary)
-                FlowChips(items: Array(taste.genres.prefix(8)))
+                MusicGenreChips(items: Array(taste.genres.prefix(8)))
             }
             if !taste.persons.isEmpty || !taste.ensembles.isEmpty {
                 Button {
@@ -294,7 +294,7 @@ struct MusicTasteView: View {
 }
 
 /// Einfache umbrechende Chips.
-private struct FlowChips: View {
+private struct MusicGenreChips: View {
     let items: [String]
     var body: some View {
         ViewThatFits(in: .horizontal) {
