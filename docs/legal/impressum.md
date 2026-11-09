@@ -1,41 +1,40 @@
+<!-- Erzeugt aus docs/legal/legal_texts.py – dort ändern. -->
 # Impressum
 
-> **ENTWURF — nicht rechtsverbindlich.** Anbieterangaben unten sind mit den
-> Daten aus der bereits im Code hinterlegten Anbieterkennzeichnung
-> (`ios-native/KlangradarNative/Features/Profile/ImpressumView.swift`)
-> abgeglichen. Vor Veröffentlichung trotzdem von einer Kanzlei prüfen lassen —
-> insbesondere Registereintrag/USt-ID (aktuell als Einzelperson ohne
-> Handelsregistereintrag angenommen; **[ANWALT/GESCHÄFTSFÜHRUNG]** bestätigen)
-> und Telefonnummer (nach BGH-Rechtsprechung kann eine schnell erreichbare
-> E-Mail-Adresse für die "unmittelbare Kommunikation" ausreichen, ist aber
-> anwaltlich zu bestätigen).
+Stand: 9. November 2026
 
-Angaben gemäß § 5 Telemediengesetz (TMG) / Digitale-Dienste-Gesetz (DDG):
+## Angaben gemäß § 5 DDG
 
-**Anbieter:**
-Jakob Liess
-Gabelsbergerstraße 6
-80333 München
+Jakob Liess  
+Gabelsbergerstraße 6  
+80333 München  
 Deutschland
 
-**Kontakt:**
-E-Mail: jakob@klangradar.com
+## Kontakt
 
-**Vertretungsberechtigt:** Jakob Liess
+E-Mail: jakob@klangradar.com  
+In der App: Profil → Einstellungen → „Problem melden“ (Antwort in der Regel innerhalb von 48 Stunden).
 
-**Registereintrag:**
-Einzelperson, kein Handelsregistereintrag. **[ANWALT/GESCHÄFTSFÜHRUNG]** bestätigen,
-ob sich das vor Launch ändert (z. B. Gewerbeanmeldung, Rechtsformwechsel).
+## Verantwortlich für redaktionelle Inhalte gemäß § 18 Abs. 2 MStV
 
-**Umsatzsteuer-ID:**
-Noch keine Umsatzsteuer-Identifikationsnummer vorhanden. **[GESCHÄFTSFÜHRUNG]**
-ergänzen, sobald erteilt.
+Jakob Liess  
+Gabelsbergerstraße 6  
+80333 München  
+Deutschland
 
-**Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV:**
-Jakob Liess, Gabelsbergerstraße 6, 80333 München
+## Verbraucherstreitbeilegung
 
-**Streitschlichtung:**
-Die Europäische Kommission stellt eine Plattform zur Online-Streitbeilegung (OS)
-bereit: https://ec.europa.eu/consumers/odr/. Wir sind nicht verpflichtet und nicht
-bereit, an Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle
-teilzunehmen — [ANWALT: prüfen, ob das für dieses Angebot zutrifft].
+Wir sind nicht bereit und nicht verpflichtet, an Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle teilzunehmen.
+
+## Haftung für Inhalte
+
+Die Inhalte dieser App wurden mit größtmöglicher Sorgfalt erstellt. Konzertdaten stammen überwiegend von den Veranstaltern und aus öffentlich zugänglichen Quellen; für Richtigkeit, Vollständigkeit und Aktualität übernehmen wir keine Gewähr. Maßgeblich sind die Angaben des jeweiligen Veranstalters.
+
+## Haftung für Links
+
+Die App enthält Links zu Websites Dritter (z. B. Ticketanbieter), auf deren Inhalte wir keinen Einfluss haben. Für diese Inhalte ist der jeweilige Anbieter verantwortlich. Bei Bekanntwerden von Rechtsverletzungen entfernen wir solche Links umgehend.
+
+## Urheberrecht und Bildnachweise
+
+Die von uns erstellten Inhalte unterliegen dem deutschen Urheberrecht. Pressefotos stammen von den jeweiligen Veranstaltern bzw. Künstler:innen und werden zur Ankündigung der Veranstaltung verwendet; weitere Bilder stammen aus freien Quellen (z. B. Wikimedia Commons) unter der jeweils angegebenen Lizenz. Urheber- und Lizenzangaben stehen beim Bild. Wenn du Rechte an einem Bild hast und mit der Nutzung nicht einverstanden bist, schreib uns – wir entfernen es umgehend.
+

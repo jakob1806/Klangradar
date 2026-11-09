@@ -176,7 +176,7 @@ struct VenueMapView: View {
                 } label: {
                     Image(systemName: "location.north.fill")
                         .font(.headline)
-                        .foregroundStyle(KlangradarTheme.accent)
+                        .foregroundStyle(.primary)
                         .rotationEffect(.degrees(45))
                         .frame(width: 46, height: 46)
                 }

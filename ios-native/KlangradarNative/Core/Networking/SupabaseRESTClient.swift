@@ -149,6 +149,17 @@ struct SupabaseRESTClient: Sendable {
         return try await perform(request)
     }
 
+    /// Rohdaten per POST mit JSON-Body, Parameter in der URL (09.11.2026).
+    func edgeFunctionData(_ function: String, queryItems: [URLQueryItem], body: [String: String], accessToken: String?) async throws -> Data {
+        var components = URLComponents(url: configuration.supabaseURL.appendingPathComponent("functions/v1").appendingPathComponent(function), resolvingAgainstBaseURL: false)!
+        components.queryItems = queryItems
+        var request = authorizedRequest(url: components.url!, accessToken: accessToken)
+        request.httpMethod = "POST"
+        request.httpBody = try JSONEncoder().encode(body)
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        return try await perform(request)
+    }
+
     func insert(
         table: String,
         values: JSONObject,
@@ -233,6 +244,17 @@ struct SupabaseRESTClient: Sendable {
         var request = authorizedRequest(url: url, accessToken: accessToken)
         request.httpMethod = "DELETE"
         request.setValue("return=minimal", forHTTPHeaderField: "Prefer")
+        _ = try await perform(request)
+    }
+
+    /// Mehrere Dateien eines Buckets löschen (Storage-API, 09.11.2026).
+    func deleteStorageObjects(bucket: String, paths: [String], accessToken: String) async throws {
+        guard !paths.isEmpty else { return }
+        let url = configuration.supabaseURL.appendingPathComponent("storage/v1/object").appendingPathComponent(bucket)
+        var request = authorizedRequest(url: url, accessToken: accessToken)
+        request.httpMethod = "DELETE"
+        request.httpBody = try JSONEncoder().encode(["prefixes": paths])
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         _ = try await perform(request)
     }
 

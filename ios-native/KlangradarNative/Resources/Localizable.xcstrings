@@ -1481,6 +1481,16 @@
         }
       }
     },
+    "Danke! Deine Nachricht ist angekommen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thanks! Your message has arrived."
+          }
+        }
+      }
+    },
     "Danke, dass du dabei bist.": {
       "localizations": {
         "en": {
@@ -2201,6 +2211,16 @@
         }
       }
     },
+    "E-Mail für die Antwort (optional)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Email for our reply (optional)"
+          }
+        }
+      }
+    },
     "E-Mail wurde versendet": {
       "localizations": {
         "en": {
@@ -2787,6 +2807,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Report a Problem"
+          }
+        }
+      }
+    },
+    "Fehler, Fragen, Hinweise auf Rechtsverletzungen oder unangemessene Inhalte. Wir antworten in der Regel innerhalb von 48 Stunden.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bugs, questions, reports of legal violations or inappropriate content. We usually reply within 48 hours."
           }
         }
       }
@@ -3681,6 +3711,16 @@
         }
       }
     },
+    "Ich akzeptiere die Nutzungsbedingungen und bin mindestens 16 Jahre alt (oder habe die Zustimmung meiner Erziehungsberechtigten).": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I accept the Terms of Use and am at least 16 years old (or have my parents' consent)."
+          }
+        }
+      }
+    },
     "Ich antworte aus echten Spielplänen und deinem Konzerttagebuch – und sage dir, wenn ich etwas nicht weiß.": {
       "localizations": {
         "en": {
@@ -3766,7 +3806,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Legal Notice"
+            "value": "Legal notice"
           }
         }
       }
@@ -5361,7 +5401,7 @@
         }
       }
     },
-    "Nachname und Geburtsdatum sind freiwillig. Profilbild, Telefonnummer und Adresse kannst du später im Profil ergänzen. Dein Geburtsdatum nutzen wir ausschließlich, um Altersfreigaben zu berücksichtigen und passendere Empfehlungen zu zeigen — es wird nirgends öffentlich angezeigt.": {
+    "Nachname und Geburtsdatum sind freiwillig. Profilbild, Telefonnummer und Adresse kannst du später im Profil ergänzen. Dein Geburtsdatum nutzen wir ausschließlich für passendere Empfehlungen — es wird nirgends öffentlich angezeigt.": {
       "localizations": {
         "en": {
           "stringUnit": {
@@ -5371,7 +5411,7 @@
         }
       }
     },
-    "Nachname und Geburtsdatum sind freiwillig. Telefonnummer und Adresse kannst du später im Profil ergänzen. Dein Geburtsdatum nutzen wir ausschließlich, um Altersfreigaben zu berücksichtigen und passendere Empfehlungen zu zeigen — es wird nirgends öffentlich angezeigt.": {
+    "Nachname und Geburtsdatum sind freiwillig. Telefonnummer und Adresse kannst du später im Profil ergänzen. Dein Geburtsdatum nutzen wir ausschließlich für passendere Empfehlungen — es wird nirgends öffentlich angezeigt.": {
       "localizations": {
         "en": {
           "stringUnit": {
@@ -5931,6 +5971,16 @@
         }
       }
     },
+    "Nutzungsbedingungen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terms of Use"
+          }
+        }
+      }
+    },
     "Nächste Woche": {
       "localizations": {
         "en": {
@@ -6411,6 +6461,16 @@
         }
       }
     },
+    "Problem melden": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Report a problem"
+          }
+        }
+      }
+    },
     "Profil": {
       "localizations": {
         "en": {
@@ -6881,6 +6941,16 @@
         }
       }
     },
+    "Senden fehlgeschlagen – bitte per E-Mail an jakob@klangradar.com.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sending failed – please email jakob@klangradar.com."
+          }
+        }
+      }
+    },
     "Sichern": {
       "localizations": {
         "en": {
@@ -7097,6 +7167,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Statistics Unavailable"
+          }
+        }
+      }
+    },
+    "Stattdessen E-Mail schreiben": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send an email instead"
           }
         }
       }
@@ -8137,6 +8217,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "What stayed with you?"
+          }
+        }
+      }
+    },
+    "Was ist passiert?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What happened?"
           }
         }
       }

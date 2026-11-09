@@ -182,12 +182,33 @@ function sha1Hex(bytes: Uint8Array): string {
   return md.digest().toHex();
 }
 
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(binary);
+}
+
 function base64ToBytes(b64: string): Uint8Array {
   return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 }
 
 Deno.serve(async (req) => {
   const url = new URL(req.url);
+  // 09.11.2026: Die App kann den fertigen Bildstreifen mitschicken (POST,
+  // JSON {strip1x, strip2x, strip3x} als Base64-PNG). Dann braucht der Server
+  // weder Bildbibliothek noch Zugriff auf die Bildquelle.
+  // deno-lint-ignore no-explicit-any
+  const posted: any = req.method === "POST" ? await req.json().catch(() => ({})) : {};
+  const appStrips: Record<string, Uint8Array> = {};
+  for (const [key, name] of [["strip1x", "strip.png"], ["strip2x", "strip@2x.png"], ["strip3x", "strip@3x.png"]] as const) {
+    const raw = typeof posted?.[key] === "string" ? posted[key] : "";
+    if (!raw || raw.length > 1_500_000) continue;
+    try {
+      const bytes = Uint8Array.from(atob(raw), (c) => c.charCodeAt(0));
+      if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) appStrips[name] = bytes;
+    } catch { /* ungültig → ignorieren */ }
+  }
+  let hasAppStrip = !!appStrips["strip@2x.png"];
   const slug = url.searchParams.get("slug");
   if (!slug) return new Response("slug fehlt", { status: 400 });
   const passTypeIdentifier = Deno.env.get("WALLET_PASS_TYPE_ID");
@@ -233,7 +254,21 @@ Deno.serve(async (req) => {
   const location = (latlng as Array<{ lat: number; lng: number }> | null)?.[0] ?? null;
   // Parameter merken, damit wallet-service die Karte später neu erzeugen kann.
   const keep = new URLSearchParams(url.searchParams);
-  await db.from("wallet_passes").upsert({ serial, event_id: event.id, params: keep.toString() }, { onConflict: "serial" })
+  // Bildstreifen der App mitspeichern, damit Aktualisierungen über
+  // wallet-service (ohne App) dasselbe Bild zeigen.
+  if (!hasAppStrip) {
+    const { data: stored } = await db.from("wallet_passes").select("strips").eq("serial", serial).maybeSingle();
+    // deno-lint-ignore no-explicit-any
+    const strips = (stored as any)?.strips as Record<string, string> | null;
+    for (const [name, b64] of Object.entries(strips ?? {})) {
+      try { appStrips[name] = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)); } catch { /* ignorieren */ }
+    }
+    hasAppStrip = !!appStrips["strip@2x.png"];
+  }
+  const stripsToStore = req.method === "POST" && hasAppStrip
+    ? Object.fromEntries(Object.entries(appStrips).map(([n, b]) => [n, bytesToBase64(b)]))
+    : undefined;
+  await db.from("wallet_passes").upsert({ serial, event_id: event.id, params: keep.toString(), ...(stripsToStore ? { strips: stripsToStore } : {}) }, { onConflict: "serial" })
     .then(() => {}, () => {});
   const cancelled = (event as { status?: string }).status === "cancelled";
 
@@ -295,7 +330,8 @@ Deno.serve(async (req) => {
   //  B „Foto“: echtes Konzertbild, wenn es scharf/groß genug und lesbar ist,
   //  A „Plakat“: sonst der Titel groß in Serifenschrift (ohne Trennung),
   //  C „Logo-Bänder“: gelegentlich statt A und als Rückfall.
-  const hasImageLib = await loadImageLib();
+  const hasImageLib = hasAppStrip ? false : await loadImageLib();
+  if (hasAppStrip) Object.assign(files, appStrips);
   // deno-lint-ignore no-explicit-any
   // 09.11.2026: mehrere Bildquellen probieren – Originale (JPEG/PNG) aus der
   // Bildtabelle zuerst, die gespeicherten WebP-Kopien kann die Bibliothek
@@ -320,7 +356,7 @@ Deno.serve(async (req) => {
     }
     if (!photo) stripNote = `no-photo(${candidates.length})`;
   }
-  const variant: "photo" | "poster" | "bands" = photo ? "photo"
+  const variant: "photo" | "poster" | "bands" = (photo || hasAppStrip) ? "photo"
     : (hashString(event.id) % 3 === 0 ? "bands" : "poster");
   let usedPoster = false;
   // 08.11.2026 (Absturz „worker_error“ = Rechenzeit-Limit): nur EIN Streifen
@@ -366,6 +402,8 @@ Deno.serve(async (req) => {
     (pass as Record<string, unknown>).backgroundColor = "rgb(17, 17, 17)";
     (pass as Record<string, unknown>).labelColor = "rgb(155, 166, 255)";
   }
+  // Erst jetzt serialisieren: Foto-/Plakat-Anpassungen oben ändern pass noch.
+  files["pass.json"] = strToU8(JSON.stringify(pass));
   const manifest: Record<string, string> = {};
   for (const [name, bytes] of Object.entries(files)) manifest[name] = sha1Hex(bytes);
   const manifestBytes = strToU8(JSON.stringify(manifest));
@@ -403,7 +441,7 @@ Deno.serve(async (req) => {
         "Content-Disposition": `attachment; filename="${event.slug}.pkpass"`,
         "Cache-Control": "no-store",
         // Diagnose ohne Log-Zugriff: welches Streifen-Design, ggf. warum keins.
-        "X-Klangradar-Strip": (files["strip.png"] ? (usedPoster ? "poster" : (photo ? "photo" : "bands")) : "none") + (stripNote ? `;${stripNote}` : "").replace(/[^\x20-\x7e]/g, ""),
+        "X-Klangradar-Strip": hasAppStrip ? "app" : (files["strip.png"] ? (usedPoster ? "poster" : (photo ? "photo" : "bands")) : "none") + (stripNote ? `;${stripNote}` : "").replace(/[^\x20-\x7e]/g, ""),
       },
     });
   } catch (err) {

@@ -1,77 +1,90 @@
+<!-- Erzeugt aus docs/legal/legal_texts.py – dort ändern. -->
 # Datenschutzerklärung
 
-> **ENTWURF — nicht rechtsverbindlich.** Vor Veröffentlichung von einer Kanzlei
-> prüfen und vervollständigen. Siehe auch `docs/10-legal-status.md` für offene
-> AVV-Abschlüsse, ohne die diese Erklärung nicht final ist.
+Stand: 9. November 2026
 
 ## 1. Verantwortlicher
-Jakob Liess, Gabelsbergerstraße 6, 80333 München, jakob@klangradar.com (siehe Impressum).
 
-## 2. Welche Daten wir verarbeiten
+Jakob Liess  
+Gabelsbergerstraße 6  
+80333 München  
+Deutschland  
+E-Mail: jakob@klangradar.com  
+Ein:e Datenschutzbeauftragte:r ist gesetzlich nicht vorgeschrieben.
 
-| Datenkategorie | Zweck | Rechtsgrundlage (DSGVO) |
-|---|---|---|
-| E-Mail-Adresse, Passwort-Hash | Konto/Login (E-Mail-Code-Login) | Art. 6 Abs. 1 lit. b |
-| Standortdaten (bei Erlaubnis) | Kartenansicht, Umkreissuche | Art. 6 Abs. 1 lit. a (Einwilligung) |
-| Push-Token (Firebase Cloud Messaging) | Benachrichtigungen zu Events | Art. 6 Abs. 1 lit. a |
-| Suchhistorie (eingeloggte Nutzer:innen) | Persönliche Suchhistorie, Empfehlungen | Art. 6 Abs. 1 lit. b/f |
-| Interessen/Präferenzen | Personalisierte Empfehlungen | Art. 6 Abs. 1 lit. a |
-| Nutzungsdaten (technisch, z. B. IP bei Requests) | Betrieb, Sicherheit | Art. 6 Abs. 1 lit. f |
+## 2. Überblick und Hosting
 
-[ANWALT: Tabelle gegen tatsächliche Datenbank-Spalten in
-`docs/02-database-schema.md` und Supabase-Migrationen abgleichen und vervollständigen.]
+Klangradar ist eine App für Konzerte der klassischen Musik. Daten verarbeiten wir nur, soweit sie für die jeweilige Funktion nötig sind. Datenbank, Anmeldung, Dateispeicher und Serverfunktionen betreibt die Supabase Inc. für uns als Auftragsverarbeiterin; die Datenbank liegt in einem Rechenzentrum in der EU. Die Webseite und das Redaktions-Portal hostet die Vercel Inc. Beide Anbieter haben ihren Sitz in den USA; mit ihnen bestehen Auftragsverarbeitungsverträge, Übermittlungen in die USA stützen sich auf das EU-US Data Privacy Framework bzw. EU-Standardvertragsklauseln (Art. 45, 46 DSGVO). Beim Aufruf von Serverfunktionen werden technisch die IP-Adresse und Zeitpunkt verarbeitet (Art. 6 Abs. 1 lit. f DSGVO, Betrieb und Sicherheit).
 
-## 3. Empfänger / Auftragsverarbeiter
+## 3. Konto und Anmeldung
 
-- **Supabase** (Datenbank-, Auth- und Storage-Hosting). [ANWALT: AVV-Status und
-  Serverregion (EU/US) ergänzen, siehe `docs/10-legal-status.md`.]
-- **Google / Firebase Cloud Messaging** (Push-Benachrichtigungen). Datenverarbeitung
-  kann in die USA erfolgen; [ANWALT: Standardvertragsklauseln/Angemessenheitsbeschluss
-  benennen, sobald AVV vorliegt].
-- Bei aktivierter Anmeldung mit Apple/Google: der jeweilige OAuth-Anbieter.
-  [ANWALT: Passage ergänzen, sobald diese Login-Methoden live geschaltet werden.]
+Ohne Konto nutzt du die App mit einer anonymen Sitzung. Für ein Konto verarbeiten wir deine E-Mail-Adresse (Anmeldung per Einmal-Code) bzw. bei „Mit Apple/Google anmelden“ die vom jeweiligen Anbieter übermittelte Kennung und E-Mail-Adresse. Optional: Name, Profilbild, Kurzbeschreibung, Geburtsdatum, Telefonnummer, Adresse. Rechtsgrundlage: Art. 6 Abs. 1 lit. b DSGVO (Nutzungsvertrag). Das Geburtsdatum ist freiwillig; wir nutzen es nur für passendere Empfehlungen und zeigen es nie öffentlich an.
 
-## 4. Kartendarstellung
-Die Kartenansicht nutzt OpenStreetMap-Kartenmaterial (flutter_map). [ANWALT: prüfen,
-ob und welche Daten dabei an den Tile-Server/Hoster übertragen werden, und
-entsprechenden Passus ergänzen — abhängig vom verwendeten Tile-Provider.]
+## 4. Interessen, Folgen, Merklisten, Suche
 
-## 5. Speicherdauer
+Gemerkte und geplante Konzerte, gefolgte Künstler:innen, Ensembles und Spielstätten, Interessen, eigene Listen und – bei Anmeldung – deine Suchhistorie speichern wir, um dir die Funktionen und persönliche Empfehlungen anzubieten (Art. 6 Abs. 1 lit. b DSGVO).
 
-> Vorschlag (Produktentscheidung, noch nicht anwaltlich final): folgende Fristen
-> spiegeln den aktuellen technischen Stand wider und sind vor Launch vom Team zu
-> bestätigen bzw. von einer Kanzlei freizugeben.
+## 5. Standort
 
-| Datenkategorie | Speicherdauer |
-|---|---|
-| Konto (E-Mail, Passwort-Hash) | Bis zur Löschung durch Nutzer:in; auf Antrag sofortige Löschung, spätestens nach 30 Tagen |
-| Inaktive Konten | Löschung nach 24 Monaten ohne Login, mit vorheriger Hinweis-E-Mail |
-| Suchhistorie | Rollierend, älter als 12 Monate wird automatisch gelöscht |
-| Standortdaten | Werden nicht dauerhaft gespeichert — die Standortprüfung beim Besuchs-Check-in berechnet die Distanz zur Spielstätte nur im Moment der Anfrage; gespeichert wird lediglich das Ergebnis ("besucht: ja/verifiziert per Standort"), keine Koordinate |
-| Push-Token | Gelöscht bei Logout bzw. wenn die Zustellung dauerhaft fehlschlägt (ungültiges Token) |
-| Interessen/Präferenzen | Bis zur Löschung durch Nutzer:in oder Kontolöschung |
+Nur mit deiner Erlaubnis (Art. 6 Abs. 1 lit. a DSGVO): für die Karte, die Umkreissuche, Anreise/Wetter am Konzerttag und den Besuchs-Check-in. Beim Check-in wird nur das Ergebnis gespeichert (besucht/verifiziert), keine Koordinate. Deinen Wohnort speichern wir nur, wenn du ihn selbst einträgst. Die Erlaubnis kannst du jederzeit in den iOS-Einstellungen widerrufen.
 
-**Technischer Umsetzungsstand:** Aktuell existiert noch **keine automatisierte
-Löschung** für inaktive Konten oder alte Suchhistorie (kein `pg_cron`-Job dafür).
-Diese Tabelle beschreibt die Zielvorgabe — vor Veröffentlichung dieser Erklärung
-muss entweder die Automatisierung ergänzt werden, oder die Fristen müssen bis
-dahin als "manuell auf Anfrage" statt automatisch formuliert werden. Nicht
-umgesetzte Löschfristen in der Datenschutzerklärung zu behaupten wäre selbst
-ein Compliance-Risiko.
+## 6. Mitteilungen
 
-## 6. Betroffenenrechte
-Nutzer:innen haben das Recht auf Auskunft (Art. 15 DSGVO), Berichtigung (Art. 16),
-Löschung (Art. 17), Einschränkung der Verarbeitung (Art. 18), Datenübertragbarkeit
-(Art. 20) und Widerspruch (Art. 21) sowie das Recht auf Beschwerde bei einer
-Aufsichtsbehörde. Anfragen an: jakob@klangradar.com.
+Mit deiner Erlaubnis (Art. 6 Abs. 1 lit. a DSGVO) speichern wir ein Geräte-Token und versenden Mitteilungen über den Apple Push Notification Service (Apple Inc.). Welche Mitteilung wann verschickt und geöffnet wurde, protokollieren wir, um Häufigkeit und Inhalte anzupassen (Löschung nach 180 Tagen). Umfang und Arten stellst du in der App ein; widerrufen kannst du in den iOS-Einstellungen.
 
-## 7. Widerruf von Einwilligungen
-Standortfreigabe und Push-Benachrichtigungen können jederzeit in den Geräte- bzw.
-App-Einstellungen widerrufen werden. Marketing-E-Mails können über den Abmeldelink
-bzw. in den Profileinstellungen abbestellt werden.
+## 7. Freunde und soziale Funktionen
 
-## 8. Änderungen dieser Erklärung
-Wir passen diese Datenschutzerklärung bei Bedarf an geänderte Rechtslage oder
-Funktionsänderungen der App an.
+Freundschaften, Gruppen, „Ich komme mit“, Applaus und Kommentare sind nur für die von dir gewählten Personen sichtbar (Sichtbarkeit unter Privatsphäre einstellbar). Beim Kontaktabgleich (nur auf deinen Wunsch und mit iOS-Erlaubnis) werden Telefonnummern und E-Mail-Adressen aus deinem Adressbuch auf dem Gerät mit einem Einweg-Hash verschlüsselt; nur diese Hashwerte werden zum Abgleich übertragen und nicht gespeichert. Rechtsgrundlage: Art. 6 Abs. 1 lit. b DSGVO.
 
-Stand: [DATUM DER LETZTEN AKTUALISIERUNG]
+## 8. Chat
+
+Nachrichten, geteilte Konzerte, Fotos, Reaktionen, Lesestatus und die Anzeige „schreibt …“ speichern wir, um sie den Mitgliedern des Gesprächs zuzustellen (Art. 6 Abs. 1 lit. b DSGVO). Fotos liegen in einem nicht öffentlichen Speicher und sind nur für Mitglieder des Gesprächs abrufbar. Eigene Nachrichten kannst du löschen; beim Löschen deines Kontos werden deine Nachrichten und Fotos entfernt. Inhalte werden nur bei einer Meldung durch Nutzer:innen von uns eingesehen.
+
+## 9. Konzerttagebuch
+
+Einträge, Bewertungen, Notizen und Fotos zu besuchten Konzerten sind privat und nur für dich sichtbar, sofern du sie nicht ausdrücklich teilst (Art. 6 Abs. 1 lit. b DSGVO).
+
+## 10. Tickets und Apple Wallet
+
+Ticketfotos und -dateien bleiben auf deinem Gerät. Für eine Wallet-Karte überträgst du Konzert, Platzangaben und – falls erkannt – den Ticket-Code an unseren Server, der die Karte erzeugt und signiert. Damit sich die Karte bei Änderungen (Zeit, Ort, Absage) aktualisieren kann, speichern wir diese Angaben ohne Verknüpfung mit deinem Konto bis 30 Tage nach dem Konzert; Apple Wallet meldet dazu eine Gerätekennung und ein Push-Token. Rechtsgrundlage: Art. 6 Abs. 1 lit. b DSGVO. Die Texterkennung (Code, Platz) läuft vollständig auf dem Gerät.
+
+## 11. Klangradar KI
+
+Wenn du die KI nutzt, senden wir deine Frage zusammen mit dem nötigen Kontext (z. B. die gerade geöffnete Konzertseite, deine Interessen und dein Konzerttagebuch in zusammengefasster Form) an Google (Gemini API, Google Ireland Ltd. / Google LLC, USA) und erhalten die Antwort zurück. Grundlage ist ein Vertrag mit Google über die Datenverarbeitung; Übermittlungen in die USA stützen sich auf das EU-US Data Privacy Framework. Gib bitte keine sensiblen Daten in die KI ein. Rechtsgrundlage: Art. 6 Abs. 1 lit. b DSGVO. KI-Antworten können fehlerhaft sein.
+
+## 12. Klangradar Plus
+
+Käufe und Abos wickelt ausschließlich Apple ab. Wir erhalten von Apple nur, ob und bis wann Plus aktiv ist (keine Zahlungsdaten). Rechtsgrundlage: Art. 6 Abs. 1 lit. b DSGVO.
+
+## 13. Newsletter und E-Mails
+
+Den Newsletter erhältst du nur mit deiner Einwilligung (Art. 6 Abs. 1 lit. a DSGVO); wir speichern den Zeitpunkt der Einwilligung. Abmelden kannst du dich jederzeit in der App oder über den Link in jeder E-Mail. Den Versand übernimmt Resend (Plus Five Five, Inc., USA) als Auftragsverarbeiter.
+
+## 14. Absturz- und Leistungsberichte
+
+Stürzt die App ab oder hängt sie, übermittelt iOS anonymisierte technische Berichte (MetricKit: Gerätetyp, iOS-Version, App-Version, technische Ablaufdaten), die wir zur Fehlerbehebung speichern (Art. 6 Abs. 1 lit. f DSGVO; Löschung nach 90 Tagen). Ob Berichte geteilt werden, steuerst du in den iOS-Einstellungen unter Datenschutz → Analyse.
+
+## 15. Spracheingabe, Karten, Wetter, Bilder
+
+Die Spracheingabe in der Suche nutzt die Spracherkennung von Apple. Karten und Routen kommen von Apple Karten. Das Wetter am Konzertort fragen wir bei Open-Meteo (Schweiz) nur mit den Koordinaten der Spielstätte ab, ohne Daten über dich. Konzertbilder laden wir von den Veranstalter-Seiten bzw. über den Bilddienst wsrv.nl; dabei werden keine Daten über dich übertragen.
+
+## 16. Speicherdauer
+
+Kontodaten, Merklisten, Tagebuch, Chat und Freundschaften: bis zur Löschung durch dich bzw. deines Kontos. Mitteilungsprotokoll: 180 Tage. Absturzberichte: 90 Tage. Wallet-Kartendaten: 30 Tage nach dem Konzert. Server-Protokolle des Hosters: in der Regel bis zu 90 Tage. Gesetzliche Aufbewahrungspflichten (z. B. Rechnungen an Veranstalter) bleiben unberührt.
+
+## 17. Konto löschen
+
+Du kannst dein Konto jederzeit in der App löschen (Profil → Einstellungen → Konto löschen). Dabei werden deine Profildaten, Merklisten, Tagebucheinträge, Chatnachrichten, hochgeladenen Fotos und Freundschaften gelöscht.
+
+## 18. Mindestalter
+
+Klangradar richtet sich an Personen ab 16 Jahren. Jüngere dürfen die Konto-Funktionen nur mit Zustimmung der Erziehungsberechtigten nutzen.
+
+## 19. Deine Rechte
+
+Du hast das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung, Datenübertragbarkeit und Widerspruch (Art. 15–21 DSGVO) sowie auf Widerruf erteilter Einwilligungen mit Wirkung für die Zukunft. Anfragen an jakob@klangradar.com. Du kannst dich bei einer Datenschutz-Aufsichtsbehörde beschweren, z. B. beim Bayerischen Landesamt für Datenschutzaufsicht (BayLDA), Promenade 18, 91522 Ansbach.
+
+## 20. Änderungen
+
+Wir passen diese Erklärung an, wenn sich Funktionen ändern. Stand: 9. November 2026.
+

@@ -390,6 +390,19 @@ struct UserRepository: Sendable {
     /// den JSON-Wert `null`, den `JSONValue` direkt dekodieren kann.
     /// Löscht das eigene Konto samt personenbezogener Daten (delete_my_account).
     func deleteAccount(token: String) async throws {
+        // 09.11.2026: zuerst eigene Dateien (Chat- und Tagebuchfotos) aus dem
+        // Speicher entfernen – das SQL-Löschen erreicht die Dateien nicht.
+        if let rows: [JSONObject] = try? await client.rpc("my_storage_paths", accessToken: token) {
+            let grouped = Dictionary(grouping: rows.compactMap { row -> (String, String)? in
+                guard let bucket = row.string("bucket"), let path = row.string("path") else { return nil }
+                return (bucket, path)
+            }, by: \.0)
+            for (bucket, items) in grouped {
+                for chunk in stride(from: 0, to: items.count, by: 100).map({ Array(items[$0..<min($0 + 100, items.count)]) }) {
+                    try? await client.deleteStorageObjects(bucket: bucket, paths: chunk.map(\.1), accessToken: token)
+                }
+            }
+        }
         let _: JSONValue = try await client.rpc("delete_my_account", accessToken: token)
     }
 
