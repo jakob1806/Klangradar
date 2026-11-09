@@ -395,8 +395,12 @@ Deno.serve(async (req) => {
   // Fotokarte: Titel unter den Streifen, damit das Bild frei bleibt.
   if (variant === "photo" && files["strip@2x.png"]) {
     pass.eventTicket.primaryFields = [];
-    // deno-lint-ignore no-explicit-any
-    (pass.eventTicket.secondaryFields as any[]).unshift({ key: "event", label: "KONZERT", value: event.title });
+    // 09.11.2026: Hat die App Titel und Programm groß ins Bild gesetzt,
+    // nicht noch einmal klein darunter wiederholen.
+    if (url.searchParams.get("title_in_strip") !== "1") {
+      // deno-lint-ignore no-explicit-any
+      (pass.eventTicket.secondaryFields as any[]).unshift({ key: "event", label: "KONZERT", value: event.title });
+    }
   }
   // Beim Plakat steht der Titel schon im Bild – nicht doppelt darüberlegen.
   if (usedPoster) {

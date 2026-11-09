@@ -531,6 +531,16 @@
         }
       }
     },
+    "Allen Treffern folgen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Follow all matches"
+          }
+        }
+      }
+    },
     "Alles entdecken": {
       "localizations": {
         "en": {
@@ -1421,6 +1431,16 @@
         }
       }
     },
+    "DEINE KOMPONIST:INNEN": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "YOUR COMPOSERS"
+          }
+        }
+      }
+    },
     "DEINE SAISON": {
       "localizations": {
         "en": {
@@ -1617,6 +1637,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Your Taste"
+          }
+        }
+      }
+    },
+    "Dein Klangprofil": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your sound profile"
           }
         }
       }
@@ -2471,6 +2501,16 @@
         }
       }
     },
+    "Empfehlungen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recommendations"
+          }
+        }
+      }
+    },
     "Energie": {
       "localizations": {
         "en": {
@@ -2527,6 +2567,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Add Ensemble"
+          }
+        }
+      }
+    },
+    "Ensembles": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ensembles"
           }
         }
       }
@@ -3221,6 +3271,16 @@
         }
       }
     },
+    "GENRES": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GENRES"
+          }
+        }
+      }
+    },
     "Galeriebild vergrößern": {
       "localizations": {
         "en": {
@@ -3621,6 +3681,16 @@
         }
       }
     },
+    "Hier gibt es noch nichts Passendes.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nothing matching here yet."
+          }
+        }
+      }
+    },
     "Hinweis (optional)": {
       "localizations": {
         "en": {
@@ -3857,6 +3927,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "In Your Profile"
+          }
+        }
+      }
+    },
+    "In deiner Musik haben wir noch keine Künstler:innen, Ensembles oder Werke aus unserem Klassik-Verzeichnis gefunden. Hör ein paar Klassik-Titel und analysiere später erneut.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "We haven't found any artists, ensembles or works from our classical directory in your music yet. Listen to some classical tracks and analyse again later."
           }
         }
       }
@@ -4311,6 +4391,16 @@
         }
       }
     },
+    "Klangradar liest nur deine meistgehörten Künstler:innen und Titel – keine Zugangsdaten, keine Playlists. Du kannst die Verknüpfung jederzeit trennen; dann löschen wir die Daten.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klangradar only reads your most-played artists and tracks – no credentials, no playlists. You can disconnect at any time and we delete the data."
+          }
+        }
+      }
+    },
     "Klangradar-Newsletter": {
       "localizations": {
         "en": {
@@ -4477,6 +4567,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Concert Archive"
+          }
+        }
+      }
+    },
+    "Konzerte": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Concerts"
           }
         }
       }
@@ -5331,6 +5431,16 @@
         }
       }
     },
+    "Musikgeschmack": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Music taste"
+          }
+        }
+      }
+    },
     "NACHKLANG": {
       "localizations": {
         "en": {
@@ -6071,6 +6181,16 @@
         }
       }
     },
+    "Orte": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Venues"
+          }
+        }
+      }
+    },
     "PDF des Veranstalters": {
       "localizations": {
         "en": {
@@ -6237,6 +6357,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Add Person or Ensemble"
+          }
+        }
+      }
+    },
+    "Personen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "People"
           }
         }
       }
@@ -7977,6 +8107,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Linked events, sources and candidates are unlinked, not deleted. This step cannot be undone."
+          }
+        }
+      }
+    },
+    "Verknüpfung trennen und Daten löschen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disconnect and delete data"
           }
         }
       }

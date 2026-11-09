@@ -43,6 +43,10 @@
 	<string>Klangradar nutzt deine Fotomediathek, um ein Profilbild auszuwählen.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSAppleMusicUsageDescription</key>
+	<string>Klangradar liest deine meistgehörten Künstler:innen und Titel, um dir passende Konzerte, Werke und Ensembles vorzuschlagen.</string>
+	<key>SpotifyClientID</key>
+	<string></string>
 	<key>UILaunchScreen</key>
 	<dict>
 		<key>UIColorName</key>

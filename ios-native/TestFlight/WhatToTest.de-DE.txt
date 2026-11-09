@@ -1,5 +1,11 @@
 Neu in dieser Version
 
+Musikgeschmack (neu)
+• Profil → Musikgeschmack: Apple Music und Spotify verknüpfen. Klangradar erkennt deine Komponist:innen, Interpret:innen, Ensembles und Werke und schlägt passende Konzerte, Personen, Ensembles, Orte und Werke vor. „Allen Treffern folgen“ mit einem Tipp.
+
+Wallet-Karte
+• Konzertbild mit großem Titel in Serifenschrift und Programm direkt im Bild; darunter Beginn und Ort, dann der Platz.
+
 Chat
 • Antworten auf Nachrichten (nach rechts wischen oder langer Druck → „Antworten“), Fotos senden, „… schreibt“-Anzeige.
 • Chats erscheinen sofort (lokal gespeichert) und aktualisieren sich bei neuer Nachricht – kein ständiges Nachladen mehr.
@@ -33,23 +39,12 @@ Platzerkennung (neu)
 • Bezeichnungen wie auf dem Ticket: „Block“ kann „Rang“, „Bereich“ oder „Parkett“ sein, „Platz“ auch „Sitz“. Weitere Angaben (Etage, Kategorie …) per „Angabe hinzufügen“.
 • Bitte testen: Ticket von München Ticket, Eventim, Staatsoper hinzufügen und prüfen, ob alles richtig erkannt wird.
 
-Ticket auf der Konzertseite
-• Ein Knopf „Ticket hinzufügen“ für Foto, Screenshot, PDF oder Datei. Eingang, Block/Rang, Reihe und Platz werden aus dem Ticket gelesen.
-• Neu als kleine Eintrittskarte mit Platz, Code und Wallet-Status. Am Konzerttag steht sie ganz oben mit Einlass und „Ticket öffnen“, danach als Erinnerung mit Weg ins Tagebuch.
-• PDFs werden auf allen Seiten nach Codes durchsucht; mehrere Tickets ergeben mehrere Wallet-Karten. Jeder Code wird vor dem Anzeigen geprüft.
-
 Wallet-Karte
 • Mit Klangradar-Logo. Mit gutem Konzertfoto als Bild, sonst als Plakat mit großem Titel.
 • Konzertbild kommt jetzt auch bei Bildern von mphil.de an.
 • Bildstreifen mit Motiverkennung: Gesichter/Motiv stehen automatisch im Ausschnitt. Im Ticket-Blatt lässt sich der Ausschnitt mit dem Finger verschieben – die Wallet-Karte übernimmt ihn.
 • Neues Ticket ersetzt früher falsch erkannte Platzangaben; „am Einlass vor“ wird nicht mehr als Eingang gelesen.
 • Platzangaben mit den Bezeichnungen vom Ticket (z. B. Sitz, Tür, Etage).
-
-Konzerte & Suche
-• Neue Suche: schneller, findet auch Großbuchstaben, Umlaute und kleine Tippfehler, sinnvollere Reihenfolge.
-• Doppelte Konzerte werden schon beim Import zusammengeführt.
-• Live-Aktivität: zeigt „Jetzt“ und „Danach“, sobald Werkdauern bekannt sind.
-• Filter in der Suche mit Chips statt Auswahllisten.
 
 Profil & Freunde
 • Profil lädt deutlich schneller, Klanglevel sofort.
