@@ -96,9 +96,11 @@ final class SpotifyTaste: NSObject, ASWebAuthenticationPresentationContextProvid
             throw MusicTasteError.failed("Spotify hat keinen Zugang erteilt.")
         }
         let token = try await Self.exchange(code: code, verifier: verifier, clientID: clientID)
-        async let artistsJSON = Self.get("https://api.spotify.com/v1/me/top/artists?limit=50&time_range=medium_term", token: token)
-        async let tracksJSON = Self.get("https://api.spotify.com/v1/me/top/tracks?limit=50&time_range=medium_term", token: token)
-        let (a, t) = try await (artistsJSON, tracksJSON)
+        async let artistsData = Self.get("https://api.spotify.com/v1/me/top/artists?limit=50&time_range=medium_term", token: token)
+        async let tracksData = Self.get("https://api.spotify.com/v1/me/top/tracks?limit=50&time_range=medium_term", token: token)
+        let (aData, tData) = try await (artistsData, tracksData)
+        let a = (try? JSONSerialization.jsonObject(with: aData) as? [String: Any]) ?? [:]
+        let t = (try? JSONSerialization.jsonObject(with: tData) as? [String: Any]) ?? [:]
         let artistItems = (a["items"] as? [[String: Any]]) ?? []
         let artists = artistItems.enumerated().compactMap { index, item -> ListenedArtist? in
             guard let name = item["name"] as? String else { return nil }
@@ -114,7 +116,7 @@ final class SpotifyTaste: NSObject, ASWebAuthenticationPresentationContextProvid
         return (artists, tracks)
     }
 
-    private static func exchange(code: String, verifier: String, clientID: String) async throws -> String {
+    nonisolated private static func exchange(code: String, verifier: String, clientID: String) async throws -> String {
         var request = URLRequest(url: URL(string: "https://accounts.spotify.com/api/token")!)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
@@ -130,14 +132,13 @@ final class SpotifyTaste: NSObject, ASWebAuthenticationPresentationContextProvid
         return token
     }
 
-    private static func get(_ url: String, token: String) async throws -> [String: Any] {
+    nonisolated private static func get(_ url: String, token: String) async throws -> Data {
         var request = URLRequest(url: URL(string: url)!)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        let (data, _) = try await URLSession.shared.data(for: request)
-        return (try JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
+        return try await URLSession.shared.data(for: request).0
     }
 
-    private static func randomVerifier() -> String {
+    nonisolated private static func randomVerifier() -> String {
         var bytes = [UInt8](repeating: 0, count: 48)
         _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
         return Data(bytes).base64URL
