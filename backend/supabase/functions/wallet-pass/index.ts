@@ -178,10 +178,11 @@ async function posterStrip(title: string, w: number, h: number): Promise<any> {
   return image;
 }
 
-function sha1Hex(bytes: Uint8Array): string {
-  const md = forge.md.sha1.create();
-  md.update(forge.util.binary.raw.encode(bytes));
-  return md.digest().toHex();
+// 09.11.2026: WebCrypto statt forge – forge.util.binary.raw.encode lief bei
+// großen Bildern (> ~100 KB) in einen Stapelüberlauf (500).
+async function sha1Hex(bytes: Uint8Array): Promise<string> {
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-1", bytes));
+  return Array.from(digest, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 function bytesToBase64(bytes: Uint8Array): string {
@@ -407,7 +408,7 @@ Deno.serve(async (req) => {
   // Erst jetzt serialisieren: Foto-/Plakat-Anpassungen oben ändern pass noch.
   files["pass.json"] = strToU8(JSON.stringify(pass));
   const manifest: Record<string, string> = {};
-  for (const [name, bytes] of Object.entries(files)) manifest[name] = sha1Hex(bytes);
+  for (const [name, bytes] of Object.entries(files)) manifest[name] = await sha1Hex(bytes);
   const manifestBytes = strToU8(JSON.stringify(manifest));
 
   // Schritt merken, damit ein Fehler ohne Log-Zugriff eingegrenzt werden kann
