@@ -85,7 +85,7 @@ struct SignUpStepView: View {
 
             Section {
                 Toggle(isOn: $acceptedTerms) {
-                    Text("Ich akzeptiere die AGB.")
+                    Text("Ich akzeptiere die Nutzungsbedingungen und bin mindestens 16 Jahre alt (oder habe die Zustimmung meiner Erziehungsberechtigten).")
                 }
                 .toggleStyle(.checkbox)
                 Toggle(isOn: $acceptedPrivacy) {
@@ -112,7 +112,7 @@ struct SignUpStepView: View {
                 // .com) und lief damit ins Leere. Jetzt drei eigene,
                 // funktionierende In-App-Links.
                 HStack(spacing: 16) {
-                    Button("AGB") { showsAGB = true }
+                    Button("Nutzungsbedingungen") { showsAGB = true }
                     Button("Datenschutz") { showsDatenschutz = true }
                     Button("Impressum") { showsImpressum = true }
                 }

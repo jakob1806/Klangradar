@@ -33,6 +33,7 @@ struct ProfileView: View {
     @ObservedObject private var social = SocialStore.shared
     @ObservedObject private var plus = PlusStore.shared
     @State private var showsDeleteAccountConfirmation = false
+    @State private var showsSupport = false
     @State private var isDeletingAccount = false
     @State private var deleteAccountError: String?
     @State private var hasEditorialAccess = false
@@ -665,6 +666,8 @@ struct ProfileView: View {
                     )
                 )
             }
+            Button("Problem melden") { showsSupport = true }
+                .sheet(isPresented: $showsSupport) { SupportSheet(auth: auth, repository: userRepository) }
             Button("Abmelden", role: .destructive) {
                 Task { try? await auth.signOut() }
             }
@@ -676,7 +679,7 @@ struct ProfileView: View {
                 Button("Konto löschen", role: .destructive) { Task { await deleteAccount() } }
                 Button("Abbrechen", role: .cancel) {}
             } message: {
-                Text("Dein Konto, Favoriten, Listen, besuchte Konzerte und Einstellungen werden dauerhaft gelöscht. Das kann nicht rückgängig gemacht werden.")
+                Text("Dein Konto, Favoriten, Listen, Konzerttagebuch, Chatnachrichten, Fotos und Einstellungen werden dauerhaft gelöscht. Ein Plus-Abo kündigst du separat in den Einstellungen deiner Apple-ID. Das kann nicht rückgängig gemacht werden.")
             }
             .alert("Konto konnte nicht gelöscht werden", isPresented: Binding(get: { deleteAccountError != nil }, set: { if !$0 { deleteAccountError = nil } })) {
                 Button("OK", role: .cancel) {}

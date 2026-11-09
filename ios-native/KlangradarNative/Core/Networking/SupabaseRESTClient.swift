@@ -236,6 +236,17 @@ struct SupabaseRESTClient: Sendable {
         _ = try await perform(request)
     }
 
+    /// Mehrere Dateien eines Buckets löschen (Storage-API, 09.11.2026).
+    func deleteStorageObjects(bucket: String, paths: [String], accessToken: String) async throws {
+        guard !paths.isEmpty else { return }
+        let url = configuration.supabaseURL.appendingPathComponent("storage/v1/object").appendingPathComponent(bucket)
+        var request = authorizedRequest(url: url, accessToken: accessToken)
+        request.httpMethod = "DELETE"
+        request.httpBody = try JSONEncoder().encode(["prefixes": paths])
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        _ = try await perform(request)
+    }
+
     private func authorizedRequest(url: URL, accessToken: String?) -> URLRequest {
         var request = URLRequest(url: url)
         // PostgREST-Antworten liefern keine Cache-Control-Header. URLSession.shared

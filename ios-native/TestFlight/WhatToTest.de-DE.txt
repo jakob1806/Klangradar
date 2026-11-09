@@ -13,6 +13,10 @@ Wallet & Saalplan
 • Wallet-Karten aktualisieren sich, wenn sich Zeit, Titel oder Ort ändern; Absagen werden angezeigt. Am Abend erscheint die Karte in der Nähe der Spielstätte auf dem Sperrbildschirm.
 • Saalplan: eigenen Platz per Pin markieren.
 
+Rechtliches
+• Datenschutz, Nutzungsbedingungen und Impressum überarbeitet (vollständig, ohne Entwurfshinweis), Mindestalter 16 bei der Registrierung.
+• Neu unter Einstellungen: „Problem melden“. Konto löschen entfernt jetzt auch Chat- und Tagebuchfotos.
+
 Allgemein
 • Profil lädt schneller, Listen scrollen flüssiger.
 • Mehr Texte auf Englisch.
