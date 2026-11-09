@@ -71,3 +71,21 @@ final class SeatParserTests: XCTestCase {
         XCTAssertEqual(seat.summary, "Block B · Reihe 3 · Platz 9 · Eingang A")
     }
 }
+
+final class SeatParserRegressionTests: XCTestCase {
+    /// „Zeigen Sie einfach den QR-Code digital am Einlass vor.“ ist kein Eingang „vor“.
+    func testEinlassSentenceIsNoEntrance() {
+        let seat = TicketStore.parseSeat("Sie einfach den QR-Code\ndigital am Einlass vor.\nEinlass wird kontrolliert!\nSitz : 7")
+        XCTAssertTrue(seat.entrance.isEmpty)
+        XCTAssertEqual(seat.seat, "7")
+    }
+
+    /// Bezeichnung und Wert als getrennte Texterkennungs-Zeilen nebeneinander.
+    func testValueBesideLabelWithBoxes() {
+        let lines = [
+            SeatParser.Line(text: "Sitz:", box: CGRect(x: 0.62, y: 0.40, width: 0.05, height: 0.012)),
+            SeatParser.Line(text: "7", box: CGRect(x: 0.69, y: 0.40, width: 0.01, height: 0.012))
+        ]
+        XCTAssertEqual(SeatParser.parse(lines).seat, "7")
+    }
+}

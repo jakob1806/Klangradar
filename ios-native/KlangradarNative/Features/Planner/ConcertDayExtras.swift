@@ -608,6 +608,8 @@ private struct TicketSeatEditor: View {
     @State private var showsCodeEntry = false
     @State private var manualCode = ""
     @State private var showsSeatingPlan = false
+    @State private var stripImage: UIImage?
+    @State private var stripFocus = CGPoint(x: 0.5, y: 0.35)
 
     var body: some View {
         NavigationStack {
@@ -706,6 +708,7 @@ private struct TicketSeatEditor: View {
             }
         }
         .presentationDetents([.large])
+        .task(id: walletImageURL) { await loadStripImage() }
         .task {
             ticketCodes = TicketStore.codes(for: event.id)
             // Ältere Tickets ohne gespeicherten Code einmal nachträglich prüfen.
@@ -729,12 +732,18 @@ private struct TicketSeatEditor: View {
             let codes = await TicketStore.detectCodes(in: pages ?? [image])
             // Platz aus dem Ticket übernehmen, nur leere Felder füllen.
             let found = await TicketStore.detectSeat(in: pages ?? [image])
-            // Nur leere Felder füllen, Bezeichnungen vom Ticket übernehmen.
-            if seat.entrance.isEmpty, !found.entrance.isEmpty { seat.entrance = found.entrance; seat.entranceLabel = found.entranceLabel }
-            if seat.block.isEmpty, !found.block.isEmpty { seat.block = found.block; seat.blockLabel = found.blockLabel }
-            if seat.row.isEmpty, !found.row.isEmpty { seat.row = found.row; seat.rowLabel = found.rowLabel }
-            if seat.seat.isEmpty, !found.seat.isEmpty { seat.seat = found.seat; seat.seatLabel = found.seatLabel }
-            for extra in found.extras where !seat.extras.contains(where: { $0.label == extra.label }) { seat.extras.append(extra) }
+            // 09.11.2026: neues Ticket → Erkanntes ersetzt alte Werte (auch
+            // Fehlerkennungen früherer Versionen); nicht Erkanntes bleibt.
+            if !found.isEmpty {
+                if !found.entrance.isEmpty { seat.entrance = found.entrance; seat.entranceLabel = found.entranceLabel }
+                if !found.block.isEmpty { seat.block = found.block; seat.blockLabel = found.blockLabel }
+                if !found.row.isEmpty { seat.row = found.row; seat.rowLabel = found.rowLabel }
+                if !found.seat.isEmpty { seat.seat = found.seat; seat.seatLabel = found.seatLabel }
+                for extra in found.extras {
+                    seat.extras.removeAll { $0.label == extra.label }
+                    seat.extras.append(extra)
+                }
+            }
             if !found.isEmpty { SharedSeatStore.save(seat, forSlug: event.slug) }
             TicketStore.saveCodes(codes, for: event.id)
             ticketCodes = codes
@@ -775,15 +784,24 @@ private struct TicketSeatEditor: View {
             // 08.11.2026: Bild in voller Größe ohne Zuschnitt, Titel darunter.
             // 09.11.2026 (Variante A): flacher Bildstreifen wie in Wallet
             // (375×98 pt-Verhältnis), Ausschnitt eher oben (Gesichter).
+            // Ausschnitt folgt dem Motiv (Gesicht/Motiv erkannt) und lässt sich
+            // mit dem Finger verschieben – die Wallet-Karte übernimmt ihn.
             Color.white.opacity(0.06)
-                .frame(maxWidth: .infinity).aspectRatio(375.0 / 110.0, contentMode: .fit)
+                .frame(maxWidth: .infinity).aspectRatio(375.0 / 98.0, contentMode: .fit)
                 .overlay {
-                    CachedAsyncImage(url: walletImageURL, maxPixel: 1400) { phase in
-                        if let image = phase.image {
-                            image.resizable().scaledToFill()
-                        } else {
-                            ProgressView().tint(.white.opacity(0.6))
-                        }
+                    if let stripImage {
+                        FocusedStripImage(image: stripImage, focus: $stripFocus) { ImageFocus.store($0, for: event.id) }
+                    } else if walletImageURL != nil {
+                        ProgressView().tint(.white.opacity(0.6))
+                    }
+                }
+                .overlay(alignment: .bottomTrailing) {
+                    if stripImage != nil {
+                        Label("Ziehen zum Verschieben", systemImage: "hand.draw")
+                            .font(.caption2.weight(.semibold)).foregroundStyle(.white)
+                            .padding(.horizontal, 8).padding(.vertical, 4)
+                            .background(.black.opacity(0.45), in: .capsule)
+                            .padding(8).allowsHitTesting(false)
                     }
                 }
                 .clipped()
@@ -963,6 +981,19 @@ private struct TicketSeatEditor: View {
         .contentShape(.rect(cornerRadius: 14))
     }
 
+    @MainActor
+    private func loadStripImage() async {
+        guard let url = walletImageURL,
+              let response = try? await URLSession.shared.data(from: url),
+              let image = UIImage(data: response.0) else { return }
+        if let saved = ImageFocus.stored(for: event.id) {
+            stripFocus = saved
+        } else {
+            stripFocus = await ImageFocus.detect(in: image)
+        }
+        stripImage = image
+    }
+
     private var walletImageURL: URL? {
         event.primaryImageURL ?? event.imageUrls?.first.flatMap(URL.init(string:))
     }
@@ -1059,6 +1090,8 @@ extension TicketSeatEditor {
         // 09.11.2026: dasselbe Bild wie in der App mitgeben (der Server erreicht
         // nicht jede Bildquelle direkt).
         if let image = walletImageURL, image.scheme == "https" { base.append(URLQueryItem(name: "image", value: image.absoluteString)) }
+        base += [URLQueryItem(name: "focus_x", value: String(format: "%.3f", stripFocus.x)),
+                 URLQueryItem(name: "focus_y", value: String(format: "%.3f", stripFocus.y))]
         // 08.11.2026: eine Wallet-Karte pro erkanntem Ticket.
         let variants: [[URLQueryItem]] = ticketCodes.isEmpty ? [base] : ticketCodes.enumerated().map { index, code in
             base + [URLQueryItem(name: "code", value: code.payload), URLQueryItem(name: "format", value: code.format)]

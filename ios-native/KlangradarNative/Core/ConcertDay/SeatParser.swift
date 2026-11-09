@@ -40,6 +40,9 @@ enum SeatParser {
                              "bestell", "straße", "strasse", "str.", "gebühr", "inkl", "uhr", "www", "http", "@", "gültig",
                              "lichtbild", "veranstalter", "vvk"]
 
+    static let stopwords: Set<String> = ["vor", "wird", "ist", "am", "an", "zu", "zum", "zur", "der", "die", "das", "und", "oder",
+                                         "mit", "ab", "bis", "nur", "bitte", "frei", "kontrolliert", "geöffnet", "beginn", "uhr"]
+
     enum Provider: String { case muenchenTicket, eventim, reservix, staatsoper, generic }
 
     static func provider(of text: String) -> Provider {
@@ -69,7 +72,10 @@ enum SeatParser {
         switch kind {
         case .row: return v.count <= 4 && v.range(of: #"^[0-9A-Za-zÄÖÜäöü]+$"#, options: .regularExpression) != nil
         case .seat: return v.count <= 5 && v.range(of: #"^\d+[a-zA-Z]?$"#, options: .regularExpression) != nil
-        case .entrance: return v.count <= 14
+        case .entrance:
+            // „am Einlass vor“, „Einlass wird kontrolliert“: Füllwörter sind kein Eingang.
+            guard v.count <= 14, !stopwords.contains(v.lowercased()) else { return false }
+            return v.count <= 3 || v.rangeOfCharacter(from: .decimalDigits) != nil || v.first?.isUppercase == true
         case .area: return v.count <= 28 && dictionary[key(v)] != .row && dictionary[key(v)] != .seat
         case .floor: return v.count <= 14
         }
@@ -108,7 +114,9 @@ enum SeatParser {
                     add(.floor, "Etage", floor, score: 3); continue
                 }
                 if isExcluded(segment) { continue }
+                // Reine Satzzeichen („Sitz : 7“) sind keine Werte.
                 let tokens = segment.split(whereSeparator: { $0 == " " || $0 == "\t" || $0 == "|" || $0 == "/" }).map(String.init)
+                    .filter { !key($0).isEmpty }
                 guard !tokens.isEmpty else { continue }
 
                 // Tabellenkopf: nur Bezeichnungen → Werte in der nächsten Zeile (spaltenweise über Lage).
