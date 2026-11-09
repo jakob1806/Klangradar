@@ -1670,18 +1670,18 @@
 		084A506A38CD5AE175AB8951 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = DVH3MYQ64A;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				PRODUCT_BUNDLE_IDENTIFIER = de.klangradar.native.tests;
+				PRODUCT_BUNDLE_IDENTIFIER = de.klangradar.native.uitests;
 				SDKROOT = iphoneos;
-				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 6.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/KlangradarNative.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/KlangradarNative";
+				TEST_TARGET_NAME = KlangradarNative;
+				VALIDATE_PRODUCT = YES;
 			};
-			name = Debug;
+			name = Release;
 		};
 		3755BC79CACFBFA7D7DC57E3 /* Debug */ = {
 			isa = XCBuildConfiguration;
