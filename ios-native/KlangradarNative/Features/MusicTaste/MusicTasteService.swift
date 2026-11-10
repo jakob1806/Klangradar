@@ -57,7 +57,7 @@ enum AppleMusicTaste {
 
 @MainActor
 final class SpotifyTaste: NSObject, ASWebAuthenticationPresentationContextProviding {
-    static let redirectURI = "de.klangradar.native://spotify-callback"
+    nonisolated static let redirectURI = "de.klangradar.native://spotify-callback"
     private var session: ASWebAuthenticationSession?
 
     static var clientID: String? {
