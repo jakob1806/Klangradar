@@ -610,6 +610,7 @@ private struct TicketSeatEditor: View {
     @State private var showsSeatingPlan = false
     @State private var stripImage: UIImage?
     @State private var stripFocus = CGPoint(x: 0.5, y: 0.35)
+    @State private var programComposers: String?
 
     var body: some View {
         NavigationStack {
@@ -709,6 +710,7 @@ private struct TicketSeatEditor: View {
         }
         .presentationDetents([.large])
         .task(id: walletImageURL) { await loadStripImage() }
+        .task { await loadProgramComposers() }
         .task {
             ticketCodes = TicketStore.codes(for: event.id)
             // Ältere Tickets ohne gespeicherten Code einmal nachträglich prüfen.
@@ -996,6 +998,32 @@ private struct TicketSeatEditor: View {
 
     /// Bildstreifen wie in der Vorschau (Motiv-Ausschnitt) in 1x/2x/3x als
     /// PNG für die Wallet-Karte; leer, wenn noch kein Bild geladen ist.
+    /// 09.11.2026 (2): Titel groß in Serifenschrift und Programm darunter
+    /// direkt im Bild (Wallet-Felder kennen nur eine kleine Systemschrift).
+    private var stripProgramLine: String? {
+        if let programComposers, !programComposers.isEmpty { return programComposers }
+        if let subtitle = event.subtitle?.trimmingCharacters(in: .whitespacesAndNewlines), !subtitle.isEmpty { return subtitle }
+        return nil
+    }
+
+    /// Komponisten des Programms („Glass · Bruckner“) für den Bildstreifen.
+    @MainActor
+    private func loadProgramComposers() async {
+        guard let client = SocialStore.shared.repository?.client else { return }
+        let rows: [JSONObject] = (try? await client.get(table: "event_works", queryItems: [
+            URLQueryItem(name: "select", value: "position,works(persons(full_name))"),
+            URLQueryItem(name: "event_id", value: "eq.\(event.id.uuidString)"),
+            URLQueryItem(name: "order", value: "position")
+        ], accessToken: SocialStore.shared.token)) ?? []
+        var names: [String] = []
+        for row in rows {
+            guard let full = row.object("works")?.object("persons")?.string("full_name"),
+                  let last = full.split(separator: " ").last.map(String.init), !names.contains(last) else { continue }
+            names.append(last)
+        }
+        programComposers = names.prefix(4).joined(separator: " · ")
+    }
+
     private var stripPayload: [String: String] {
         guard let image = stripImage else { return [:] }
         var payload: [String: String] = [:]
@@ -1007,8 +1035,42 @@ private struct TicketSeatEditor: View {
             let y = min(max(0, drawn.height * stripFocus.y - size.height / 2), drawn.height - size.height)
             let format = UIGraphicsImageRendererFormat()
             format.scale = 1
-            let rendered = UIGraphicsImageRenderer(size: size, format: format).image { _ in
+            let title = event.title
+            let program = stripProgramLine
+            let rendered = UIGraphicsImageRenderer(size: size, format: format).image { context in
                 image.draw(in: CGRect(x: -x, y: -y, width: drawn.width, height: drawn.height))
+                // Verlauf von unten für Lesbarkeit.
+                let colors = [UIColor.black.withAlphaComponent(0).cgColor, UIColor.black.withAlphaComponent(0.78).cgColor] as CFArray
+                if let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 1]) {
+                    context.cgContext.drawLinearGradient(gradient, start: CGPoint(x: 0, y: size.height * 0.25), end: CGPoint(x: 0, y: size.height), options: [])
+                }
+                let inset = 14 * scale
+                let maxWidth = size.width - inset * 2
+                var bottom = size.height - 9 * scale
+                if let program {
+                    let programFont = UIFont.systemFont(ofSize: 10.5 * scale, weight: .semibold)
+                    let attrs: [NSAttributedString.Key: Any] = [.font: programFont, .foregroundColor: UIColor.white.withAlphaComponent(0.85), .kern: 0.4 * scale]
+                    let text = NSAttributedString(string: program.uppercased(), attributes: attrs)
+                    let height = ceil(programFont.lineHeight)
+                    text.draw(with: CGRect(x: inset, y: bottom - height, width: maxWidth, height: height), options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine], context: nil)
+                    bottom -= height + 2 * scale
+                }
+                // Titel: Serif (New York), so groß wie möglich, höchstens zwei Zeilen.
+                let baseDescriptor = UIFont.systemFont(ofSize: 24 * scale, weight: .bold).fontDescriptor.withDesign(.serif)
+                var fontSize = 24 * scale
+                var titleText = NSAttributedString()
+                var titleRect = CGRect.zero
+                while fontSize >= 15 * scale {
+                    let font = baseDescriptor.map { UIFont(descriptor: $0, size: fontSize) } ?? UIFont.boldSystemFont(ofSize: fontSize)
+                    let style = NSMutableParagraphStyle()
+                    style.lineHeightMultiple = 0.92
+                    titleText = NSAttributedString(string: title, attributes: [.font: font, .foregroundColor: UIColor.white, .paragraphStyle: style])
+                    titleRect = titleText.boundingRect(with: CGSize(width: maxWidth, height: .greatestFiniteMagnitude), options: [.usesLineFragmentOrigin], context: nil)
+                    if titleRect.height <= font.lineHeight * 2.05 && titleRect.height <= bottom - 6 * scale { break }
+                    fontSize -= 1 * scale
+                }
+                let height = min(ceil(titleRect.height), bottom - 6 * scale)
+                titleText.draw(with: CGRect(x: inset, y: bottom - height, width: maxWidth, height: height), options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine], context: nil)
             }
             if let png = rendered.pngData() { payload[key] = png.base64EncodedString() }
         }
@@ -1111,6 +1173,7 @@ extension TicketSeatEditor {
         // 09.11.2026: dasselbe Bild wie in der App mitgeben (der Server erreicht
         // nicht jede Bildquelle direkt).
         if let image = walletImageURL, image.scheme == "https" { base.append(URLQueryItem(name: "image", value: image.absoluteString)) }
+        if stripImage != nil { base.append(URLQueryItem(name: "title_in_strip", value: "1")) }
         base += [URLQueryItem(name: "focus_x", value: String(format: "%.3f", stripFocus.x)),
                  URLQueryItem(name: "focus_y", value: String(format: "%.3f", stripFocus.y))]
         // 08.11.2026: eine Wallet-Karte pro erkanntem Ticket.

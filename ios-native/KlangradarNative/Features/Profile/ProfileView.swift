@@ -98,6 +98,10 @@ struct ProfileView: View {
                                 ProfileRow(title: "Dein Geschmack", symbol: "waveform", color: KlangradarTheme.accent)
                             }
                             Divider().padding(.leading, 56)
+                            NavigationLink { MusicTasteView(auth: auth, repository: userRepository, contentRepository: contentRepository) } label: {
+                                ProfileRow(title: "Musikgeschmack", symbol: "headphones", color: .pink, value: "Spotify & Apple Music")
+                            }
+                            Divider().padding(.leading, 56)
                             NavigationLink { ConcertYearView(auth: auth, repository: userRepository) } label: {
                                 ProfileRow(title: "Dein Konzertjahr", symbol: "chart.bar.fill", color: .indigo, showsPlusBadge: !plus.isPlus)
                             }
