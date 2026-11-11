@@ -151,6 +151,38 @@ private extension Data {
     }
 }
 
+// MARK: - Last.fm (nur Nutzername, Schlüssel liegt auf dem Server)
+
+enum LastFMTaste {
+    static func read(username: String, client: SupabaseRESTClient, token: String) async throws -> (artists: [ListenedArtist], tracks: [ListenedTrack]) {
+        let result: JSONObject
+        do {
+            result = try await client.edgeFunction("lastfm-taste", body: ["username": .string(username)], accessToken: token)
+        } catch {
+            throw MusicTasteError.failed("Last.fm ist gerade nicht erreichbar oder noch nicht eingerichtet.")
+        }
+        if let code = result.string("error") {
+            switch code {
+            case "user_not_found": throw MusicTasteError.failed("Diesen Last.fm-Namen gibt es nicht.")
+            case "invalid_username": throw MusicTasteError.failed("Bitte einen gültigen Last.fm-Namen eingeben.")
+            case "not_configured": throw MusicTasteError.failed("Last.fm ist noch nicht eingerichtet.")
+            default: throw MusicTasteError.failed("Last.fm-Abfrage fehlgeschlagen.")
+            }
+        }
+        let artists = result.objects("artists").compactMap { row -> ListenedArtist? in
+            guard let name = row.string("name") else { return nil }
+            return ListenedArtist(name: name, weight: row.number("weight") ?? 1, genres: row.strings("genres"))
+        }
+        // Last.fm kennt kein eigenes Komponistenfeld; der Abgleich prüft den
+        // Künstlernamen deshalb auch als Komponist.
+        let tracks = result.objects("tracks").compactMap { row -> ListenedTrack? in
+            guard let title = row.string("title"), let artist = row.string("artist") else { return nil }
+            return ListenedTrack(title: title, artist: artist, composer: artist, weight: row.number("weight") ?? 1)
+        }
+        return (artists, tracks)
+    }
+}
+
 // MARK: - Ergebnis
 
 struct MusicTaste: Sendable {
