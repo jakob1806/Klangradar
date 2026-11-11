@@ -14,6 +14,8 @@ struct MusicTasteView: View {
     @State private var error: String?
     @State private var tab: Tab = .events
     @State private var spotify = SpotifyTaste()
+    @State private var showsLastFM = false
+    @AppStorage("lastfmUsername") private var lastfmUsername = ""
 
     enum Tab: String, CaseIterable, Identifiable {
         case events = "Konzerte", persons = "Personen", ensembles = "Ensembles", venues = "Orte", works = "Werke"
@@ -106,8 +108,12 @@ struct MusicTasteView: View {
                 try await AppleMusicTaste.read()
             }
             Divider().padding(.leading, 56)
-            connectRow(name: "Spotify", symbol: "dot.radiowaves.left.and.right", tint: Color(red: 0.12, green: 0.73, blue: 0.33), key: "spotify") {
-                try await spotify.read()
+            lastFMRow
+            if SpotifyTaste.clientID != nil {
+                Divider().padding(.leading, 56)
+                connectRow(name: "Spotify (Beta, nur Tester)", symbol: "dot.radiowaves.left.and.right", tint: Color(red: 0.12, green: 0.73, blue: 0.33), key: "spotify") {
+                    try await spotify.read()
+                }
             }
             if taste != nil {
                 Divider().padding(.leading, 56)
@@ -124,6 +130,66 @@ struct MusicTasteView: View {
             }
         }
         .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 18, style: .continuous))
+    }
+
+    /// Last.fm: Spotify-Hörer:innen verbinden Spotify einmal mit Last.fm und
+    /// geben hier nur ihren Last.fm-Namen ein (kein Login).
+    private var lastFMRow: some View {
+        let connected = taste?.providers.contains("lastfm") == true
+        return Button { showsLastFM = true } label: {
+            HStack(spacing: 12) {
+                Text("fm").font(.system(size: 15, weight: .black, design: .rounded)).foregroundStyle(.white)
+                    .frame(width: 32, height: 32).background(Color(red: 0.84, green: 0.06, blue: 0.03), in: .rect(cornerRadius: 8, style: .continuous))
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Last.fm – auch für Spotify").font(.body.weight(.semibold)).foregroundStyle(.primary)
+                    Text(connected && !lastfmUsername.isEmpty ? "Verknüpft als \(lastfmUsername) · tippen zum Aktualisieren" : "Nur Nutzername, keine Anmeldung")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                if working == "lastfm" { ProgressView() } else {
+                    Image(systemName: connected ? "checkmark.circle.fill" : "plus.circle").foregroundStyle(connected ? .green : .secondary)
+                }
+            }
+            .padding(.horizontal, 14).padding(.vertical, 10)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(working != nil)
+        .sheet(isPresented: $showsLastFM) { lastFMSheet }
+    }
+
+    private var lastFMSheet: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("Last.fm-Nutzername", text: $lastfmUsername)
+                        .textInputAutocapitalization(.never).autocorrectionDisabled()
+                } footer: {
+                    Text("Du hörst mit Spotify? Verbinde Spotify einmal mit Last.fm (last.fm → Einstellungen → Anwendungen → Spotify-Scrobbling). Danach reicht hier dein Last.fm-Name – Klangradar liest nur dein öffentliches Hörprofil der letzten 12 Monate.")
+                }
+                Section {
+                    Link("Last.fm öffnen", destination: URL(string: "https://www.last.fm/settings/applications")!)
+                }
+            }
+            .navigationTitle("Last.fm")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { showsLastFM = false } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Analysieren") {
+                        showsLastFM = false
+                        let name = lastfmUsername.trimmingCharacters(in: .whitespaces)
+                        Task {
+                            guard let token = auth.accessToken else { return }
+                            let client = repository.client
+                            await analyze(key: "lastfm") { try await LastFMTaste.read(username: name, client: client, token: token) }
+                        }
+                    }
+                    .disabled(lastfmUsername.trimmingCharacters(in: .whitespaces).count < 2)
+                }
+            }
+        }
+        .presentationDetents([.medium])
     }
 
     private func connectRow(name: String, symbol: String, tint: Color, key: String,
