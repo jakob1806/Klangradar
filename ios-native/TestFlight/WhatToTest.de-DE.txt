@@ -2,6 +2,7 @@ Neu in dieser Version
 
 Musikgeschmack (neu)
 • Profil → Musikgeschmack: Apple Music und Spotify verknüpfen. Klangradar erkennt deine Komponist:innen, Interpret:innen, Ensembles und Werke und schlägt passende Konzerte, Personen, Ensembles, Orte und Werke vor. „Allen Treffern folgen“ mit einem Tipp.
+• Spotify-Hörer:innen: über Last.fm verknüpfen – nur den Last.fm-Namen eingeben, keine Anmeldung.
 
 Wallet-Karte
 • Konzertbild mit großem Titel in Serifenschrift und Programm direkt im Bild; darunter Beginn und Ort, dann der Platz.
