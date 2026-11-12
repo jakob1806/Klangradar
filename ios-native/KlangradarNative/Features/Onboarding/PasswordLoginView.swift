@@ -63,24 +63,35 @@ struct PasswordLoginView: View {
                 }
 
                 if auth.isAppleSignInAvailable || auth.isGoogleSignInAvailable {
+                    // Gleiche Kapsel-Buttons wie auf der Startseite des Onboardings.
                     Section("Andere Anmeldeoptionen") {
-                    if auth.isAppleSignInAvailable {
-                        Button {
-                            Task { await oauth(provider: "Apple") { try await auth.signInWithApple() } }
-                        } label: {
-                            Label("Mit Apple anmelden", systemImage: "apple.logo")
+                        VStack(spacing: 12) {
+                            if auth.isAppleSignInAvailable {
+                                Button { Task { await oauth(provider: "Apple") { try await auth.signInWithApple() } } } label: {
+                                    Label("Mit Apple fortfahren", systemImage: "apple.logo")
+                                        .font(.headline)
+                                        .frame(maxWidth: .infinity).frame(height: 52)
+                                        .foregroundStyle(Color(uiColor: .systemBackground))
+                                        .background(Color.primary, in: .capsule)
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(isWorking)
+                            }
+                            if auth.isGoogleSignInAvailable {
+                                Button { Task { await oauth(provider: "Google") { try await auth.signInWithGoogle() } } } label: {
+                                    GoogleSignInLabel()
+                                        .font(.headline)
+                                        .foregroundStyle(.primary)
+                                        .frame(maxWidth: .infinity).frame(height: 52)
+                                        .background(Color(uiColor: .systemBackground), in: .capsule)
+                                        .overlay(Capsule().stroke(Color.primary.opacity(0.12), lineWidth: 1))
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(isWorking)
+                            }
                         }
-                        .disabled(isWorking)
-                    }
-
-                    if auth.isGoogleSignInAvailable {
-                        Button {
-                            Task { await oauth(provider: "Google") { try await auth.signInWithGoogle() } }
-                        } label: {
-                            GoogleSignInLabel()
-                        }
-                        .disabled(isWorking)
-                    }
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets())
                     }
                 }
 

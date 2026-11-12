@@ -670,6 +670,7 @@ struct ProfileView: View {
                     )
                 )
             }
+            NavigationLink("Blockierte Personen") { BlockedUsersView() }
             Button("Problem melden") { showsSupport = true }
                 .sheet(isPresented: $showsSupport) { SupportSheet(auth: auth, repository: userRepository) }
             Button("Abmelden", role: .destructive) {

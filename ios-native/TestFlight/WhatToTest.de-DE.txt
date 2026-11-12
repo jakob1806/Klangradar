@@ -1,5 +1,9 @@
 Neu in dieser Version
 
+Korrekturen
+• Profil → Einstellungen → Blockierte Personen: Blockierungen wieder aufheben.
+• Anmelden: Apple-/Google-Buttons wie auf der Startseite. Startseite: Porträt-Mosaik lädt wieder auf dem iPhone, Buttons auf dem iPad vollständig sichtbar.
+
 Musikgeschmack (neu)
 • Profil → Musikgeschmack: Apple Music und Spotify verknüpfen. Klangradar erkennt deine Komponist:innen, Interpret:innen, Ensembles und Werke und schlägt passende Konzerte, Personen, Ensembles, Orte und Werke vor. „Allen Treffern folgen“ mit einem Tipp.
 • Spotify-Hörer:innen: über Last.fm verknüpfen – nur den Last.fm-Namen eingeben, keine Anmeldung.

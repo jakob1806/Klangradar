@@ -26,7 +26,8 @@ struct WelcomeStepView: View {
             VStack(spacing: 0) {
                 PortraitMosaic(urls: portraits)
                     // iPad: deutlich höher, sonst bleibt unter dem Titel eine große Leere.
-                    .frame(height: geo.size.width > 700 ? geo.size.height * 0.56 : min(geo.size.height * 0.42, 420))
+                    // Höhe so begrenzen, dass Titel und Buttons immer vollständig passen (iPad quer).
+                    .frame(height: max(160, min(geo.size.width > 700 ? geo.size.height * 0.5 : min(geo.size.height * 0.42, 420), geo.size.height - 500)))
                     // Oben weich ausblenden (Statusleiste lesbar), unten in den Hintergrund.
                     .mask(LinearGradient(stops: [.init(color: .black.opacity(0.15), location: 0), .init(color: .black, location: 0.18), .init(color: .black, location: 0.6), .init(color: .clear, location: 1)], startPoint: .top, endPoint: .bottom))
                     .ignoresSafeArea(edges: .top)
@@ -116,12 +117,28 @@ struct WelcomeStepView: View {
         }
     }
 
+    /// Porträts für das Mosaik. Schlägt der RPC fehl (z. B. kurz überlastet),
+    /// wird zweimal wiederholt und zuletzt direkt aus `persons` gelesen –
+    /// vorher blieb das Mosaik auf dem iPhone dann leer.
     private func loadPortraits() async {
         guard portraits.isEmpty, let client else { return }
-        let rows: [JSONObject] = (try? await client.rpc("onboarding_follow_suggestions", parameters: [
-            "p_kind": .string("person"), "p_limit": .number(90)
-        ])) ?? []
-        let urls = rows.compactMap { $0.string("photo_url").flatMap(URL.init(string:)) }
+        var urls: [URL] = []
+        for attempt in 0..<3 where urls.isEmpty {
+            if attempt > 0 { try? await Task.sleep(for: .seconds(Double(attempt) * 1.5)) }
+            let rows: [JSONObject] = (try? await client.rpc("onboarding_follow_suggestions", parameters: [
+                "p_kind": .string("person"), "p_limit": .number(90)
+            ])) ?? []
+            urls = rows.compactMap { $0.string("photo_url").flatMap(URL.init(string:)) }
+        }
+        if urls.isEmpty {
+            let rows: [JSONObject] = (try? await client.get(table: "persons", queryItems: [
+                URLQueryItem(name: "select", value: "photo_url"),
+                URLQueryItem(name: "photo_url", value: "not.is.null"),
+                URLQueryItem(name: "limit", value: "60")
+            ])) ?? []
+            urls = rows.compactMap { $0.string("photo_url").flatMap(URL.init(string:)) }
+        }
+        guard !urls.isEmpty else { return }
         withAnimation(.easeIn(duration: 0.6)) { portraits = Array(urls.prefix(60)) }
     }
 
