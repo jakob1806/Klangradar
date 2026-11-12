@@ -1,6 +1,8 @@
 Neu in dieser Version
 
 Korrekturen
+• Wallet-Karte: Bild frei, Titel mit Komponisten darunter, dann Beginn/Ort und Platz.
+• Ensembleseiten zeigen keine fremden Abos mehr (z. B. BRSO-Abo A beim Tölzer Knabenchor).
 • Profil → Einstellungen → Blockierte Personen: Blockierungen wieder aufheben.
 • Anmelden: Apple-/Google-Buttons wie auf der Startseite. Startseite: Porträt-Mosaik lädt wieder auf dem iPhone, Buttons auf dem iPad vollständig sichtbar.
 
@@ -59,4 +61,3 @@ Profil & Freunde
 
 Bitte testen
 • Ticket hinterlegen, Code erkennen lassen und zur Wallet hinzufügen.
-• Suche nach Konzerten, Personen und Werken.

@@ -1035,42 +1035,10 @@ private struct TicketSeatEditor: View {
             let y = min(max(0, drawn.height * stripFocus.y - size.height / 2), drawn.height - size.height)
             let format = UIGraphicsImageRendererFormat()
             format.scale = 1
-            let title = event.title
-            let program = stripProgramLine
-            let rendered = UIGraphicsImageRenderer(size: size, format: format).image { context in
+            // 12.11.2026: Nur noch das Bild im Streifen – Titel und Komponisten
+            // stehen darunter als eigene Wallet-Zeile (title_below=1).
+            let rendered = UIGraphicsImageRenderer(size: size, format: format).image { _ in
                 image.draw(in: CGRect(x: -x, y: -y, width: drawn.width, height: drawn.height))
-                // Verlauf von unten für Lesbarkeit.
-                let colors = [UIColor.black.withAlphaComponent(0).cgColor, UIColor.black.withAlphaComponent(0.78).cgColor] as CFArray
-                if let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 1]) {
-                    context.cgContext.drawLinearGradient(gradient, start: CGPoint(x: 0, y: size.height * 0.25), end: CGPoint(x: 0, y: size.height), options: [])
-                }
-                let inset = 14 * scale
-                let maxWidth = size.width - inset * 2
-                var bottom = size.height - 9 * scale
-                if let program {
-                    let programFont = UIFont.systemFont(ofSize: 10.5 * scale, weight: .semibold)
-                    let attrs: [NSAttributedString.Key: Any] = [.font: programFont, .foregroundColor: UIColor.white.withAlphaComponent(0.85), .kern: 0.4 * scale]
-                    let text = NSAttributedString(string: program.uppercased(), attributes: attrs)
-                    let height = ceil(programFont.lineHeight)
-                    text.draw(with: CGRect(x: inset, y: bottom - height, width: maxWidth, height: height), options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine], context: nil)
-                    bottom -= height + 2 * scale
-                }
-                // Titel: Serif (New York), so groß wie möglich, höchstens zwei Zeilen.
-                let baseDescriptor = UIFont.systemFont(ofSize: 24 * scale, weight: .bold).fontDescriptor.withDesign(.serif)
-                var fontSize = 24 * scale
-                var titleText = NSAttributedString()
-                var titleRect = CGRect.zero
-                while fontSize >= 15 * scale {
-                    let font = baseDescriptor.map { UIFont(descriptor: $0, size: fontSize) } ?? UIFont.boldSystemFont(ofSize: fontSize)
-                    let style = NSMutableParagraphStyle()
-                    style.lineHeightMultiple = 0.92
-                    titleText = NSAttributedString(string: title, attributes: [.font: font, .foregroundColor: UIColor.white, .paragraphStyle: style])
-                    titleRect = titleText.boundingRect(with: CGSize(width: maxWidth, height: .greatestFiniteMagnitude), options: [.usesLineFragmentOrigin], context: nil)
-                    if titleRect.height <= font.lineHeight * 2.05 && titleRect.height <= bottom - 6 * scale { break }
-                    fontSize -= 1 * scale
-                }
-                let height = min(ceil(titleRect.height), bottom - 6 * scale)
-                titleText.draw(with: CGRect(x: inset, y: bottom - height, width: maxWidth, height: height), options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine], context: nil)
             }
             if let png = rendered.pngData() { payload[key] = png.base64EncodedString() }
         }
@@ -1173,7 +1141,10 @@ extension TicketSeatEditor {
         // 09.11.2026: dasselbe Bild wie in der App mitgeben (der Server erreicht
         // nicht jede Bildquelle direkt).
         if let image = walletImageURL, image.scheme == "https" { base.append(URLQueryItem(name: "image", value: image.absoluteString)) }
-        if stripImage != nil { base.append(URLQueryItem(name: "title_in_strip", value: "1")) }
+        if stripImage != nil {
+            base.append(URLQueryItem(name: "title_below", value: "1"))
+            if let program = stripProgramLine { base.append(URLQueryItem(name: "program", value: program)) }
+        }
         base += [URLQueryItem(name: "focus_x", value: String(format: "%.3f", stripFocus.x)),
                  URLQueryItem(name: "focus_y", value: String(format: "%.3f", stripFocus.y))]
         // 08.11.2026: eine Wallet-Karte pro erkanntem Ticket.

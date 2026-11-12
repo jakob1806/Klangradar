@@ -397,7 +397,17 @@ Deno.serve(async (req) => {
     pass.eventTicket.primaryFields = [];
     // 09.11.2026: Hat die App Titel und Programm groß ins Bild gesetzt,
     // nicht noch einmal klein darunter wiederholen.
-    if (url.searchParams.get("title_in_strip") !== "1") {
+    if (url.searchParams.get("title_below") === "1") {
+      // 12.11.2026: Bild frei, darunter Titel (Komponisten als Bezeichnung),
+      // dann Beginn/Ort und in einer zweiten Reihe der Platz.
+      const program = (url.searchParams.get("program") ?? "").trim().slice(0, 40).toUpperCase();
+      // deno-lint-ignore no-explicit-any
+      const et = pass.eventTicket as any;
+      const dateVenue = (et.secondaryFields as any[]).map((f) => ({ ...f, row: 0 }));
+      const seats = (et.auxiliaryFields as any[]).map((f) => ({ ...f, row: 1 }));
+      et.secondaryFields = [{ key: "event", label: program || "KONZERT", value: event.title }];
+      et.auxiliaryFields = [...dateVenue, ...seats];
+    } else if (url.searchParams.get("title_in_strip") !== "1") {
       // deno-lint-ignore no-explicit-any
       (pass.eventTicket.secondaryFields as any[]).unshift({ key: "event", label: "KONZERT", value: event.title });
     }
