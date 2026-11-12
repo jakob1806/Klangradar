@@ -176,6 +176,14 @@ extension UserRepository {
         try await call("block_user", ["p_user_id": .string(id.uuidString)], token: token)
     }
 
+    func unblockUser(_ id: UUID, token: String) async throws {
+        try await call("unblock_user", ["p_user_id": .string(id.uuidString)], token: token)
+    }
+
+    func blockedUsers(token: String) async throws -> [SocialPerson] {
+        try await rows("my_blocked_users", token: token).compactMap { $0.person() }
+    }
+
     func suggestedFriends(token: String) async throws -> [SocialPerson] {
         try await rows("suggested_friends", token: token).compactMap { $0.person(detail: $0.string("reason")) }
     }
