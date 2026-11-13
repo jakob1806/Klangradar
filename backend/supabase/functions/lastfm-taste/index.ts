@@ -25,14 +25,16 @@ Deno.serve(async (req) => {
 
   const key = Deno.env.get("LASTFM_API_KEY");
   if (!key) return json({ error: "not_configured" }, 503);
-  const { username } = await req.json().catch(() => ({}));
+  const { username, period: rawPeriod } = await req.json().catch(() => ({}));
+  // 13.11.2026: Zeitraum wählbar (Standard 12 Monate).
+  const period = ["1month", "6month", "12month", "overall"].includes(String(rawPeriod)) ? String(rawPeriod) : "12month";
   const user = typeof username === "string" ? username.trim().slice(0, 64) : "";
   if (!/^[A-Za-z0-9_.-]{2,64}$/.test(user)) return json({ error: "invalid_username" }, 400);
 
   try {
     const [artistsBody, tracksBody, tagsBody] = await Promise.all([
-      lastfm("user.gettopartists", { user, period: "12month", limit: "150" }, key),
-      lastfm("user.gettoptracks", { user, period: "12month", limit: "200" }, key),
+      lastfm("user.gettopartists", { user, period, limit: "150" }, key),
+      lastfm("user.gettoptracks", { user, period, limit: "200" }, key),
       lastfm("user.gettoptags", { user, limit: "10" }, key).catch(() => ({})),
     ]);
     // deno-lint-ignore no-explicit-any

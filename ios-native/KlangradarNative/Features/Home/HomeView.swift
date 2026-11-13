@@ -276,6 +276,10 @@ struct HomeView: View {
                         .padding(.horizontal, KlangradarTheme.pagePadding)
                     }
 
+                    if let userRepository, let auth, auth.accessToken != nil {
+                        MusicTasteHomeModule(auth: auth, repository: userRepository, contentRepository: contentRepository)
+                    }
+
                     ForEach(categoryOrder) { category in
                         recommendationSection(category, events: events)
                     }

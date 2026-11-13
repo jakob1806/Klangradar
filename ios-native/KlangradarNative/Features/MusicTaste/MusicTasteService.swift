@@ -154,10 +154,10 @@ private extension Data {
 // MARK: - Last.fm (nur Nutzername, Schlüssel liegt auf dem Server)
 
 enum LastFMTaste {
-    static func read(username: String, client: SupabaseRESTClient, token: String) async throws -> (artists: [ListenedArtist], tracks: [ListenedTrack]) {
+    static func read(username: String, period: String = "12month", client: SupabaseRESTClient, token: String) async throws -> (artists: [ListenedArtist], tracks: [ListenedTrack]) {
         let result: JSONObject
         do {
-            result = try await client.edgeFunction("lastfm-taste", body: ["username": .string(username)], accessToken: token)
+            result = try await client.edgeFunction("lastfm-taste", body: ["username": .string(username), "period": .string(period)], accessToken: token)
         } catch {
             throw MusicTasteError.failed("Last.fm ist gerade nicht erreichbar oder noch nicht eingerichtet.")
         }
@@ -193,7 +193,29 @@ struct MusicTaste: Sendable {
         let imageURL: URL?
         let slug: String?
         let score: Double
+        var reasons: [String] = []
+        var upcoming: Int = 0
     }
+    /// „Das hörst du“: meistgehörte Künstler:in mit Treffer in Klangradar.
+    struct Listened: Identifiable, Sendable, Hashable {
+        var id: String { name }
+        let name: String
+        let rank: Int
+        let personID: UUID?
+        let ensembleID: UUID?
+        let upcoming: Int
+        var isMatched: Bool { personID != nil || ensembleID != nil }
+    }
+    struct Track: Identifiable, Sendable, Hashable {
+        var id: String { title + "|" + artist }
+        let title: String
+        let artist: String
+    }
+    var listened: [Listened] = []
+    var topTracks: [Track] = []
+    var period: String?
+    var otherCity: String?
+    var otherCityCount: Int = 0
     var providers: [String]
     var updatedAt: Date?
     var genres: [String]
@@ -214,7 +236,7 @@ struct MusicTaste: Sendable {
             json.objects(key).compactMap { row in
                 guard let id = row.uuid("id"), let title = row.string("title") else { return nil }
                 return Item(id: id, title: title, subtitle: subtitle(row), imageURL: row.url(image), slug: row.string("slug"),
-                            score: row.number("score") ?? 0)
+                            score: row.number("score") ?? 0, reasons: row.strings("reasons"), upcoming: row.integer("upcoming") ?? 0)
             }
         }
         providers = json.strings("providers")
@@ -225,8 +247,18 @@ struct MusicTaste: Sendable {
         let allPersons = json.objects("persons")
         persons = items("persons")
         composers = allPersons.filter { $0.bool("is_composer") == true }.compactMap { row in
-            row.uuid("id").map { Item(id: $0, title: row.string("title") ?? "", subtitle: nil, imageURL: row.url("photo_url"), slug: row.string("slug"), score: row.number("score") ?? 0) }
+            row.uuid("id").map { Item(id: $0, title: row.string("title") ?? "", subtitle: nil, imageURL: row.url("photo_url"), slug: row.string("slug"), score: row.number("score") ?? 0, upcoming: row.integer("upcoming") ?? 0) }
         }
+        listened = json.objects("listened").compactMap { row in
+            guard let name = row.string("name") else { return nil }
+            return Listened(name: name, rank: row.integer("rank") ?? 0, personID: row.uuid("person_id"), ensembleID: row.uuid("ensemble_id"), upcoming: row.integer("upcoming") ?? 0)
+        }
+        topTracks = json.objects("top_tracks").compactMap { row in
+            row.string("title").map { Track(title: $0, artist: row.string("artist") ?? "") }
+        }
+        period = json.string("period")
+        otherCity = json.string("other_city")
+        otherCityCount = json.integer("other_city_count") ?? 0
         ensembles = items("ensembles")
         works = items("works", subtitle: { $0.string("composer") })
         events = items("events", subtitle: { row in
@@ -238,21 +270,26 @@ struct MusicTaste: Sendable {
 }
 
 extension UserRepository {
-    func musicTaste(token: String) async -> MusicTaste? {
-        let value: JSONObject? = try? await client.rpc("music_taste_recommendations", accessToken: token)
+    func musicTaste(cityID: UUID?, token: String) async -> MusicTaste? {
+        var parameters: JSONObject = [:]
+        if let cityID { parameters["p_city_id"] = .string(cityID.uuidString.lowercased()) }
+        let value: JSONObject? = try? await client.rpc("music_taste_recommendations", parameters: parameters, accessToken: token)
         return MusicTaste(json: value)
     }
 
-    func analyzeMusicTaste(artists: [ListenedArtist], tracks: [ListenedTrack], providers: [String], token: String) async throws -> MusicTaste? {
+    func analyzeMusicTaste(artists: [ListenedArtist], tracks: [ListenedTrack], providers: [String], cityID: UUID?, period: String?, token: String) async throws -> MusicTaste? {
         let artistJSON: [JSONValue] = artists.map { .object(["name": .string($0.name), "weight": .number($0.weight), "genres": .array($0.genres.map(JSONValue.string))]) }
         let trackJSON: [JSONValue] = tracks.map { track in
             var row: JSONObject = ["title": .string(track.title), "artist": .string(track.artist), "weight": .number(track.weight)]
             if let composer = track.composer { row["composer"] = .string(composer) }
             return .object(row)
         }
-        let value: JSONObject? = try await client.rpc("music_taste_analyze", parameters: [
+        var parameters: JSONObject = [
             "p_artists": .array(artistJSON), "p_tracks": .array(trackJSON), "p_providers": .array(providers.map(JSONValue.string))
-        ], accessToken: token)
+        ]
+        if let cityID { parameters["p_city_id"] = .string(cityID.uuidString.lowercased()) }
+        if let period { parameters["p_period"] = .string(period) }
+        let value: JSONObject? = try await client.rpc("music_taste_analyze", parameters: parameters, accessToken: token)
         return MusicTaste(json: value)
     }
 
