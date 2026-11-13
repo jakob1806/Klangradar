@@ -259,6 +259,7 @@ struct MusicTaste: Sendable {
         let personID: UUID?
         let ensembleID: UUID?
         let upcoming: Int
+        var imageURL: URL? = nil
         var isMatched: Bool { personID != nil || ensembleID != nil }
     }
     struct Track: Identifiable, Sendable, Hashable {
@@ -306,7 +307,7 @@ struct MusicTaste: Sendable {
         }
         listened = json.objects("listened").compactMap { row in
             guard let name = row.string("name") else { return nil }
-            return Listened(name: name, rank: row.integer("rank") ?? 0, personID: row.uuid("person_id"), ensembleID: row.uuid("ensemble_id"), upcoming: row.integer("upcoming") ?? 0)
+            return Listened(name: name, rank: row.integer("rank") ?? 0, personID: row.uuid("person_id"), ensembleID: row.uuid("ensemble_id"), upcoming: row.integer("upcoming") ?? 0, imageURL: row.url("photo_url"))
         }
         topTracks = json.objects("top_tracks").compactMap { row in
             row.string("title").map { Track(title: $0, artist: row.string("artist") ?? "") }

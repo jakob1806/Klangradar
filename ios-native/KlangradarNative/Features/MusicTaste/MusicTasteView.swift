@@ -334,7 +334,7 @@ struct MusicTasteView: View {
     private func listenedRow(_ entry: MusicTaste.Listened) -> some View {
         let label = HStack(spacing: 12) {
             ZStack(alignment: .bottomTrailing) {
-                SocialAvatar(name: entry.name, url: nil, size: 54)
+                SocialAvatar(name: entry.name, url: entry.imageURL, size: 54)
                     .opacity(entry.isMatched ? 1 : 0.5)
                 Text("\(entry.rank)").font(.caption2.weight(.bold)).monospacedDigit()
                     .foregroundStyle(.white)
