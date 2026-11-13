@@ -60,6 +60,15 @@ final class SpotifyTaste: NSObject, ASWebAuthenticationPresentationContextProvid
     nonisolated static let redirectURI = "de.klangradar.native://spotify-callback"
     private var session: ASWebAuthenticationSession?
 
+    /// Konten, die im Spotify-Entwickler-Dashboard unter „User Management“
+    /// eingetragen sind (max. 5). Andere sehen Spotify nicht.
+    static let allowedEmails: Set<String> = ["jakob@klangradar.com"]
+
+    static func isAllowed(email: String?) -> Bool {
+        guard let email = email?.lowercased() else { return false }
+        return allowedEmails.contains(email)
+    }
+
     static var clientID: String? {
         let id = (Bundle.main.object(forInfoDictionaryKey: "SpotifyClientID") as? String)?.trimmingCharacters(in: .whitespaces) ?? ""
         return id.isEmpty ? nil : id

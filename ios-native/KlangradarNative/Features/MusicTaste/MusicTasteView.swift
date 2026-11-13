@@ -366,9 +366,11 @@ struct MusicTasteView: View {
             }
             Divider().padding(.leading, 56)
             lastFMRow
-            if SpotifyTaste.clientID != nil {
+            // 13.11.2026: Spotify nur für das Admin-Konto (Spotify-Entwicklermodus:
+            // höchstens 5 freigeschaltete Nutzer, Inhaber braucht Premium).
+            if SpotifyTaste.clientID != nil, SpotifyTaste.isAllowed(email: auth.session?.user.email) {
                 Divider().padding(.leading, 56)
-                connectRow(name: "Spotify (Beta, nur Tester)", symbol: "dot.radiowaves.left.and.right", tint: Color(red: 0.12, green: 0.73, blue: 0.33), key: "spotify") {
+                connectRow(name: "Spotify (nur Admin)", symbol: "dot.radiowaves.left.and.right", tint: Color(red: 0.12, green: 0.73, blue: 0.33), key: "spotify") {
                     try await spotify.read()
                 }
             }
