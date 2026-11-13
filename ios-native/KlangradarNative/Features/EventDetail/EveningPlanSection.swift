@@ -16,6 +16,7 @@ struct EveningPlanSection: View {
 
     @State private var venueItem: MKMapItem?
     @State private var weather: ConcertWeather?
+    @State private var weatherHours: [ConcertWeather.Hour] = []
     @State private var restaurants: [MKMapItem] = []
     @State private var didSearch = false
     @State private var etas: [String: TravelETA] = [:]
@@ -108,16 +109,21 @@ struct EveningPlanSection: View {
                 }
                 // Ticket liegt jetzt zusammen mit dem Sitzplatz in der
                 // "Ticket & Platz"-Karte (SeatCard, Nutzerwunsch 27.10.2026).
-                if let weather { weatherCard(weather) }
                 if !goodToKnow.isEmpty { goodToKnowCard }
                 if !restaurants.isEmpty { restaurantList }
+                // 13.11.2026: Wetter unter den Restaurants, mit Stundenverlauf
+                // (Hinweg bis Heimweg) bzw. Hinweis, ab wann es eine Vorhersage gibt.
+                weatherSection
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .task { await search() }
             .task(id: venueItem?.placemark.coordinate.latitude) { await followLocation() }
             .task(id: venueItem?.placemark.coordinate.latitude) {
                 guard let venueItem, let startDate else { return }
-                weather = await ConcertWeather.load(at: venueItem.placemark.coordinate, for: startDate)
+                if let result = await ConcertWeather.forecast(at: venueItem.placemark.coordinate, for: startDate) {
+                    weather = result.atStart
+                    weatherHours = result.hours
+                }
             }
             .onChange(of: scenePhase) { _, phase in
                 // Zurück in der App: Standort kann sich geändert haben.
@@ -128,6 +134,41 @@ struct EveningPlanSection: View {
     }
 
     // MARK: Wetter (02.11.2026)
+
+    @ViewBuilder
+    private var weatherSection: some View {
+        if let weather {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Wetter am Abend").font(.headline)
+                VStack(alignment: .leading, spacing: 14) {
+                    weatherCard(weather)
+                    if weatherHours.count > 1 {
+                        HStack(spacing: 0) {
+                            ForEach(weatherHours) { hour in
+                                VStack(spacing: 6) {
+                                    Text(hour.label).font(.caption2.weight(.semibold)).foregroundStyle(hour.isStart ? KlangradarTheme.accent : .secondary)
+                                    Image(systemName: hour.weather.symbol).symbolRenderingMode(.multicolor).font(.title3).frame(height: 24)
+                                    Text("\(hour.weather.temperature)°").font(.subheadline.weight(.semibold)).monospacedDigit()
+                                    Text(hour.weather.precipitationChance >= 20 ? "\(hour.weather.precipitationChance) %" : " ")
+                                        .font(.caption2).foregroundStyle(.blue)
+                                }
+                                .frame(maxWidth: .infinity)
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                    }
+                }
+                .padding(.bottom, weatherHours.count > 1 ? 14 : 0)
+                .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 20, style: .continuous))
+            }
+        } else if let startDate, startDate.timeIntervalSinceNow > 15 * 86_400 {
+            Label("Die Wettervorschau erscheint ab \(KlangradarDateTime.string(startDate.addingTimeInterval(-15 * 86_400), format: "EEEE, d. MMMM")).", systemImage: "cloud.sun")
+                .font(.subheadline).foregroundStyle(.secondary)
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 20, style: .continuous))
+        }
+    }
 
     private func weatherCard(_ weather: ConcertWeather) -> some View {
         HStack(spacing: 14) {
@@ -145,7 +186,6 @@ struct EveningPlanSection: View {
             Spacer(minLength: 0)
         }
         .padding(16)
-        .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 20, style: .continuous))
         .accessibilityElement(children: .combine)
     }
 
@@ -284,7 +324,7 @@ struct EveningPlanSection: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
                     ForEach(restaurants, id: \.self) { item in
-                        PlaceCard(item: item, symbol: symbol(for: item), color: placeColor(for: item), distance: distanceText(to: item))
+                        PlaceCard(item: item, symbol: symbol(for: item), color: placeColor(for: item), distance: distanceText(to: item), venueCoordinate: venueItem?.placemark.coordinate)
                     }
                 }
             }
@@ -552,6 +592,7 @@ private struct PlaceCard: View {
     let symbol: String
     let color: Color
     let distance: String?
+    var venueCoordinate: CLLocationCoordinate2D? = nil
 
     @State private var photo: UIImage?
 
@@ -605,8 +646,24 @@ private struct PlaceCard: View {
         }
     }
 
+    /// 13.11.2026: Lokale im selben Gebäude wie die Spielstätte (z. B. „Gaia“
+    /// im Gasteig HP8) bekamen per Look Around das Foto einer fremden
+    /// Straßenansicht. Dort jetzt ein Kartenausschnitt mit dem Lokal.
     private func loadPhoto() async {
-        guard photo == nil, let scene = try? await MKLookAroundSceneRequest(mapItem: item).scene else { return }
+        guard photo == nil else { return }
+        if let venueCoordinate {
+            let here = CLLocation(latitude: item.placemark.coordinate.latitude, longitude: item.placemark.coordinate.longitude)
+            let venue = CLLocation(latitude: venueCoordinate.latitude, longitude: venueCoordinate.longitude)
+            if here.distance(from: venue) < 150 {
+                let options = MKMapSnapshotter.Options()
+                options.region = MKCoordinateRegion(center: item.placemark.coordinate, latitudinalMeters: 220, longitudinalMeters: 220)
+                options.size = CGSize(width: 360, height: 220)
+                options.pointOfInterestFilter = .excludingAll
+                photo = try? await MKMapSnapshotter(options: options).start().image
+                return
+            }
+        }
+        guard let scene = try? await MKLookAroundSceneRequest(mapItem: item).scene else { return }
         let options = MKLookAroundSnapshotter.Options()
         options.size = CGSize(width: 360, height: 220)
         photo = try? await MKLookAroundSnapshotter(scene: scene, options: options).snapshot.image
@@ -616,6 +673,26 @@ private struct PlaceCard: View {
 /// Wetter am Konzertort zur Beginnzeit über Open-Meteo (frei, ohne Schlüssel,
 /// bis 16 Tage im Voraus). Nur für Konzerte, die man besucht (02.11.2026).
 struct ConcertWeather: Sendable {
+    struct Hour: Identifiable, Sendable {
+        var id: Date { date }
+        let date: Date
+        let weather: ConcertWeather
+        let isStart: Bool
+        var label: String { isStart ? "Beginn" : KlangradarDateTime.string(date, format: "HH:mm") }
+    }
+
+    /// Eine Stunde vor Beginn bis drei Stunden danach (Heimweg).
+    static func forecast(at coordinate: CLLocationCoordinate2D, for date: Date) async -> (atStart: ConcertWeather, hours: [Hour])? {
+        guard let table = await hourly(at: coordinate, for: date) else { return nil }
+        let start = Calendar.current.dateInterval(of: .hour, for: date)?.start ?? date
+        guard let atStart = table[start] else { return nil }
+        let hours = (-1...3).compactMap { offset -> Hour? in
+            let d = start.addingTimeInterval(Double(offset) * 3600)
+            return table[d].map { Hour(date: d, weather: $0, isStart: offset == 0) }
+        }
+        return (atStart, hours)
+    }
+
     let temperature: Int
     let precipitationChance: Int
     let code: Int
@@ -655,6 +732,10 @@ struct ConcertWeather: Sendable {
     }
 
     static func load(at coordinate: CLLocationCoordinate2D, for date: Date) async -> ConcertWeather? {
+        await forecast(at: coordinate, for: date)?.atStart
+    }
+
+    private static func hourly(at coordinate: CLLocationCoordinate2D, for date: Date) async -> [Date: ConcertWeather]? {
         let days = date.timeIntervalSinceNow / 86_400
         guard days > -0.2, days < 15 else { return nil }
         var components = URLComponents(string: "https://api.open-meteo.com/v1/forecast")!
@@ -677,9 +758,12 @@ struct ConcertWeather: Sendable {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = TimeZone(identifier: "Europe/Berlin")
         formatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
-        let target = formatter.string(from: Calendar.current.dateInterval(of: .hour, for: date)?.start ?? date)
-        guard let index = times.firstIndex(of: target), index < temps.count, index < codes.count else { return nil }
-        let chance = (index < rain.count ? rain[index] as? Int : nil) ?? 0
-        return ConcertWeather(temperature: Int(temps[index].rounded()), precipitationChance: chance, code: codes[index])
+        var table: [Date: ConcertWeather] = [:]
+        for (index, time) in times.enumerated() where index < temps.count && index < codes.count {
+            guard let d = formatter.date(from: time) else { continue }
+            let chance = (index < rain.count ? rain[index] as? Int : nil) ?? 0
+            table[d] = ConcertWeather(temperature: Int(temps[index].rounded()), precipitationChance: chance, code: codes[index])
+        }
+        return table
     }
 }

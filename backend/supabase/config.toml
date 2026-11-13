@@ -436,3 +436,8 @@ enabled = true
 
 [functions.wallet-service]
 verify_jwt = false
+
+# 13.11.2026: Last.fm-Anmeldefenster leitet ohne JWT über die Funktion zurück;
+# POST prüft den Nutzer selbst (auth.getUser).
+[functions.lastfm-taste]
+verify_jwt = false

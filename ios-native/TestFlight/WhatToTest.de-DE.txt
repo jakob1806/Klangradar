@@ -1,6 +1,13 @@
 Neu in dieser Version
 
+Musikgeschmack neu
+• Übersichtliche Liste: Konzerte für dich (nur deine Stadt), Das hörst du, Komponist:innen, Interpret:innen & Ensembles, Werke, Spielstätten – mit Begründung je Konzert und Folgen-Button.
+• Bessere Erkennung (Komponist aus dem Titel, ungefähre Namen), Last.fm-Zeitraum wählbar, Aktualisierung nach 7 Tagen.
+• Startseite: „Weil du … hörst“.
+• Shazam: Musik erkennen lassen, Treffer fließen in deinen Geschmack ein. Last.fm-Anmeldung über das Last.fm-Fenster.
+
 Korrekturen
+• Konzerttag: Wetter am Abend unter den Restaurants mit Stundenverlauf bis zum Heimweg; Lokale im Konzerthaus (z. B. Gaia) mit Kartenausschnitt statt falschem Foto.
 • Wallet-Karte: Bild frei, Titel mit Komponisten darunter, dann Beginn/Ort und Platz.
 • Ensembleseiten zeigen keine fremden Abos mehr (z. B. BRSO-Abo A beim Tölzer Knabenchor).
 • Profil → Einstellungen → Blockierte Personen: Blockierungen wieder aufheben.
@@ -49,15 +56,3 @@ Platzerkennung (neu)
 Wallet-Karte
 • Mit Klangradar-Logo. Mit gutem Konzertfoto als Bild, sonst als Plakat mit großem Titel.
 • Konzertbild kommt jetzt auch bei Bildern von mphil.de an.
-• Bildstreifen mit Motiverkennung: Gesichter/Motiv stehen automatisch im Ausschnitt. Im Ticket-Blatt lässt sich der Ausschnitt mit dem Finger verschieben – die Wallet-Karte übernimmt ihn.
-• Neues Ticket ersetzt früher falsch erkannte Platzangaben; „am Einlass vor“ wird nicht mehr als Eingang gelesen.
-• Platzangaben mit den Bezeichnungen vom Ticket (z. B. Sitz, Tür, Etage).
-
-Profil & Freunde
-• Profil lädt deutlich schneller, Klanglevel sofort.
-• „Gemerkt → Alle“ zeigt wieder alle Einträge.
-• Tagebucheinträge unter „Besuchte Konzerte“ lassen sich öffnen, mit Bild.
-• Freundesprofil aufgeräumt, „Passt zu euch beiden“ als Liste.
-
-Bitte testen
-• Ticket hinterlegen, Code erkennen lassen und zur Wallet hinzufügen.

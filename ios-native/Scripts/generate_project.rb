@@ -231,7 +231,7 @@ app_target.build_configurations.each do |config|
     # kommentarlos wieder — genau das ist der Sprachsuche-Berechtigung schon
     # einmal passiert (fehlende Beschreibung lässt iOS beim ersten Zugriff
     # auf ein privacy-sensitives API hart abstürzen, kein catchbarer Fehler).
-    "INFOPLIST_KEY_NSMicrophoneUsageDescription" => "Klangradar nutzt das Mikrofon nur, wenn du die Sprachsuche startest.",
+    "INFOPLIST_KEY_NSMicrophoneUsageDescription" => "Klangradar nutzt das Mikrofon nur, wenn du die Sprachsuche oder die Shazam-Erkennung startest.",
     "INFOPLIST_KEY_NSSpeechRecognitionUsageDescription" => "Klangradar wandelt deine Sucheingabe in Text um.",
     "INFOPLIST_KEY_NSCalendarsWriteOnlyAccessUsageDescription" => "Klangradar legt Konzerte nur nach deiner Bestätigung in deinem Kalender an.",
     "INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents" => "YES",
