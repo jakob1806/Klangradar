@@ -9,13 +9,20 @@ drop function if exists public.music_taste_analyze(jsonb, jsonb, text[]);
 drop function if exists public.music_taste_recommendations();
 
 create or replace function public.music_taste_analyze(
-  p_artists jsonb, p_tracks jsonb, p_providers text[], p_city_id uuid default null, p_period text default null)
+  p_artists jsonb, p_tracks jsonb, p_providers text[], p_city_id uuid default null, p_period text default null,
+  p_merge boolean default false)
 returns jsonb language plpgsql security definer set search_path = public, extensions as $$
 declare
   v_uid uuid := auth.uid();
   v_matches jsonb;
 begin
   if v_uid is null then raise exception 'Nicht angemeldet.'; end if;
+  -- p_merge (Shazam): neue Treffer zu den gespeicherten hinzufügen statt ersetzen.
+  if p_merge then
+    select coalesce(m.artists, '[]') || coalesce(p_artists, '[]'), coalesce(m.tracks, '[]') || coalesce(p_tracks, '[]')
+      into p_artists, p_tracks
+    from (select 1) d left join music_taste_profiles m on m.user_id = v_uid;
+  end if;
   with tracks as (
     select t, coalesce((t->>'weight')::numeric, 1) w,
       -- „Bruckner: Symphony No. 7“ → Bruckner
@@ -92,7 +99,7 @@ begin
                             from (select t, w from tracks order by w desc limit 15) x), '[]'),
     'artist_count', jsonb_array_length(coalesce(p_artists, '[]')),
     'track_count', jsonb_array_length(coalesce(p_tracks, '[]')),
-    'period', p_period
+    'period', coalesce(p_period, (select matches->>'period' from music_taste_profiles where user_id = v_uid))
   ) into v_matches;
 
   insert into music_taste_profiles (user_id, providers, artists, tracks, matches, updated_at)
@@ -102,7 +109,7 @@ begin
     artists = excluded.artists, tracks = excluded.tracks, matches = excluded.matches, updated_at = now();
   return music_taste_recommendations(p_city_id);
 end; $$;
-grant execute on function public.music_taste_analyze(jsonb, jsonb, text[], uuid, text) to authenticated;
+grant execute on function public.music_taste_analyze(jsonb, jsonb, text[], uuid, text, boolean) to authenticated;
 
 -- Genre-Schlagworte (Last.fm/Apple Music) → Klangradar-Genres.
 create or replace function public.music_taste_genre_slugs(p_genres jsonb)

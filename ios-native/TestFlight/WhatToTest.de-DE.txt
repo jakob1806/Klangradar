@@ -4,6 +4,7 @@ Musikgeschmack neu
 • Übersichtliche Liste: Konzerte für dich (nur deine Stadt), Das hörst du, Komponist:innen, Interpret:innen & Ensembles, Werke, Spielstätten – mit Begründung je Konzert und Folgen-Button.
 • Bessere Erkennung (Komponist aus dem Titel, ungefähre Namen), Last.fm-Zeitraum wählbar, Aktualisierung nach 7 Tagen.
 • Startseite: „Weil du … hörst“.
+• Shazam: Musik erkennen lassen, Treffer fließen in deinen Geschmack ein. Last.fm-Anmeldung über das Last.fm-Fenster.
 
 Korrekturen
 • Wallet-Karte: Bild frei, Titel mit Komponisten darunter, dann Beginn/Ort und Platz.
@@ -55,4 +56,3 @@ Wallet-Karte
 • Mit Klangradar-Logo. Mit gutem Konzertfoto als Bild, sonst als Plakat mit großem Titel.
 • Konzertbild kommt jetzt auch bei Bildern von mphil.de an.
 • Bildstreifen mit Motiverkennung: Gesichter/Motiv stehen automatisch im Ausschnitt. Im Ticket-Blatt lässt sich der Ausschnitt mit dem Finger verschieben – die Wallet-Karte übernimmt ihn.
-• Neues Ticket ersetzt früher falsch erkannte Platzangaben; „am Einlass vor“ wird nicht mehr als Eingang gelesen.

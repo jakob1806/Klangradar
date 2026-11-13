@@ -332,7 +332,7 @@ extension UserRepository {
         return MusicTaste(json: value)
     }
 
-    func analyzeMusicTaste(artists: [ListenedArtist], tracks: [ListenedTrack], providers: [String], cityID: UUID?, period: String?, token: String) async throws -> MusicTaste? {
+    func analyzeMusicTaste(artists: [ListenedArtist], tracks: [ListenedTrack], providers: [String], cityID: UUID?, period: String?, merge: Bool = false, token: String) async throws -> MusicTaste? {
         let artistJSON: [JSONValue] = artists.map { .object(["name": .string($0.name), "weight": .number($0.weight), "genres": .array($0.genres.map(JSONValue.string))]) }
         let trackJSON: [JSONValue] = tracks.map { track in
             var row: JSONObject = ["title": .string(track.title), "artist": .string(track.artist), "weight": .number(track.weight)]
@@ -344,6 +344,7 @@ extension UserRepository {
         ]
         if let cityID { parameters["p_city_id"] = .string(cityID.uuidString.lowercased()) }
         if let period { parameters["p_period"] = .string(period) }
+        if merge { parameters["p_merge"] = .bool(true) }
         let value: JSONObject? = try await client.rpc("music_taste_analyze", parameters: parameters, accessToken: token)
         return MusicTaste(json: value)
     }

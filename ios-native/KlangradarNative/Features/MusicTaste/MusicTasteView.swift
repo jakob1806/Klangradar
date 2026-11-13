@@ -17,6 +17,9 @@ struct MusicTasteView: View {
     @State private var error: String?
     @State private var spotify = SpotifyTaste()
     @State private var lastfmLogin = LastFMLogin()
+    @StateObject private var shazam = ShazamTaste()
+    @State private var showsShazam = false
+    @State private var shazamMessage: String?
     @State private var showsLastFM = false
     @State private var showsAllTracks = false
     @AppStorage("lastfmUsername") private var lastfmUsername = ""
@@ -95,7 +98,7 @@ struct MusicTasteView: View {
         case "overall": "insgesamt"
         default: "der letzten 12 Monate"
         }
-        let source = taste.providers.map { $0 == "lastfm" ? "Last.fm" : $0 == "apple_music" ? "Apple Music" : "Spotify" }.joined(separator: " & ")
+        let source = taste.providers.map { $0 == "lastfm" ? "Last.fm" : $0 == "apple_music" ? "Apple Music" : $0 == "shazam" ? "Shazam" : "Spotify" }.joined(separator: " & ")
         var text = "Aus \(taste.artistCount) Künstler:innen und \(taste.trackCount) Titeln \(period) · \(source)"
         if let updated = taste.updatedAt { text += " · Stand \(KlangradarDateTime.string(updated, format: "d. MMM"))" }
         return text
@@ -366,6 +369,8 @@ struct MusicTasteView: View {
             }
             Divider().padding(.leading, 56)
             lastFMRow
+            Divider().padding(.leading, 56)
+            shazamRow
             // 13.11.2026: Spotify nur für das Admin-Konto (Spotify-Entwicklermodus:
             // höchstens 5 freigeschaltete Nutzer, Inhaber braucht Premium).
             if SpotifyTaste.clientID != nil, SpotifyTaste.isAllowed(email: auth.session?.user.email) {
@@ -415,6 +420,90 @@ struct MusicTasteView: View {
         .buttonStyle(.plain)
         .disabled(working != nil)
         .sheet(isPresented: $showsLastFM) { lastFMSheet }
+    }
+
+    // MARK: Shazam
+
+    private var shazamRow: some View {
+        Button { showsShazam = true } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "shazam.logo.fill").font(.body.weight(.semibold)).foregroundStyle(.white)
+                    .frame(width: 32, height: 32).background(Color(red: 0.05, green: 0.45, blue: 1.0), in: .rect(cornerRadius: 8, style: .continuous))
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Shazam – Musik erkennen").font(.body.weight(.semibold)).foregroundStyle(.primary)
+                    Text(shazam.finds.isEmpty ? "Was gerade läuft, fließt in deinen Geschmack ein" : "\(shazam.finds.count) erkannt · tippen für mehr")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: shazam.finds.isEmpty ? "plus.circle" : "checkmark.circle.fill").foregroundStyle(shazam.finds.isEmpty ? .secondary : .green)
+            }
+            .padding(.horizontal, 14).padding(.vertical, 10)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(working != nil)
+        .sheet(isPresented: $showsShazam) { shazamSheet }
+    }
+
+    private var shazamSheet: some View {
+        NavigationStack {
+            List {
+                Section {
+                    VStack(spacing: 14) {
+                        Button {
+                            Task { await recognizeWithShazam() }
+                        } label: {
+                            ZStack {
+                                Circle().fill(Color(red: 0.05, green: 0.45, blue: 1.0)).frame(width: 120, height: 120)
+                                    .scaleEffect(shazam.isListening ? 1.08 : 1)
+                                    .animation(shazam.isListening ? .easeInOut(duration: 0.7).repeatForever(autoreverses: true) : .default, value: shazam.isListening)
+                                Image(systemName: "shazam.logo.fill").font(.system(size: 56)).foregroundStyle(.white)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(shazam.isListening)
+                        Text(shazam.isListening ? "Hört zu …" : "Tippen, um zu erkennen").font(.headline)
+                        if let shazamMessage { Text(shazamMessage).font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center) }
+                    }
+                    .frame(maxWidth: .infinity).padding(.vertical, 12)
+                    .listRowBackground(Color.clear)
+                } footer: {
+                    Text("Im Konzert, im Radio oder zu Hause: Erkannte Titel landen in deinem Musikgeschmack und in deiner Shazam-Mediathek. Das Mikrofon läuft nur, solange du erkennen lässt.")
+                }
+                if !shazam.finds.isEmpty {
+                    Section("Erkannt") {
+                        ForEach(shazam.finds.prefix(30)) { find in
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(find.title).font(.subheadline.weight(.semibold)).lineLimit(2)
+                                Text([find.artist, KlangradarDateTime.string(find.date, format: "d. MMM")].filter { !$0.isEmpty }.joined(separator: " · "))
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Shazam")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fertig") { shazam.cancel(); showsShazam = false } } }
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    private func recognizeWithShazam() async {
+        shazamMessage = nil
+        guard let find = await shazam.recognize() else {
+            shazamMessage = "Nichts erkannt. Halte das iPhone näher an die Musik und versuch es noch einmal."
+            return
+        }
+        shazamMessage = "\(find.title)\(find.artist.isEmpty ? "" : " – \(find.artist)")"
+        guard let token = auth.accessToken else { return }
+        let data = ShazamTaste.listening(for: find)
+        let providers = Array(Set((taste?.providers ?? []) + ["shazam"]))
+        if let updated = try? await repository.analyzeMusicTaste(artists: data.artists, tracks: data.tracks, providers: providers,
+                                                                cityID: cityStore.selectedCity?.id, period: nil, merge: true, token: token) {
+            taste = updated
+            Haptics.confirm()
+        }
     }
 
     private var lastFMSheet: some View {

@@ -46,7 +46,7 @@
 	<key>NSAppleMusicUsageDescription</key>
 	<string>Klangradar liest deine meistgehörten Künstler:innen und Titel, um dir passende Konzerte, Werke und Ensembles vorzuschlagen.</string>
 	<key>SpotifyClientID</key>
-	<string></string>
+	<string>1c84eea8195c44639c4ae26f7c00417d</string>
 	<key>UILaunchScreen</key>
 	<dict>
 		<key>UIColorName</key>
