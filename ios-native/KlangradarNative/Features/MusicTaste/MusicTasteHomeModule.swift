@@ -29,19 +29,19 @@ struct MusicTasteHomeModule: View {
                                         if let image = phase.image { image.resizable().scaledToFill() }
                                         else { Color(uiColor: .tertiarySystemFill).overlay { Image(systemName: "music.note").foregroundStyle(.secondary) } }
                                     }
-                                    .frame(width: 52, height: 52).clipShape(.rect(cornerRadius: 10, style: .continuous))
+                                    .frame(width: 54, height: 54).clipShape(.rect(cornerRadius: 10, style: .continuous))
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text(item.title).font(.subheadline.weight(.semibold)).foregroundStyle(.primary).lineLimit(2)
+                                        Text(item.title).font(.headline).foregroundStyle(.primary).lineLimit(2)
                                         if let subtitle = item.subtitle { Text(subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
                                     }
                                     Spacer(minLength: 0)
                                     Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
                                 }
-                                .padding(.horizontal, 12).padding(.vertical, 10)
+                                .padding(.horizontal, 14).padding(.vertical, 12)
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
-                            if index < min(events.count, 3) - 1 { Divider().padding(.leading, 76) }
+                            if index < min(events.count, 3) - 1 { Divider().padding(.leading, 82) }
                         }
                     }
                     .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 18, style: .continuous))
