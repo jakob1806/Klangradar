@@ -23,6 +23,11 @@ struct SupabaseRESTClient: Sendable {
         self.decoder = decoder
     }
 
+    /// URL einer Edge Function (z. B. für Anmeldefenster).
+    func functionURL(_ name: String) -> URL {
+        configuration.supabaseURL.appendingPathComponent("functions/v1").appendingPathComponent(name)
+    }
+
     func publicStorageURL(bucket: String, path: String) -> URL {
         configuration.supabaseURL
             .appendingPathComponent("storage/v1/object/public")

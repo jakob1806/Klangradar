@@ -16,6 +16,7 @@ struct MusicTasteView: View {
     @State private var working: String?
     @State private var error: String?
     @State private var spotify = SpotifyTaste()
+    @State private var lastfmLogin = LastFMLogin()
     @State private var showsLastFM = false
     @State private var showsAllTracks = false
     @AppStorage("lastfmUsername") private var lastfmUsername = ""
@@ -418,10 +419,23 @@ struct MusicTasteView: View {
         NavigationStack {
             Form {
                 Section {
+                    Button {
+                        showsLastFM = false
+                        Task { await loginWithLastFM() }
+                    } label: {
+                        Label("Mit Last.fm anmelden", systemImage: "person.crop.circle.badge.checkmark")
+                            .font(.headline).frame(maxWidth: .infinity).padding(.vertical, 6)
+                    }
+                } footer: {
+                    Text("Öffnet die Anmeldeseite von Last.fm. Noch kein Konto? Dort kannst du dich in einer Minute registrieren. Spotify verbindest du danach einmal unter last.fm → Einstellungen → Anwendungen.")
+                }
+                Section {
                     TextField("Last.fm-Nutzername", text: $lastfmUsername)
                         .textInputAutocapitalization(.never).autocorrectionDisabled()
+                } header: {
+                    Text("Oder nur den Namen eingeben")
                 } footer: {
-                    Text("Du hörst mit Spotify? Verbinde Spotify einmal mit Last.fm (last.fm → Einstellungen → Anwendungen → Spotify-Scrobbling). Danach reicht hier dein Last.fm-Name – Klangradar liest nur dein öffentliches Hörprofil.")
+                    Text("Klangradar liest nur dein öffentliches Hörprofil – keine Zugangsdaten.")
                 }
                 Section("Zeitraum") {
                     Picker("Zeitraum", selection: $lastfmPeriod) {
@@ -456,6 +470,18 @@ struct MusicTasteView: View {
             }
         }
         .presentationDetents([.medium, .large])
+    }
+
+    private func loginWithLastFM() async {
+        guard let token = auth.accessToken else { error = "Bitte melde dich zuerst an."; return }
+        let client = repository.client
+        let period = lastfmPeriod
+        let login = lastfmLogin
+        await analyze(key: "lastfm") {
+            let loginToken = try await login.token(client: client)
+            return try await LastFMTaste.read(loginToken: loginToken, period: period, client: client, token: token)
+        }
+        if let name = LastFMTaste.lastUsername { lastfmUsername = name }
     }
 
     private func connectRow(name: String, symbol: String, tint: Color, key: String,

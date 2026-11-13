@@ -153,11 +153,55 @@ private extension Data {
 
 // MARK: - Last.fm (nur Nutzername, Schlüssel liegt auf dem Server)
 
+/// 13.11.2026: Anmelden über das Last.fm-Fenster (Anmelden/Registrieren
+/// auf last.fm selbst) – danach kennt Klangradar den Namen automatisch.
+@MainActor
+final class LastFMLogin: NSObject, ASWebAuthenticationPresentationContextProviding {
+    private var session: ASWebAuthenticationSession?
+
+    nonisolated func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+        MainActor.assumeIsolated {
+            UIApplication.shared.connectedScenes.compactMap { ($0 as? UIWindowScene)?.keyWindow }.first ?? ASPresentationAnchor()
+        }
+    }
+
+    /// Öffnet last.fm und liefert das Anmelde-Token.
+    func token(client: SupabaseRESTClient) async throws -> String {
+        var components = URLComponents(url: client.functionURL("lastfm-taste"), resolvingAgainstBaseURL: false)!
+        components.queryItems = [URLQueryItem(name: "login", value: "1")]
+        let callback: URL = try await withCheckedThrowingContinuation { continuation in
+            let session = ASWebAuthenticationSession(url: components.url!, callbackURLScheme: "de.klangradar.native") { url, error in
+                if let url { continuation.resume(returning: url) }
+                else if let error = error as? ASWebAuthenticationSessionError, error.code == .canceledLogin { continuation.resume(throwing: MusicTasteError.cancelled) }
+                else { continuation.resume(throwing: MusicTasteError.failed("Last.fm-Anmeldung fehlgeschlagen.")) }
+            }
+            session.presentationContextProvider = self
+            session.prefersEphemeralWebBrowserSession = false
+            self.session = session
+            session.start()
+        }
+        guard let token = URLComponents(url: callback, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "token" })?.value,
+              !token.isEmpty else { throw MusicTasteError.failed("Last.fm hat keinen Zugang erteilt.") }
+        return token
+    }
+}
+
 enum LastFMTaste {
+    /// Name des zuletzt per Fenster angemeldeten Kontos.
+    @MainActor static var lastUsername: String?
+
     static func read(username: String, period: String = "12month", client: SupabaseRESTClient, token: String) async throws -> (artists: [ListenedArtist], tracks: [ListenedTrack]) {
+        try await read(body: ["username": .string(username), "period": .string(period)], client: client, token: token)
+    }
+
+    static func read(loginToken: String, period: String = "12month", client: SupabaseRESTClient, token: String) async throws -> (artists: [ListenedArtist], tracks: [ListenedTrack]) {
+        try await read(body: ["token": .string(loginToken), "period": .string(period)], client: client, token: token)
+    }
+
+    private static func read(body: JSONObject, client: SupabaseRESTClient, token: String) async throws -> (artists: [ListenedArtist], tracks: [ListenedTrack]) {
         let result: JSONObject
         do {
-            result = try await client.edgeFunction("lastfm-taste", body: ["username": .string(username), "period": .string(period)], accessToken: token)
+            result = try await client.edgeFunction("lastfm-taste", body: body, accessToken: token)
         } catch {
             throw MusicTasteError.failed("Last.fm ist gerade nicht erreichbar oder noch nicht eingerichtet.")
         }
@@ -166,9 +210,11 @@ enum LastFMTaste {
             case "user_not_found": throw MusicTasteError.failed("Diesen Last.fm-Namen gibt es nicht.")
             case "invalid_username": throw MusicTasteError.failed("Bitte einen gültigen Last.fm-Namen eingeben.")
             case "not_configured": throw MusicTasteError.failed("Last.fm ist noch nicht eingerichtet.")
+            case "login_failed": throw MusicTasteError.failed("Die Last.fm-Anmeldung hat nicht geklappt. Bitte versuch es erneut.")
             default: throw MusicTasteError.failed("Last.fm-Abfrage fehlgeschlagen.")
             }
         }
+        if let name = result.string("username") { await MainActor.run { lastUsername = name } }
         let artists = result.objects("artists").compactMap { row -> ListenedArtist? in
             guard let name = row.string("name") else { return nil }
             return ListenedArtist(name: name, weight: row.number("weight") ?? 1, genres: row.strings("genres"))
