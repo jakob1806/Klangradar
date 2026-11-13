@@ -208,7 +208,7 @@ struct MusicTasteView: View {
         VStack(spacing: 0) {
             ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                 row(item, kind: kind)
-                if index < items.count - 1 { Divider().padding(.leading, 70) }
+                if index < items.count - 1 { Divider().padding(.leading, 80) }
             }
         }
         .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 18, style: .continuous))
@@ -236,17 +236,17 @@ struct MusicTasteView: View {
             Group {
                 switch kind {
                 case .person, .performer:
-                    SocialAvatar(name: item.title, url: item.imageURL, size: 46)
+                    SocialAvatar(name: item.title, url: item.imageURL, size: 54)
                 default:
                     CachedAsyncImage(url: item.imageURL, maxPixel: 200) { phase in
                         if let image = phase.image { image.resizable().scaledToFill() }
                         else { Color(uiColor: .tertiarySystemFill).overlay { Image(systemName: symbol(kind)).foregroundStyle(.secondary) } }
                     }
-                    .frame(width: 46, height: 46).clipShape(.rect(cornerRadius: 10, style: .continuous))
+                    .frame(width: 54, height: 54).clipShape(.rect(cornerRadius: 12, style: .continuous))
                 }
             }
             VStack(alignment: .leading, spacing: 2) {
-                Text(item.title).font(.subheadline.weight(.semibold)).foregroundStyle(.primary).lineLimit(2)
+                Text(item.title).font(.headline).foregroundStyle(.primary).lineLimit(2)
                 if let subtitle = item.subtitle, !subtitle.isEmpty {
                     Text(subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 }
@@ -270,7 +270,7 @@ struct MusicTasteView: View {
                 Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
             }
         }
-        .padding(.horizontal, 12).padding(.vertical, 10)
+        .padding(.horizontal, 14).padding(.vertical, 12)
         .contentShape(Rectangle())
 
         if kind == .event {
@@ -304,16 +304,16 @@ struct MusicTasteView: View {
                 VStack(spacing: 0) {
                     ForEach(Array(shown.enumerated()), id: \.element.id) { index, entry in
                         listenedRow(entry)
-                        if index < shown.count - 1 { Divider().padding(.leading, 52) }
+                        if index < shown.count - 1 { Divider().padding(.leading, 80) }
                     }
                 }
                 .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 18, style: .continuous))
                 if !taste.topTracks.isEmpty && showsAllTracks {
                     Text("Meistgehörte Titel").font(.subheadline.weight(.semibold)).padding(.top, 4)
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: 10) {
                         ForEach(taste.topTracks.prefix(15)) { track in
                             VStack(alignment: .leading, spacing: 1) {
-                                Text(track.title).font(.subheadline).lineLimit(1)
+                                Text(track.title).font(.body).lineLimit(1)
                                 Text(track.artist).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                             }
                         }
@@ -333,9 +333,18 @@ struct MusicTasteView: View {
     @ViewBuilder
     private func listenedRow(_ entry: MusicTaste.Listened) -> some View {
         let label = HStack(spacing: 12) {
-            Text("\(entry.rank)").font(.subheadline.weight(.bold)).monospacedDigit().foregroundStyle(.secondary).frame(width: 28)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(entry.name).font(.subheadline.weight(.semibold)).foregroundStyle(entry.isMatched ? .primary : .secondary).lineLimit(1)
+            ZStack(alignment: .bottomTrailing) {
+                SocialAvatar(name: entry.name, url: entry.imageURL, size: 54)
+                    .opacity(entry.isMatched ? 1 : 0.5)
+                Text("\(entry.rank)").font(.caption2.weight(.bold)).monospacedDigit()
+                    .foregroundStyle(.white)
+                    .frame(minWidth: 20, minHeight: 20)
+                    .background(entry.isMatched ? KlangradarTheme.accent : Color.gray, in: .circle)
+                    .overlay { Circle().stroke(Color(uiColor: .secondarySystemGroupedBackground), lineWidth: 2) }
+                    .offset(x: 3, y: 3)
+            }
+            VStack(alignment: .leading, spacing: 3) {
+                Text(entry.name).font(.headline).foregroundStyle(entry.isMatched ? .primary : .secondary).lineLimit(1)
                 if entry.isMatched {
                     let city = cityName.map { " in \($0)" } ?? ""
                     Text(entry.upcoming > 0 ? "In Klangradar · \(entry.upcoming) \(entry.upcoming == 1 ? "Konzert" : "Konzerte")\(city)" : "In Klangradar · gerade keine Konzerte\(city)")
@@ -347,7 +356,7 @@ struct MusicTasteView: View {
             Spacer(minLength: 0)
             if entry.isMatched { Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary) }
         }
-        .padding(.horizontal, 12).padding(.vertical, 10)
+        .padding(.horizontal, 14).padding(.vertical, 12)
         .contentShape(Rectangle())
 
         if let id = entry.personID ?? entry.ensembleID {
