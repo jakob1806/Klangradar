@@ -435,7 +435,7 @@ struct MusicTasteView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
-                Image(systemName: shazam.finds.isEmpty ? "plus.circle" : "checkmark.circle.fill").foregroundStyle(shazam.finds.isEmpty ? .secondary : .green)
+                Image(systemName: shazam.finds.isEmpty ? "plus.circle" : "checkmark.circle.fill").foregroundStyle(shazam.finds.isEmpty ? Color.secondary : Color.green)
             }
             .padding(.horizontal, 14).padding(.vertical, 10)
             .contentShape(Rectangle())
