@@ -6,6 +6,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { json } from "../_shared/eventParticipantResolution.ts";
 import { requireInternalAuth } from "../_shared/internalAuth.ts";
 import { findSocialLinks, RateLimited, type SocialEntityType } from "../_shared/wikidataSocial.ts";
+import { socialLinksFromWebsite } from "../_shared/websiteSocial.ts";
 
 const TABLES: Record<SocialEntityType, { table: string; name: string }> = {
   person: { table: "persons", name: "full_name" },
@@ -52,6 +53,27 @@ Deno.serve(async (req) => {
       await new Promise((r) => setTimeout(r, 1100));
     }
     if (results.length >= limit) break;
+  }
+  // 14.11.2026: zweiter Durchgang – fehlende Kanäle von der eigenen Website
+  // (Wikidata kennt viele Ensembles, Orte und jüngere Künstler:innen nicht).
+  for (const type of ["ensemble", "venue", "person"] as SocialEntityType[]) {
+    if (results.length >= limit || Date.now() - started > 100_000) break;
+    const { table } = TABLES[type];
+    const { data: rows } = await supabase.from(table)
+      .select("id,social_links,website_url")
+      .not("website_url", "is", null)
+      .not("social_links_checked_at", "is", null)
+      .is("social_links_web_checked_at", null)
+      .limit(limit - results.length);
+    // deno-lint-ignore no-explicit-any
+    for (const row of (rows ?? []) as any[]) {
+      if (Date.now() - started > 110_000) break;
+      const found = await socialLinksFromWebsite(row.website_url);
+      const existing = row.social_links ?? {};
+      const merged = { ...found, ...Object.fromEntries(Object.entries(existing).filter(([, v]) => v)) };
+      await supabase.from(table).update({ social_links: merged, social_links_web_checked_at: new Date().toISOString() }).eq("id", row.id);
+      results.push({ type, id: row.id, source: "website", added: Object.keys(found).filter((k) => !existing[k]) });
+    }
   }
   return json({ processed: results.length, results });
 });

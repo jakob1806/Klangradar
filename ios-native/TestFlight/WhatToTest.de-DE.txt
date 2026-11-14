@@ -7,6 +7,8 @@ Musikgeschmack neu
 • Shazam: Musik erkennen lassen, Treffer fließen in deinen Geschmack ein. Last.fm-Anmeldung über das Last.fm-Fenster.
 
 Korrekturen
+• Ticket hinzufügen: Hinweis, wenn Datum, Ort oder Titel auf dem Ticket nicht zum Konzert passen.
+• Route und Restaurants auch bei gemerkten Konzerten.
 • Konzerttag: Wetter am Abend unter den Restaurants mit Stundenverlauf bis zum Heimweg; Lokale im Konzerthaus (z. B. Gaia) mit Kartenausschnitt statt falschem Foto.
 • Wallet-Karte: Bild frei, Titel mit Komponisten darunter, dann Beginn/Ort und Platz.
 • Ensembleseiten zeigen keine fremden Abos mehr (z. B. BRSO-Abo A beim Tölzer Knabenchor).
@@ -54,5 +56,3 @@ Platzerkennung (neu)
 • Bitte testen: Ticket von München Ticket, Eventim, Staatsoper hinzufügen und prüfen, ob alles richtig erkannt wird.
 
 Wallet-Karte
-• Mit Klangradar-Logo. Mit gutem Konzertfoto als Bild, sonst als Plakat mit großem Titel.
-• Konzertbild kommt jetzt auch bei Bildern von mphil.de an.

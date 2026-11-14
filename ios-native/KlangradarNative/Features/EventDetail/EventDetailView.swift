@@ -88,7 +88,9 @@ struct EventDetailView: View {
                             if !PerformerBriefs.replacesParticipantList(detail) { participants(detail) }
                             ticketDetails(detail)
                             SeatCard(event: event, detail: detail)
-                            if willAttend {
+                            // 14.11.2026: auch bei gemerkten Konzerten (Merken = „ich gehe
+                            // wahrscheinlich hin“) – sonst fehlten Route und Restaurants.
+                            if willAttend || favorites.ids.contains(event.id) {
                                 EveningPlanSection(event: event, detail: detail)
                             }
                             accessibility(detail)

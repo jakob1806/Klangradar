@@ -143,6 +143,17 @@ enum TicketStore {
     /// Platz aus dem Ticket-Text lesen (09.11.2026, v3): Texterkennung auf
     /// dem Gerät, alle Seiten, mit Lage jeder Zeile auf dem Ticket.
     static func detectSeat(in images: [UIImage]) async -> ConcertSeat {
+        SeatParser.parse(await recognizeLines(in: images))
+    }
+
+    /// Platz und vollständiger Ticket-Text (für die Prüfung, ob das Ticket
+    /// zum Konzert passt – 14.11.2026).
+    static func detectSeatAndText(in images: [UIImage]) async -> (seat: ConcertSeat, text: String) {
+        let lines = await recognizeLines(in: images)
+        return (SeatParser.parse(lines), lines.map(\.text).joined(separator: "\n"))
+    }
+
+    private static func recognizeLines(in images: [UIImage]) async -> [SeatParser.Line] {
         var lines: [SeatParser.Line] = []
         for (page, image) in images.prefix(6).enumerated() {
             guard let cgImage = image.cgImage else { continue }
@@ -161,7 +172,7 @@ enum TicketStore {
             }.value
             lines += found
         }
-        return SeatParser.parse(lines)
+        return lines
     }
 
     /// Nur Text (Tests, ältere Aufrufer): Zeilen untereinander ohne Lage.
