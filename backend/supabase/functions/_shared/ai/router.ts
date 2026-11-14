@@ -17,9 +17,10 @@ import type { AiFunctionDeclaration } from "./types.ts";
 import { cerebrasProvider } from "./providers/cerebras.ts";
 import { nvidiaProvider } from "./providers/nvidia.ts";
 import { createGeminiProvider } from "./providers/gemini.ts";
+import { groqProvider, mistralProvider, openRouterProvider } from "./providers/free-extra.ts";
 
 const geminiProvider = createGeminiProvider();
-const PROVIDERS = [cerebrasProvider, nvidiaProvider, geminiProvider];
+const PROVIDERS = [cerebrasProvider, groqProvider, nvidiaProvider, geminiProvider, openRouterProvider, mistralProvider];
 
 export type { AiFunctionDeclaration };
 
@@ -56,7 +57,7 @@ export async function callAiFunctionPreferGemini(
   fn: AiFunctionDeclaration,
   // deno-lint-ignore no-explicit-any
 ): Promise<{ args: Record<string, any>; provider: string } | null> {
-  for (const provider of [geminiProvider, cerebrasProvider, nvidiaProvider]) {
+  for (const provider of [geminiProvider, groqProvider, mistralProvider, openRouterProvider, cerebrasProvider, nvidiaProvider]) {
     const args = await provider.callFunction(system, user, fn);
     if (args) return { args, provider: provider.name };
   }

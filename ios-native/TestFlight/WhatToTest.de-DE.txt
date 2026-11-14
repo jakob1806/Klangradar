@@ -7,6 +7,9 @@ Musikgeschmack neu
 • Shazam: Musik erkennen lassen, Treffer fließen in deinen Geschmack ein. Last.fm-Anmeldung über das Last.fm-Fenster.
 
 Korrekturen
+• Klangradar KI neu gestaltet (ruhige Eingabeleiste, Treffer als Liste) und beantwortet Wissens- und Servicefragen (Garderobe, Anreise, Werke) jetzt direkt – mit Websuche und Fakten zu Spielstätten.
+• Ticket hinzufügen: Hinweis, wenn Datum, Ort oder Titel auf dem Ticket nicht zum Konzert passen.
+• Route und Restaurants auch bei gemerkten Konzerten.
 • Konzerttag: Wetter am Abend unter den Restaurants mit Stundenverlauf bis zum Heimweg; Lokale im Konzerthaus (z. B. Gaia) mit Kartenausschnitt statt falschem Foto.
 • Wallet-Karte: Bild frei, Titel mit Komponisten darunter, dann Beginn/Ort und Platz.
 • Ensembleseiten zeigen keine fremden Abos mehr (z. B. BRSO-Abo A beim Tölzer Knabenchor).
@@ -51,8 +54,3 @@ Chat mit Freunden
 Platzerkennung (neu)
 • Liest jetzt auch „Sitz“, „Tür“, „Aufgang“, Etagen („2. OG“) und Bereiche ohne Beschriftung („Rang Mitte“). Preis, Kategorie, Adresse und Ticketnummer werden ignoriert.
 • Bezeichnungen wie auf dem Ticket: „Block“ kann „Rang“, „Bereich“ oder „Parkett“ sein, „Platz“ auch „Sitz“. Weitere Angaben (Etage, Kategorie …) per „Angabe hinzufügen“.
-• Bitte testen: Ticket von München Ticket, Eventim, Staatsoper hinzufügen und prüfen, ob alles richtig erkannt wird.
-
-Wallet-Karte
-• Mit Klangradar-Logo. Mit gutem Konzertfoto als Bild, sonst als Plakat mit großem Titel.
-• Konzertbild kommt jetzt auch bei Bildern von mphil.de an.

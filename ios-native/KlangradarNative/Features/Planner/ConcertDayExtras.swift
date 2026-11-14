@@ -603,6 +603,8 @@ private struct TicketSeatEditor: View {
     @State private var ticketCodes: [TicketStore.TicketCode] = []
     @State private var openCodeIndex = 0
     @State private var detectionNote: String?
+    @State private var ticketMismatch: TicketMatch?
+    @State private var showsMismatchAlert = false
     private var ticketCode: TicketStore.TicketCode? { ticketCodes.first }
     @State private var showsScanner = false
     @State private var showsCodeEntry = false
@@ -687,6 +689,19 @@ private struct TicketSeatEditor: View {
             .sheet(isPresented: $showsSeatingPlan) {
                 if let seatingPlanURL { SeatingPlanSheet(url: seatingPlanURL, seat: seat, title: event.venueName, eventID: event.id) }
             }
+            .alert("Passt das Ticket zu diesem Konzert?", isPresented: $showsMismatchAlert, presenting: ticketMismatch) { _ in
+                Button("Ticket entfernen", role: .destructive) {
+                    TicketStore.remove(for: event.id)
+                    ticketImage = nil
+                    ticketCodes = []
+                    TicketStore.saveCodes([], for: event.id)
+                    ticketMismatch = nil
+                    detectionNote = nil
+                }
+                Button("Trotzdem behalten", role: .cancel) {}
+            } message: { match in
+                Text("\(match.message) Gewählt ist „\(event.title)“\(event.startDate.map { " am " + KlangradarDateTime.string($0, format: "d. MMMM yyyy") } ?? "").")
+            }
             .alert("Code einfügen", isPresented: $showsCodeEntry) {
                 TextField("Inhalt des QR-Codes", text: $manualCode)
                 Button("Speichern") {
@@ -733,7 +748,12 @@ private struct TicketSeatEditor: View {
         Task {
             let codes = await TicketStore.detectCodes(in: pages ?? [image])
             // Platz aus dem Ticket übernehmen, nur leere Felder füllen.
-            let found = await TicketStore.detectSeat(in: pages ?? [image])
+            let scan = await TicketStore.detectSeatAndText(in: pages ?? [image])
+            let found = scan.seat
+            // 14.11.2026: passt das Ticket zu diesem Konzert (Datum, Ort, Titel)?
+            let match = TicketMatch.check(text: scan.text, title: event.title, venue: event.venues?.name, start: event.startDate)
+            ticketMismatch = match.isSuspicious ? match : nil
+            if match.isSuspicious { showsMismatchAlert = true }
             // 09.11.2026: neues Ticket → Erkanntes ersetzt alte Werte (auch
             // Fehlerkennungen früherer Versionen); nicht Erkanntes bleibt.
             if !found.isEmpty {
@@ -873,6 +893,7 @@ private struct TicketSeatEditor: View {
     }
 
     private var ticketStatus: String {
+        if let ticketMismatch { return "⚠️ Passt evtl. nicht zum Konzert: \(ticketMismatch.message)" }
         if let detectionNote { return detectionNote }
         if ticketCodes.count > 1 { return "\(ticketCodes.count) Tickets · Codes geprüft" }
         if let code = ticketCode { return "\(code.format.uppercased())-Code erkannt · scharf für den Einlass" }

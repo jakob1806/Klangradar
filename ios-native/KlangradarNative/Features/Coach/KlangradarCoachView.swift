@@ -258,19 +258,22 @@ struct KlangradarCoachView: View {
                 .padding(.top, presentsChatDirectly ? 8 : 12)
                 .padding(.bottom, 12)
             }
+            // 14.11.2026 (Redesign): Eingabe wie in Nachrichten – feste Leiste
+            // mit Material, Vorschläge als kleine Chips darüber, nichts scheint
+            // mehr durch; Senden-Knopf im Eingabefeld.
             .safeAreaInset(edge: .bottom) {
-                VStack(spacing: 10) {
-                    if !suggestedPrompts.isEmpty && messages.count > 1 {
+                VStack(spacing: 8) {
+                    if !suggestedPrompts.isEmpty && messages.count > 1 && !isSending {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 8) {
                                 ForEach(suggestedPrompts, id: \.self) { prompt in
                                     Button { sendTask = Task { await send(prompt) } } label: {
                                         Text(prompt)
-                                            .font(.subheadline.weight(.medium))
-                                            .padding(.horizontal, 13)
-                                            .padding(.vertical, 9)
-                                            .background(.thinMaterial, in: Capsule())
-                                            .overlay { Capsule().stroke(Color.primary.opacity(0.08), lineWidth: 1) }
+                                            .font(.footnote.weight(.medium))
+                                            .foregroundStyle(KlangradarTheme.accent)
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 7)
+                                            .background(KlangradarTheme.accent.opacity(0.1), in: Capsule())
                                     }
                                     .buttonStyle(.plain)
                                 }
@@ -290,49 +293,40 @@ struct KlangradarCoachView: View {
                         }
                         .buttonStyle(.plain)
                     }
-                    HStack(alignment: .bottom, spacing: 10) {
-                        TextField("Nachricht an Klangradar KI", text: $draft, axis: .vertical)
+                    HStack(alignment: .bottom, spacing: 8) {
+                        TextField("Frag mich etwas …", text: $draft, axis: .vertical)
                             .font(.body)
                             .lineLimit(1...5)
                             .submitLabel(.send)
                             .onSubmit { sendTask = Task { await send() } }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 13)
-                            .frame(minHeight: 50)
-                            .background(.thinMaterial, in: .rect(cornerRadius: 22, style: .continuous))
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                                    .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-                            }
-
+                            .padding(.leading, 16)
+                            .padding(.vertical, 10)
                         Button {
-                            if isSending {
-                                sendTask?.cancel()
-                            } else {
-                                sendTask = Task { await send() }
-                            }
+                            if isSending { sendTask?.cancel() } else { sendTask = Task { await send() } }
                         } label: {
-                            Image(systemName: isSending ? "square.fill" : "arrow.up")
-                                .font(.scaled(isSending ? 15 : 17, weight: .bold))
+                            Image(systemName: isSending ? "stop.fill" : "arrow.up")
+                                .font(.system(size: 15, weight: .bold))
                                 .foregroundStyle(.white)
-                                .frame(width: 50, height: 50)
-                                .background(LinearGradient(colors: [KlangradarTheme.accent, .purple], startPoint: .topLeading, endPoint: .bottomTrailing), in: Circle())
-                                .shadow(color: KlangradarTheme.accent.opacity(0.35), radius: 8, y: 3)
+                                .frame(width: 32, height: 32)
+                                .background(KlangradarTheme.accent, in: Circle())
                         }
                         .buttonStyle(CoachSendButtonStyle())
                         .accessibilityLabel(isSending ? "Antwort stoppen" : "Nachricht senden")
                         .disabled(!isSending && draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .padding(.trailing, 5)
+                        .padding(.bottom, 5)
                     }
-                    .padding(.horizontal, 14)
-                    .padding(.bottom, 10)
+                    .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 21, style: .continuous))
+                    .overlay { RoundedRectangle(cornerRadius: 21, style: .continuous).stroke(Color.primary.opacity(0.1), lineWidth: 0.5) }
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 8)
                 }
-                .padding(.top, 10)
-                .background(.clear)
-                .overlay(alignment: .top) { Divider().opacity(0.45) }
+                .padding(.top, 8)
+                .background(.bar)
             }
             .animation(.spring(duration: 0.45, bounce: 0.25), value: messages.count)
             .animation(.spring(duration: 0.35), value: isSending)
-            .background { CoachAmbientBackground(isThinking: isSending) }
+            .background(Color(uiColor: .systemGroupedBackground))
             .onChange(of: messages.count) { _, _ in withAnimation { proxy.scrollTo("coach-bottom") } }
             .onChange(of: isSending) { _, sending in if sending { withAnimation { proxy.scrollTo("coach-bottom") } } }
         }
@@ -342,6 +336,8 @@ struct KlangradarCoachView: View {
     // Event jetzt ein horizontal scrollbares Band aus kompakten Miniaturen
     // (max. 4) direkt unter der Antwort -- jede öffnet per Tap die volle
     // Detailansicht über dieselbe navigationDestination(for: ConcertEvent).
+    /// 14.11.2026: Treffer als ruhige Liste (wie überall in der App) statt
+    /// eines Karussells halb abgeschnittener Karten.
     private func eventCarousel(_ events: [CoachEvent], isAlternatives: Bool) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             if isAlternatives {
@@ -349,64 +345,41 @@ struct KlangradarCoachView: View {
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
             }
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(alignment: .top, spacing: 10) {
-                    ForEach(events.prefix(4)) { event in
-                        NavigationLink(value: event.concertEvent) { coachEventMiniCard(event) }
-                            .buttonStyle(.plain)
-                    }
+            VStack(spacing: 0) {
+                ForEach(Array(events.prefix(4).enumerated()), id: \.element.id) { index, event in
+                    NavigationLink(value: event.concertEvent) { coachEventRow(event) }
+                        .buttonStyle(.plain)
+                    if index < min(events.count, 4) - 1 { Divider().padding(.leading, 78) }
                 }
-                .padding(.vertical, 2)
             }
+            .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 16, style: .continuous))
         }
     }
 
-    private func coachEventMiniCard(_ event: CoachEvent) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ZStack(alignment: .topTrailing) {
-                AsyncImage(url: event.imageURL) { phase in
-                    if case let .success(image) = phase {
-                        image.resizable().scaledToFill()
-                    } else {
-                        Rectangle().fill(KlangradarTheme.accent.opacity(0.16))
-                            .overlay { Image(systemName: "music.note").foregroundStyle(KlangradarTheme.accent) }
-                    }
-                }
-                .frame(width: 172, height: 92)
-                .clipped()
-
-                Button { Task { await favorites.toggle(event.id) } } label: {
-                    Image(systemName: favorites.ids.contains(event.id) ? "heart.fill" : "heart")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(.white)
-                        .padding(7)
-                        .background(.black.opacity(0.32), in: .circle)
-                }
-                .accessibilityLabel(favorites.ids.contains(event.id) ? "Von Favoriten entfernen" : "Zu Favoriten hinzufügen")
-                .padding(6)
+    private func coachEventRow(_ event: CoachEvent) -> some View {
+        HStack(spacing: 12) {
+            CachedAsyncImage(url: event.imageURL, maxPixel: 200) { phase in
+                if let image = phase.image { image.resizable().scaledToFill() }
+                else { Rectangle().fill(KlangradarTheme.accent.opacity(0.12)).overlay { Image(systemName: "music.note").foregroundStyle(KlangradarTheme.accent) } }
             }
+            .frame(width: 54, height: 54)
+            .clipShape(.rect(cornerRadius: 12, style: .continuous))
             VStack(alignment: .leading, spacing: 3) {
-                Text(event.startDate.map { KlangradarDateTime.string($0, format: "EEE, d. MMM · HH:mm") } ?? "Termin folgt")
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(KlangradarTheme.accent)
-                Text(event.title)
-                    .font(.subheadline.weight(.semibold))
-                    .lineLimit(2)
-                    .foregroundStyle(.primary)
-                Text(event.venueName)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                Text(event.title).font(.headline).foregroundStyle(.primary).lineLimit(2)
+                Text([event.startDate.map { KlangradarDateTime.string($0, format: "EEE, d. MMM · HH:mm") }, event.venueName].compactMap { $0 }.joined(separator: " · "))
+                    .font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
-            .padding(10)
+            Spacer(minLength: 0)
+            Button { Task { await favorites.toggle(event.id) } } label: {
+                Image(systemName: favorites.ids.contains(event.id) ? "heart.fill" : "heart")
+                    .foregroundStyle(favorites.ids.contains(event.id) ? Color.red : Color.secondary)
+                    .frame(width: 32, height: 32)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(favorites.ids.contains(event.id) ? "Von Favoriten entfernen" : "Merken")
         }
-        .frame(width: 172, alignment: .leading)
-        .background(.thinMaterial)
-        .clipShape(.rect(cornerRadius: 16, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(.primary.opacity(0.06))
-        }
+        .padding(.horizontal, 12).padding(.vertical, 10)
+        .contentShape(Rectangle())
     }
 
     private func proposalCard(_ title: String, _ proposal: JSONObject, action: String) -> some View {
@@ -672,24 +645,29 @@ struct CoachMessageRow<Attachment: View>: View {
 
     // 08.11.2026: Frage dunkel rechts, Antwort als ruhiger Text über die
     // ganze Breite – wie ein Gespräch, nicht wie ein Chatbot.
+    // 14.11.2026 (Redesign): Frage als Akzent-Blase rechts, Antwort mit
+    // kleiner Absenderzeile und echter Formatierung (Listen, fett).
     var body: some View {
         if isUser {
             HStack {
                 Spacer(minLength: 56)
                 Text(text)
-                    .padding(.horizontal, 14).padding(.vertical, 11)
-                    .foregroundStyle(Color(uiColor: .systemBackground))
-                    .background(Color.primary, in: UnevenRoundedRectangle(topLeadingRadius: 18, bottomLeadingRadius: 18, bottomTrailingRadius: 4, topTrailingRadius: 18, style: .continuous))
+                    .padding(.horizontal, 14).padding(.vertical, 9)
+                    .foregroundStyle(.white)
+                    .background(KlangradarTheme.accent, in: .rect(cornerRadius: 19, style: .continuous))
             }
         } else {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 8) {
+                Label("Klangradar KI", systemImage: "sparkles")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(KlangradarTheme.accent)
                 TypewriterText(text: text, animate: animate)
                     .font(.body)
-                    .lineSpacing(3)
+                    .lineSpacing(2)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 attachment()
             }
-            .padding(.vertical, 4)
+            .padding(.vertical, 2)
         }
     }
 }
@@ -702,7 +680,8 @@ struct TypewriterText: View {
 
     var body: some View {
         let words = text.split(separator: " ", omittingEmptySubsequences: false)
-        Text(words.prefix(visibleWords).joined(separator: " "))
+        let shown = words.prefix(visibleWords).joined(separator: " ")
+        Text((try? AttributedString(markdown: shown, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(shown))
             .frame(maxWidth: .infinity, alignment: .leading)
             .task(id: text) {
                 guard animate, words.count > 3 else { visibleWords = .max; return }
@@ -719,11 +698,10 @@ struct TypewriterText: View {
 struct CoachTypingIndicator: View {
     @State private var phase = 0
     @State private var bounce = false
-    private let steps = ["Durchsuche Spielpläne …", "Prüfe deinen Geschmack …", "Wähle die besten Abende …", "Formuliere Antwort …"]
+    private let steps = ["Denke nach …", "Suche Antworten …", "Prüfe Spielpläne …", "Formuliere …"]
 
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
-            CoachOrb(size: 30, isThinking: true)
             HStack(spacing: 10) {
                 HStack(spacing: 4) {
                     ForEach(0..<3) { index in
@@ -739,7 +717,7 @@ struct CoachTypingIndicator: View {
                     .transition(.opacity)
             }
             .padding(.horizontal, 15).padding(.vertical, 12)
-            .background(.regularMaterial, in: UnevenRoundedRectangle(topLeadingRadius: 6, bottomLeadingRadius: 20, bottomTrailingRadius: 20, topTrailingRadius: 20, style: .continuous))
+            .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 19, style: .continuous))
             Spacer(minLength: 0)
         }
         .onAppear { bounce = true }
