@@ -3,9 +3,11 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
-import { NAV_GROUPS, findNavArea } from "@/components/nav-groups";
+import { ALL_NAV_LINKS, NAV_GROUPS, findNavArea } from "@/components/nav-groups";
+import { CountBadge, areaCount, useNavCounts, usePins } from "@/components/nav-extras";
+import { readRecent, type RecentEntry } from "@/components/recent-tracker";
 import { CommandPaletteButton } from "@/components/command-palette";
 
 export { NAV_GROUPS };
@@ -50,6 +52,14 @@ export function bestMatchingHref(pathname: string, hrefs: string[]): string | nu
 export function Sidebar({ userEmail }: { userEmail?: string }) {
   const pathname = usePathname();
   const [query, setQuery] = useState("");
+  const counts = useNavCounts();
+  const [pins, togglePin] = usePins();
+  const [recent, setRecent] = useState<RecentEntry[]>([]);
+  useEffect(() => {
+    // Nach dem Seitenwechsel neu lesen (RecentTracker schreibt im Browser).
+    const id = window.setTimeout(() => setRecent(readRecent().slice(0, 3)), 300);
+    return () => window.clearTimeout(id);
+  }, [pathname]);
   // Zustand pro Browser über useSyncExternalStore (Server rendert alles offen,
   // danach übernimmt der Browser den gespeicherten Stand ohne Hydration-Fehler).
   const collapsedRaw = useSyncExternalStore(subscribeCollapsed, readCollapsed, () => "[]");
@@ -110,6 +120,24 @@ export function Sidebar({ userEmail }: { userEmail?: string }) {
         />
       </label>
       <nav className="dashboard-sidebar-nav" aria-label="Redaktion">
+        {!normalizedQuery && pins.length > 0 && (
+          <div className="dashboard-nav-group">
+            <div className="dashboard-nav-group-toggle">Angeheftet</div>
+            <div className="flex flex-col gap-px">
+              {pins.map((href) => {
+                const link = ALL_NAV_LINKS.find((l) => l.href === href);
+                if (!link) return null;
+                return (
+                  <Link key={href} href={link.href} aria-current={currentHref === link.href ? "page" : undefined}
+                    className={`dashboard-nav-item ${currentHref === link.href ? "dashboard-nav-item-active" : ""}`}>
+                    <span className="truncate">{link.label === link.area ? link.label : `${link.area} · ${link.label}`}</span>
+                    <CountBadge value={counts[link.href] ?? 0} />
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        )}
         {groups.map((group) => {
           // Beim Suchen und für die Gruppe der aktuellen Seite immer offen.
           const containsActive = group.items.some((item) => item.href === activeHref);
@@ -140,14 +168,27 @@ export function Sidebar({ userEmail }: { userEmail?: string }) {
                     );
                     return (
                       <div key={item.href} className="flex flex-col gap-px">
-                        <Link
-                          href={item.href}
-                          tabIndex={open ? undefined : -1}
-                          aria-current={active && currentHref === item.href ? "page" : undefined}
-                          className={`dashboard-nav-item ${active ? "dashboard-nav-item-active" : ""}`}
-                        >
-                          {item.label}
-                        </Link>
+                        <div className="group relative flex items-center">
+                          <Link
+                            href={item.href}
+                            tabIndex={open ? undefined : -1}
+                            aria-current={active && currentHref === item.href ? "page" : undefined}
+                            className={`dashboard-nav-item flex-1 pr-7 ${active ? "dashboard-nav-item-active" : ""}`}
+                          >
+                            <span className="truncate">{item.label}</span>
+                            <CountBadge value={areaCount(item, counts)} />
+                          </Link>
+                          <button
+                            type="button"
+                            tabIndex={open ? undefined : -1}
+                            onClick={() => togglePin(item.href)}
+                            aria-label={pins.includes(item.href) ? `${item.label} lösen` : `${item.label} anheften`}
+                            title={pins.includes(item.href) ? "Lösen" : "Anheften"}
+                            className={`absolute right-1 rounded px-1 text-[12px] ${pins.includes(item.href) ? "text-[#2D2A6E]" : "text-[#B5B5B5] opacity-0 group-hover:opacity-100 focus:opacity-100"}`}
+                          >
+                            {pins.includes(item.href) ? "★" : "☆"}
+                          </button>
+                        </div>
                         {subLinks.length > 0 && (
                           <div className="ml-3 flex flex-col gap-px border-l border-[#EAEAEA] pl-2">
                             {subLinks.map((tab) => (
@@ -158,7 +199,8 @@ export function Sidebar({ userEmail }: { userEmail?: string }) {
                                 aria-current={currentHref === tab.href ? "page" : undefined}
                                 className={`dashboard-nav-item text-[13px] ${currentHref === tab.href ? "font-medium text-[#111111]" : ""}`}
                               >
-                                {tab.label}
+                                <span className="truncate">{tab.label}</span>
+                                <CountBadge value={counts[tab.href] ?? 0} />
                               </Link>
                             ))}
                           </div>
@@ -173,6 +215,18 @@ export function Sidebar({ userEmail }: { userEmail?: string }) {
         })}
         {groups.length === 0 && <p className="px-3 py-2 text-[13px] text-[#6B6B6B]">Kein Bereich gefunden.</p>}
       </nav>
+      {recent.length > 0 && !normalizedQuery && (
+        <div className="border-t border-[#EAEAEA] pt-3">
+          <p className="px-3 pb-1 text-[11px] font-medium uppercase tracking-wide text-[#6B6B6B]">Zuletzt geöffnet</p>
+          {recent.map((entry) => (
+            <Link key={entry.href} href={entry.href} className="dashboard-nav-item text-[13px]">
+              <span className="truncate">{entry.title}</span>
+              <span className="ml-auto shrink-0 text-[11px] text-[#9A9A9A]">{entry.kind}</span>
+            </Link>
+          ))}
+        </div>
+      )}
+      <p className="px-3 text-[11px] text-[#9A9A9A]">Tastenkürzel: <kbd>g</kbd> + Buchstabe · <kbd>?</kbd> Hilfe</p>
       <div className="border-t border-[#EAEAEA] pt-3">
         <Link href="/veranstalter" className="dashboard-nav-item">
           Zum Veranstalterportal

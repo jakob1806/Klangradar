@@ -7,6 +7,7 @@ import type { Metadata } from "next";
 import { MobileNavigation } from "@/components/mobile-navigation";
 import { MobileTableAdapter } from "@/components/mobile-table-adapter";
 import { RecentTracker } from "@/components/recent-tracker";
+import { NavShortcuts } from "@/components/nav-extras";
 import { SignOutButton } from "@/components/sign-out-button";
 import { CityFilterSwitcher } from "@/components/city-filter-switcher";
 import { createClient } from "@/lib/supabase/server";
@@ -30,6 +31,7 @@ export default async function DashboardLayout({
     <div className="dashboard-shell flex min-h-full">
       <MobileTableAdapter />
       <RecentTracker />
+      <NavShortcuts />
       <div className="hidden shrink-0 md:flex">
         <Sidebar userEmail={user?.email} />
       </div>
