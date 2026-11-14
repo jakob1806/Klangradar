@@ -3,12 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { findNavArea } from "@/components/nav-groups";
+import { CountBadge, useNavCounts } from "@/components/nav-extras";
 
 // Reiter des aktuellen Bereichs (siehe NAV_GROUPS[].items[].tabs) oben auf
 // jeder Seite — ersetzt die vielen Einzeleinträge der Seitenleiste.
 export function SectionTabs() {
   const pathname = usePathname();
   const match = findNavArea(pathname);
+  const counts = useNavCounts();
   const tabs = match?.area.tabs;
   if (!tabs || tabs.length < 2) return null;
 
@@ -25,7 +27,7 @@ export function SectionTabs() {
               active ? "border-[#2D2A6E] text-[#111111]" : "border-transparent text-[#6B6B6B] hover:text-[#111111]"
             }`}
           >
-            {tab.label}
+            <span className="inline-flex items-center gap-1.5">{tab.label}<CountBadge value={counts[tab.href] ?? 0} /></span>
           </Link>
         );
       })}
