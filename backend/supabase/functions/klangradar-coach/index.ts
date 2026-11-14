@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { callAiFunctionPreferGemini, type AiFunctionDeclaration } from "../_shared/ai/router.ts";
+import { researchViaGeminiGrounding } from "../_shared/geminiGroundedSearch.ts";
 
 type Json = Record<string, unknown>;
 type Filters = { date_from?: string; date_to?: string; max_budget?: number; city?: string; query?: string; exclude_opera?: boolean };
@@ -130,6 +131,29 @@ function localPlan(message: string, defaultCity?: string): { intent: string; sho
 }
 
 /** Klare Suchanfrage: lokale Vorplanung genügt, KI-Planer unnötig. */
+// 14.11.2026 (Nutzerfeedback „beantwortet Fragen nicht oder falsch“):
+// Wissens- und Servicefragen („Was kostet die Garderobe …“, „Wie lange
+// dauert …“, „Wer war …“) sind keine Konzertsuche – vorher landeten sie in
+// der Suche und bekamen eine Trefferliste statt einer Antwort.
+function isKnowledgeQuestion(message: string): boolean {
+  const q = message.toLocaleLowerCase("de-DE");
+  if (/\b(finde|such|empfiehl|empfehl|zeig mir|welche konzerte|was läuft|was passt|konzerte (am|heute|morgen|diese|nächste))/.test(q)) return false;
+  return /\?|^(was|wie|wer|wann|wo|warum|wieso|weshalb|welche[rs]?|gibt es|kann man|darf man|muss man|ist|sind|hat|erklär|erzähl)\b|kostet|preis der|garderobe|parken|parkplatz|anreise|einlass|dresscode|kleidung|dauer|pause|barrierefrei|rollstuhl|essen|trinken|sitzplan|akustik|geschichte|bedeutung/.test(q);
+}
+
+// Spielstätten, die in der Frage genannt werden – mit ihren hinterlegten
+// Fakten (Anreise, Parken, Barrierefreiheit, Beschreibung) als Wissensbasis.
+// deno-lint-ignore no-explicit-any
+async function venueFacts(db: any, message: string): Promise<Json[]> {
+  const words = (message.match(/[A-Za-zÄÖÜäöüß][\wÄÖÜäöüß-]{4,}/g) ?? []).slice(0, 8);
+  if (!words.length) return [];
+  const { data } = await db.from("venues")
+    .select("name,description_de,address_street,address_city,capacity,accessibility,parking_info_de,mvv_stops,website_url")
+    .or(words.map((w) => `name.ilike.%${w.replace(/[%,()]/g, "")}%`).join(","))
+    .limit(2);
+  return ((data ?? []) as Json[]).map((v) => ({ ...v, description_de: String(v.description_de ?? "").slice(0, 900) }));
+}
+
 function isClearSearch(message: string, plan: ReturnType<typeof localPlan>): boolean {
   const q = message.toLocaleLowerCase("de-DE");
   if (/merk dir|merke dir|vergiss|mein ziel|ziel:|ich möchte (mehr|öfter|jeden)/.test(q)) return false;
@@ -259,6 +283,25 @@ Deno.serve(async (req) => {
     memoryProposal = safeObject(planned.args.memoryProposalJson);
     goalProposal = safeObject(planned.args.goalProposalJson);
   }
+  const knowledge = isKnowledgeQuestion(message);
+  if (knowledge) {
+    local.intent = "knowledge";
+    local.shouldSearchEvents = false;
+  }
+  // Wissensbasis: genannte Spielstätten, bisheriger Gesprächsverlauf und –
+  // bei Wissensfragen – eine Websuche (Gemini mit Google-Suche, kostenlos).
+  const historyConversation = typeof body.conversation_id === "string" ? body.conversation_id : undefined;
+  const geminiKey = Deno.env.get("GEMINI_API_KEY");
+  const [venues, historyRows, web] = await Promise.all([
+    venueFacts(db, message).catch(() => []),
+    historyConversation
+      ? db.from("coach_messages").select("role,content").eq("conversation_id", historyConversation).order("created_at", { ascending: false }).limit(6).then((r: { data: Json[] | null }) => r.data ?? [])
+      : Promise.resolve([] as Json[]),
+    knowledge && geminiKey
+      ? researchViaGeminiGrounding(geminiKey, `Beantworte kurz und sachlich auf Deutsch (Klassik/Konzertbesuch, Kontext Stadt ${defaultCity ?? "München"}): ${message}`).catch(() => null)
+      : Promise.resolve(null),
+  ]);
+  const history = (historyRows as Json[]).reverse().map((m) => `${m.role === "user" ? "Nutzer" : "KI"}: ${String(m.content ?? "").slice(0, 400)}`).join("\n");
   // Nutzerfeedback: "Konzerte heute" fand nichts, obwohl welche existieren --
   // der externe Planer lieferte date_from/date_to als IDENTISCHES Datum ohne
   // Uhrzeit (z.B. beide "2026-09-05"), wodurch coach_search_events' Bereich
@@ -303,8 +346,8 @@ Deno.serve(async (req) => {
     // in KlangradarCoachView). Prompt jetzt auf 2-3 kurze SÄTZE (nicht
     // Absätze) verschärft, mit explizitem Verbot, Treffer im Fließtext
     // aufzuzählen.
-    `Du bist die persönliche Klangradar KI, ein kundiger Begleiter für Klassik und Oper. Verwende niemals die Bezeichnung Coach. Schreib wie ein Mensch, der sich auskennt und gern hilft: natürlich, direkt, auf Augenhöhe, ohne Floskeln wie 'Gerne!', 'Großartige Frage' oder 'Als KI…', ohne Emojis und ohne Werbesprache. Beantworte zuerst genau die Frage, dann höchstens ein hilfreicher Gedanke dazu. Meist 2-4 Sätze; nur wenn die Frage es wirklich braucht (z. B. Ablauf eines Abends), darfst du eine kurze Liste mit Spiegelstrichen verwenden. Wenn du etwas nicht sicher weißt, sag das kurz. Zähle Konzerttitel, Daten oder Programme NICHT im Fließtext auf -- die Treffer erscheinen bereits als eigene Karten unter deiner Antwort, wiederhole sie nicht. Nutze ausschließlich gelieferte Daten. Nenne Verhaltenstrends nur als Zusammenhang, nie als Ursache. Bei signal_quality=low sage kurz, dass du die Person noch kennenlernst. Eventnamen nur aus Echte Treffer, und nur falls du eins konkret hervorhebst. Gib eine konkrete nächste Aktion.${usedRelaxedSearch ? " Zur Anfrage selbst gab es keinen exakten Treffer -- sag das offen in einem Halbsatz und biete die gelieferten Treffer als Alternativen an." : ""}`,
-    `Frage: ${message}\nIntent: ${local.intent}\nPersönlicher Kontext: ${JSON.stringify(dashboard.context)}\nBeobachtete Trends: ${JSON.stringify(dashboard.trends)}\nEchte Treffer${usedRelaxedSearch ? " (Alternativen, keine exakte Übereinstimmung)" : ""}: ${JSON.stringify(events ?? [])}`,
+    `Du bist die persönliche Klangradar KI, ein kundiger Begleiter für Klassik und Oper. Verwende niemals die Bezeichnung Coach. Schreib wie ein Mensch, der sich auskennt und gern hilft: natürlich, direkt, auf Augenhöhe, ohne Floskeln wie 'Gerne!', 'Großartige Frage' oder 'Als KI…', ohne Emojis und ohne Werbesprache. Beantworte zuerst genau die Frage, dann höchstens ein hilfreicher Gedanke dazu. Meist 2-4 Sätze; nur wenn die Frage es wirklich braucht (z. B. Ablauf eines Abends), darfst du eine kurze Liste mit Spiegelstrichen verwenden. Wenn du etwas nicht sicher weißt, sag das kurz. Zähle Konzerttitel, Daten oder Programme NICHT im Fließtext auf -- die Treffer erscheinen bereits als eigene Karten unter deiner Antwort, wiederhole sie nicht. Nutze ausschließlich gelieferte Daten. Nenne Verhaltenstrends nur als Zusammenhang, nie als Ursache. Bei signal_quality=low sage kurz, dass du die Person noch kennenlernst. Eventnamen nur aus Echte Treffer, und nur falls du eins konkret hervorhebst. Bei Wissens- und Servicefragen (Preise, Garderobe, Anreise, Werke, Künstler:innen) antworte direkt mit den Fakten aus Spielstätten-Fakten und Webrecherche; nenne Zahlen konkret und sag, wenn sie sich ändern können. Erfinde keine Preise. Gib eine konkrete nächste Aktion nur, wenn sie hilft.${usedRelaxedSearch ? " Zur Anfrage selbst gab es keinen exakten Treffer -- sag das offen in einem Halbsatz und biete die gelieferten Treffer als Alternativen an." : ""}`,
+    `${history ? `Bisheriges Gespräch:\n${history}\n\n` : ""}${venues.length ? `Spielstätten-Fakten aus Klangradar: ${JSON.stringify(venues)}\n` : ""}${web?.text ? `Webrecherche (aktuell, mit Quellen ${(web.sources ?? []).slice(0, 3).map((x) => x.url).join(", ")}): ${web.text.slice(0, 2500)}\n` : ""}Frage: ${message}\nIntent: ${local.intent}\nPersönlicher Kontext: ${JSON.stringify(dashboard.context)}\nBeobachtete Trends: ${JSON.stringify(dashboard.trends)}\nEchte Treffer${usedRelaxedSearch ? " (Alternativen, keine exakte Übereinstimmung)" : ""}: ${JSON.stringify(events ?? [])}`,
     ANSWER_FUNCTION,
   );
   if (answerResult) provider = answerResult.provider;
@@ -316,7 +359,10 @@ Deno.serve(async (req) => {
         : `Ich habe ${eventCount} passende Veranstaltungen gefunden. Die Reihenfolge berücksichtigt deine bestätigten Interessen, dein aktuelles Check-in und deine bisherigen Aktionen.\n\nÖffne einen Treffer für Programm, Tickets und Venue-Informationen – oder sag mir, was ich ändern soll, zum Beispiel „günstiger“, „früher“ oder „etwas Neues“.`
       : "Dazu finde ich gerade keine echte Veranstaltung in Klangradar, auch nicht mit gelockerten Filtern. Ich kann Datum, Budget, Ort oder Musikrichtung ändern, ohne den restlichen Gesprächskontext zu verlieren."
     : "Ich lerne deinen Kulturrhythmus aus bestätigten Interessen, gespeicherten Events, Ticket- und Kalenderaktionen sowie freiwilligen Check-ins. Je mehr belastbare Signale vorliegen, desto konkreter kann ich erklären, warum etwas zu dir passt."
-  const answer = String(answerResult?.args.answer ?? fallbackAnswer);
+  const knowledgeFallback = web?.text
+    ? web.text.slice(0, 1200)
+    : "Das kann ich gerade nicht sicher beantworten – meine Wissensquellen sind im Moment nicht erreichbar. Versuch es bitte gleich noch einmal.";
+  const answer = String(answerResult?.args.answer ?? (knowledge ? knowledgeFallback : fallbackAnswer));
   const suggestedPrompts = Array.isArray(answerResult?.args.suggestedPrompts) ? answerResult!.args.suggestedPrompts.map(String).slice(0, 4) : ["Was passt dieses Wochenende zu mir?", "Erkläre mein Geschmacksprofil", "Plane einen Abend unter 50 €"];
   let conversationID = typeof body.conversation_id === "string" ? body.conversation_id : undefined;
   if (!conversationID) {
