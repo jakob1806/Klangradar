@@ -350,6 +350,15 @@ extension UserRepository {
         return MusicTaste(json: value)
     }
 
+    /// 18.11.2026: Geschmack aus Klangradar selbst (Gefolgte, gemerkte,
+    /// besuchte Konzerte, Tagebuch) – ersetzt frühere Klangradar-Signale.
+    func musicTasteFromApp(cityID: UUID?, token: String) async -> MusicTaste? {
+        var parameters: JSONObject = [:]
+        if let cityID { parameters["p_city_id"] = .string(cityID.uuidString.lowercased()) }
+        let value: JSONObject? = try? await client.rpc("music_taste_from_app", parameters: parameters, accessToken: token)
+        return MusicTaste(json: value)
+    }
+
     func disconnectMusicTaste(token: String) async {
         let _: JSONValue? = try? await client.rpc("music_taste_disconnect", accessToken: token)
     }

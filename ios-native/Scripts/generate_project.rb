@@ -234,6 +234,7 @@ app_target.build_configurations.each do |config|
     "INFOPLIST_KEY_NSMicrophoneUsageDescription" => "Klangradar nutzt das Mikrofon nur, wenn du die Sprachsuche oder die Shazam-Erkennung startest.",
     "INFOPLIST_KEY_NSSpeechRecognitionUsageDescription" => "Klangradar wandelt deine Sucheingabe in Text um.",
     "INFOPLIST_KEY_NSCalendarsWriteOnlyAccessUsageDescription" => "Klangradar legt Konzerte nur nach deiner Bestätigung in deinem Kalender an.",
+    "INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription" => "Klangradar prüft, ob ein Konzert mit deinen Terminen kollidiert, und trägt Konzerte mit Ticket auf Wunsch automatisch ein.",
     "INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents" => "YES",
     "INFOPLIST_KEY_UILaunchScreen_Generation" => "YES",
     "INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad" => "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight",

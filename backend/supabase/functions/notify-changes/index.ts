@@ -83,6 +83,22 @@ function notificationFor(
         : added ? `Neu dabei: ${added}.` : `Nicht mehr dabei: ${removed}.`;
       return { type: "cast_changed", prefsColumn: null, title: eventTitle, body };
     }
+    case "tickets": {
+      // Erstellt von Claude Code (18.11.2026): detect_ticket_changes() –
+      // ausverkauftes, gemerktes Konzert hat wieder Karten.
+      return {
+        type: "tickets_available",
+        prefsColumn: null,
+        title: eventTitle,
+        body: change.new_value === "few_left" ? "Es gibt wieder Karten – aber nur noch wenige." : "Es gibt wieder Karten.",
+      };
+    }
+    case "price_min": {
+      const oldPrice = Number(change.old_value), newPrice = Number(change.new_value);
+      if (!Number.isFinite(oldPrice) || !Number.isFinite(newPrice)) return null;
+      const fmt = (v: number) => v.toLocaleString("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+      return { type: "price_drop", prefsColumn: null, title: eventTitle, body: `Karten jetzt ab ${fmt(newPrice)} (vorher ab ${fmt(oldPrice)}).` };
+    }
     default:
       return null;
   }
@@ -156,9 +172,15 @@ Deno.serve(async (req) => {
     .order("changed_at", { ascending: false })
     .limit(limit)
     .returns<EventChangeRow[]>();
-  const [statusResult, timeResult] = await Promise.all([fetchChanges(["status"], 200), fetchChanges(["start_datetime"], 300)]);
-  const fetchError = statusResult.error ?? timeResult.error;
-  const changes = [...(statusResult.data ?? []), ...(timeResult.data ?? [])];
+  // 18.11.2026: Besetzung, Restkarten und Preis wurden bisher nie geladen
+  // (nur status/start_datetime) – deren Pushes kamen daher nie an.
+  const [statusResult, timeResult, otherResult] = await Promise.all([
+    fetchChanges(["status"], 200),
+    fetchChanges(["start_datetime"], 300),
+    fetchChanges(["cast", "tickets", "price_min"], 200),
+  ]);
+  const fetchError = statusResult.error ?? timeResult.error ?? otherResult.error;
+  const changes = [...(statusResult.data ?? []), ...(timeResult.data ?? []), ...(otherResult.data ?? [])];
 
   if (fetchError) {
     return new Response(JSON.stringify({ error: fetchError.message }), { status: 500 });

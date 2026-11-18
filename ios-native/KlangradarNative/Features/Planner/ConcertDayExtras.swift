@@ -753,6 +753,9 @@ private struct TicketSeatEditor: View {
             // 14.11.2026: passt das Ticket zu diesem Konzert (Datum, Ort, Titel)?
             let match = TicketMatch.check(text: scan.text, title: event.title, venue: event.venues?.name, start: event.startDate)
             ticketMismatch = match.isSuspicious ? match : nil
+            if let start = event.startDate, !match.isSuspicious {
+                CalendarSync.addIfNeeded(title: event.title, start: start, end: start.addingTimeInterval(2.5 * 3600), location: event.venues?.name, slug: event.slug)
+            }
             if match.isSuspicious { showsMismatchAlert = true }
             // 09.11.2026: neues Ticket → Erkanntes ersetzt alte Werte (auch
             // Fehlerkennungen früherer Versionen); nicht Erkanntes bleibt.

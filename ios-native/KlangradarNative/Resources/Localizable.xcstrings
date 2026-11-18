@@ -71,6 +71,16 @@
         }
       }
     },
+    "12 Monate": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "12 months"
+          }
+        }
+      }
+    },
     "2. Leistungsbeschreibung": {
       "localizations": {
         "en": {
@@ -111,6 +121,16 @@
         }
       }
     },
+    "4 Wochen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "4 weeks"
+          }
+        }
+      }
+    },
     "4. Registrierung": {
       "localizations": {
         "en": {
@@ -147,6 +167,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "5. Disclaimer for Event Data"
+          }
+        }
+      }
+    },
+    "6 Monate": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "6 months"
           }
         }
       }
@@ -681,6 +711,16 @@
         }
       }
     },
+    "Analysieren": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analyse"
+          }
+        }
+      }
+    },
     "Anbieten": {
       "localizations": {
         "en": {
@@ -977,6 +1017,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Reset to Default Content"
+          }
+        }
+      }
+    },
+    "Aufheben": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unblock"
           }
         }
       }
@@ -1341,6 +1391,16 @@
         }
       }
     },
+    "Blockierte Personen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Blocked people"
+          }
+        }
+      }
+    },
     "Breitengrad (lat)": {
       "localizations": {
         "en": {
@@ -1551,6 +1611,16 @@
         }
       }
     },
+    "Das hörst du": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What you listen to"
+          }
+        }
+      }
+    },
     "Dateien": {
       "localizations": {
         "en": {
@@ -1661,6 +1731,16 @@
         }
       }
     },
+    "Dein Konto, Favoriten, Listen, Konzerttagebuch, Chatnachrichten, Fotos und Einstellungen werden dauerhaft gelöscht. Ein Plus-Abo kündigst du separat in den Einstellungen deiner Apple-ID. Das kann nicht rückgängig gemacht werden.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your account, favourites, lists, concert diary, chat messages, photos and settings will be permanently deleted. Cancel a Plus subscription separately in your Apple ID settings. This cannot be undone."
+          }
+        }
+      }
+    },
     "Dein Konto, Favoriten, Listen, besuchte Konzerte und Einstellungen werden dauerhaft gelöscht. Das kann nicht rückgängig gemacht werden.": {
       "localizations": {
         "en": {
@@ -1676,7 +1756,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Your Concert Evening"
+            "value": "Your concert evening"
           }
         }
       }
@@ -1771,12 +1851,32 @@
         }
       }
     },
+    "Deine Interpret:innen & Ensembles": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your performers & ensembles"
+          }
+        }
+      }
+    },
     "Deine KI-Einblicke": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Your AI Insights"
+          }
+        }
+      }
+    },
+    "Deine Komponist:innen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your composers"
           }
         }
       }
@@ -1821,6 +1921,16 @@
         }
       }
     },
+    "Deine meistgehörten Künstler:innen – und ob sie bei uns spielen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your most-played artists – and whether they perform near you."
+          }
+        }
+      }
+    },
     "Der Abend": {
       "localizations": {
         "en": {
@@ -1837,6 +1947,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "The code is valid for 60 minutes. Check your spam folder too."
+          }
+        }
+      }
+    },
+    "Der Kalenderzugriff wurde abgelehnt.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Calendar access was denied."
           }
         }
       }
@@ -2671,6 +2791,16 @@
         }
       }
     },
+    "Erkannt": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recognised"
+          }
+        }
+      }
+    },
     "Erlaube den Zugriff in den Einstellungen, um Freunde aus deinen Kontakten zu finden.": {
       "localizations": {
         "en": {
@@ -2821,6 +2951,16 @@
         }
       }
     },
+    "Farbe frei wählen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose any colour"
+          }
+        }
+      }
+    },
     "Fast ausverkauft": {
       "localizations": {
         "en": {
@@ -2951,6 +3091,16 @@
         }
       }
     },
+    "Folgst du": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Following"
+          }
+        }
+      }
+    },
     "Foto": {
       "localizations": {
         "en": {
@@ -3057,6 +3207,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Add Photos"
+          }
+        }
+      }
+    },
+    "Frag mich etwas …": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ask me anything …"
           }
         }
       }
@@ -3321,6 +3481,16 @@
         }
       }
     },
+    "Geburtstag": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Birthday"
+          }
+        }
+      }
+    },
     "Geburtstag hinterlegen": {
       "localizations": {
         "en": {
@@ -3447,6 +3617,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Planned"
+          }
+        }
+      }
+    },
+    "Gesamt": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All time"
           }
         }
       }
@@ -3771,6 +3951,16 @@
         }
       }
     },
+    "ICH WAR DABEI": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I WAS THERE"
+          }
+        }
+      }
+    },
     "Ich akzeptiere die AGB.": {
       "localizations": {
         "en": {
@@ -3851,12 +4041,32 @@
         }
       }
     },
+    "Ihr könnt euch danach wieder finden. Eine Freundschaft musst du neu anfragen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You will be able to find each other again. You'll need to send a new friend request."
+          }
+        }
+      }
+    },
     "Ihr seid danach nicht mehr befreundet und könnt euch weder finden noch einladen.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "You'll no longer be friends and can't find or invite each other."
+          }
+        }
+      }
+    },
+    "Im Konzert, im Radio oder zu Hause: Erkannte Titel landen in deinem Musikgeschmack und in deiner Shazam-Mediathek. Das Mikrofon läuft nur, solange du erkennen lässt.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "At a concert, on the radio or at home: recognised tracks are added to your music taste and your Shazam library. The microphone only runs while recognising."
           }
         }
       }
@@ -3897,6 +4107,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Listen in Apple Music"
+          }
+        }
+      }
+    },
+    "In Apple Music öffnen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open in Apple Music"
           }
         }
       }
@@ -4391,6 +4611,26 @@
         }
       }
     },
+    "Klangradar liest deine Termine nur auf dem iPhone, um Überschneidungen zu zeigen. Konzerte, für die du ein Ticket hinterlegst, landen mit Erinnerung zwei Stunden vorher in deinem Standardkalender.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klangradar reads your events only on your iPhone to show conflicts. Concerts you add a ticket for are added to your default calendar with a reminder two hours before."
+          }
+        }
+      }
+    },
+    "Klangradar liest nur dein öffentliches Hörprofil – keine Zugangsdaten.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klangradar only reads your public listening profile – no login details."
+          }
+        }
+      }
+    },
     "Klangradar liest nur deine meistgehörten Künstler:innen und Titel – keine Zugangsdaten, keine Playlists. Du kannst die Verknüpfung jederzeit trennen; dann löschen wir die Daten.": {
       "localizations": {
         "en": {
@@ -4541,6 +4781,16 @@
         }
       }
     },
+    "Konzert-Rückblick": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Concert recap"
+          }
+        }
+      }
+    },
     "Konzertabend": {
       "localizations": {
         "en": {
@@ -4611,12 +4861,32 @@
         }
       }
     },
+    "Konzerte für dich": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Concerts for you"
+          }
+        }
+      }
+    },
     "Konzerte für dich entdecken": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Discover Concerts for You"
+          }
+        }
+      }
+    },
+    "Konzerte mit Ticket eintragen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add concerts with a ticket"
           }
         }
       }
@@ -4797,6 +5067,46 @@
           "stringUnit": {
             "state": "translated",
             "value": "Get Inspired"
+          }
+        }
+      }
+    },
+    "Last.fm": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last.fm"
+          }
+        }
+      }
+    },
+    "Last.fm öffnen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Last.fm"
+          }
+        }
+      }
+    },
+    "Last.fm – auch für Spotify": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last.fm – also for Spotify"
+          }
+        }
+      }
+    },
+    "Last.fm-Nutzername": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last.fm username"
           }
         }
       }
@@ -4991,6 +5301,16 @@
         }
       }
     },
+    "Mehr anzeigen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show more"
+          }
+        }
+      }
+    },
     "Mehr aus jedem Konzertabend.": {
       "localizations": {
         "en": {
@@ -5117,6 +5437,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Use My Location"
+          }
+        }
+      }
+    },
+    "Meistgehörte Titel": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Most-played tracks"
           }
         }
       }
@@ -5267,6 +5597,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sign in with Google"
+          }
+        }
+      }
+    },
+    "Mit Last.fm anmelden": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign in with Last.fm"
           }
         }
       }
@@ -5801,6 +6141,16 @@
         }
       }
     },
+    "Nicht in Klangradar": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not in Klangradar"
+          }
+        }
+      }
+    },
     "Nicht jetzt": {
       "localizations": {
         "en": {
@@ -5837,6 +6187,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Nothing to fix."
+          }
+        }
+      }
+    },
+    "Niemand blockiert": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No one blocked"
           }
         }
       }
@@ -6131,12 +6491,42 @@
         }
       }
     },
+    "Oder nur den Namen eingeben": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Or just enter your username"
+          }
+        }
+      }
+    },
+    "Offizielle Website": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Official website"
+          }
+        }
+      }
+    },
     "Offizielles Programm öffnen": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Open Official Programme"
+          }
+        }
+      }
+    },
+    "Offline – gespeicherter Stand. Ticket und Platz sind auf deinem iPhone.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Offline – saved version. Your ticket and seat are on your iPhone."
           }
         }
       }
@@ -6257,6 +6647,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Partner Perks"
+          }
+        }
+      }
+    },
+    "Passt das Ticket zu diesem Konzert?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Does this ticket match this concert?"
           }
         }
       }
@@ -6771,6 +7171,16 @@
         }
       }
     },
+    "Quelle": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Source"
+          }
+        }
+      }
+    },
     "REDAKTIONSMODUS": {
       "localizations": {
         "en": {
@@ -6931,6 +7341,26 @@
         }
       }
     },
+    "Restaurant vorschlagen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suggest a restaurant"
+          }
+        }
+      }
+    },
+    "Restaurants in der Nähe": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restaurants nearby"
+          }
+        }
+      }
+    },
     "Rolle, z. B. Dirigent, Violine": {
       "localizations": {
         "en": {
@@ -6976,7 +7406,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Share Recap"
+            "value": "Share recap"
           }
         }
       }
@@ -7077,6 +7507,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sending failed – please email jakob@klangradar.com."
+          }
+        }
+      }
+    },
+    "Shazam": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shazam"
+          }
+        }
+      }
+    },
+    "Shazam – Musik erkennen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shazam – recognise music"
           }
         }
       }
@@ -7696,7 +8146,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Remove Ticket"
+            "value": "Remove ticket"
           }
         }
       }
@@ -7831,6 +8281,16 @@
         }
       }
     },
+    "Tippe ein Restaurant an, um dafür zu stimmen. Jede:r hat eine Stimme.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap a restaurant to vote for it. Everyone has one vote."
+          }
+        }
+      }
+    },
     "Titel": {
       "localizations": {
         "en": {
@@ -7897,6 +8357,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Suggest meeting point"
+          }
+        }
+      }
+    },
+    "Trotzdem behalten": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep anyway"
           }
         }
       }
@@ -8491,6 +8961,26 @@
         }
       }
     },
+    "Weniger anzeigen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show less"
+          }
+        }
+      }
+    },
+    "Wenn du jemanden blockierst, erscheint die Person hier.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "People you block appear here."
+          }
+        }
+      }
+    },
     "Wer deine E-Mail-Adresse oder Telefonnummer gespeichert hat, kann dich finden. Die Nummer wird nur verschlüsselt (SHA-256) gespeichert.": {
       "localizations": {
         "en": {
@@ -8631,6 +9121,16 @@
         }
       }
     },
+    "Werke, die du hörst": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Works you listen to"
+          }
+        }
+      }
+    },
     "Werke, die du liebst": {
       "localizations": {
         "en": {
@@ -8677,6 +9177,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Edit Value Before Applying"
+          }
+        }
+      }
+    },
+    "Wetter am Abend": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Weather tonight"
           }
         }
       }
@@ -8817,6 +9327,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Saved directly in Supabase and therefore available in the admin portal, the web/Vercel output, Flutter and Native."
+          }
+        }
+      }
+    },
+    "Wo essen wir vorher?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Where shall we eat before?"
           }
         }
       }
@@ -9011,6 +9531,16 @@
         }
       }
     },
+    "Zugriff in den Einstellungen erlauben": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow access in Settings"
+          }
+        }
+      }
+    },
     "Zuletzt bearbeitet": {
       "localizations": {
         "en": {
@@ -9047,6 +9577,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Add to Calendar"
+          }
+        }
+      }
+    },
+    "Zum Partner": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Go to partner"
           }
         }
       }
@@ -9117,6 +9657,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "cancel anytime"
+          }
+        }
+      }
+    },
+    "fm": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "fm"
           }
         }
       }
@@ -9281,6 +9831,16 @@
         }
       }
     },
+    "Öffnet die Anmeldeseite von Last.fm. Noch kein Konto? Dort kannst du dich in einer Minute registrieren. Spotify verbindest du danach einmal unter last.fm → Einstellungen → Anwendungen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opens the Last.fm sign-in page. No account yet? You can register there in a minute. Then connect Spotify once under last.fm → Settings → Applications."
+          }
+        }
+      }
+    },
     "Über Klangradar": {
       "localizations": {
         "en": {
@@ -9347,6 +9907,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Applied"
+          }
+        }
+      }
+    },
+    "Überschneidungen anzeigen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show conflicts"
           }
         }
       }

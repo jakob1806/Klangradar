@@ -54,6 +54,13 @@ struct MusicTasteView: View {
         guard let token = auth.accessToken else { isLoading = false; return }
         taste = await repository.musicTaste(cityID: cityStore.selectedCity?.id, token: token)
         isLoading = false
+        // Klangradar-Signale (Gefolgte, gemerkte/besuchte Konzerte) höchstens
+        // einmal pro Tag neu einrechnen – funktioniert auch ohne Musikdienst.
+        let key = "musicTasteFromAppAt"
+        if Date().timeIntervalSince1970 - UserDefaults.standard.double(forKey: key) > 86_400 {
+            UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: key)
+            if let fresh = await repository.musicTasteFromApp(cityID: cityStore.selectedCity?.id, token: token) { taste = fresh }
+        }
         // Last.fm nach 7 Tagen still neu einlesen.
         if let taste, taste.providers.contains("lastfm"), !lastfmUsername.isEmpty,
            let updated = taste.updatedAt, updated < .now.addingTimeInterval(-7 * 86_400), working == nil {
@@ -98,7 +105,7 @@ struct MusicTasteView: View {
         case "overall": "insgesamt"
         default: "der letzten 12 Monate"
         }
-        let source = taste.providers.map { $0 == "lastfm" ? "Last.fm" : $0 == "apple_music" ? "Apple Music" : $0 == "shazam" ? "Shazam" : "Spotify" }.joined(separator: " & ")
+        let source = taste.providers.map { $0 == "lastfm" ? "Last.fm" : $0 == "apple_music" ? "Apple Music" : $0 == "shazam" ? "Shazam" : $0 == "klangradar" ? "Klangradar" : "Spotify" }.joined(separator: " & ")
         var text = "Aus \(taste.artistCount) Künstler:innen und \(taste.trackCount) Titeln \(period) · \(source)"
         if let updated = taste.updatedAt { text += " · Stand \(KlangradarDateTime.string(updated, format: "d. MMM"))" }
         return text
