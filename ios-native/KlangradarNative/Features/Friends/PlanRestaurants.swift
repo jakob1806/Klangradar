@@ -21,11 +21,11 @@ extension UserRepository {
         }
     }
 
-    func addPlanRestaurant(_ planID: UUID, item: MKMapItem, token: String) async throws {
-        var parameters: JSONObject = ["p_plan_id": .string(planID.uuidString), "p_name": .string(item.name ?? "Restaurant")]
-        if let address = item.placemark.title { parameters["p_address"] = .string(address) }
-        parameters["p_lat"] = .number(item.placemark.coordinate.latitude)
-        parameters["p_lng"] = .number(item.placemark.coordinate.longitude)
+    func addPlanRestaurant(_ planID: UUID, name: String, address: String?, latitude: Double, longitude: Double, token: String) async throws {
+        var parameters: JSONObject = ["p_plan_id": .string(planID.uuidString), "p_name": .string(name)]
+        if let address { parameters["p_address"] = .string(address) }
+        parameters["p_lat"] = .number(latitude)
+        parameters["p_lng"] = .number(longitude)
         let _: JSONValue = try await client.rpc("add_plan_restaurant", parameters: parameters, accessToken: token)
     }
 
@@ -91,7 +91,10 @@ struct PlanRestaurantSection: View {
 
     private func add(_ item: MKMapItem) async {
         guard let repository = SocialStore.shared.repository, let token = SocialStore.shared.token else { return }
-        try? await repository.addPlanRestaurant(planID, item: item, token: token)
+        // Nur einfache Werte weitergeben (MKMapItem ist nicht Sendable).
+        let name = item.name ?? "Restaurant", address = item.placemark.title
+        let coordinate = item.placemark.coordinate
+        try? await repository.addPlanRestaurant(planID, name: name, address: address, latitude: coordinate.latitude, longitude: coordinate.longitude, token: token)
         Haptics.confirm()
         await load()
     }
