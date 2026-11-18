@@ -739,7 +739,7 @@ private struct AppleMapItemDetail: UIViewControllerRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator(dismiss: dismiss) }
 
-    final class Coordinator: NSObject, MKMapItemDetailViewControllerDelegate {
+    @MainActor final class Coordinator: NSObject, MKMapItemDetailViewControllerDelegate {
         let dismiss: DismissAction
         init(dismiss: DismissAction) { self.dismiss = dismiss }
         // Das X in Apples Ortskarte schließt das Sheet.
