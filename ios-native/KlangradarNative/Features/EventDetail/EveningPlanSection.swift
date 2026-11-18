@@ -136,30 +136,68 @@ struct EveningPlanSection: View {
     // MARK: Wetter (02.11.2026)
 
     @ViewBuilder
+    // 18.11.2026 (Redesign wie Apple Wetter): Abendhimmel als Karte, große
+    // Temperatur, Stundenleiste mit farbigen Symbolen (auf weißem Grund
+    // waren Wolken unsichtbar), Regenwahrscheinlichkeit unter dem Symbol.
     private var weatherSection: some View {
         if let weather {
             VStack(alignment: .leading, spacing: 10) {
                 Text("Wetter am Abend").font(.headline)
-                VStack(alignment: .leading, spacing: 14) {
-                    weatherCard(weather)
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack(alignment: .center, spacing: 14) {
+                        Text("\(weather.temperature)°")
+                            .font(.system(size: 52, weight: .thin))
+                            .monospacedDigit()
+                        VStack(alignment: .leading, spacing: 3) {
+                            Label(weather.summary.prefix(1).uppercased() + weather.summary.dropFirst(), systemImage: weather.symbol)
+                                .symbolRenderingMode(.multicolor)
+                                .font(.headline)
+                            Text(startDate.map { "Zum Beginn um " + KlangradarDateTime.string($0, format: "HH:mm") } ?? "Zum Beginn")
+                                .font(.subheadline).opacity(0.8)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    if let hint = weather.hint {
+                        Label(hint, systemImage: "info.circle")
+                            .font(.subheadline)
+                            .padding(.horizontal, 12).padding(.vertical, 8)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(.white.opacity(0.14), in: .rect(cornerRadius: 12, style: .continuous))
+                    }
                     if weatherHours.count > 1 {
+                        Divider().overlay(.white.opacity(0.3))
                         HStack(spacing: 0) {
                             ForEach(weatherHours) { hour in
-                                VStack(spacing: 6) {
-                                    Text(hour.label).font(.caption2.weight(.semibold)).foregroundStyle(hour.isStart ? KlangradarTheme.accent : .secondary)
-                                    Image(systemName: hour.weather.symbol).symbolRenderingMode(.multicolor).font(.title3).frame(height: 24)
-                                    Text("\(hour.weather.temperature)°").font(.subheadline.weight(.semibold)).monospacedDigit()
-                                    Text(hour.weather.precipitationChance >= 20 ? "\(hour.weather.precipitationChance) %" : " ")
-                                        .font(.caption2).foregroundStyle(.blue)
+                                VStack(spacing: 8) {
+                                    Text(hour.label)
+                                        .font(.caption.weight(hour.isStart ? .bold : .medium))
+                                        .opacity(hour.isStart ? 1 : 0.8)
+                                    VStack(spacing: 2) {
+                                        Image(systemName: hour.weather.symbol)
+                                            .symbolRenderingMode(.multicolor)
+                                            .font(.title3)
+                                            .frame(height: 26)
+                                        Text(hour.weather.precipitationChance >= 20 ? "\(hour.weather.precipitationChance) %" : " ")
+                                            .font(.caption2.weight(.semibold))
+                                            .foregroundStyle(Color(red: 0.55, green: 0.85, blue: 1))
+                                    }
+                                    Text("\(hour.weather.temperature)°").font(.headline).monospacedDigit()
                                 }
                                 .frame(maxWidth: .infinity)
+                                .padding(.vertical, 6)
+                                .background(hour.isStart ? AnyShapeStyle(.white.opacity(0.16)) : AnyShapeStyle(.clear), in: .rect(cornerRadius: 12, style: .continuous))
                             }
                         }
-                        .padding(.horizontal, 16)
                     }
                 }
-                .padding(.bottom, weatherHours.count > 1 ? 14 : 0)
-                .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 20, style: .continuous))
+                .foregroundStyle(.white)
+                .padding(18)
+                .background(
+                    LinearGradient(colors: [Color(red: 0.11, green: 0.16, blue: 0.33), Color(red: 0.24, green: 0.33, blue: 0.55)],
+                                   startPoint: .top, endPoint: .bottom),
+                    in: .rect(cornerRadius: 22, style: .continuous)
+                )
+                .accessibilityElement(children: .combine)
             }
         } else if let startDate, startDate.timeIntervalSinceNow > 15 * 86_400 {
             Label("Die Wettervorschau erscheint ab \(KlangradarDateTime.string(startDate.addingTimeInterval(-15 * 86_400), format: "EEEE, d. MMMM")).", systemImage: "cloud.sun")
@@ -168,25 +206,6 @@ struct EveningPlanSection: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 20, style: .continuous))
         }
-    }
-
-    private func weatherCard(_ weather: ConcertWeather) -> some View {
-        HStack(spacing: 14) {
-            Image(systemName: weather.symbol)
-                .symbolRenderingMode(.multicolor)
-                .font(.title)
-                .frame(width: 44)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Wetter zum Konzertbeginn").font(.caption).foregroundStyle(.secondary)
-                Text("\(weather.temperature) °C · \(weather.summary)").font(.headline)
-                if let hint = weather.hint {
-                    Text(hint).font(.subheadline).foregroundStyle(.secondary)
-                }
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(16)
-        .accessibilityElement(children: .combine)
     }
 
     // MARK: Karte & Countdown
@@ -595,11 +614,15 @@ private struct PlaceCard: View {
     var venueCoordinate: CLLocationCoordinate2D? = nil
 
     @State private var photo: UIImage?
+    @State private var showsPlaceCard = false
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         Button {
-            // Direkt in Apple Karten mit dem Lokal (Nutzerwunsch 25.10.2026).
-            item.openInMaps()
+            // 18.11.2026: Apples Ortskarte (mit den Fotos aus Apple Karten,
+            // Bewertungen, Öffnungszeiten) direkt in der App; vor iOS 18 wie
+            // bisher Apple Karten öffnen.
+            if #available(iOS 18.0, *) { showsPlaceCard = true } else { item.openInMaps() }
         } label: {
             VStack(alignment: .leading, spacing: 0) {
                 ZStack(alignment: .bottomLeading) {
@@ -632,6 +655,7 @@ private struct PlaceCard: View {
         }
         .buttonStyle(.plain)
         .task { await loadPhoto() }
+        .modifier(PlaceCardSheet(item: item, isPresented: $showsPlaceCard))
     }
 
     private var categoryName: String? {
@@ -658,8 +682,17 @@ private struct PlaceCard: View {
                 let options = MKMapSnapshotter.Options()
                 options.region = MKCoordinateRegion(center: item.placemark.coordinate, latitudinalMeters: 220, longitudinalMeters: 220)
                 options.size = CGSize(width: 360, height: 220)
-                options.pointOfInterestFilter = .excludingAll
-                photo = try? await MKMapSnapshotter(options: options).start().image
+                options.pointOfInterestFilter = MKPointOfInterestFilter(including: [.restaurant, .cafe])
+                options.traitCollection = UITraitCollection(userInterfaceStyle: colorScheme == .dark ? .dark : .light)
+                if let snapshot = try? await MKMapSnapshotter(options: options).start() {
+                    // Lokal als Nadel in der Mitte markieren.
+                    let point = snapshot.point(for: item.placemark.coordinate)
+                    photo = UIGraphicsImageRenderer(size: snapshot.image.size).image { _ in
+                        snapshot.image.draw(at: .zero)
+                        let pin = UIImage(systemName: "mappin.circle.fill")?.withTintColor(.systemOrange, renderingMode: .alwaysOriginal)
+                        pin?.draw(in: CGRect(x: point.x - 14, y: point.y - 14, width: 28, height: 28))
+                    }
+                }
                 return
             }
         }
@@ -667,6 +700,20 @@ private struct PlaceCard: View {
         let options = MKLookAroundSnapshotter.Options()
         options.size = CGSize(width: 360, height: 220)
         photo = try? await MKLookAroundSnapshotter(scene: scene, options: options).snapshot.image
+    }
+}
+
+/// Apples Ortskarte (iOS 18+) als Sheet – zeigt die Fotos und Infos aus Apple Karten.
+private struct PlaceCardSheet: ViewModifier {
+    let item: MKMapItem
+    @Binding var isPresented: Bool
+
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content.mapItemDetailSheet(isPresented: $isPresented, item: item)
+        } else {
+            content
+        }
     }
 }
 
