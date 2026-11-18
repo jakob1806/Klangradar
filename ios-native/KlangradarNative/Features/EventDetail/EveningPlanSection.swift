@@ -703,17 +703,47 @@ private struct PlaceCard: View {
     }
 }
 
-/// Apples Ortskarte (iOS 18+) als Sheet – zeigt die Fotos und Infos aus Apple Karten.
+/// Apples Ortskarte (iOS 18+) – Apples eigene Ansicht (MKMapItemDetailViewController,
+/// keine Nachbildung) als großes Sheet, das sich bis auf einen Rand oben öffnet
+/// und sich nach unten wegwischen lässt.
 private struct PlaceCardSheet: ViewModifier {
     let item: MKMapItem
     @Binding var isPresented: Bool
 
     func body(content: Content) -> some View {
         if #available(iOS 18.0, *) {
-            content.mapItemDetailSheet(isPresented: $isPresented, item: item)
+            content.sheet(isPresented: $isPresented) {
+                AppleMapItemDetail(item: item)
+                    .ignoresSafeArea()
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.hidden)
+            }
         } else {
             content
         }
+    }
+}
+
+@available(iOS 18.0, *)
+private struct AppleMapItemDetail: UIViewControllerRepresentable {
+    let item: MKMapItem
+    @Environment(\.dismiss) private var dismiss
+
+    func makeUIViewController(context: Context) -> MKMapItemDetailViewController {
+        let controller = MKMapItemDetailViewController(mapItem: item, displaysMap: false)
+        controller.delegate = context.coordinator
+        return controller
+    }
+
+    func updateUIViewController(_ controller: MKMapItemDetailViewController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator { Coordinator(dismiss: dismiss) }
+
+    final class Coordinator: NSObject, MKMapItemDetailViewControllerDelegate {
+        let dismiss: DismissAction
+        init(dismiss: DismissAction) { self.dismiss = dismiss }
+        // Das X in Apples Ortskarte schließt das Sheet.
+        func mapItemDetailViewControllerDidFinish(_ detailViewController: MKMapItemDetailViewController) { dismiss() }
     }
 }
 
