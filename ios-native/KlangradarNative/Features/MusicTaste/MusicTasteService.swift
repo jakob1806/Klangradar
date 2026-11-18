@@ -305,8 +305,9 @@ struct MusicTaste: Sendable {
         composers = allPersons.filter { $0.bool("is_composer") == true }.compactMap { row in
             row.uuid("id").map { Item(id: $0, title: row.string("title") ?? "", subtitle: nil, imageURL: row.url("photo_url"), slug: row.string("slug"), score: row.number("score") ?? 0, upcoming: row.integer("upcoming") ?? 0) }
         }
+        var seenNames = Set<String>()
         listened = json.objects("listened").compactMap { row in
-            guard let name = row.string("name") else { return nil }
+            guard let name = row.string("name"), seenNames.insert(name.lowercased()).inserted else { return nil }
             return Listened(name: name, rank: row.integer("rank") ?? 0, personID: row.uuid("person_id"), ensembleID: row.uuid("ensemble_id"), upcoming: row.integer("upcoming") ?? 0, imageURL: row.url("photo_url"))
         }
         topTracks = json.objects("top_tracks").compactMap { row in

@@ -8,6 +8,7 @@ Neu
 • Konzertplan mit Freunden: Restaurants vorschlagen und abstimmen.
 • Konzert-Rückblick als Bild teilen (… → Rückblick teilen).
 • Saalpläne für weitere Häuser, mehr englische Texte.
+• Musikgeschmack: große Porträts und Konzertkarten zum Wischen. Werke aufgeräumt (Duplikate, Schreibweisen).
 
 Musikgeschmack neu
 • Übersichtliche Liste: Konzerte für dich (nur deine Stadt), Das hörst du, Komponist:innen, Interpret:innen & Ensembles, Werke, Spielstätten – mit Begründung je Konzert und Folgen-Button.
@@ -55,4 +56,3 @@ Allgemein
 • Mehr Texte auf Englisch.
 
 Chat mit Freunden
-• Neu gestaltet: Nachrichten werden gruppiert, Reaktionen per langem Druck als Leiste über der Nachricht, Doppeltippen = Applaus, „Gesehen“ unter der letzten eigenen Nachricht.

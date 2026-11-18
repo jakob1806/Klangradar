@@ -166,7 +166,7 @@ struct MusicTasteView: View {
     }
 
     private func sectionTitle(_ text: String) -> some View {
-        Text(text).font(.title3.bold())
+        Text(text).font(.title2.bold())
     }
 
     enum RowKind: Hashable {
@@ -185,7 +185,7 @@ struct MusicTasteView: View {
     @ViewBuilder
     private func section(_ title: String, items: [MusicTaste.Item], kind: RowKind, empty: String? = nil) -> some View {
         if !items.isEmpty || empty != nil {
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 14) {
                 HStack(alignment: .firstTextBaseline) {
                     sectionTitle(title)
                     Spacer()
@@ -205,10 +205,108 @@ struct MusicTasteView: View {
                 if items.isEmpty, let empty {
                     Text(empty).font(.subheadline).foregroundStyle(.secondary)
                 } else {
-                    rowList(Array(items.prefix(5)), kind: kind)
+                    // 18.11.2026 (Redesign, „viel zu klein“): große Karten bzw.
+                    // Porträts zum Wischen wie in Apple Music, Werke als Liste.
+                    switch kind {
+                    case .event: eventCards(Array(items.prefix(10)))
+                    case .person, .performer: artistCircles(Array(items.prefix(15)), kind: kind)
+                    case .venue: venueCards(Array(items.prefix(10)))
+                    case .work: rowList(Array(items.prefix(5)), kind: kind)
+                    }
                 }
             }
         }
+    }
+
+    // MARK: Große Darstellungen (18.11.2026)
+
+    private func eventCards(_ items: [MusicTaste.Item]) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(alignment: .top, spacing: 14) {
+                ForEach(items) { item in
+                    Button { if let slug = item.slug { DeepLinkRouter.shared.handle(route: "/event/\(slug)") } } label: {
+                        VStack(alignment: .leading, spacing: 8) {
+                            CachedAsyncImage(url: item.imageURL, maxPixel: 700) { phase in
+                                if let image = phase.image { image.resizable().scaledToFill() }
+                                else { LinearGradient(colors: [KlangradarTheme.accent.opacity(0.35), .purple.opacity(0.25)], startPoint: .topLeading, endPoint: .bottomTrailing).overlay { Image(systemName: "music.note").font(.largeTitle).foregroundStyle(.white.opacity(0.8)) } }
+                            }
+                            .frame(width: 270, height: 170)
+                            .clipShape(.rect(cornerRadius: 18, style: .continuous))
+                            if let detail = detailLine(item, kind: .event) {
+                                Text(detail.uppercased()).font(.caption2.weight(.bold)).tracking(0.6).foregroundStyle(KlangradarTheme.accent).lineLimit(1)
+                            }
+                            Text(item.title).font(.headline).foregroundStyle(.primary).lineLimit(2).multilineTextAlignment(.leading)
+                            if let subtitle = item.subtitle { Text(subtitle).font(.subheadline).foregroundStyle(.secondary).lineLimit(1) }
+                        }
+                        .frame(width: 270, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .scrollClipDisabled()
+    }
+
+    private func artistCircles(_ items: [MusicTaste.Item], kind: RowKind) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(alignment: .top, spacing: 18) {
+                ForEach(items) { item in
+                    let entity = kind.entity(for: item.id)
+                    let following = follows.isFollowing(kind: entity, id: item.id)
+                    VStack(spacing: 8) {
+                        NavigationLink {
+                            EntityDetailView(route: EntityRoute(kind: entity, identifier: item.id.uuidString.lowercased()), repository: contentRepository)
+                        } label: {
+                            VStack(spacing: 8) {
+                                SocialAvatar(name: item.title, url: item.imageURL, size: 112)
+                                Text(item.title).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+                                    .lineLimit(2).multilineTextAlignment(.center)
+                                Text(item.upcoming > 0 ? (item.upcoming == 1 ? "1 Konzert" : "\(item.upcoming) Konzerte") : "Keine Termine")
+                                    .font(.caption).foregroundStyle(item.upcoming > 0 ? KlangradarTheme.accent : .secondary)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        Button {
+                            Task { await follows.toggle(kind: entity, id: item.id) }
+                        } label: {
+                            Text(following ? "Folgst du" : "Folgen").font(.caption.weight(.semibold))
+                                .padding(.horizontal, 14).padding(.vertical, 6)
+                                .foregroundStyle(following ? Color.secondary : Color.white)
+                                .background(following ? Color(uiColor: .tertiarySystemFill) : KlangradarTheme.accent, in: .capsule)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .frame(width: 120)
+                }
+            }
+        }
+        .scrollClipDisabled()
+    }
+
+    private func venueCards(_ items: [MusicTaste.Item]) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(alignment: .top, spacing: 14) {
+                ForEach(items) { item in
+                    NavigationLink {
+                        EntityDetailView(route: EntityRoute(kind: .venue, identifier: item.id.uuidString.lowercased()), repository: contentRepository)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 6) {
+                            CachedAsyncImage(url: item.imageURL, maxPixel: 600) { phase in
+                                if let image = phase.image { image.resizable().scaledToFill() }
+                                else { Color(uiColor: .tertiarySystemFill).overlay { Image(systemName: "building.columns").font(.title).foregroundStyle(.secondary) } }
+                            }
+                            .frame(width: 210, height: 130)
+                            .clipShape(.rect(cornerRadius: 16, style: .continuous))
+                            Text(item.title).font(.headline).foregroundStyle(.primary).lineLimit(2).multilineTextAlignment(.leading)
+                            if let subtitle = item.subtitle { Text(subtitle).font(.subheadline).foregroundStyle(.secondary).lineLimit(1) }
+                        }
+                        .frame(width: 210, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .scrollClipDisabled()
     }
 
     private func rowList(_ items: [MusicTaste.Item], kind: RowKind) -> some View {
@@ -307,14 +405,14 @@ struct MusicTasteView: View {
             VStack(alignment: .leading, spacing: 10) {
                 sectionTitle("Das hörst du")
                 Text("Deine meistgehörten Künstler:innen – und ob sie bei uns spielen.").font(.subheadline).foregroundStyle(.secondary)
-                let shown = Array(taste.listened.prefix(showsAllTracks ? 40 : 8))
-                VStack(spacing: 0) {
-                    ForEach(Array(shown.enumerated()), id: \.element.id) { index, entry in
-                        listenedRow(entry)
-                        if index < shown.count - 1 { Divider().padding(.leading, 80) }
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(alignment: .top, spacing: 18) {
+                        ForEach(Array(taste.listened.prefix(30))) { entry in
+                            listenedTile(entry)
+                        }
                     }
                 }
-                .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 18, style: .continuous))
+                .scrollClipDisabled()
                 if !taste.topTracks.isEmpty && showsAllTracks {
                     Text("Meistgehörte Titel").font(.subheadline.weight(.semibold)).padding(.top, 4)
                     VStack(alignment: .leading, spacing: 10) {
@@ -329,11 +427,38 @@ struct MusicTasteView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 18, style: .continuous))
                 }
-                if taste.listened.count > 8 || !taste.topTracks.isEmpty {
-                    Button(showsAllTracks ? "Weniger anzeigen" : "Mehr anzeigen") { withAnimation { showsAllTracks.toggle() } }
+                if !taste.topTracks.isEmpty {
+                    Button(showsAllTracks ? "Titel ausblenden" : "Meistgehörte Titel anzeigen") { withAnimation { showsAllTracks.toggle() } }
                         .font(.subheadline.weight(.semibold))
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func listenedTile(_ entry: MusicTaste.Listened) -> some View {
+        let tile = VStack(spacing: 8) {
+            ZStack(alignment: .bottomTrailing) {
+                SocialAvatar(name: entry.name, url: entry.imageURL, size: 112)
+                    .opacity(entry.isMatched ? 1 : 0.45)
+                Text("\(entry.rank)").font(.caption.weight(.bold)).monospacedDigit().foregroundStyle(.white)
+                    .frame(minWidth: 28, minHeight: 28)
+                    .background(entry.isMatched ? KlangradarTheme.accent : Color.gray, in: .circle)
+                    .overlay { Circle().stroke(Color(uiColor: .systemGroupedBackground), lineWidth: 3) }
+            }
+            Text(entry.name).font(.subheadline.weight(.semibold)).foregroundStyle(entry.isMatched ? .primary : .secondary)
+                .lineLimit(2).multilineTextAlignment(.center)
+            Text(entry.isMatched ? (entry.upcoming > 0 ? (entry.upcoming == 1 ? "1 Konzert" : "\(entry.upcoming) Konzerte") : "In Klangradar") : "Nicht in Klangradar")
+                .font(.caption).foregroundStyle(entry.isMatched && entry.upcoming > 0 ? KlangradarTheme.accent : .secondary)
+        }
+        .frame(width: 120)
+        if let id = entry.personID ?? entry.ensembleID {
+            NavigationLink {
+                EntityDetailView(route: EntityRoute(kind: entry.personID != nil ? .person : .ensemble, identifier: id.uuidString.lowercased()), repository: contentRepository)
+            } label: { tile }
+            .buttonStyle(.plain)
+        } else {
+            tile
         }
     }
 

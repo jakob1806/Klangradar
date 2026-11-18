@@ -1197,7 +1197,7 @@ Deno.serve(async (req) => {
         const { data: sameNamedWorks } = await supabase
           .from("works")
           .select("id, title, composer_id, catalog_number, key_signature")
-          .ilike("title", `%${normalizedTitle.slice(0, 20)}%`);
+          .or(`title.ilike.%${w.title.trim().slice(0, 20).replace(/[%,()]/g, "")}%,title.ilike.%${normalizedTitle.slice(0, 20).replace(/[%,()]/g, "")}%`);
         // Werk-Identität pro Komponist (workIdentity.ts): Werkverzeichnis,
         // Gattung + Nummer oder bereinigter Titel. Fängt "5. Sinfonie" vs.
         // "Sinfonie Nr. 5 cis-Moll" vs. "Symphony No. 5" ab, die der reine
@@ -1213,7 +1213,13 @@ Deno.serve(async (req) => {
           const identity = workIdentity(w.title, w.catalogNumber);
           composerMatch = (composerWorks ?? []).find((candidate: { title: string; catalog_number: string | null }) =>
             sameWork(identity, workIdentity(candidate.title, candidate.catalog_number))
-          );
+          )
+            // 18.11.2026: gleicher normalisierter Titel beim selben Komponisten.
+            // Vorher fiel z. B. „Konzert in F für Klavier und Orchester“ durch
+            // (keine Nummer → sameWork false; die ilike-Vorauswahl unten suchte
+            // mit dem umlautlosen Titel „fur“ und fand „für“ nicht) – jeder
+            // Lauf legte das Werk neu an (138 Duplikate).
+            ?? (composerWorks ?? []).find((candidate: { title: string }) => normalizeTitleForMatch(candidate.title) === normalizedTitle);
         }
         const existingWork = composerMatch ?? (sameNamedWorks ?? []).find(
           (existing: { title: string; composer_id: string | null }) =>
