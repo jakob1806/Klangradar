@@ -305,8 +305,9 @@ struct MusicTaste: Sendable {
         composers = allPersons.filter { $0.bool("is_composer") == true }.compactMap { row in
             row.uuid("id").map { Item(id: $0, title: row.string("title") ?? "", subtitle: nil, imageURL: row.url("photo_url"), slug: row.string("slug"), score: row.number("score") ?? 0, upcoming: row.integer("upcoming") ?? 0) }
         }
+        var seenNames = Set<String>()
         listened = json.objects("listened").compactMap { row in
-            guard let name = row.string("name") else { return nil }
+            guard let name = row.string("name"), seenNames.insert(name.lowercased()).inserted else { return nil }
             return Listened(name: name, rank: row.integer("rank") ?? 0, personID: row.uuid("person_id"), ensembleID: row.uuid("ensemble_id"), upcoming: row.integer("upcoming") ?? 0, imageURL: row.url("photo_url"))
         }
         topTracks = json.objects("top_tracks").compactMap { row in
@@ -347,6 +348,15 @@ extension UserRepository {
         if let period { parameters["p_period"] = .string(period) }
         if merge { parameters["p_merge"] = .bool(true) }
         let value: JSONObject? = try await client.rpc("music_taste_analyze", parameters: parameters, accessToken: token)
+        return MusicTaste(json: value)
+    }
+
+    /// 18.11.2026: Geschmack aus Klangradar selbst (Gefolgte, gemerkte,
+    /// besuchte Konzerte, Tagebuch) – ersetzt frühere Klangradar-Signale.
+    func musicTasteFromApp(cityID: UUID?, token: String) async -> MusicTaste? {
+        var parameters: JSONObject = [:]
+        if let cityID { parameters["p_city_id"] = .string(cityID.uuidString.lowercased()) }
+        let value: JSONObject? = try? await client.rpc("music_taste_from_app", parameters: parameters, accessToken: token)
         return MusicTaste(json: value)
     }
 

@@ -234,6 +234,8 @@ struct PlanDetailView: View {
                         }
                     }
 
+                    PlanRestaurantSection(planID: planID, venueName: plan.event.venue)
+
                     Section("Deine Antwort") {
                         HStack(spacing: 8) {
                             responseButton("Dabei", status: "going", symbol: "checkmark", plan: plan)

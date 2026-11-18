@@ -434,19 +434,7 @@ private struct VenuePreviewSheet: View {
                         }
                     }
 
-                    // Kennzahlen wie „Bewertungen · Entfernung“ in Karten.
-                    HStack(spacing: 0) {
-                        if venue.upcomingEventCount > 0 {
-                            mapsStat("Konzerte", "\(venue.upcomingEventCount)", symbol: "music.note")
-                        }
-                        if let next = events.first?.startDate {
-                            mapsStat("Als Nächstes", KlangradarDateTime.string(next, format: "EE, d. MMM"), symbol: "calendar")
-                        }
-                        if let distanceText {
-                            mapsStat("Entfernung", distanceText, symbol: "location")
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
+                    // 18.11.2026: Kennzahlenzeile (Konzerte/Als Nächstes/Entfernung) entfernt – Nutzerwunsch.
 
                     // Ein einzelnes Bild über die volle Breite, unverzerrt
                     // (füllt und wird beschnitten); mehrere als Galerie.

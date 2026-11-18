@@ -1,5 +1,15 @@
 Neu in dieser Version
 
+Neu
+• Restkarten- und Preisalarm für gemerkte Konzerte.
+• Kalender (Profil → Einstellungen → Kalender): Überschneidungen anzeigen, Konzerte mit Ticket automatisch eintragen.
+• Konzerttag offline: Programm & Infos gespeichert, Ticket und Platz immer auf dem iPhone.
+• Musikgeschmack lernt auch aus Gefolgten, gemerkten und besuchten Konzerten.
+• Konzertplan mit Freunden: Restaurants vorschlagen und abstimmen.
+• Konzert-Rückblick als Bild teilen (… → Rückblick teilen).
+• Saalpläne für weitere Häuser, mehr englische Texte.
+• Musikgeschmack: große Porträts und Konzertkarten zum Wischen. Werke aufgeräumt (Duplikate, Schreibweisen).
+
 Musikgeschmack neu
 • Übersichtliche Liste: Konzerte für dich (nur deine Stadt), Das hörst du, Komponist:innen, Interpret:innen & Ensembles, Werke, Spielstätten – mit Begründung je Konzert und Folgen-Button.
 • Bessere Erkennung (Komponist aus dem Titel, ungefähre Namen), Last.fm-Zeitraum wählbar, Aktualisierung nach 7 Tagen.
@@ -46,11 +56,3 @@ Allgemein
 • Mehr Texte auf Englisch.
 
 Chat mit Freunden
-• Neu gestaltet: Nachrichten werden gruppiert, Reaktionen per langem Druck als Leiste über der Nachricht, Doppeltippen = Applaus, „Gesehen“ unter der letzten eigenen Nachricht.
-• Unter Freunde → Sprechblasen-Symbol: Einzel- und Gruppenchats, Reaktionen per langem Druck, Nachrichten löschen.
-• Konzertseite → „…“ → „An Freunde senden“: Konzert als Karte oder als Einladung verschicken.
-• Auf dem Freundesprofil direkt „Nachricht“.
-
-Platzerkennung (neu)
-• Liest jetzt auch „Sitz“, „Tür“, „Aufgang“, Etagen („2. OG“) und Bereiche ohne Beschriftung („Rang Mitte“). Preis, Kategorie, Adresse und Ticketnummer werden ignoriert.
-• Bezeichnungen wie auf dem Ticket: „Block“ kann „Rang“, „Bereich“ oder „Parkett“ sein, „Platz“ auch „Sitz“. Weitere Angaben (Etage, Kategorie …) per „Angabe hinzufügen“.

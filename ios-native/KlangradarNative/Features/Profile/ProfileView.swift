@@ -670,6 +670,7 @@ struct ProfileView: View {
                     )
                 )
             }
+            NavigationLink("Kalender") { CalendarSettingsView() }
             NavigationLink("Blockierte Personen") { BlockedUsersView() }
             Button("Problem melden") { showsSupport = true }
                 .sheet(isPresented: $showsSupport) { SupportSheet(auth: auth, repository: userRepository) }

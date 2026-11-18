@@ -11,6 +11,8 @@ struct EventDetailView: View {
     @State private var showsShareToFriends = false
     @State private var isLoading = true
     @State private var loadError: String?
+    @State private var isOfflineCopy = false
+    @State private var showsRecap = false
     @State private var fullScreenImage: FullScreenImageReference?
     @State private var showsAllOtherDates = false
     @State private var showsAllParticipants = false
@@ -87,6 +89,14 @@ struct EventDetailView: View {
                             // Bis zu 4 Mitwirkende stehen schon unter "Wer spielt?".
                             if !PerformerBriefs.replacesParticipantList(detail) { participants(detail) }
                             ticketDetails(detail)
+                            if isOfflineCopy {
+                                Label("Offline – gespeicherter Stand. Ticket und Platz sind auf deinem iPhone.", systemImage: "wifi.slash")
+                                    .font(.subheadline).foregroundStyle(.secondary)
+                                    .padding(12).frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 14, style: .continuous))
+                                    .padding(.horizontal, 16)
+                            }
+                            CalendarConflictNote(event: event).padding(.horizontal, 16)
                             SeatCard(event: event, detail: detail)
                             // 14.11.2026: auch bei gemerkten Konzerten (Merken = „ich gehe
                             // wahrscheinlich hin“) – sonst fehlten Route und Restaurants.
@@ -146,6 +156,9 @@ struct EventDetailView: View {
         )) { Button("OK", role: .cancel) { attendanceError = nil } } message: {
             Text(attendanceError ?? "Bitte versuche es erneut.")
         }
+        .sheet(isPresented: $showsRecap) {
+            ConcertRecapSheet(event: event, program: recapProgram)
+        }
         .task {
             EngagementLogger.shared.logView(eventID: event.id)
             async let attendance: Void = loadAttendance()
@@ -154,9 +167,23 @@ struct EventDetailView: View {
                 if let base = try await repository.eventDetailBase(slug: event.slug) {
                     detail = base
                     isLoading = false
-                    detail = await repository.enrichingDetail(base)
+                    let enriched = await repository.enrichingDetail(base)
+                    detail = enriched
+                    // Konzerttag offline (18.11.2026): gemerkte/geplante Konzerte der
+                    // nächsten Tage lokal sichern.
+                    if OfflineConcertCache.shouldKeep(start: event.startDate),
+                       willAttend || favorites.ids.contains(event.id) || SharedSeatStore.seat(forSlug: event.slug) != nil {
+                        OfflineConcertCache.save(enriched, slug: event.slug)
+                    }
                 }
-            } catch { loadError = error.localizedDescription }
+            } catch {
+                if let cached = OfflineConcertCache.load(slug: event.slug) {
+                    detail = cached
+                    isOfflineCopy = true
+                } else {
+                    loadError = error.localizedDescription
+                }
+            }
             isLoading = false
             await attendance
             await attending
@@ -237,6 +264,9 @@ struct EventDetailView: View {
                             Button("Per SharePlay ansehen", systemImage: "shareplay") {
                                 Task { await ConcertTogetherActivity(slug: event.slug, title: event.title).startOrShare() }
                             }
+                            if isAttended || (event.startDate ?? .distantFuture) < .now {
+                                Button("Rückblick teilen", systemImage: "photo.on.rectangle.angled") { showsRecap = true }
+                            }
                             if (event.startDate ?? .distantPast) > .now {
                                 Button(favorites.ids.contains(event.id) ? "Restkarten-Alarm an" : "Bei Restkarten melden",
                                        systemImage: favorites.ids.contains(event.id) ? "bell.fill" : "bell") {
@@ -313,6 +343,18 @@ struct EventDetailView: View {
                 .font(.headline)
             }
         }
+    }
+
+    /// Komponisten des Programms für die Rückblick-Karte.
+    private var recapProgram: String? {
+        guard let detail else { return nil }
+        var names: [String] = []
+        for row in detail.objects("event_works") {
+            guard let full = row.object("works")?.object("persons")?.string("full_name"),
+                  let last = full.split(separator: " ").last.map(String.init), !names.contains(last) else { continue }
+            names.append(last)
+        }
+        return names.isEmpty ? nil : names.prefix(4).joined(separator: " · ")
     }
 
     @MainActor
