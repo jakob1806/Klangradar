@@ -762,7 +762,8 @@ struct ConcertWeather: Sendable {
     static func forecast(at coordinate: CLLocationCoordinate2D, for date: Date) async -> (atStart: ConcertWeather, hours: [Hour])? {
         guard let table = await hourly(at: coordinate, for: date) else { return nil }
         let start = Calendar.current.dateInterval(of: .hour, for: date)?.start ?? date
-        guard let atStart = table[start] else { return nil }
+        // Nächstliegende Stunde, falls genau diese fehlt.
+        guard let atStart = table[start] ?? table.min(by: { abs($0.key.timeIntervalSince(start)) < abs($1.key.timeIntervalSince(start)) }).flatMap({ abs($0.key.timeIntervalSince(start)) <= 3 * 3600 ? $0.value : nil }) else { return nil }
         let hours = (-1...3).compactMap { offset -> Hour? in
             let d = start.addingTimeInterval(Double(offset) * 3600)
             return table[d].map { Hour(date: d, weather: $0, isStart: offset == 0) }
@@ -823,23 +824,34 @@ struct ConcertWeather: Sendable {
             URLQueryItem(name: "timezone", value: "Europe/Berlin"),
             URLQueryItem(name: "forecast_days", value: "16"),
         ]
-        guard let url = components.url,
-              let (data, _) = try? await URLSession.shared.data(from: url),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let hourly = json["hourly"] as? [String: Any],
-              let times = hourly["time"] as? [String],
-              let temps = hourly["temperature_2m"] as? [Double],
-              let rain = hourly["precipitation_probability"] as? [Any],
-              let codes = hourly["weather_code"] as? [Int] else { return nil }
+        // 19.11.2026: tolerant lesen – Open-Meteo liefert für spätere Stunden
+        // teils `null`; die starre Umwandlung in [Double]/[Int] ließ dann die
+        // ganze Vorhersage (und die Wetterkachel) verschwinden.
+        guard let url = components.url else { return nil }
+        var json: [String: Any]?
+        for attempt in 0..<2 where json == nil {
+            if attempt > 0 { try? await Task.sleep(for: .seconds(1)) }
+            if let (data, _) = try? await URLSession.shared.data(from: url) {
+                json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            }
+        }
+        guard let hourly = json?["hourly"] as? [String: Any],
+              let times = hourly["time"] as? [String] else { return nil }
+        func numbers(_ key: String) -> [Double?] {
+            ((hourly[key] as? [Any]) ?? []).map { ($0 as? NSNumber)?.doubleValue }
+        }
+        let temps = numbers("temperature_2m"), rain = numbers("precipitation_probability"), codes = numbers("weather_code")
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = TimeZone(identifier: "Europe/Berlin")
         formatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
         var table: [Date: ConcertWeather] = [:]
-        for (index, time) in times.enumerated() where index < temps.count && index < codes.count {
-            guard let d = formatter.date(from: time) else { continue }
-            let chance = (index < rain.count ? rain[index] as? Int : nil) ?? 0
-            table[d] = ConcertWeather(temperature: Int(temps[index].rounded()), precipitationChance: chance, code: codes[index])
+        for (index, time) in times.enumerated() {
+            guard let d = formatter.date(from: time),
+                  index < temps.count, let temp = temps[index] else { continue }
+            let code = index < codes.count ? Int(codes[index] ?? 3) : 3
+            let chance = index < rain.count ? Int(rain[index] ?? 0) : 0
+            table[d] = ConcertWeather(temperature: Int(temp.rounded()), precipitationChance: chance, code: code)
         }
         return table
     }
